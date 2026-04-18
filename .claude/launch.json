@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FACTS UI (Remix 3 dev)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@factstack/ui-remix", "dev"],
+      "port": 3000
+    },
+    {
+      "name": "All dev servers (Turbo)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev"],
+      "port": 3000
+    }
+  ]
+}

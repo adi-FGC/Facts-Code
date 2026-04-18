@@ -1,0 +1,72 @@
+<style>
+    :root {
+        --neo-page-bg: #fff;
+
+        --neo-blob-a-start: #3245ff;
+        --neo-blob-a-end: #bc52ee;
+        --neo-blob-b-start: #d83333;
+        --neo-blob-b-end: #f041ff;
+
+        --neo-blob-opacity: 0.154;
+        --neo-backdrop-blur: 100px;
+
+        --neo-glass-bg: rgb(15 23 43 / 0.1);
+        --neo-glass-border: rgb(255 255 255 / 0.2);
+        --neo-glass-blur: 8px;
+        --neo-glass-radius: 24px;
+    }
+
+    .neo-scene {
+        position: relative;
+        min-height: 100vh;
+        overflow: hidden;
+        isolation: isolate;
+        background: var(--neo-page-bg);
+    }
+
+    .neo-scene::before,
+    .neo-scene::after {
+        content: "";
+        position: absolute;
+        z-index: -1;
+        pointer-events: none;
+        opacity: var(--neo-blob-opacity);
+        filter: blur(var(--neo-backdrop-blur));
+        transform-origin: center;
+    }
+
+    .neo-scene::before {
+        width: 72rem;
+        height: 68rem;
+        left: -18rem;
+        top: 18rem;
+        background: linear-gradient(135deg, var(--neo-blob-a-start), var(--neo-blob-a-end));
+        border-radius: 38% 62% 55% 45% / 44% 39% 61% 56%;
+        transform: rotate(-18deg);
+    }
+
+    .neo-scene::after {
+        width: 92rem;
+        height: 64rem;
+        right: -26rem;
+        top: -8rem;
+        background: linear-gradient(145deg, var(--neo-blob-b-start), var(--neo-blob-b-end));
+        border-radius: 59% 41% 47% 53% / 39% 57% 43% 61%;
+        transform: rotate(16deg);
+    }
+
+    .neo-glass-panel {
+        background: var(--neo-glass-bg);
+        border: 1px solid var(--neo-glass-border);
+        border-radius: var(--neo-glass-radius);
+        backdrop-filter: blur(var(--neo-glass-blur));
+        -webkit-backdrop-filter: blur(var(--neo-glass-blur));
+        padding: 2rem;
+    }
+</style>
+
+<section class="neo-scene">
+    <div class="neo-glass-panel">
+        Your content here
+    </div>
+</section>

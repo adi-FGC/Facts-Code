@@ -3,3 +3,7 @@ packages:
   - "apps/*"
   - "plugins/*"
   - "examples/*"
+allowBuilds:
+  esbuild: true
+# better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
+# Keep this allowBuilds block if you ever add a native module; pnpm 10 gates build scripts by default.

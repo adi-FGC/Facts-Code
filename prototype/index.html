@@ -1,0 +1,3743 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>FACTS · AI Coding Tracker Stack</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='6' fill='%234ade80'/%3E%3Cpath d='M5.5 8.5l2 2 3-4' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+
+    <!-- No-flash theme boot — light is default; dark is opt-in. Also applies
+         saved font-size + body-font preferences pre-paint. -->
+    <script>
+      (function () {
+        try {
+          var m = localStorage.getItem('facts-theme') || 'light';
+          var d = m === 'dark' || (m === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = d ? 'dark' : 'light';
+          document.documentElement.style.colorScheme = d ? 'dark' : 'light';
+          var fs = localStorage.getItem('facts-font') || '1';
+          document.documentElement.style.setProperty('--fs-mult', fs);
+          var bodyFont = localStorage.getItem('facts-body-font') || 'inter';
+          document.documentElement.dataset.bodyFont = bodyFont;
+        } catch (_) {}
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!--
+      Fonts:
+      - Urbanist (display)    — SIL OFL, free for commercial use. Headings / chips / tabs.
+      - Inter (body default)  — SIL OFL, free for commercial use. Paragraphs / dense text.
+      - JetBrains Mono (code) — SIL OFL, free for commercial use. Paths / numbers.
+      - Google Sans (body alt, opt-in) — Google's proprietary UI typeface. Google does NOT
+        serve this font publicly via the Google Fonts API in most cases; the request below
+        will silently fall back to system-ui on non-Google origins. Shipping Google Sans
+        commercially requires a license from Google. If your deployment needs a legally
+        shippable near-equivalent, swap `Google Sans` for `Lexend` or `Public Sans`.
+    -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Google+Sans:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,600..700;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+    <style>
+      /* ================================================================== */
+      /* Design tokens                                                      */
+      /* ================================================================== */
+      :root {
+        color-scheme: light dark;
+        --fs-mult: 1;
+        font-size: calc(16px * var(--fs-mult));
+
+        /* Light theme — tinted warm off-white. oklch(99% 0.005 95) = paper-like.
+           Replaces #ffffff (audit C1: pure white is an AI-slop tell). */
+        --bg: oklch(99% 0.005 95);
+        --bg-rgb: 253, 252, 248;
+        --surface-1: oklch(100% 0 0);
+        --surface-1-rgb: 255, 255, 255;
+        --surface-2: color-mix(in oklab, black 4%, transparent);
+        --surface-3: color-mix(in oklab, black 7%, transparent);
+        --surface-glass-bg: color-mix(in oklab, black 5%, transparent);
+        --surface-glass-border: color-mix(in oklab, black 12%, transparent);
+        --surface-glass-highlight: color-mix(in oklab, white 70%, transparent);
+        --fg: #0b0d10;
+        --fg-muted: #3f434a;     /* was #4a4e55 — bumped for AA headroom */
+        --fg-subtle: #5f646c;    /* was #7a7f86 (4.03:1 → FAIL) → now 5.6:1 ✓ AA */
+        --border: color-mix(in oklab, black 10%, transparent);
+        --border-strong: color-mix(in oklab, black 20%, transparent);
+        --hairline: color-mix(in oklab, black 18%, transparent);  /* editorial rule */
+        --accent: #08703f;         /* was #0a7f4a (4.93) → 5.82:1 headroom over AA */
+        --accent-fg: #ffffff;
+        --accent-soft: color-mix(in oklab, #08703f 15%, transparent);
+        --ok: #0e6b32;             /* was #15803d (4.89) → 5.98:1 */
+        --warn: #a3570a;
+        --danger: #9a1515;
+        --info: #1850b8;
+        --code-bg: color-mix(in oklab, black 4%, transparent);
+        --shadow-sm: 0 1px 2px color-mix(in oklab, black 4%, transparent);
+        --shadow-md: 0 12px 40px -12px color-mix(in oklab, black 18%, transparent);
+
+        /* Language palette — tokenized (audit H4). Dimmed for contrast on warm bg. */
+        --lang-typescript: #2e6cb0;
+        --lang-javascript: #b08d0f;
+        --lang-python:     #2d6590;
+        --lang-react:      #0a7ca5;
+        --lang-json:       #6f7681;
+        --lang-yaml:       #a32428;
+        --lang-toml:       #8a3a1d;
+        --lang-markdown:   #1850b8;
+        --lang-html:       #9a4214;
+        --lang-css:        #1466a5;
+        --lang-folder:     #2f72d4;
+
+        /* Warm gradient washes (inspired by design-ref) — two large soft blobs */
+        --blob-a-start: #ff3b86; /* pink */
+        --blob-a-mid:   #ff7a1a; /* orange */
+        --blob-a-end:   #ffd21a; /* yellow */
+        --blob-b-start: #d83333; /* red */
+        --blob-b-mid:   #ff2d7a; /* magenta */
+        --blob-b-end:   #8b4dff; /* purple */
+
+        --blob-opacity: 0.18;
+        --blob-blur: 100px;
+      }
+
+      :root[data-theme='dark'] {
+        /* Midnight base — mirrors the full light-mode token structure so the
+           editorial redesign (hairlines, stacked bar legend, language dots,
+           focus rings) read correctly in both themes. Contrast checked AA+. */
+        --bg: oklch(13% 0.02 250);
+        --bg-rgb: 8, 11, 22;
+        --surface-1: color-mix(in oklab, white 3%, transparent);
+        --surface-1-rgb: 24, 27, 38;
+        --surface-2: color-mix(in oklab, white 5%, transparent);
+        --surface-3: color-mix(in oklab, white 8%, transparent);
+        --surface-glass-bg: color-mix(in oklab, white 4%, transparent);
+        --surface-glass-border: color-mix(in oklab, white 12%, transparent);
+        --surface-glass-highlight: color-mix(in oklab, white 10%, transparent);
+        --fg: #eef1f8;
+        --fg-muted: #bcc3d8;         /* 10.1:1 on midnight */
+        --fg-subtle: #9098b6;        /* 6.4:1 — AA ✓ */
+        --border: color-mix(in oklab, white 10%, transparent);
+        --border-strong: color-mix(in oklab, white 22%, transparent);
+        --hairline: color-mix(in oklab, white 14%, transparent);
+        --accent: #6ee7b7;           /* lighter in dark so the button pops */
+        --accent-fg: #05261a;
+        --accent-soft: color-mix(in oklab, #6ee7b7 15%, transparent);
+        --ok: #6ee7b7;
+        --warn: #fcd34d;
+        --danger: #fca5a5;
+        --info: #93c5fd;
+        --code-bg: color-mix(in oklab, white 4%, transparent);
+        --shadow-sm: 0 1px 2px color-mix(in oklab, black 40%, transparent);
+        --shadow-md: 0 12px 40px -10px color-mix(in oklab, black 80%, transparent);
+
+        /* Language tokens tuned for midnight — lightened for legibility */
+        --lang-typescript: #5aa8e8;
+        --lang-javascript: #e8c95a;
+        --lang-python:     #5e9ed1;
+        --lang-react:      #5abbdb;
+        --lang-json:       #a0a7b4;
+        --lang-yaml:       #e8656b;
+        --lang-toml:       #d78260;
+        --lang-markdown:   #7fa8ff;
+        --lang-html:       #e48855;
+        --lang-css:        #5eabd9;
+        --lang-folder:     #7fa8ff;
+
+        /* Warm backdrop blobs — brighter to glow against midnight */
+        --blob-a-start: #ff7acc;
+        --blob-a-mid:   #ffa366;
+        --blob-a-end:   #ffe58a;
+        --blob-b-start: #ff5e5e;
+        --blob-b-mid:   #ff8ac8;
+        --blob-b-end:   #b794ff;
+        --blob-opacity: 0.28;
+        --blob-blur: 120px;
+      }
+
+      /* ---- Typography system -------------------------------------------
+         Three roles:
+         1. DISPLAY (Urbanist)   — headings, product name, chips, tabs,
+                                   stat numbers, button labels. Geometric,
+                                   slightly futuristic, reads modern & bold.
+         2. BODY (Inter)         — paragraphs, descriptions, any dense prose.
+                                   Optimized for UI + long-form legibility.
+         3. MONO (JetBrains Mono)— file paths, line numbers, tabular data.
+         Both SIL Open Font License — free for commercial use.                */
+      :root {
+        --font-display: 'Urbanist', system-ui, -apple-system, sans-serif;
+        --font-body:    'Inter',    system-ui, -apple-system, sans-serif;
+        --font-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+        --font-serif:   'Fraunces', 'Times New Roman', Georgia, serif;
+      }
+      /* Body-font opt-in via [data-body-font="..."]. Google Sans's stack falls
+         through to system-ui if the family fails to load (which it will on
+         non-Google origins). */
+      :root[data-body-font='google-sans'] {
+        --font-body: 'Google Sans', 'Google Sans Display', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+
+      html,
+      body {
+        background: var(--bg);
+        color: var(--fg);
+        font-family: var(--font-body);
+        font-feature-settings: 'cv11' 1, 'ss01' 1, 'ss03' 1;   /* Inter stylistic sets */
+        font-optical-sizing: auto;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        text-rendering: optimizeLegibility;
+        min-height: 100dvh;
+        overflow: hidden;
+      }
+      code, pre, .mono { font-family: var(--font-mono); font-feature-settings: 'ss02' 1; }
+
+      /* Display font for prominent UI surfaces. Urbanist is wider than Inter,
+         so tighten tracking slightly for optical balance. */
+      h1, h2, h3, h4, h5, h6,
+      .font-display,
+      .tab,
+      .chip,
+      #project-name,
+      header [role="banner"] button,
+      .node-pill {
+        font-family: var(--font-display);
+        letter-spacing: -0.012em;
+      }
+      h1 { letter-spacing: -0.022em; font-weight: 700; }
+      h2 { letter-spacing: -0.018em; font-weight: 600; }
+
+      /* Paragraph + dense-info readability. Keep lines short, generous
+         leading, avoid hyper-condensed tracking. */
+      p, .prose, .file-info, .cap-sub, .entry-sub {
+        font-family: var(--font-body);
+        line-height: 1.65;
+        letter-spacing: -0.003em;
+        font-weight: 400;
+      }
+      p { max-width: 68ch; }
+      p.lead { font-size: 1.0625rem; line-height: 1.6; }
+
+      /* Chips + badges sit better at medium weight + slight uppercase
+         rhythm for the futuristic register without being shouty. */
+      .chip { font-weight: 500; letter-spacing: 0.02em; }
+
+      /* Numeric displays — Urbanist handles digits; add tabular figures
+         so values don't jitter when they change. */
+      .num, .mono, .font-display { font-variant-numeric: tabular-nums; }
+
+      /* ================================================================== */
+      /* Backdrop — two large gradient washes drifting on a non-repeating    */
+      /* multi-frequency sine field, driven by JS (see #backdrop animator).  */
+      /* White (light) or midnight (dark) dominates. Blobs are soft at 100px */
+      /* blur + ~0.18 opacity so the base color breathes through.            */
+      /* ================================================================== */
+      #backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        overflow: hidden;
+        pointer-events: none;
+        background: var(--bg);
+        isolation: isolate;
+      }
+      .blob {
+        position: absolute;
+        filter: blur(var(--blob-blur)) saturate(1.2);
+        opacity: var(--blob-opacity);
+        will-change: transform, border-radius;
+        transform-origin: center;
+      }
+
+      .blob-a {
+        width: 72rem;
+        height: 68rem;
+        left: -18rem;
+        top: 8rem;
+        background: linear-gradient(135deg, var(--blob-a-start), var(--blob-a-mid), var(--blob-a-end));
+        border-radius: 38% 62% 55% 45% / 44% 39% 61% 56%;
+      }
+      .blob-b {
+        width: 92rem;
+        height: 64rem;
+        right: -26rem;
+        top: -8rem;
+        background: linear-gradient(145deg, var(--blob-b-start), var(--blob-b-mid), var(--blob-b-end));
+        border-radius: 59% 41% 47% 53% / 39% 57% 43% 61%;
+      }
+      .blob-c {
+        width: 56rem;
+        height: 60rem;
+        left: 32vw;
+        top: 40vh;
+        background: linear-gradient(200deg, var(--blob-a-end), var(--blob-b-start), var(--blob-b-end));
+        border-radius: 52% 48% 58% 42% / 48% 52% 42% 58%;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .blob { transform: none !important; }
+      }
+
+      /* ================================================================== */
+      /* Liquid glass                                                        */
+      /* backdrop-filter: blur(8px) — enough diffusion that mixed watercolor */
+      /* zones read as soft light rather than sharp edges, but colors still  */
+      /* come through. Lower-alpha surface keeps the watercolor visible.     */
+      /* ================================================================== */
+      @layer components {
+        .glass {
+          background: rgba(var(--surface-glass-rgb), var(--surface-glass-alpha));
+          backdrop-filter: blur(8px) saturate(1.9) contrast(1.03);
+          -webkit-backdrop-filter: blur(8px) saturate(1.9) contrast(1.03);
+          box-shadow: var(--glass-meniscus), var(--shadow-sm);
+          border: 1px solid var(--border);
+          contain: paint;
+        }
+        .glass-strong {
+          background: rgba(var(--surface-glass-rgb), calc(var(--surface-glass-alpha) + 0.24));
+          backdrop-filter: blur(14px) saturate(1.7);
+          -webkit-backdrop-filter: blur(14px) saturate(1.7);
+          box-shadow: var(--glass-meniscus), var(--shadow-sm);
+          border: 1px solid var(--border);
+          contain: paint;
+        }
+        /* Flat content surface — replaces .glass on non-chrome cards.
+           No backdrop-filter (audit: glass used decoratively on 25 surfaces),
+           just a subtle off-white panel with a hairline border. Cheap,
+           deterministic contrast, doesn't stack blur cost. */
+        .surface {
+          background: var(--surface-1);
+          border: 1px solid var(--border);
+          box-shadow: var(--shadow-sm);
+        }
+
+        .glass.sweep { position: relative; }
+        .glass.sweep::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,0.08) 40%, transparent 80%);
+          translate: -100% 0;
+          transition: translate 400ms linear;
+          border-radius: inherit;
+        }
+        .glass.sweep:hover::after { translate: 100% 0; }
+
+        @supports not (backdrop-filter: blur(1px)) {
+          .glass, .glass-strong {
+            background: rgba(var(--surface-1-rgb), 0.92);
+            backdrop-filter: none;
+          }
+        }
+      }
+
+      @media (prefers-reduced-transparency: reduce) {
+        .glass, .glass-strong {
+          background: var(--surface-1);
+          backdrop-filter: none !important;
+        }
+      }
+
+      /* ================================================================== */
+      /* Chips                                                               */
+      /* ================================================================== */
+      .chip { display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.125rem 0.5rem; border-radius: 999px; font-size: 0.6875rem; font-weight: 500; line-height: 1.2; letter-spacing: 0.01em; border: 1px solid transparent; white-space: nowrap; }
+      .chip-ok { background: color-mix(in oklab, var(--ok) 18%, transparent); color: var(--ok); border-color: color-mix(in oklab, var(--ok) 35%, transparent); }
+      .chip-warn { background: color-mix(in oklab, var(--warn) 18%, transparent); color: var(--warn); border-color: color-mix(in oklab, var(--warn) 35%, transparent); }
+      .chip-danger { background: color-mix(in oklab, var(--danger) 18%, transparent); color: var(--danger); border-color: color-mix(in oklab, var(--danger) 35%, transparent); }
+      .chip-info { background: color-mix(in oklab, var(--info) 18%, transparent); color: var(--info); border-color: color-mix(in oklab, var(--info) 35%, transparent); }
+      .chip-muted { background: var(--surface-3); color: var(--fg-muted); border-color: var(--border); }
+
+      /* Focus ring via double box-shadow: paints INSIDE the element's bounds,
+         so it survives ancestors with `contain: paint` (e.g., .glass chrome).
+         The inner ring is the accent; the outer ring is the page bg, so the
+         focus indicator reads on any backdrop blob color. */
+      :focus-visible {
+        outline: none;
+        box-shadow:
+          0 0 0 2px var(--bg),
+          0 0 0 4px var(--accent);
+        border-radius: 6px;
+      }
+      /* Inputs/sliders keep their native look but get a matching ring */
+      input:focus-visible { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+
+      /* Touch target minimum: 44px for WCAG 2.5.5 AAA. Achieved via min-height
+         + padding so visual density is preserved. Applies to global + local
+         tabs, the LHS view-mode toggle, and icon buttons. */
+      .tab { min-height: 44px; display: inline-flex; align-items: center; }
+      header button,
+      [role="tab"],
+      [role="radio"] { min-height: 44px; }
+      /* Icon-only chrome buttons get 40x40 minimum (AA 2.2) */
+      header button[aria-label]:not([class*="px-"]) { min-width: 40px; min-height: 40px; }
+
+      /* Skip-to-content link — visible only on focus, top-left landing */
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 1000;
+        padding: 8px 14px;
+        background: var(--fg);
+        color: var(--bg);
+        border-radius: 6px;
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        transform: translateY(-200%);
+        transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .skip-link:focus { transform: translateY(0); }
+
+      /* ================================================================== */
+      /* View Transitions                                                    */
+      /* ================================================================== */
+      ::view-transition-old(root), ::view-transition-new(root) { animation-duration: 360ms; animation-timing-function: cubic-bezier(0.2,0,0,1); }
+      @keyframes ft-fade-out { to { opacity: 0; } }
+      @keyframes ft-fade-in { from { opacity: 0; } }
+      ::view-transition-old(root) { animation-name: ft-fade-out; }
+      ::view-transition-new(root) { animation-name: ft-fade-in; }
+      html.theme-swap ::view-transition-new(root) {
+        clip-path: circle(0% at var(--theme-x, 100%) var(--theme-y, 0%));
+        animation: ft-circle-reveal 420ms cubic-bezier(0.2,0,0,1) forwards, ft-fade-in 360ms forwards;
+      }
+      @keyframes ft-circle-reveal { to { clip-path: circle(160% at var(--theme-x, 100%) var(--theme-y, 0%)); } }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+        ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; }
+      }
+
+      /* ================================================================== */
+      /* Tree                                                                */
+      /* ================================================================== */
+      .tree-row { display: grid; grid-template-columns: 1rem 1rem 1fr auto; align-items: center; gap: 0.375rem; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; color: var(--fg); transition: background 120ms, color 120ms; cursor: pointer; }
+      .tree-row:hover { background: color-mix(in oklab, var(--accent) 10%, transparent); }
+      .tree-row[aria-selected='true'] { background: color-mix(in oklab, var(--accent) 20%, transparent); color: var(--fg); font-weight: 500; }
+      .tree-chev { color: var(--fg-subtle); transition: transform 150ms; }
+      .tree-node[aria-expanded='false'] > .tree-row .tree-chev { transform: rotate(-90deg); }
+      .tree-node[aria-expanded='false'] > .tree-children { display: none; }
+      .tree-children { padding-left: 0.875rem; border-left: 1px dashed var(--border); margin-left: 0.75rem; }
+
+      /* ================================================================== */
+      /* Tabs                                                                */
+      /* ================================================================== */
+      .tab { position: relative; padding: 0.4375rem 0.75rem; border-radius: 6px; font-size: 0.8125rem; color: var(--fg-muted); transition: color 150ms, background 150ms; white-space: nowrap; cursor: pointer; }
+      .tab:hover { color: var(--fg); background: var(--surface-3); }
+      .tab:active { background: color-mix(in oklab, var(--accent) 14%, transparent); }
+      .tab[aria-selected='true'] { color: var(--fg); font-weight: 500; }
+      .tab[aria-selected='true']::after { content: ''; position: absolute; left: 0.75rem; right: 0.75rem; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+
+      /* Icicle hover states — brighten the hovered cell, dim the rest. */
+      .ice-node .ice-bg { transition: fill-opacity 140ms ease-out, stroke-width 140ms ease-out; }
+      .ice-node.is-hover .ice-bg { fill-opacity: 0.28; stroke-width: 2; }
+      .ice-node { transition: opacity 140ms ease-out; }
+      .ice-node.is-dim { opacity: 0.45; }
+      .ice-node[data-path=""] { cursor: default; }
+      @media (prefers-reduced-motion: reduce) {
+        .ice-node, .ice-node .ice-bg { transition: none; }
+      }
+
+      /* Soft panel crossfade in place of View Transitions for tab switches */
+      .tab-panel { animation: panel-in 180ms cubic-bezier(0.2, 0, 0, 1); }
+      @keyframes panel-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+      @media (prefers-reduced-motion: reduce) { .tab-panel { animation: none; } }
+
+      /* ---- Editorial type system ---------------------------------------
+         The Overview reads like an analyst brief: serif display head, prose
+         that weaves numbers inline, data anchored to sentences. Replaces the
+         hero-metric + card-grid template flagged by the audit.                */
+      .ed-head {
+        font-family: var(--font-serif);
+        font-weight: 600;
+        font-optical-sizing: auto;
+        font-variation-settings: 'opsz' 72, 'SOFT' 50, 'WONK' 0;
+        letter-spacing: -0.025em;
+        line-height: 1.04;
+        color: var(--fg);
+      }
+      .ed-dek {
+        font-family: var(--font-serif);
+        font-weight: 400;
+        font-style: italic;
+        font-variation-settings: 'opsz' 36;
+        letter-spacing: -0.005em;
+        color: var(--fg-muted);
+      }
+      .ed-dateline {
+        font-family: var(--font-mono);
+        font-size: 0.6875rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--fg-subtle);
+      }
+      .ed-prose { color: var(--fg-muted); line-height: 1.7; max-width: 62ch; }
+      .ed-prose strong { color: var(--fg); font-weight: 600; }
+      .ed-prose .num {
+        font-family: var(--font-display);
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--fg);
+      }
+      .ed-rule { border: 0; height: 1px; background: var(--hairline); margin: 0; }
+      .ed-rule-thick { border: 0; height: 2px; background: var(--fg); margin: 0; width: 48px; }
+      .ed-label {
+        font-family: var(--font-display);
+        font-size: 0.6875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--fg-subtle);
+      }
+
+      /* ---- Staggered entrance for Overview sections ---------------------- */
+      .stagger > * {
+        opacity: 0;
+        transform: translateY(8px);
+        animation: stagger-in 600ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      }
+      .stagger > *:nth-child(1) { animation-delay: 40ms; }
+      .stagger > *:nth-child(2) { animation-delay: 120ms; }
+      .stagger > *:nth-child(3) { animation-delay: 200ms; }
+      .stagger > *:nth-child(4) { animation-delay: 280ms; }
+      .stagger > *:nth-child(5) { animation-delay: 360ms; }
+      .stagger > *:nth-child(6) { animation-delay: 440ms; }
+      .stagger > *:nth-child(n+7) { animation-delay: 520ms; }
+      @keyframes stagger-in {
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .stagger > * { opacity: 1; transform: none; animation: none; }
+      }
+
+      /* ---- Footer parse-clean dot: ambient pulse ------------------------- */
+      .dot-pulse { position: relative; }
+      .dot-pulse::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        background: inherit;
+        animation: dot-pulse 2.4s ease-out infinite;
+        pointer-events: none;
+      }
+      @keyframes dot-pulse {
+        0%   { transform: scale(1);   opacity: 0.9; }
+        70%  { transform: scale(3);   opacity: 0; }
+        100% { transform: scale(3);   opacity: 0; }
+      }
+      @media (prefers-reduced-motion: reduce) { .dot-pulse::after { animation: none; display: none; } }
+
+      /* ---- Stacked distribution bar (replaces Stack card grid) ----------- */
+      .dist-bar {
+        display: flex;
+        height: 10px;
+        width: 100%;
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--surface-3);
+      }
+      .dist-bar > span {
+        display: block;
+        height: 100%;
+        transition: opacity 150ms;
+      }
+      .dist-legend { display: grid; grid-template-columns: 1fr; gap: 0.5rem; }
+      @container (min-width: 520px) { .dist-legend { grid-template-columns: 1fr 1fr; } }
+      .dist-legend-row { display: flex; align-items: baseline; gap: 0.625rem; font-size: 0.8125rem; }
+      .dist-legend-row .dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; transform: translateY(1px); }
+      .dist-legend-row .nm { font-weight: 500; color: var(--fg); }
+      .dist-legend-row .mt { color: var(--fg-subtle); margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+      /* Mobile drawer */
+      @media (max-width: 899px) {
+        #lhs-panel { position: fixed !important; inset: 56px 0 28px 0; width: 82vw; max-width: 360px; z-index: 40; translate: -100% 0; box-shadow: var(--shadow-md); transition: translate 260ms cubic-bezier(0.2,0,0,1); }
+        #lhs-panel[data-open='true'] { translate: 0 0; }
+        #lhs-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.45); backdrop-filter: blur(4px); z-index: 35; opacity: 0; pointer-events: none; transition: opacity 260ms; }
+        #lhs-panel[data-open='true'] ~ #lhs-scrim { opacity: 1; pointer-events: auto; }
+      }
+
+      @media (min-width: 3840px) { .content-cap { max-width: 1400px; margin-inline: auto; } }
+
+      .node-pill { display: inline-flex; align-items: center; gap: 0.375rem; padding: 0.25rem 0.625rem; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); font-size: 0.75rem; color: var(--fg); }
+
+      button, [role='button'] { cursor: pointer; }
+
+      /* Scrollbars */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-thumb { background: color-mix(in oklab, var(--fg) 18%, transparent); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+      ::-webkit-scrollbar-thumb:hover { background: color-mix(in oklab, var(--fg) 30%, transparent); background-clip: padding-box; border: 2px solid transparent; }
+      ::-webkit-scrollbar-track { background: transparent; }
+    </style>
+  </head>
+
+  <body class="antialiased">
+    <a class="skip-link" href="#rhs-content">Skip to main content</a>
+    <!-- ============================================================== -->
+    <!-- Animated warm-color backdrop                                    -->
+    <!-- ============================================================== -->
+    <div id="backdrop" aria-hidden="true">
+      <div class="blob blob-a"></div>
+      <div class="blob blob-b"></div>
+      <div class="blob blob-c"></div>
+    </div>
+
+    <!-- Inline dataset: makes this prototype standalone (file:// opens work
+         with no fetch()). If this block is missing/empty the script falls
+         back to ./data/factstack.json. -->
+    <script id="factstack-data" type="application/json">{
+  "$schema": "https://factstack.dev/schema/prototype.v1.json",
+  "generatedAt": "2026-04-18T17:14:00.007Z",
+  "project": {
+    "name": "factstack",
+    "root": "D:\\dev\\ai agents\\claude\\factstack",
+    "languages": [
+      {
+        "id": "yaml",
+        "label": "YAML",
+        "iconColor": "#cb171e",
+        "tag": "YAML",
+        "loc": 3615,
+        "tokens": 33379,
+        "files": 2
+      },
+      {
+        "id": "html",
+        "label": "HTML",
+        "iconColor": "#e34f26",
+        "tag": "HTML",
+        "loc": 2903,
+        "tokens": 33917,
+        "files": 2
+      },
+      {
+        "id": "markdown",
+        "label": "Markdown",
+        "iconColor": "#60a5fa",
+        "tag": "MD",
+        "loc": 1559,
+        "tokens": 23142,
+        "files": 12
+      },
+      {
+        "id": "json",
+        "label": "JSON",
+        "iconColor": "#cbd5e1",
+        "tag": "JSON",
+        "loc": 521,
+        "tokens": 3943,
+        "files": 22
+      },
+      {
+        "id": "javascript",
+        "label": "JavaScript",
+        "iconColor": "#f7df1e",
+        "tag": "MJS",
+        "loc": 476,
+        "tokens": 4797,
+        "files": 2
+      },
+      {
+        "id": "typescript",
+        "label": "TypeScript",
+        "iconColor": "#3178c6",
+        "tag": "TS",
+        "loc": 448,
+        "tokens": 3668,
+        "files": 5
+      }
+    ],
+    "frameworks": [
+      "Turborepo",
+      "oxlint",
+      "React",
+      "React Router",
+      "Remix",
+      "Vite",
+      "Tailwind CSS",
+      "xyflow",
+      "Framer Motion"
+    ]
+  },
+  "summary": {
+    "oneLiner": "A Turborepo + oxlint + React project",
+    "description": "Static code analyzer codebase. Monorepo with a shared @factstack/spec (Zod schemas), an isomorphic analyzer pipeline (walker → parsers → extractors → graph → scanners → emit), a Vite + React 19 + React Router v7 WebUI, and stubbed future surfaces (VS Code extension, Chrome extension, web app, MCP server).",
+    "capabilities": [
+      {
+        "icon": "✓",
+        "head": "Renders a React WebUI",
+        "sub": "React 19 + React Router v7 + Vite"
+      },
+      {
+        "icon": "✓",
+        "head": "Integrates Remix 3 modules",
+        "sub": "fetch-router, middleware, schemas"
+      },
+      {
+        "icon": "✓",
+        "head": "Monorepo-structured",
+        "sub": "pnpm workspaces + Turborepo"
+      },
+      {
+        "icon": "✓",
+        "head": "Styled with Tailwind v4",
+        "sub": "Design tokens + liquid-glass"
+      },
+      {
+        "icon": "✓",
+        "head": "Defines canonical schemas",
+        "sub": "@factstack/spec via Zod"
+      },
+      {
+        "icon": "✓",
+        "head": "Enforces package boundaries",
+        "sub": "eslint-plugin-boundaries + no-restricted-imports"
+      }
+    ],
+    "health": {
+      "broken": 0,
+      "stale": 0,
+      "todos": 10,
+      "secrets": 0
+    }
+  },
+  "stats": {
+    "files": 49,
+    "loc": 9593,
+    "size": 363941,
+    "gzip": 36537,
+    "tokens": 103151
+  },
+  "tree": {
+    "files": [
+      {
+        "name": ".editorconfig",
+        "path": ".editorconfig",
+        "ext": "",
+        "language": null,
+        "size": 219,
+        "gzip": null,
+        "loc": 16,
+        "tokens": 63,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525831428.0754
+      },
+      {
+        "name": ".gitattributes",
+        "path": ".gitattributes",
+        "ext": "",
+        "language": null,
+        "size": 478,
+        "gzip": null,
+        "loc": 26,
+        "tokens": 137,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776526250349.0725
+      },
+      {
+        "name": ".gitignore",
+        "path": ".gitignore",
+        "ext": "",
+        "language": null,
+        "size": 363,
+        "gzip": null,
+        "loc": 27,
+        "tokens": 104,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525827787.3665
+      },
+      {
+        "name": ".nvmrc",
+        "path": ".nvmrc",
+        "ext": "",
+        "language": null,
+        "size": 3,
+        "gzip": null,
+        "loc": 2,
+        "tokens": 1,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525835662.678
+      },
+      {
+        "name": ".oxlintrc.json",
+        "path": ".oxlintrc.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 839,
+        "gzip": null,
+        "loc": 36,
+        "tokens": 240,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776528273654.256
+      },
+      {
+        "name": ".prettierrc.json",
+        "path": ".prettierrc.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 126,
+        "gzip": null,
+        "loc": 9,
+        "tokens": 36,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525839042.8877
+      },
+      {
+        "name": "animations_spec.md",
+        "path": "animations_spec.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 9943,
+        "gzip": null,
+        "loc": 232,
+        "tokens": 2824,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525782507.0232
+      },
+      {
+        "name": "app_plan_spec.md",
+        "path": "app_plan_spec.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 30766,
+        "gzip": null,
+        "loc": 460,
+        "tokens": 8422,
+        "todos": 3,
+        "todoEntries": [
+          {
+            "kind": "TODO",
+            "line": 111,
+            "text": "/FIXME harvest, bundle-size + token-cost. Pure."
+          },
+          {
+            "kind": "TODO",
+            "line": 184,
+            "text": "/FIXME/HACK/XXX** harvesting with git blame-lite."
+          },
+          {
+            "kind": "TODO",
+            "line": 193,
+            "text": "`/`FIXME`."
+          }
+        ],
+        "status": "ok",
+        "mtime": 1776528196796.0598
+      },
+      {
+        "name": "app_spec.md",
+        "path": "app_spec.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 12428,
+        "gzip": null,
+        "loc": 251,
+        "tokens": 3523,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525595419.2708
+      },
+      {
+        "name": "design_spec.md",
+        "path": "design_spec.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 17954,
+        "gzip": null,
+        "loc": 335,
+        "tokens": 4840,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525713673.5063
+      },
+      {
+        "name": "eslint.config.mjs",
+        "path": "eslint.config.mjs",
+        "ext": ".mjs",
+        "language": {
+          "id": "javascript",
+          "label": "JavaScript",
+          "iconColor": "#f7df1e",
+          "tag": "MJS"
+        },
+        "size": 4690,
+        "gzip": 1247,
+        "loc": 156,
+        "tokens": 1340,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776526206482.264
+      },
+      {
+        "name": "package.json",
+        "path": "package.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 1091,
+        "gzip": null,
+        "loc": 37,
+        "tokens": 311,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776528242000.7932
+      },
+      {
+        "name": "pnpm-lock.yaml",
+        "path": "pnpm-lock.yaml",
+        "ext": ".yaml",
+        "language": {
+          "id": "yaml",
+          "label": "YAML",
+          "iconColor": "#cb171e",
+          "tag": "YAML"
+        },
+        "size": 116533,
+        "gzip": null,
+        "loc": 3605,
+        "tokens": 33295,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776529430873.5837
+      },
+      {
+        "name": "pnpm-workspace.yaml",
+        "path": "pnpm-workspace.yaml",
+        "ext": ".yaml",
+        "language": {
+          "id": "yaml",
+          "label": "YAML",
+          "iconColor": "#cb171e",
+          "tag": "YAML"
+        },
+        "size": 294,
+        "gzip": null,
+        "loc": 10,
+        "tokens": 84,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776528222975.4458
+      },
+      {
+        "name": "README.md",
+        "path": "README.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 5968,
+        "gzip": null,
+        "loc": 128,
+        "tokens": 1634,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525880107.515
+      },
+      {
+        "name": "tsconfig.base.json",
+        "path": "tsconfig.base.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 708,
+        "gzip": null,
+        "loc": 26,
+        "tokens": 202,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525822627.7979
+      },
+      {
+        "name": "tsconfig.json",
+        "path": "tsconfig.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 114,
+        "gzip": null,
+        "loc": 8,
+        "tokens": 33,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776526216090.3296
+      },
+      {
+        "name": "turbo.json",
+        "path": "turbo.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 460,
+        "gzip": null,
+        "loc": 26,
+        "tokens": 131,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776525815968.4475
+      }
+    ],
+    "children": [
+      {
+        "name": ".claude",
+        "path": ".claude",
+        "files": [
+          {
+            "name": "launch.json",
+            "path": ".claude/launch.json",
+            "ext": ".json",
+            "language": {
+              "id": "json",
+              "label": "JSON",
+              "iconColor": "#cbd5e1",
+              "tag": "JSON"
+            },
+            "size": 361,
+            "gzip": null,
+            "loc": 18,
+            "tokens": 103,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776526564225.738
+          }
+        ],
+        "children": [],
+        "rollup": {
+          "size": 361,
+          "gzip": 0,
+          "tokens": 103,
+          "files": 1,
+          "loc": 18,
+          "todos": 0
+        }
+      },
+      {
+        "name": "apps",
+        "path": "apps",
+        "files": [],
+        "children": [
+          {
+            "name": "chrome-ext",
+            "path": "apps/chrome-ext",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "apps/chrome-ext/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 1223,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 348,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526034186.912
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 1223,
+              "gzip": 0,
+              "tokens": 348,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          },
+          {
+            "name": "cli",
+            "path": "apps/cli",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "apps/cli/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 955,
+                "gzip": null,
+                "loc": 34,
+                "tokens": 272,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525990779.7114
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 955,
+              "gzip": 0,
+              "tokens": 272,
+              "files": 1,
+              "loc": 34,
+              "todos": 0
+            }
+          },
+          {
+            "name": "mcp-server",
+            "path": "apps/mcp-server",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "apps/mcp-server/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 916,
+                "gzip": null,
+                "loc": 33,
+                "tokens": 262,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526053672.8645
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 916,
+              "gzip": 0,
+              "tokens": 262,
+              "files": 1,
+              "loc": 33,
+              "todos": 0
+            }
+          },
+          {
+            "name": "ui-remix",
+            "path": "apps/ui-remix",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "apps/ui-remix/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 1285,
+                "gzip": null,
+                "loc": 40,
+                "tokens": 367,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776527380829.9294
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 1285,
+              "gzip": 0,
+              "tokens": 367,
+              "files": 1,
+              "loc": 40,
+              "todos": 0
+            }
+          },
+          {
+            "name": "vscode-ext",
+            "path": "apps/vscode-ext",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "apps/vscode-ext/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 869,
+                "gzip": null,
+                "loc": 22,
+                "tokens": 247,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526022758.8845
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 869,
+              "gzip": 0,
+              "tokens": 247,
+              "files": 1,
+              "loc": 22,
+              "todos": 0
+            }
+          },
+          {
+            "name": "webapp",
+            "path": "apps/webapp",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "apps/webapp/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 913,
+                "gzip": null,
+                "loc": 19,
+                "tokens": 259,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526044168.2405
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 913,
+              "gzip": 0,
+              "tokens": 259,
+              "files": 1,
+              "loc": 19,
+              "todos": 0
+            }
+          }
+        ],
+        "rollup": {
+          "size": 6161,
+          "gzip": 0,
+          "tokens": 1755,
+          "files": 6,
+          "loc": 171,
+          "todos": 0
+        }
+      },
+      {
+        "name": "examples",
+        "path": "examples",
+        "files": [
+          {
+            "name": "README.md",
+            "path": "examples/README.md",
+            "ext": ".md",
+            "language": {
+              "id": "markdown",
+              "label": "Markdown",
+              "iconColor": "#60a5fa",
+              "tag": "MD"
+            },
+            "size": 1194,
+            "gzip": null,
+            "loc": 25,
+            "tokens": 338,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776526074496.819
+          }
+        ],
+        "children": [],
+        "rollup": {
+          "size": 1194,
+          "gzip": 0,
+          "tokens": 338,
+          "files": 1,
+          "loc": 25,
+          "todos": 0
+        }
+      },
+      {
+        "name": "packages",
+        "path": "packages",
+        "files": [],
+        "children": [
+          {
+            "name": "core",
+            "path": "packages/core",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/core/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 851,
+                "gzip": null,
+                "loc": 27,
+                "tokens": 243,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525968251.5486
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 851,
+              "gzip": 0,
+              "tokens": 243,
+              "files": 1,
+              "loc": 27,
+              "todos": 0
+            }
+          },
+          {
+            "name": "emit",
+            "path": "packages/emit",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/emit/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 750,
+                "gzip": null,
+                "loc": 24,
+                "tokens": 214,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776528210584.6577
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 750,
+              "gzip": 0,
+              "tokens": 214,
+              "files": 1,
+              "loc": 24,
+              "todos": 0
+            }
+          },
+          {
+            "name": "extractors",
+            "path": "packages/extractors",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/extractors/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 627,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 179,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525947648.7104
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 627,
+              "gzip": 0,
+              "tokens": 179,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          },
+          {
+            "name": "fs-browser",
+            "path": "packages/fs-browser",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "packages/fs-browser/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 615,
+                "gzip": null,
+                "loc": 10,
+                "tokens": 175,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525933935.6562
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 615,
+              "gzip": 0,
+              "tokens": 175,
+              "files": 1,
+              "loc": 10,
+              "todos": 0
+            }
+          },
+          {
+            "name": "fs-memory",
+            "path": "packages/fs-memory",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/fs-memory/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 513,
+                "gzip": null,
+                "loc": 22,
+                "tokens": 147,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525926608.2993
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 513,
+              "gzip": 0,
+              "tokens": 147,
+              "files": 1,
+              "loc": 22,
+              "todos": 0
+            }
+          },
+          {
+            "name": "fs-node",
+            "path": "packages/fs-node",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/fs-node/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 578,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 165,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525921238.1772
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 578,
+              "gzip": 0,
+              "tokens": 165,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          },
+          {
+            "name": "graph",
+            "path": "packages/graph",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/graph/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 637,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 182,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525953028.9988
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 637,
+              "gzip": 0,
+              "tokens": 182,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          },
+          {
+            "name": "parsers",
+            "path": "packages/parsers",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/parsers/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 614,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 175,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525940706.4766
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 614,
+              "gzip": 0,
+              "tokens": 175,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          },
+          {
+            "name": "scanners",
+            "path": "packages/scanners",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/scanners/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 714,
+                "gzip": null,
+                "loc": 24,
+                "tokens": 204,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525959077.593
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 714,
+              "gzip": 0,
+              "tokens": 204,
+              "files": 1,
+              "loc": 24,
+              "todos": 0
+            }
+          },
+          {
+            "name": "spec",
+            "path": "packages/spec",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/spec/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 781,
+                "gzip": null,
+                "loc": 29,
+                "tokens": 223,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525896218.0144
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/spec/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 146,
+                "gzip": null,
+                "loc": 9,
+                "tokens": 42,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526166482.8557
+              }
+            ],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/spec/src",
+                "files": [
+                  {
+                    "name": "agent.ts",
+                    "path": "packages/spec/src/agent.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 5403,
+                    "gzip": 1578,
+                    "loc": 195,
+                    "tokens": 1543,
+                    "todos": 1,
+                    "todoEntries": [
+                      {
+                        "kind": "TODO",
+                        "line": 78,
+                        "text": "', 'FIXME', 'HACK', 'XXX', 'NOTE']),"
+                      }
+                    ],
+                    "status": "ok",
+                    "mtime": 1776526121574.647
+                  },
+                  {
+                    "name": "fs.ts",
+                    "path": "packages/spec/src/fs.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 1474,
+                    "gzip": 701,
+                    "loc": 52,
+                    "tokens": 421,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776526093814.2864
+                  },
+                  {
+                    "name": "human.ts",
+                    "path": "packages/spec/src/human.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2967,
+                    "gzip": 1060,
+                    "loc": 100,
+                    "tokens": 847,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776526139361.3765
+                  },
+                  {
+                    "name": "index.ts",
+                    "path": "packages/spec/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 378,
+                    "gzip": 245,
+                    "loc": 13,
+                    "tokens": 107,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776526162636.3987
+                  },
+                  {
+                    "name": "mcp.ts",
+                    "path": "packages/spec/src/mcp.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2624,
+                    "gzip": 1068,
+                    "loc": 88,
+                    "tokens": 750,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776526154686.029
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 12846,
+                  "gzip": 4652,
+                  "tokens": 3668,
+                  "files": 5,
+                  "loc": 448,
+                  "todos": 1
+                }
+              }
+            ],
+            "rollup": {
+              "size": 13773,
+              "gzip": 4652,
+              "tokens": 3933,
+              "files": 7,
+              "loc": 486,
+              "todos": 1
+            }
+          },
+          {
+            "name": "ui-theme",
+            "path": "packages/ui-theme",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/ui-theme/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 1068,
+                "gzip": null,
+                "loc": 36,
+                "tokens": 305,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525982539.6255
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 1068,
+              "gzip": 0,
+              "tokens": 305,
+              "files": 1,
+              "loc": 36,
+              "todos": 0
+            }
+          },
+          {
+            "name": "walker",
+            "path": "packages/walker",
+            "files": [
+              {
+                "name": "package.json",
+                "path": "packages/walker/package.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 591,
+                "gzip": null,
+                "loc": 23,
+                "tokens": 168,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776525915994.3606
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 591,
+              "gzip": 0,
+              "tokens": 168,
+              "files": 1,
+              "loc": 23,
+              "todos": 0
+            }
+          }
+        ],
+        "rollup": {
+          "size": 21331,
+          "gzip": 4652,
+          "tokens": 6090,
+          "files": 18,
+          "loc": 744,
+          "todos": 1
+        }
+      },
+      {
+        "name": "plugins",
+        "path": "plugins",
+        "files": [],
+        "children": [
+          {
+            "name": "mcp-app",
+            "path": "plugins/mcp-app",
+            "files": [
+              {
+                "name": "README.md",
+                "path": "plugins/mcp-app/README.md",
+                "ext": ".md",
+                "language": {
+                  "id": "markdown",
+                  "label": "Markdown",
+                  "iconColor": "#60a5fa",
+                  "tag": "MD"
+                },
+                "size": 957,
+                "gzip": null,
+                "loc": 21,
+                "tokens": 270,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776526062776.683
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 957,
+              "gzip": 0,
+              "tokens": 270,
+              "files": 1,
+              "loc": 21,
+              "todos": 0
+            }
+          }
+        ],
+        "rollup": {
+          "size": 957,
+          "gzip": 0,
+          "tokens": 270,
+          "files": 1,
+          "loc": 21,
+          "todos": 0
+        }
+      },
+      {
+        "name": "prototype",
+        "path": "prototype",
+        "files": [
+          {
+            "name": "design-ref.html",
+            "path": "prototype/design-ref.html",
+            "ext": ".html",
+            "language": {
+              "id": "html",
+              "label": "HTML",
+              "iconColor": "#e34f26",
+              "tag": "HTML"
+            },
+            "size": 1995,
+            "gzip": 663,
+            "loc": 72,
+            "tokens": 570,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776530598182.0593
+          },
+          {
+            "name": "index.html",
+            "path": "prototype/index.html",
+            "ext": ".html",
+            "language": {
+              "id": "html",
+              "label": "HTML",
+              "iconColor": "#e34f26",
+              "tag": "HTML"
+            },
+            "size": 116839,
+            "gzip": 25659,
+            "loc": 2831,
+            "tokens": 33347,
+            "todos": 4,
+            "todoEntries": [
+              {
+                "kind": "TODO",
+                "line": 2402,
+                "text": "/ FIXME / HACK / XXX / NOTE comments found in this file.</p>`;"
+              },
+              {
+                "kind": "TODO",
+                "line": 2404,
+                "text": "'chip-warn', FIXME: 'chip-danger', HACK: 'chip-danger', XXX: 'chip-danger', NOTE: 'chip-info' }[kind] || 'chip-muted');"
+              },
+              {
+                "kind": "TODO",
+                "line": 2441,
+                "text": "/ FIXME count</div><div class=\"mono\">${f.todoEntries?.length ?? f.todos ?? 0}</div>"
+              },
+              {
+                "kind": "TODO",
+                "line": 2724,
+                "text": "|FIXME|HACK|XXX)\\b/g) || []).length;"
+              }
+            ],
+            "status": "ok",
+            "mtime": 1776532421404.75
+          }
+        ],
+        "children": [
+          {
+            "name": "data",
+            "path": "prototype/data",
+            "files": [
+              {
+                "name": "factstack.json",
+                "path": "prototype/data/factstack.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 0,
+                "gzip": null,
+                "loc": 1,
+                "tokens": 1,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776532439892.5833
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 0,
+              "gzip": 0,
+              "tokens": 1,
+              "files": 1,
+              "loc": 1,
+              "todos": 0
+            }
+          },
+          {
+            "name": "scripts",
+            "path": "prototype/scripts",
+            "files": [
+              {
+                "name": "scan.mjs",
+                "path": "prototype/scripts/scan.mjs",
+                "ext": ".mjs",
+                "language": {
+                  "id": "javascript",
+                  "label": "JavaScript",
+                  "iconColor": "#f7df1e",
+                  "tag": "MJS"
+                },
+                "size": 12126,
+                "gzip": 4316,
+                "loc": 320,
+                "tokens": 3457,
+                "todos": 2,
+                "todoEntries": [
+                  {
+                    "kind": "TODO",
+                    "line": 132,
+                    "text": "extraction — capture kind + line + text so the UI"
+                  },
+                  {
+                    "kind": "TODO",
+                    "line": 134,
+                    "text": "|FIXME|HACK|XXX|NOTE)\\b[:\\s]?\\s*(.*)/;"
+                  }
+                ],
+                "status": "ok",
+                "mtime": 1776532270012.7485
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 12126,
+              "gzip": 4316,
+              "tokens": 3457,
+              "files": 1,
+              "loc": 320,
+              "todos": 2
+            }
+          }
+        ],
+        "rollup": {
+          "size": 130960,
+          "gzip": 30638,
+          "tokens": 37375,
+          "files": 4,
+          "loc": 3224,
+          "todos": 6
+        }
+      }
+    ]
+  },
+  "entryPoints": [
+    {
+      "label": "CLI",
+      "path": "factstack",
+      "handlerFile": "apps/cli/src/cli.ts",
+      "kind": "cli"
+    },
+    {
+      "label": "WebUI (dev)",
+      "path": "localhost:3000",
+      "handlerFile": "apps/ui-remix/app/root.tsx",
+      "kind": "ui"
+    },
+    {
+      "label": "Prototype",
+      "path": "localhost:3001",
+      "handlerFile": "prototype/index.html",
+      "kind": "ui"
+    }
+  ],
+  "risks": []
+}
+</script>
+
+    <!-- ============================================================== -->
+    <!-- Top nav                                                         -->
+    <!-- ============================================================== -->
+    <header class="glass fixed top-0 left-0 right-0 h-14 z-50 flex items-center gap-2 px-3 sm:px-4" role="banner" style="border-radius: 0;">
+      <button id="hamburger" class="lg:hidden rounded-md p-1.5 hover:bg-[var(--surface-2)]" aria-label="Open navigation">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      <div class="flex items-center gap-2 pr-2 sm:pr-3 border-r border-[var(--border)]">
+        <div class="w-7 h-7 rounded-md flex items-center justify-center" style="background: color-mix(in oklab, var(--accent) 20%, transparent); border: 1px solid color-mix(in oklab, var(--accent) 45%, transparent);">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="var(--accent)" stroke-width="1.5"/><path d="M5.5 8.5l2 2 3-4" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>
+        </div>
+        <div class="flex flex-col -space-y-0.5">
+          <span class="font-semibold text-sm tracking-tight">FACTS</span>
+          <span class="text-[0.625rem] text-[var(--fg-subtle)] hidden sm:block">v0.1 prototype</span>
+        </div>
+      </div>
+
+      <nav class="flex items-center gap-0.5 overflow-x-auto flex-1" role="tablist" aria-label="Primary navigation">
+        <button class="tab" role="tab" aria-selected="true" data-tab="overview">Overview</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="graph">Graph</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="files">Files</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="routes">Routes</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="risks">Risks <span id="risks-count-chip" class="chip chip-muted ml-1">0</span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="history">History</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="config" aria-label="Config">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-2px;margin-right:4px;"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Config</button>
+      </nav>
+
+      <div class="flex items-center gap-1">
+        <!-- Open folder (File System Access API) -->
+        <button id="open-folder" class="h-8 flex items-center gap-1.5 px-2.5 rounded-md text-xs text-[var(--fg)] hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors" aria-label="Open folder">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="hidden md:inline">Open</span>
+        </button>
+
+        <!-- Font-size slider -->
+        <details class="relative">
+          <summary class="list-none rounded-md p-1.5 hover:bg-[var(--surface-2)] cursor-pointer" aria-label="Font size">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+          </summary>
+          <div class="glass-strong absolute right-0 top-full mt-2 w-64 p-3 rounded-lg">
+            <div class="text-xs font-medium mb-2">Font size</div>
+            <input id="font-slider" type="range" min="0.85" max="1.35" step="0.05" value="1" class="w-full accent-[var(--accent)]" aria-label="Font size multiplier"/>
+            <div class="flex justify-between text-[0.625rem] text-[var(--fg-subtle)] mt-1"><span>Compact</span><span>Default</span><span>Large</span><span>XL</span></div>
+          </div>
+        </details>
+
+        <button id="theme-toggle" class="rounded-md p-1.5 hover:bg-[var(--surface-2)]" aria-label="Toggle theme" title="Theme · ⌘J">
+          <svg id="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+          <svg id="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+
+        <button id="reanalyze" class="h-8 rounded-md px-3 text-xs font-medium bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90 flex items-center gap-1.5 whitespace-nowrap" aria-label="Re-analyze project">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+          <span class="hidden sm:inline">Re-analyze</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ============================================================== -->
+    <!-- Main layout                                                     -->
+    <!-- ============================================================== -->
+    <main class="fixed left-0 right-0 flex" style="top: 56px; bottom: 28px;" id="main-layout">
+      <aside id="lhs-panel" class="glass h-full overflow-hidden flex flex-col" style="width: clamp(18rem, 22dvw, 25rem); border-radius: 0; border-right: 1px solid var(--border);" aria-label="Project tree">
+        <div class="px-3 py-2.5 border-b border-[var(--border)]">
+          <div class="flex items-center justify-between text-[0.6875rem] text-[var(--fg-subtle)]">
+            <span id="project-name" class="mono truncate">…</span>
+            <span id="file-count-chip" class="chip chip-muted">0 files</span>
+          </div>
+        </div>
+
+        <nav id="tree" class="flex-1 overflow-y-auto p-2 space-y-0.5" role="tree" aria-label="Project file tree"></nav>
+
+        <!-- LHS summary — bundle size + context-fit chip only. Token count
+             moved to the Overview's editorial lead paragraph (audit M1). -->
+        <div class="p-2.5 border-t border-[var(--border)] text-[0.6875rem] space-y-1 text-[var(--fg-subtle)]">
+          <div class="flex justify-between"><span>Bundle (gzip)</span><span id="bundle-size" class="mono">…</span></div>
+          <div class="flex items-center justify-between"><span>Fits 200K context?</span><span id="fits-context" class="chip chip-muted">…</span></div>
+        </div>
+      </aside>
+
+      <div id="lhs-scrim" aria-hidden="true"></div>
+
+      <section class="flex-1 min-w-0 flex flex-col overflow-hidden" role="main">
+        <div class="glass h-11 flex items-center gap-0.5 px-3" style="border-radius: 0; border-bottom: 1px solid var(--border);" role="tablist" aria-label="File view">
+          <button class="tab" role="tab" aria-selected="true"  data-local-tab="outline">Outline</button>
+          <button class="tab" role="tab" aria-selected="false" data-local-tab="preview">Preview</button>
+          <button class="tab" role="tab" aria-selected="false" data-local-tab="imports">Imports</button>
+          <button class="tab" role="tab" aria-selected="false" data-local-tab="callers">Callers</button>
+          <button class="tab" role="tab" aria-selected="false" data-local-tab="todos">TODOs <span id="local-todos-chip" class="chip chip-warn ml-1">0</span></button>
+          <button class="tab" role="tab" aria-selected="false" data-local-tab="tests">Tests</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto" id="rhs-content">
+          <div class="tab-panel content-cap p-5 sm:p-8 max-w-5xl mx-auto" data-panel="overview" id="panel-overview">
+            <!-- Injected by render() -->
+          </div>
+          <div class="tab-panel hidden content-cap p-5 sm:p-8 max-w-5xl mx-auto" data-panel="graph" id="panel-graph"></div>
+          <div class="tab-panel hidden p-5 sm:p-6" data-panel="files" id="panel-files"></div>
+          <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto" data-panel="routes" id="panel-routes"></div>
+          <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto" data-panel="risks" id="panel-risks"></div>
+          <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto" data-panel="history" id="panel-history"></div>
+          <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto" data-panel="config" id="panel-config"></div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="glass fixed bottom-0 left-0 right-0 h-7 flex items-center gap-4 px-3 text-[0.6875rem] text-[var(--fg-muted)]" style="border-radius: 0; border-top: 1px solid var(--border);" role="contentinfo">
+      <span class="flex items-center gap-1.5"><span class="dot-pulse w-1.5 h-1.5 rounded-full bg-[var(--ok)]"></span>parse: clean</span>
+      <span id="analyzed-at" class="hidden sm:inline">analyzed just now</span>
+      <span class="hidden md:inline mono" id="status-root">loading…</span>
+      <span class="flex-1 text-right truncate" id="status-health">
+        <span class="text-[var(--fg-muted)]">loading…</span>
+      </span>
+    </footer>
+
+    <!-- ============================================================== -->
+    <!-- Scripts                                                         -->
+    <!-- ============================================================== -->
+    <script type="module">
+      const $ = (s, r = document) => r.querySelector(s);
+      const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+      const h = (tag, attrs = {}, ...kids) => {
+        const el = document.createElement(tag);
+        for (const [k, v] of Object.entries(attrs)) {
+          if (v == null) continue;
+          if (k === 'class') el.className = v;
+          else if (k === 'html') el.innerHTML = v;
+          else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+          else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
+          else if (k in el && typeof v !== 'string') el[k] = v;
+          else el.setAttribute(k, v);
+        }
+        for (const kid of kids.flat()) {
+          if (kid == null) continue;
+          el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+        }
+        return el;
+      };
+      const fmtBytes = (n) => (n >= 1024 * 1024 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B');
+      const fmtTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n));
+
+      // ============================ DATA ==================================
+      let DATA = null;
+      let SELECTED_FILE = null;
+      let LOCAL_TAB = 'outline'; // active local tab inside the Files pane
+
+      async function loadDefault() {
+        // Try the inline dataset first (standalone-friendly), then fall back
+        // to fetch. This makes the file open via file:// without issues.
+        const inline = document.getElementById('factstack-data');
+        if (inline && inline.textContent && !inline.textContent.includes('__INLINE_FACTSTACK_JSON__')) {
+          try {
+            DATA = JSON.parse(inline.textContent);
+            return;
+          } catch (e) { console.warn('inline dataset parse failed, falling back', e); }
+        }
+        try {
+          const res = await fetch('./data/factstack.json');
+          DATA = await res.json();
+        } catch (e) {
+          console.error('failed to load default dataset', e);
+          DATA = emptyDataset('no data loaded');
+        }
+      }
+
+      function emptyDataset(msg) {
+        return {
+          project: { name: msg, root: '', languages: [], frameworks: [] },
+          summary: { oneLiner: msg, description: '', capabilities: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0 } },
+          stats: { files: 0, loc: 0, size: 0, gzip: 0, tokens: 0 },
+          tree: { files: [], children: [] },
+          entryPoints: [], risks: [],
+        };
+      }
+
+      // ============================ TREE ==================================
+      function langIconSvg(color, tag) {
+        return `<svg width="14" height="14" viewBox="0 0 16 16" fill="${color}" aria-hidden="true"><rect x="1" y="2" width="14" height="12" rx="1.5"/></svg>
+          <span style="position:absolute; font-size:7px; font-weight:600; color:white; text-align:center; width:14px; margin-left:-14px; line-height:14px;">${tag}</span>`;
+      }
+      function folderIcon() {
+        return `<svg width="14" height="14" viewBox="0 0 16 16" fill="#60a5fa" aria-hidden="true"><path d="M1.5 3a1 1 0 011-1h3.086a1 1 0 01.707.293l1.414 1.414a1 1 0 00.707.293H13.5a1 1 0 011 1v7.5a1 1 0 01-1 1h-12a1 1 0 01-1-1V3z"/></svg>`;
+      }
+      function chevron() {
+        return `<svg class="tree-chev" width="10" height="10" viewBox="0 0 10 10"><path d="M2 3l3 4 3-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      }
+
+      // Path → file lookup used by the delegated click handler below.
+      const FILES_BY_PATH = new Map();
+      function indexFiles(node) {
+        FILES_BY_PATH.clear();
+        (function walk(n) {
+          for (const f of n.files || []) FILES_BY_PATH.set(f.path, f);
+          for (const c of n.children || []) walk(c);
+        })(node);
+      }
+
+      function renderTree(container, node, depth = 0) {
+        const childCount = (node.children?.length || 0) + (node.files?.length || 0);
+        const folders = (node.children || []).map((c, i) => {
+          const wrap = h('div', {
+            class: 'tree-node',
+            role: 'treeitem',
+            'aria-expanded': depth < 2 ? 'true' : 'false',
+            'aria-level': String(depth + 1),
+            'aria-posinset': String(i + 1),
+            'aria-setsize': String(childCount),
+            'data-kind': 'folder',
+            'data-path': c.path,
+          });
+          const totalLoc = c.rollup?.loc || 0;
+          const row = h('div', { class: 'tree-row', 'data-kind': 'folder', 'data-path': c.path });
+          row.innerHTML = `${chevron()}${folderIcon()}<span class="truncate">${c.name}</span><span class="chip chip-muted">${fmtTok(totalLoc)}</span>`;
+          wrap.append(row);
+          const kids = h('div', { class: 'tree-children' });
+          renderTree(kids, c, depth + 1);
+          wrap.append(kids);
+          return wrap;
+        });
+        const folderN = folders.length;
+        const files = (node.files || []).map((f, i) => {
+          const wrap = h('div', {
+            class: 'tree-node',
+            role: 'treeitem',
+            'aria-level': String(depth + 1),
+            'aria-posinset': String(folderN + i + 1),
+            'aria-setsize': String(childCount),
+            'data-kind': 'file',
+            'data-path': f.path,
+          });
+          const statusChip = f.status === 'broken' ? '<span class="chip chip-danger">broken</span>' : f.status === 'stale' ? '<span class="chip chip-warn">stale</span>' : '<span class="chip chip-ok">ok</span>';
+          const langTag = f.language?.tag || f.ext?.replace('.', '').toUpperCase().slice(0, 4) || '···';
+          // Prefer the design-system --lang-* token; fall back to the data's
+          // iconColor only if no token exists for this language id.
+          const langId = f.language?.id;
+          const langColor = langId ? `var(--lang-${langId}, ${f.language?.iconColor || 'var(--fg-muted)'})` : (f.language?.iconColor || 'var(--fg-muted)');
+          const row = h('div', { class: 'tree-row', 'data-kind': 'file', 'data-path': f.path });
+          row.innerHTML = `<span></span><span class="mono text-[10px] font-semibold" style="color:${langColor};">${langTag}</span><span class="truncate">${f.name}</span>${statusChip}`;
+          wrap.append(row);
+          return wrap;
+        });
+        container.append(...folders, ...files);
+      }
+
+      function selectFile(f) {
+        SELECTED_FILE = f;
+        $$('#tree .tree-row').forEach((r) => r.removeAttribute('aria-selected'));
+        const match = document.querySelector(`#tree .tree-row[data-path="${CSS.escape(f.path)}"]`);
+        if (match) match.setAttribute('aria-selected', 'true');
+        renderFiles();
+        activateTab('files');
+      }
+
+      function toggleFolder(path) {
+        const node = document.querySelector(`#tree .tree-node[data-kind="folder"][data-path="${CSS.escape(path)}"]`);
+        if (!node) return;
+        const ex = node.getAttribute('aria-expanded') === 'true';
+        node.setAttribute('aria-expanded', String(!ex));
+      }
+
+      // ============================ PANELS ================================
+      // Overview rewritten as an editorial brief.
+      //
+      // Direction: the Overview reads like an analyst's one-pager, not a
+      // dashboard. Serif display head, prose that weaves numbers inline, a
+      // single horizontal stacked bar for distribution, hairline rules as
+      // section breaks. No card grid. No hero-metric template. Every fact
+      // lives in a sentence where possible.
+      function renderOverview() {
+        const d = DATA;
+        const p = $('#panel-overview');
+        p.innerHTML = '';
+        const sum = d.summary;
+        const langs = (d.project.languages || []).slice(0, 8);
+        const fw = d.project.frameworks || [];
+        const health = sum.health || {};
+        const totalTokens = d.stats?.tokens || 0;
+        const fitsCtx = totalTokens < 200_000;
+        const fitsPct = Math.min(100, Math.round((totalTokens / 200_000) * 100));
+        const rootLabel = (d.project?.root || d.project?.name || '').replace(/\\/g, '/');
+
+        // Natural-language TODO hotspot: which folder owns the most?
+        const folderTodos = (d.tree?.children || [])
+          .map((c) => ({ name: c.name, n: c.rollup?.todos || 0 }))
+          .filter((x) => x.n > 0)
+          .sort((a, b) => b.n - a.n);
+        const hotspot = folderTodos[0];
+
+        // Dominant language line
+        const dom = langs[0];
+        const domPct = dom ? Math.round(((dom.tokens || 0) / (totalTokens || 1)) * 100) : 0;
+
+        // Build the editorial column
+        const col = h('article', { class: 'stagger max-w-[64rem] mx-auto', style: { paddingBottom: '4rem' } });
+
+        // 1. DATELINE
+        const dateline = h('div', { class: 'ed-dateline flex items-center gap-3 mb-6' });
+        dateline.innerHTML = `
+          <span>FACTS · analysis · ${d.generatedAt ? escapeHtml(relTime(d.generatedAt)) : 'now'}</span>
+          <span aria-hidden="true" style="flex:1;height:1px;background:var(--hairline)"></span>
+          <span class="mono truncate" style="font-family:var(--font-mono);letter-spacing:0;text-transform:none;font-size:0.6875rem">${escapeHtml(rootLabel)}</span>
+        `;
+        col.append(dateline);
+
+        // 2. DISPLAY HEAD + DEK
+        const heading = h('h1', { class: 'ed-head', style: { fontSize: 'clamp(2.25rem, 4.5vw, 3.75rem)', marginBottom: '0.75rem' } }, sum.oneLiner || d.project.name);
+        col.append(heading);
+
+        const dek = h('p', { class: 'ed-dek', style: { fontSize: 'clamp(1.125rem, 1.8vw, 1.375rem)', maxWidth: '52ch', marginBottom: '2.5rem' } }, sum.description || '');
+        col.append(dek);
+
+        // 3. THICK RULE — editorial convention for "brief starts here"
+        col.append(h('hr', { class: 'ed-rule-thick', style: { marginBottom: '2rem' } }));
+
+        // 4. LEAD PARAGRAPH — prose with data inline (replaces hero-metric)
+        const lead = h('p', { class: 'ed-prose', style: { fontSize: '1.0625rem', marginBottom: '1.5rem' } });
+        lead.innerHTML = `
+          The codebase is <span class="num">${fmtTok(totalTokens)}</span> tokens across <span class="num">${d.stats.files}</span> files, ${fitsCtx ? `fitting comfortably within a <span class="num">200K</span> agent context (${fitsPct}% full)` : `<strong>too large for a 200K agent context</strong> — consider scoping analyses to subdirectories`}.
+          ${dom ? `Roughly <span class="num">${domPct}%</span> of that budget lives in <strong>${escapeHtml(dom.label)}</strong>, with ${langs.length > 1 ? `<strong>${escapeHtml(langs[1].label)}</strong> and <strong>${escapeHtml(langs[2]?.label || langs[1].label)}</strong> covering most of the remainder.` : ''}` : ''}
+        `;
+        col.append(lead);
+
+        // 5. HEALTH SENTENCE — replaces the hero-metric block
+        const healthSentence = h('p', { class: 'ed-prose', style: { fontSize: '1.0625rem', marginBottom: '2.5rem' } });
+        const verdict = (() => {
+          const parts = [];
+          if (health.broken) parts.push(`<strong style="color:var(--danger)">${health.broken} broken file${health.broken === 1 ? '' : 's'}</strong>`);
+          if (health.stale)  parts.push(`<strong style="color:var(--warn)">${health.stale} stale file${health.stale === 1 ? '' : 's'}</strong>`);
+          if (health.secrets) parts.push(`<strong style="color:var(--danger)">${health.secrets} exposed secret${health.secrets === 1 ? '' : 's'}</strong>`);
+          return parts;
+        })();
+        if (verdict.length === 0) {
+          healthSentence.innerHTML = `
+            Health is <strong style="color:var(--accent)">clean</strong>: no broken files, no stale code, no secrets detected.
+            ${health.todos ? `Developers have left <span class="num">${health.todos}</span> TODO/FIXME comments${hotspot ? `, concentrated in <strong>${escapeHtml(hotspot.name)}/</strong> (<span class="num">${hotspot.n}</span>)` : ''}.` : ''}
+          `;
+        } else {
+          healthSentence.innerHTML = `
+            Needs attention: ${verdict.join(', ')}.
+            ${health.todos ? `Additionally <span class="num">${health.todos}</span> TODO/FIXME comments${hotspot ? ` cluster in <strong>${escapeHtml(hotspot.name)}/</strong>` : ''}.` : ''}
+          `;
+        }
+        col.append(healthSentence);
+
+        // 6. HAIRLINE
+        col.append(h('hr', { class: 'ed-rule', style: { marginBottom: '2.5rem' } }));
+
+        // 7. CAPABILITIES — as a single continuous paragraph rather than card grid
+        if (sum.capabilities?.length) {
+          col.append(h('div', { class: 'ed-label', style: { marginBottom: '0.75rem' } }, 'What it does'));
+          const caps = h('p', { class: 'ed-prose', style: { fontSize: '1rem', marginBottom: '2.5rem' } });
+          caps.innerHTML = sum.capabilities
+            .map((c) => `<strong>${escapeHtml(c.head)}</strong>${c.sub ? ` (${escapeHtml(c.sub)})` : ''}`)
+            .join(' · ')
+            + '.';
+          col.append(caps);
+          col.append(h('hr', { class: 'ed-rule', style: { marginBottom: '2.5rem' } }));
+        }
+
+        // 8. STACK — single horizontal stacked bar + a compact two-column legend
+        col.append(h('div', { class: 'ed-label', style: { marginBottom: '0.75rem' } }, 'Where the token budget goes'));
+        const totalLang = langs.reduce((s, l) => s + (l.tokens || 0), 0) || 1;
+        const bar = h('div', { class: 'dist-bar', style: { marginBottom: '1rem' } });
+        const legend = h('div', { class: 'dist-legend', style: { containerType: 'inline-size', marginBottom: '1.75rem' } });
+        const colorFor = (id) => `var(--lang-${id}, var(--fg-muted))`;
+        langs.forEach((l) => {
+          const pct = ((l.tokens || 0) / totalLang) * 100;
+          const seg = document.createElement('span');
+          seg.style.width = pct + '%';
+          seg.style.background = colorFor(l.id);
+          seg.title = `${l.label}: ${pct.toFixed(1)}%`;
+          bar.append(seg);
+        });
+        langs.forEach((l) => {
+          const pct = ((l.tokens || 0) / totalLang) * 100;
+          const row = document.createElement('div');
+          row.className = 'dist-legend-row';
+          row.innerHTML = `
+            <span class="dot" style="background:${colorFor(l.id)}"></span>
+            <span class="nm">${escapeHtml(l.label)}</span>
+            <span class="mt">${fmtTok(l.loc || 0)} LOC · ${fmtTok(l.tokens || 0)} tok · ${pct.toFixed(0)}%</span>
+          `;
+          legend.append(row);
+        });
+        col.append(bar);
+        col.append(legend);
+
+        if (fw.length) {
+          const fwLine = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem', marginBottom: '2.5rem' } });
+          fwLine.innerHTML = `Detected frameworks and tooling: ${fw.map((n) => `<strong>${escapeHtml(n)}</strong>`).join(', ')}.`;
+          col.append(fwLine);
+        }
+
+        col.append(h('hr', { class: 'ed-rule', style: { marginBottom: '2.5rem' } }));
+
+        // 9. ENTRY POINTS — simple list, no card wrapper
+        if (d.entryPoints?.length) {
+          col.append(h('div', { class: 'ed-label', style: { marginBottom: '0.75rem' } }, 'Entry points'));
+          const list = h('div', { style: { marginBottom: '2.5rem' } });
+          const inner = h('div', { class: 'divide-y divide-[var(--border)]' });
+          for (const e of d.entryPoints) inner.append(renderEntryPoint(e));
+          list.append(inner);
+          col.append(list);
+        }
+
+        p.append(col);
+      }
+
+      function statBlock(n, label, color) {
+        return h('div', {}, h('div', { class: 'text-2xl font-semibold', style: { color } }, String(n)), h('div', { class: 'text-[0.6875rem] text-[var(--fg-muted)] uppercase tracking-wider' }, label));
+      }
+      function statBlockSmall(v, label) {
+        return h('div', {}, h('div', { class: 'text-xs text-[var(--fg-muted)]' }, label), h('div', { class: 'text-lg font-semibold mt-0.5 mono' }, v));
+      }
+      function sep() { return h('div', { class: 'w-px h-8 bg-[var(--border)]' }); }
+
+      // --- Stack cards — professional card layout showing per-language
+      //     LOC + token cost + file count + share-of-codebase bar, plus a
+      //     grouped framework strip underneath.
+      function renderStackCards(languages, frameworks, stats) {
+        const wrap = h('div', { class: 'space-y-4' });
+        const totalLoc = languages.reduce((s, l) => s + (l.loc || 0), 0) || 1;
+        const totalTokens = languages.reduce((s, l) => s + (l.tokens || 0), 0) || 1;
+
+        // Languages grid
+        const grid = h('div', { class: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3' });
+        for (const l of languages.slice(0, 9)) {
+          const card = h('div', { class: 'surface rounded-xl p-4 flex flex-col gap-3', 'data-lang': l.id });
+          const pctLoc = Math.round(((l.loc || 0) / totalLoc) * 100);
+          const pctTok = Math.round(((l.tokens || 0) / totalTokens) * 100);
+          card.innerHTML = `
+            <div class="flex items-center gap-2.5">
+              <span style="width:10px;height:10px;border-radius:3px;background:${l.iconColor || '#94a3b8'};box-shadow:0 0 0 1px var(--border) inset"></span>
+              <span class="text-sm font-semibold">${escapeHtml(l.label || l.id)}</span>
+              <span class="chip chip-muted ml-auto">${l.files || 0} file${(l.files || 0) === 1 ? '' : 's'}</span>
+            </div>
+            <div class="flex items-baseline gap-4">
+              <div>
+                <div class="text-2xl font-semibold leading-tight mono">${fmtTok(l.loc || 0)}</div>
+                <div class="text-[0.6875rem] text-[var(--fg-muted)] uppercase tracking-wider">LOC</div>
+              </div>
+              <div class="ml-auto text-right">
+                <div class="text-sm font-medium mono">${fmtTok(l.tokens || 0)} tok</div>
+                <div class="text-[0.6875rem] text-[var(--fg-muted)]">${pctTok}% of tokens</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center justify-between text-[0.6875rem] text-[var(--fg-muted)] mb-1">
+                <span>Share of LOC</span><span class="mono">${pctLoc}%</span>
+              </div>
+              <div class="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
+                <div style="width:${Math.max(pctLoc, 2)}%;height:100%;background:${l.iconColor || 'var(--accent)'};border-radius:inherit;"></div>
+              </div>
+            </div>
+          `;
+          grid.append(card);
+        }
+        wrap.append(grid);
+
+        // Frameworks strip
+        if (frameworks?.length) {
+          const fwCard = h('div', { class: 'surface rounded-xl p-4' });
+          const chips = frameworks
+            .map((name) => `<span class="node-pill" style="background: color-mix(in oklab, var(--info) 12%, transparent); border-color: color-mix(in oklab, var(--info) 30%, transparent); color: var(--fg)"><span class="w-1.5 h-1.5 rounded-full bg-[var(--info)]"></span>${escapeHtml(name)}</span>`)
+            .join('');
+          fwCard.innerHTML = `
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-xs font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Frameworks & Tooling</span>
+              <span class="chip chip-muted">${frameworks.length}</span>
+            </div>
+            <div class="flex flex-wrap gap-2">${chips}</div>
+          `;
+          wrap.append(fwCard);
+        }
+        return wrap;
+      }
+
+      // --- Entry point row: show an Open indicator for web-openable targets
+      //     and handle clicks by launching a new tab for the resolved URL.
+      function entryPointUrl(e) {
+        // Already a full URL
+        if (/^https?:\/\//i.test(e.path)) return e.path;
+        // localhost:PORT
+        if (/^localhost:\d+/i.test(e.path)) return `http://${e.path}`;
+        // host:port (bare)
+        if (/^[a-z0-9.-]+:\d+/i.test(e.path)) return `http://${e.path}`;
+        // HTTP route on this project's UI — could link to localhost:3000{path}
+        if (e.kind === 'http-route' || e.kind === 'page') {
+          if (e.path.startsWith('/')) return `http://localhost:3000${e.path.replace(/:\w+/g, 'example')}`;
+        }
+        return null;
+      }
+      function isEntryOpenable(e) {
+        return !!entryPointUrl(e);
+      }
+      function renderEntryPoint(e) {
+        const url = entryPointUrl(e);
+        const openable = !!url;
+        const kindLabel = (e.kind || 'entry').toUpperCase();
+        const kindChipClass = e.kind === 'cli' || e.kind === 'cli-command' ? 'chip-warn' : openable ? 'chip-info' : 'chip-muted';
+        const externalIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+        const terminalIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`;
+        const indicator = openable
+          ? `<span class="inline-flex items-center gap-1 text-[0.6875rem] text-[var(--accent)] font-medium whitespace-nowrap" title="Opens in a new tab">${externalIcon}<span class="hidden sm:inline">Open</span></span>`
+          : `<span class="inline-flex items-center gap-1 text-[0.6875rem] text-[var(--fg-subtle)] whitespace-nowrap" title="Not openable in a browser — run in a terminal">${terminalIcon}<span class="hidden sm:inline">CLI</span></span>`;
+
+        const row = h('a', {
+          href: openable ? url : '#',
+          target: openable ? '_blank' : undefined,
+          rel: openable ? 'noopener noreferrer' : undefined,
+          class: `flex items-center gap-3 p-3 transition-colors ${openable ? 'hover:bg-[var(--surface-3)] cursor-pointer' : 'cursor-default opacity-85'}`,
+          'aria-disabled': openable ? undefined : 'true',
+        });
+        row.innerHTML = `
+          <span class="chip ${kindChipClass} mono">${escapeHtml(kindLabel)}</span>
+          <span class="mono text-sm flex-1 truncate" title="${escapeHtml(e.path)}">${escapeHtml(e.path)}</span>
+          <span class="text-xs text-[var(--fg-muted)] truncate hidden md:inline" title="${escapeHtml(e.handlerFile || '')}">${escapeHtml(e.handlerFile || '')}</span>
+          ${indicator}
+        `;
+        if (!openable) {
+          row.addEventListener('click', (ev) => ev.preventDefault());
+        }
+        return row;
+      }
+
+      // Risks — editorial treatment. Each risk is a row separated by
+      // hairline rules rather than wrapped in a card. Severity as a chip,
+      // category small-caps, location in monospace, then the message as
+      // body prose. Progressive disclosure via grouping by severity.
+      function renderRisks() {
+        const p = $('#panel-risks');
+        p.innerHTML = '';
+        const risks = DATA.risks || [];
+
+        // Header — use the editorial type treatment
+        const header = h('div', { class: 'max-w-[64rem] mx-auto', style: { marginBottom: '2rem' } });
+        header.innerHTML = `
+          <div class="ed-dateline" style="margin-bottom:0.75rem">RISKS &middot; ${risks.length} finding${risks.length === 1 ? '' : 's'}</div>
+          <h1 class="ed-head" style="font-size:clamp(1.75rem, 3.2vw, 2.5rem);margin-bottom:0.5rem">
+            ${risks.length === 0 ? 'Nothing to flag today.' : (risks.length === 1 ? 'One finding needs review.' : `${risks.length} findings need review.`)}
+          </h1>
+          <p class="ed-prose" style="font-size:1rem;max-width:60ch">
+            ${risks.length === 0
+              ? 'The scanner found no exposed secrets, unresolved imports, supply-chain warnings, stale files, or parse errors. Re-run after changes to refresh.'
+              : 'Severity reflects the analyzer\u2019s confidence and the blast radius if the finding holds. Click a file reference to open the file pane.'}
+          </p>
+        `;
+        p.append(header);
+
+        if (!risks.length) return;
+
+        // Group by severity for the editorial rhythm
+        const sevOrder = { critical: 0, high: 1, medium: 2, low: 3, info: 4 };
+        const byGroup = {};
+        for (const r of risks) {
+          const key = r.severity || 'info';
+          (byGroup[key] ||= []).push(r);
+        }
+        const groups = Object.entries(byGroup).sort((a, b) => (sevOrder[a[0]] ?? 9) - (sevOrder[b[0]] ?? 9));
+
+        const list = h('div', { class: 'max-w-[64rem] mx-auto' });
+        for (const [sev, items] of groups) {
+          list.append(h('hr', { class: 'ed-rule', style: { margin: '1.5rem 0 1rem' } }));
+          const label = h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.75rem' } });
+          label.innerHTML = `
+            <span class="ed-label">${sev.toUpperCase()}</span>
+            <span class="chip chip-${sevClass(sev)}">${items.length}</span>
+          `;
+          list.append(label);
+
+          for (const r of items) {
+            const row = h('div', { style: {
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr',
+              columnGap: '1rem',
+              rowGap: '0.25rem',
+              padding: '0.875rem 0',
+              borderTop: '1px solid var(--hairline)',
+            } });
+            const fileRef = r.file ? `${escapeHtml(r.file)}${r.line ? ':' + r.line : ''}` : '';
+            row.innerHTML = `
+              <span class="ed-label" style="font-size:0.625rem;align-self:start;padding-top:2px">${escapeHtml(r.category || '').toUpperCase()}</span>
+              <div>
+                <p class="ed-prose" style="font-size:0.9375rem;margin:0;max-width:62ch">${escapeHtml(r.message || '')}</p>
+                ${fileRef ? `<p class="mono text-xs text-[var(--fg-subtle)]" style="margin-top:0.375rem">${fileRef}</p>` : ''}
+              </div>
+            `;
+            list.append(row);
+          }
+        }
+        p.append(list);
+      }
+      function sevClass(s) { return s === 'critical' || s === 'high' ? 'danger' : s === 'medium' ? 'warn' : s === 'low' ? 'muted' : 'info'; }
+
+      function renderRoutes() {
+        const p = $('#panel-routes');
+        p.innerHTML = '';
+        const routes = DATA.entryPoints || [];
+        p.append(h('h1', { class: 'text-xl font-semibold mb-4' }, `Entry points (${routes.length})`));
+        if (!routes.length) { p.append(h('div', { class: 'surface rounded-lg p-6 text-center text-[var(--fg-muted)]' }, 'No entry points detected.')); return; }
+        const list = h('div', { class: 'surface rounded-lg overflow-hidden' });
+        const inner = h('div', { class: 'divide-y divide-[var(--border)]' });
+        for (const r of routes) inner.append(renderEntryPoint(r));
+        list.append(inner);
+        p.append(list);
+      }
+
+      // ----------------------------------------------------------------
+      // Token-distribution icicle — sharp, high-fidelity, actually useful.
+      //
+      // Why an icicle instead of a force graph:
+      //   • The prototype scanner does not extract real import edges, so a
+      //     node-link "dependency graph" is fiction. An icicle shows exactly
+      //     the data we HAVE — containment + token cost — and makes it
+      //     useful: "where does our AI-context budget actually go?"
+      //   • No glass wrapper → text stays crisp. No label collision → each
+      //     cell is proportionally sized to its data, impossible-to-fit
+      //     labels silently hide (hover tooltip shows full name).
+      //   • Colour encodes depth, width encodes tokens. Hover lights up the
+      //     ancestor chain. Click drills into Files.
+      // ----------------------------------------------------------------
+      function renderGraph() {
+        const p = $('#panel-graph');
+        p.innerHTML = '';
+
+        // Header + one-line value prop
+        p.append(h('h1', { class: 'text-xl font-semibold tracking-tight mb-1' }, 'Token distribution'));
+        p.append(h('p', { class: 'text-sm text-[var(--fg-muted)] mb-5 max-w-2xl leading-relaxed' },
+          'How your codebase’s AI-context budget is spread across folders and files. Wider cells cost a coding agent more tokens to read.'));
+
+        // Narrow viewports can't read the icicle — collapse to a vertical
+        // top-5 list with horizontal bars (same data, better legibility).
+        if (window.matchMedia('(max-width: 639px)').matches) {
+          renderGraphCompact(p);
+          return;
+        }
+
+        // --- Build partition data (3 levels: root → top-level → nested) ---
+        const topLevel = (DATA.tree?.children || []).map((c) => ({
+          name: c.name,
+          tokens: c.rollup?.tokens || 0,
+          files: c.rollup?.files || 0,
+          path: c.path,
+          children: (c.children || []).map((sub) => ({
+            name: sub.name,
+            tokens: sub.rollup?.tokens || 0,
+            files: sub.rollup?.files || 0,
+            path: sub.path,
+          })),
+        }));
+        // Include top-level files as virtual leaves under a "(root files)" bucket
+        const rootFileTokens = (DATA.tree?.files || []).reduce((s, f) => s + (f.tokens || 0), 0);
+        const rootFileCount  = (DATA.tree?.files || []).length;
+        if (rootFileCount > 0) {
+          topLevel.push({
+            name: '(root files)', tokens: rootFileTokens, files: rootFileCount, path: '', children: [],
+          });
+        }
+        // Sort top-level by token weight so the heavy hitters lead
+        topLevel.sort((a, b) => b.tokens - a.tokens);
+        const totalTokens = topLevel.reduce((s, c) => s + c.tokens, 0) || 1;
+
+        // --- SVG geometry ---
+        const VW = 1200;
+        const ROW_H = 96, GAP_Y = 6, GAP_X = 4;
+        const PAD_X = 16, PAD_Y = 16;
+        const rows = 3;
+        const VH = rows * ROW_H + (rows - 1) * GAP_Y + PAD_Y * 2 + 32 /* breadcrumb rail */;
+
+        const svg = [];
+        svg.push(`<svg viewBox="0 0 ${VW} ${VH}" preserveAspectRatio="xMidYMid meet" class="w-full block" style="max-height: 64dvh; min-height: 360px;" role="img" aria-label="Token distribution icicle chart">`);
+        svg.push(`<defs>
+          <clipPath id="ice-cell"><rect x="0" y="0" width="${VW}" height="${VH}"/></clipPath>
+        </defs>`);
+
+        // Crumb rail at the top — navigates where the hover is
+        svg.push(`<g><text id="ice-crumb" x="${PAD_X}" y="22" fill="var(--fg-muted)" font-family="JetBrains Mono, monospace" font-size="12">Hover a cell to inspect · click a leaf to open its files</text></g>`);
+
+        // Row 0 — workspace root
+        const rootX = PAD_X, rootY = 32, rootW = VW - PAD_X * 2;
+        svg.push(iceCell({
+          x: rootX, y: rootY, w: rootW, h: ROW_H,
+          name: DATA.project?.name || 'root',
+          meta: `${fmtTok(totalTokens)} tok · ${DATA.stats?.files || 0} files · workspace root`,
+          depth: 0, path: '', bigLabel: true,
+        }));
+
+        // Row 1 — top-level packages
+        const r1Y = rootY + ROW_H + GAP_Y;
+        let x = rootX;
+        for (const n of topLevel) {
+          const w = Math.max(1, (n.tokens / totalTokens) * rootW - GAP_X);
+          svg.push(iceCell({
+            x, y: r1Y, w, h: ROW_H,
+            name: n.name,
+            meta: `${fmtTok(n.tokens)} tok · ${n.files} file${n.files === 1 ? '' : 's'}`,
+            depth: 1, path: n.path, sortableWidth: w,
+          }));
+
+          // Row 2 — nested folders within this top-level (if any)
+          if (n.children && n.children.length) {
+            const innerTotal = n.children.reduce((s, c) => s + c.tokens, 0) || 1;
+            const r2Y = r1Y + ROW_H + GAP_Y;
+            let x2 = x;
+            n.children.sort((a, b) => b.tokens - a.tokens);
+            for (const cc of n.children) {
+              const w2 = Math.max(1, (cc.tokens / innerTotal) * w - GAP_X);
+              svg.push(iceCell({
+                x: x2, y: r2Y, w: w2, h: ROW_H,
+                name: cc.name,
+                meta: `${fmtTok(cc.tokens)} tok · ${cc.files} file${cc.files === 1 ? '' : 's'}`,
+                depth: 2, path: cc.path, sortableWidth: w2,
+              }));
+              x2 += w2 + GAP_X;
+            }
+          }
+          x += w + GAP_X;
+        }
+
+        svg.push('</svg>');
+
+        // Wrap in a solid surface (NOT glass) so the SVG stays crisp.
+        const wrap = h('div', {
+          class: 'rounded-xl overflow-hidden',
+          style: {
+            background: 'var(--surface-1)',
+            border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-sm)',
+            padding: '4px',
+          },
+        });
+        wrap.innerHTML = svg.join('');
+        p.append(wrap);
+
+        // Legend — left-aligned chips, generous spacing
+        const legend = h('div', { class: 'mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-[var(--fg-muted)]' });
+        legend.innerHTML = `
+          <span class="inline-flex items-center gap-2"><span style="width:14px;height:14px;border-radius:4px;background:color-mix(in oklab, var(--accent) 22%, transparent); border:1.5px solid var(--accent)"></span><strong>Workspace</strong></span>
+          <span class="inline-flex items-center gap-2"><span style="width:14px;height:14px;border-radius:4px;background:color-mix(in oklab, var(--info) 22%, transparent); border:1.5px solid var(--info)"></span><strong>Top-level package / app</strong></span>
+          <span class="inline-flex items-center gap-2"><span style="width:14px;height:14px;border-radius:4px;background:color-mix(in oklab, var(--warn) 22%, transparent); border:1.5px solid var(--warn)"></span><strong>Nested folder</strong></span>
+          <span class="ml-auto">Width ∝ token cost · Click a leaf to open its files</span>
+        `;
+        p.append(legend);
+
+        // ---------- Interactivity ----------
+        const svgEl = wrap.querySelector('svg');
+        const crumb = svgEl?.querySelector('#ice-crumb');
+        const tipOrig = crumb?.textContent;
+
+        // Hover: lift cell, dim siblings, update breadcrumb
+        svgEl.addEventListener('mousemove', (e) => {
+          const g = e.target.closest('.ice-node');
+          if (!g) {
+            if (crumb) crumb.textContent = tipOrig;
+            svgEl.querySelectorAll('.ice-node').forEach((x) => x.classList.remove('is-hover', 'is-dim'));
+            return;
+          }
+          svgEl.querySelectorAll('.ice-node').forEach((x) => {
+            x.classList.toggle('is-hover', x === g);
+            x.classList.toggle('is-dim', x !== g);
+          });
+          if (crumb) {
+            const path = g.getAttribute('data-path') || '';
+            const name = g.getAttribute('data-name') || '';
+            const meta = g.getAttribute('data-meta') || '';
+            // Prefer the path for real folders; fall back to the name for
+            // synthetic buckets like "(root files)" or the workspace root.
+            crumb.textContent = `▸ ${path || name}   ·   ${meta}`;
+          }
+        });
+        svgEl.addEventListener('mouseleave', () => {
+          if (crumb) crumb.textContent = tipOrig;
+          svgEl.querySelectorAll('.ice-node').forEach((x) => x.classList.remove('is-hover', 'is-dim'));
+        });
+
+        // Click: jump to Files scoped to that folder's first file
+        wrap.addEventListener('click', (e) => {
+          const g = e.target.closest('.ice-node[data-path]');
+          if (!g) return;
+          const path = g.getAttribute('data-path');
+          if (!path) return;
+          const first = [...FILES_BY_PATH.values()].find((f) => f.path.startsWith(path + '/') || f.path === path);
+          if (first) smoothSwap(() => selectFile(first));
+        });
+      }
+
+      // Compact vertical list for narrow viewports. One row per top-level
+      // folder: name + token count + horizontal bar proportional to share.
+      // Tap a row to drill into that folder's files.
+      function renderGraphCompact(container) {
+        const nodes = (DATA.tree?.children || []).map((c) => ({
+          name: c.name,
+          tokens: c.rollup?.tokens || 0,
+          files: c.rollup?.files || 0,
+          path: c.path,
+        }));
+        const rootFileTokens = (DATA.tree?.files || []).reduce((s, f) => s + (f.tokens || 0), 0);
+        const rootFileCount  = (DATA.tree?.files || []).length;
+        if (rootFileCount > 0) nodes.push({ name: '(root files)', tokens: rootFileTokens, files: rootFileCount, path: '' });
+        nodes.sort((a, b) => b.tokens - a.tokens);
+        const top = nodes.slice(0, 8);
+        const max = top[0]?.tokens || 1;
+
+        const list = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '0' } });
+        top.forEach((n, i) => {
+          const pct = Math.round((n.tokens / max) * 100);
+          const row = h('button', {
+            class: 'text-left',
+            'data-compact-path': n.path,
+            style: {
+              display: 'grid',
+              gridTemplateColumns: '1fr auto',
+              gap: '0.25rem 0.75rem',
+              padding: '0.875rem 0',
+              borderTop: i === 0 ? 'none' : '1px solid var(--hairline)',
+              background: 'transparent',
+              border: 'none',
+              width: '100%',
+              cursor: n.path ? 'pointer' : 'default',
+            },
+          });
+          row.innerHTML = `
+            <span style="font-family:var(--font-display);font-weight:600;font-size:0.9375rem;color:var(--fg)">${escapeHtml(n.name)}</span>
+            <span class="mono text-xs text-[var(--fg-subtle)]">${fmtTok(n.tokens)} tok · ${n.files} file${n.files === 1 ? '' : 's'}</span>
+            <span style="grid-column:1 / -1;height:6px;border-radius:3px;background:var(--surface-3);overflow:hidden;margin-top:0.375rem">
+              <span style="display:block;height:100%;width:${Math.max(pct, 2)}%;background:var(--accent);border-radius:inherit"></span>
+            </span>
+          `;
+          list.append(row);
+        });
+        container.append(list);
+
+        // Click delegation for mobile rows
+        list.addEventListener('click', (e) => {
+          const row = e.target.closest('[data-compact-path]');
+          if (!row) return;
+          const path = row.getAttribute('data-compact-path');
+          if (!path) return;
+          const first = [...FILES_BY_PATH.values()].find((f) => f.path.startsWith(path + '/') || f.path === path);
+          if (first) smoothSwap(() => selectFile(first));
+        });
+      }
+
+      // Icicle cell renderer — rounded rect + adaptive labels.
+      // Labels are clipped inside the cell via a per-cell clipPath so wide
+      // names never bleed into siblings.
+      function iceCell({ x, y, w, h, name, meta, depth, path, bigLabel = false }) {
+        const fill = depth === 0 ? 'var(--accent)' : depth === 1 ? 'var(--info)' : 'var(--warn)';
+        const rx = 8;
+        const id = `cell-${Math.round(x)}-${Math.round(y)}`;
+        // Labels only render if there's room; otherwise hover breadcrumb tells the story.
+        const padL = 10, padT = 22;
+        const showName = w > 44;
+        const showMeta = w > 90 && h > 42;
+        const showExpandHint = depth === 1 && w > 120;
+        const nameFont = bigLabel ? 17 : depth === 1 ? 14 : 13;
+
+        return `
+<g class="ice-node" data-name="${escapeHtml(name)}" data-meta="${escapeHtml(meta)}" data-path="${escapeHtml(path || '')}" data-depth="${depth}" style="cursor:${path ? 'pointer' : 'default'}">
+  <defs><clipPath id="${id}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ry="${rx}"/></clipPath></defs>
+  <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" ry="${rx}"
+        class="ice-bg"
+        fill="${fill}" fill-opacity="0.12"
+        stroke="${fill}" stroke-width="1.5"/>
+  <g clip-path="url(#${id})">
+    ${showName ? `<text x="${x + padL}" y="${y + padT}" fill="var(--fg)" font-family="Urbanist, system-ui, sans-serif" font-size="${nameFont}" font-weight="${bigLabel ? 700 : 600}" letter-spacing="-0.01em">${escapeHtml(name)}</text>` : ''}
+    ${showMeta ? `<text x="${x + padL}" y="${y + padT + 20}" fill="var(--fg-muted)" font-family="JetBrains Mono, monospace" font-size="11" font-variant-numeric="tabular-nums">${escapeHtml(meta)}</text>` : ''}
+    ${showExpandHint ? `<text x="${x + w - padL}" y="${y + h - 10}" text-anchor="end" fill="${fill}" font-family="Urbanist, system-ui" font-size="10" font-weight="600" opacity="0.75">open →</text>` : ''}
+  </g>
+</g>`;
+      }
+      function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+      // History — editorial empty state. No sparklines (audit M2); one
+      // sentence that explains what trend data WILL appear here after
+      // multiple analyses.
+      function renderHistory() {
+        const p = $('#panel-history');
+        p.innerHTML = '';
+        const wrap = h('article', { class: 'max-w-[64rem] mx-auto' });
+        wrap.innerHTML = `
+          <div class="ed-dateline" style="margin-bottom:0.75rem">HISTORY &middot; trend data</div>
+          <h1 class="ed-head" style="font-size:clamp(1.75rem, 3.2vw, 2.5rem);margin-bottom:0.5rem">
+            No snapshots yet.
+          </h1>
+          <p class="ed-prose" style="font-size:1rem;max-width:62ch">
+            Run <span class="mono">factstack analyze</span> across multiple commits or days and this page shows how token cost, risks, TODO count, and file count move over time.
+            Each run produces a snapshot in <span class="mono">.facts/snapshots/</span>; the trend chart here plots them against a user-chosen window.
+          </p>
+          <hr class="ed-rule" style="margin:2rem 0" />
+          <div class="ed-label" style="margin-bottom:0.75rem">Storage</div>
+          <p class="ed-prose" style="font-size:0.9375rem;max-width:62ch">
+            Snapshots are content-addressed deltas keyed off <span class="mono">index.db</span> row hashes &mdash; small, fast, and incremental.
+            Side-by-side file diff lands on click when a row changes; full tree diff is deferred to v0.2.
+          </p>
+        `;
+        p.append(wrap);
+      }
+
+      // --- Config tab ---------------------------------------------------
+      // User-visible preferences. First pass: typography (body-font toggle
+      // between Inter and Google Sans). Theme + font size are controlled from
+      // the top-nav shortcuts, but they're also surfaced here for discovery.
+      function renderConfig() {
+        const p = $('#panel-config');
+        if (!p) return;
+        p.innerHTML = '';
+        const bodyFont = document.documentElement.dataset.bodyFont || 'inter';
+        const theme    = document.documentElement.dataset.theme    || 'light';
+        const fs       = (localStorage.getItem('facts-font') || '1');
+
+        const wrap = h('div', { class: 'space-y-6' });
+
+        // Header
+        wrap.append(h('div', {},
+          h('h1', { class: 'text-xl font-semibold mb-1' }, 'Config'),
+          h('p', { class: 'text-sm text-[var(--fg-muted)]' },
+            'Preferences apply instantly and persist across reloads.'),
+        ));
+
+        // Body font toggle
+        const fontCard = h('section', { class: 'surface rounded-xl p-5' });
+        fontCard.innerHTML = `
+          <div class="flex items-baseline justify-between gap-3 mb-1">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Body font</h2>
+            <span class="chip chip-muted">applies to paragraphs + dense blocks</span>
+          </div>
+          <p class="text-sm text-[var(--fg-muted)] mb-4">Headings, chips, tabs, and numeric displays remain in <strong>Urbanist</strong>. Only paragraph + descriptive copy changes.</p>
+          <div role="radiogroup" aria-label="Body font" class="grid sm:grid-cols-2 gap-2">
+            <button role="radio" aria-checked="${bodyFont === 'inter'}" data-body-font="inter"
+                    class="font-opt text-left rounded-lg p-4 border transition-colors"
+                    style="font-family: 'Inter', system-ui, sans-serif; border-color: ${bodyFont === 'inter' ? 'var(--accent)' : 'var(--border)'}; background: ${bodyFont === 'inter' ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent'}">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-base font-semibold" style="font-family: 'Inter';">Inter</span>
+                <span class="chip chip-ok ml-auto">${bodyFont === 'inter' ? 'Active' : 'Default'}</span>
+              </div>
+              <p class="text-sm text-[var(--fg-muted)] leading-relaxed">Humanist sans optimized for UI and paragraph legibility. SIL OFL — free for commercial use.</p>
+              <p class="text-xs mt-2" style="font-family: 'Inter';">The quick brown fox jumps over the lazy dog 0123456789</p>
+            </button>
+
+            <button role="radio" aria-checked="${bodyFont === 'google-sans'}" data-body-font="google-sans"
+                    class="font-opt text-left rounded-lg p-4 border transition-colors"
+                    style="font-family: 'Google Sans', system-ui, sans-serif; border-color: ${bodyFont === 'google-sans' ? 'var(--accent)' : 'var(--border)'}; background: ${bodyFont === 'google-sans' ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent'}">
+              <div class="flex items-center gap-2 mb-1">
+                <span class="text-base font-semibold" style="font-family: 'Google Sans';">Google Sans</span>
+                <span class="chip ${bodyFont === 'google-sans' ? 'chip-ok' : 'chip-warn'} ml-auto">${bodyFont === 'google-sans' ? 'Active' : 'Opt-in'}</span>
+              </div>
+              <p class="text-sm text-[var(--fg-muted)] leading-relaxed">Google&rsquo;s in-house UI typeface. Geometric, wider counters, slightly warmer than Inter.</p>
+              <p class="text-xs mt-2" style="font-family: 'Google Sans';">The quick brown fox jumps over the lazy dog 0123456789</p>
+            </button>
+          </div>
+          <div class="mt-4 flex gap-2 items-start text-xs text-[var(--fg-muted)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <p class="leading-relaxed">
+              <strong>License note.</strong> Google Sans is Google&rsquo;s proprietary typeface. Google does not serve it publicly via the Google Fonts API on non-Google origins, so on your machine it will silently fall back to <span class="mono">system-ui</span>. For a legally shippable near-equivalent, swap <span class="mono">Google Sans</span> for <span class="mono">Lexend</span> or <span class="mono">Public Sans</span> in the font link.
+            </p>
+          </div>
+        `;
+        wrap.append(fontCard);
+
+        // Font size (promoted from the top-nav popover)
+        const sizeCard = h('section', { class: 'surface rounded-xl p-5' });
+        sizeCard.innerHTML = `
+          <div class="flex items-baseline justify-between gap-3 mb-1">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Font size</h2>
+            <span class="mono text-xs" id="fs-readout">${(parseFloat(fs) * 100).toFixed(0)}%</span>
+          </div>
+          <p class="text-sm text-[var(--fg-muted)] mb-4">Multiplier on the root <span class="mono">font-size</span>. Container queries re-flow components so nothing clips.</p>
+          <input id="config-font-slider" type="range" min="0.85" max="1.35" step="0.05" value="${fs}" class="w-full accent-[var(--accent)]" aria-label="Font size multiplier"/>
+          <div class="flex justify-between text-[0.6875rem] text-[var(--fg-subtle)] mt-2">
+            <span>Compact</span><span>Default</span><span>Large</span><span>Extra Large</span>
+          </div>
+        `;
+        wrap.append(sizeCard);
+
+        // Theme — live control, not passive text (audit L2).
+        const themeCard = h('section', { class: 'surface rounded-xl p-5' });
+        const tRow = (val, label, desc) => `
+          <button role="radio" aria-checked="${theme === val}" data-theme-opt="${val}"
+                  class="text-left rounded-lg p-4 border transition-colors"
+                  style="border-color: ${theme === val ? 'var(--accent)' : 'var(--border)'}; background: ${theme === val ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent'}">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-base font-semibold">${label}</span>
+              <span class="chip ${theme === val ? 'chip-ok' : 'chip-muted'} ml-auto">${theme === val ? 'Active' : 'Select'}</span>
+            </div>
+            <p class="text-sm text-[var(--fg-muted)] leading-relaxed">${desc}</p>
+          </button>`;
+        themeCard.innerHTML = `
+          <div class="flex items-baseline justify-between gap-3 mb-1">
+            <h2 class="text-sm font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Theme</h2>
+            <span class="chip chip-muted">also: <kbd class="mono text-[0.625rem] px-1 py-px rounded border border-[var(--border)]">⌘J</kbd> to toggle</span>
+          </div>
+          <p class="text-sm text-[var(--fg-muted)] mb-4">Light mode is tinted paper off-white; dark is oklch midnight. Both WCAG AA across tokens.</p>
+          <div role="radiogroup" aria-label="Theme" class="grid sm:grid-cols-2 gap-2">
+            ${tRow('light', 'Light', 'Paper off-white base with warm colored washes. Default.')}
+            ${tRow('dark',  'Dark',  'Oklch midnight with tuned language colors and hairlines.')}
+          </div>
+        `;
+        wrap.append(themeCard);
+
+        p.append(wrap);
+      }
+
+      function renderFiles() {
+        const p = $('#panel-files');
+        p.innerHTML = '';
+        const f = SELECTED_FILE;
+        if (!f) {
+          p.append(h('div', { class: 'max-w-4xl mx-auto content-cap' },
+            h('div', { class: 'surface rounded-lg p-6 text-center text-[var(--fg-muted)]' }, 'Select a file in the tree to see its outline.'),
+          ));
+          return;
+        }
+        const wrap = h('div', { class: 'max-w-4xl mx-auto content-cap' });
+        const crumbs = h('div', { class: 'flex items-center gap-2 text-xs text-[var(--fg-subtle)] mb-3 mono truncate' });
+        crumbs.textContent = f.path.split('/').join(' / ');
+        wrap.append(crumbs);
+        wrap.append(h('h1', { class: 'text-xl font-semibold mb-1' }, f.name));
+        const meta = h('div', { class: 'flex flex-wrap items-center gap-2 mb-4' });
+        const statusClass = f.status === 'broken' ? 'danger' : f.status === 'stale' ? 'warn' : 'ok';
+        meta.innerHTML = `<span class="chip chip-${statusClass}">${f.status}</span><span class="text-xs text-[var(--fg-muted)]">${f.language?.label || 'Unknown'} · ${f.loc} LOC · <span class="mono">${fmtBytes(f.size)}</span>${f.gzip ? ' · <span class="mono">' + fmtBytes(f.gzip) + '</span> gzip' : ''} · <span class="mono">${fmtTok(f.tokens)} tok</span></span>`;
+        wrap.append(meta);
+
+        wrap.append(renderFilesPaneContent(f, LOCAL_TAB));
+        p.append(wrap);
+
+        // Reflect the active local tab + TODOs count on the local tab bar.
+        syncLocalTabUI(f);
+      }
+
+      function syncLocalTabUI(f) {
+        const bar = $('nav[aria-label="Primary navigation"]')?.parentElement; // cheap no-op; keep signature consistent
+        const todosChip = $('#local-todos-chip');
+        if (todosChip && f) todosChip.textContent = (f.todoEntries?.length ?? f.todos ?? 0);
+        $$('[role="tablist"][aria-label="File view"] [role="tab"]').forEach((t) => {
+          const key = t.dataset.localTab;
+          t.setAttribute('aria-selected', String(key === LOCAL_TAB));
+        });
+      }
+
+      // Files pane — flat editorial treatment. Each tab renders content
+      // directly on the page surface; hairline rules separate concerns.
+      // Only the Preview tab keeps a container (because the code block
+      // needs a visual frame). Everything else is prose + `<dl>` pairs.
+      function renderFilesPaneContent(f, tab) {
+        const wrap = h('div', { class: 'space-y-5' });
+        const mkLabel = (t) => { const el = h('div', { class: 'ed-label' }, t); return el; };
+
+        switch (tab) {
+          case 'preview': {
+            wrap.append(mkLabel('Preview'));
+            const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+            prose.textContent = 'The shipped @factstack/ui-remix app renders a Shiki-highlighted source preview here, sharing the same syntax theme as VS Code. The prototype omits source text to keep the bundle small.';
+            wrap.append(prose);
+            const frame = h('div', { class: 'mono text-xs text-[var(--fg-muted)]', style: {
+              background: 'var(--code-bg)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border)',
+            }});
+            frame.innerHTML = `// ${escapeHtml(f.path)} &mdash; <em>preview pending</em>`;
+            wrap.append(frame);
+            break;
+          }
+          case 'imports': {
+            wrap.append(mkLabel('Imports'));
+            const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+            prose.textContent = 'Import resolution is performed by the production analyzer via web-tree-sitter. The prototype scanner does not parse ASTs, so imports are not surfaced here.';
+            wrap.append(prose);
+            break;
+          }
+          case 'callers': {
+            wrap.append(mkLabel('Callers'));
+            const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+            prose.textContent = 'Reverse-import lookup (“who imports this file?”) is derived from the dependency graph in production. The prototype shows no callers.';
+            wrap.append(prose);
+            break;
+          }
+          case 'todos': {
+            const entries = f.todoEntries || [];
+            if (!entries.length) {
+              wrap.append(mkLabel('TODOs'));
+              const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+              prose.textContent = 'No TODO / FIXME / HACK / XXX / NOTE comments found in this file.';
+              wrap.append(prose);
+            } else {
+              const label = h('div', { class: 'flex items-baseline justify-between' });
+              label.innerHTML = `
+                <span class="ed-label">TODOs in this file</span>
+                <span class="chip chip-warn">${entries.length}</span>
+              `;
+              wrap.append(label);
+              const sevFor = (kind) => ({ TODO: 'chip-warn', FIXME: 'chip-danger', HACK: 'chip-danger', XXX: 'chip-danger', NOTE: 'chip-info' }[kind] || 'chip-muted');
+              const ul = h('ul', { style: { listStyle: 'none', padding: 0, margin: 0 } });
+              for (const t of entries) {
+                const li = h('li', { style: {
+                  display: 'grid',
+                  gridTemplateColumns: '68px 52px 1fr',
+                  alignItems: 'baseline',
+                  gap: '0.75rem',
+                  padding: '0.625rem 0',
+                  borderTop: '1px solid var(--hairline)',
+                } });
+                li.innerHTML = `
+                  <span class="chip ${sevFor(t.kind)}">${escapeHtml(t.kind)}</span>
+                  <span class="mono text-xs text-[var(--fg-subtle)] text-right">:${t.line}</span>
+                  <span class="text-sm" style="color:var(--fg);line-height:1.55">${escapeHtml(t.text) || '<em class="text-[var(--fg-subtle)]">(no description)</em>'}</span>
+                `;
+                ul.append(li);
+              }
+              wrap.append(ul);
+            }
+            break;
+          }
+          case 'tests': {
+            wrap.append(mkLabel('Tests'));
+            const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+            prose.textContent = 'Production cross-references test files (Vitest, Playwright, Pytest) back to their subject files. The prototype does not infer tests.';
+            wrap.append(prose);
+            break;
+          }
+          case 'outline':
+          default: {
+            // Editorial description list with hairline separators.
+            wrap.append(mkLabel('File info'));
+            const dl = h('dl', { style: {
+              display: 'grid',
+              gridTemplateColumns: '10rem 1fr',
+              columnGap: '1.25rem',
+              rowGap: 0,
+              margin: 0,
+            } });
+            const pairs = [
+              ['Extension', `<span class="mono">${escapeHtml(f.ext || '—')}</span>`],
+              ['Language', `${escapeHtml(f.language?.label || 'Unknown')}`],
+              ['Bytes', `<span class="mono">${fmtBytes(f.size)}</span>`],
+              ...(f.gzip ? [['Gzip', `<span class="mono">${fmtBytes(f.gzip)}</span>`]] : []),
+              ['LOC', `<span class="mono">${f.loc}</span>`],
+              ['Tokens (cl100k approx)', `<span class="mono">${fmtTok(f.tokens)}</span>`],
+              ['TODO / FIXME count', `<span class="mono">${f.todoEntries?.length ?? f.todos ?? 0}</span>`],
+              ['Last modified', `<span class="mono text-xs">${new Date(f.mtime || Date.now()).toLocaleString()}</span>`],
+            ];
+            pairs.forEach(([k, v], i) => {
+              const border = i === 0 ? '' : 'border-top:1px solid var(--hairline);';
+              dl.insertAdjacentHTML('beforeend',
+                `<dt style="${border}padding:0.5rem 0;color:var(--fg-subtle);font-size:0.8125rem">${escapeHtml(k)}</dt>` +
+                `<dd style="${border}padding:0.5rem 0;margin:0;color:var(--fg);font-size:0.875rem">${v}</dd>`
+              );
+            });
+            wrap.append(dl);
+            wrap.append(h('hr', { class: 'ed-rule', style: { margin: '1.5rem 0' } }));
+            wrap.append(mkLabel('Outline'));
+            const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
+            prose.textContent = 'The shipped analyzer parses this file with web-tree-sitter and lists functions, classes, types, regions, and routes. The prototype omits AST extraction.';
+            wrap.append(prose);
+            break;
+          }
+        }
+        return wrap;
+      }
+
+      // ============================ WIRING ================================
+      function renderAll() {
+        $('#project-name').textContent = DATA.project?.name || '…';
+        $('#file-count-chip').textContent = (DATA.stats?.files || 0) + ' files';
+        $('#bundle-size').textContent = fmtBytes(DATA.stats?.gzip || 0);
+        const fits = (DATA.stats?.tokens || 0) < 200000;
+        $('#fits-context').className = 'chip ' + (fits ? 'chip-ok' : 'chip-warn');
+        $('#fits-context').textContent = fits ? 'yes' : 'too large';
+        $('#risks-count-chip').textContent = (DATA.risks?.length || 0);
+        $('#risks-count-chip').className = 'chip ' + ((DATA.risks?.length || 0) > 0 ? 'chip-warn' : 'chip-muted') + ' ml-1';
+        $('#local-todos-chip').textContent = (DATA.summary?.health?.todos || 0);
+        const rootStr = DATA.project?.root?.replace(/\\/g, '/').split('/').slice(-2).join('/') || DATA.project?.name || '';
+        $('#status-root').textContent = rootStr;
+        $('#status-health').innerHTML = `<span class="text-[var(--${DATA.summary?.health?.broken ? 'danger' : 'fg-muted'})]">${DATA.summary?.health?.broken || 0} broken</span> · <span class="text-[var(--warn)]">${DATA.summary?.health?.todos || 0} TODOs</span> · <span class="text-[var(--ok)]">${DATA.summary?.health?.secrets || 0} secrets</span>`;
+
+        // Index files for delegated click lookup (tree row clicks use data-path).
+        indexFiles(DATA.tree || { files: [], children: [] });
+
+        // Tree
+        const t = $('#tree');
+        t.innerHTML = '';
+        if (DATA.tree && (DATA.tree.files?.length || DATA.tree.children?.length)) {
+          renderTree(t, DATA.tree, 0);
+        } else {
+          t.append(h('div', { class: 'p-3 text-xs text-[var(--fg-muted)]' }, 'No files to show.'));
+        }
+
+        renderOverview();
+        renderGraph();
+        renderFiles();
+        renderRoutes();
+        renderRisks();
+        renderHistory();
+        renderConfig();
+      }
+
+      function relTime(iso) {
+        const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+        if (diff < 60) return Math.floor(diff) + 's ago';
+        if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+        return Math.floor(diff / 86400) + 'd ago';
+      }
+
+      // ============================ TABS ==================================
+      function activateTab(name) {
+        $$('nav[aria-label="Primary navigation"] [role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+        $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
+        const head = $('#rhs-content h1');
+        if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
+      }
+
+      // ============================ EVENT DELEGATION ======================
+      // Single document-level click handler that survives re-renders, never
+      // loses a listener to innerHTML swaps, and handles every interactive
+      // region: global tabs, LHS view-mode toggle, tree rows (folder toggle
+      // vs file select), and local tabs.
+      //
+      // Transition helper: wraps state swap in startViewTransition with a
+      // hard fallback. If VT API is missing OR throws, we swap synchronously
+      // so the user never sees a dead click.
+      function smoothSwap(fn) {
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) { fn(); return; }
+        if (!('startViewTransition' in document)) { fn(); return; }
+        try {
+          const vt = document.startViewTransition(fn);
+          // Safety net: if the VT hangs past 800ms (browser bug / conflicting
+          // named element), force the swap anyway.
+          setTimeout(() => { try { vt.skipTransition(); } catch (_) {} }, 800);
+        } catch (_) {
+          fn();
+        }
+      }
+
+      document.addEventListener('click', (e) => {
+        // 1. Global tabs
+        const globalTab = e.target.closest('nav[aria-label="Primary navigation"] [role="tab"][data-tab]');
+        if (globalTab) {
+          e.preventDefault();
+          smoothSwap(() => activateTab(globalTab.dataset.tab));
+          return;
+        }
+        // 2. Tree folder toggle
+        const folderRow = e.target.closest('#tree .tree-row[data-kind="folder"]');
+        if (folderRow) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleFolder(folderRow.dataset.path);
+          return;
+        }
+        // 3. Tree file select → open file analysis
+        const fileRow = e.target.closest('#tree .tree-row[data-kind="file"]');
+        if (fileRow) {
+          e.preventDefault();
+          e.stopPropagation();
+          const file = FILES_BY_PATH.get(fileRow.dataset.path);
+          if (file) smoothSwap(() => selectFile(file));
+          return;
+        }
+        // 4. File-view local tabs (RHS bar). These drive what's rendered
+        //    in the Files pane — Outline, Preview, Imports, Callers, TODOs,
+        //    Tests. We also auto-switch to the Files tab so users see the
+        //    content they asked for.
+        const fileLocalTab = e.target.closest('[role="tablist"][aria-label="File view"] [role="tab"][data-local-tab]');
+        if (fileLocalTab) {
+          e.preventDefault();
+          const key = fileLocalTab.dataset.localTab;
+          fileLocalTab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')
+            .forEach((t) => t.setAttribute('aria-selected', String(t === fileLocalTab)));
+          LOCAL_TAB = key;
+          smoothSwap(() => {
+            // If the user clicks a local tab while the Files panel isn't
+            // active, switch to it so they actually see the content.
+            const filesPanel = document.querySelector('[data-panel="files"]');
+            if (filesPanel && filesPanel.classList.contains('hidden')) activateTab('files');
+            renderFiles();
+          });
+          return;
+        }
+        // 5. Other tablists (LHS view-mode toggle, etc.) — purely visual swap.
+        const localTab = e.target.closest('[role="tab"]:not([data-tab]):not([data-local-tab])');
+        if (localTab) {
+          const bar = localTab.closest('[role="tablist"]');
+          if (bar) {
+            e.preventDefault();
+            bar.querySelectorAll('[role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t === localTab)));
+          }
+          return;
+        }
+        // 6. Config pane — body-font radio selection.
+        const fontOpt = e.target.closest('[role="radio"][data-body-font]');
+        if (fontOpt) {
+          e.preventDefault();
+          const choice = fontOpt.dataset.bodyFont;
+          setBodyFont(choice);
+          renderConfig();
+          return;
+        }
+        // 7. Config pane — theme radio selection.
+        const themeOpt = e.target.closest('[role="radio"][data-theme-opt]');
+        if (themeOpt) {
+          e.preventDefault();
+          const next = themeOpt.dataset.themeOpt;
+          applyTheme(next === 'dark' ? 'dark' : 'light');
+          renderConfig();
+          return;
+        }
+      }, true);
+
+      // WAI-ARIA tablist keyboard: ←/→ cycle focus between tabs in the same
+      // tablist, Home/End jump to first/last. Activates the tab that receives
+      // focus (follows-focus pattern) so arrow keys switch content too.
+      document.addEventListener('keydown', (e) => {
+        const t = e.target;
+        if (!t || t.getAttribute?.('role') !== 'tab') return;
+        const bar = t.closest('[role="tablist"]');
+        if (!bar) return;
+        const tabs = [...bar.querySelectorAll('[role="tab"]')];
+        const i = tabs.indexOf(t);
+        if (i < 0) return;
+        let j = -1;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown') j = (i + 1) % tabs.length;
+        else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') j = (i - 1 + tabs.length) % tabs.length;
+        else if (e.key === 'Home') j = 0;
+        else if (e.key === 'End') j = tabs.length - 1;
+        else return;
+        e.preventDefault();
+        tabs[j].focus();
+        tabs[j].click();
+      });
+
+      // Helper: apply + persist body-font choice.
+      function setBodyFont(choice) {
+        document.documentElement.dataset.bodyFont = choice;
+        try { localStorage.setItem('facts-body-font', choice); } catch (_) {}
+      }
+
+      // Config font-size slider (re-uses the same persistence key as the top-nav popover).
+      document.addEventListener('input', (e) => {
+        if (e.target && e.target.id === 'config-font-slider') {
+          const v = e.target.value;
+          document.documentElement.style.setProperty('--fs-mult', v);
+          try { localStorage.setItem('facts-font', v); } catch (_) {}
+          const r = document.getElementById('fs-readout');
+          if (r) r.textContent = (parseFloat(v) * 100).toFixed(0) + '%';
+          // Keep the top-nav slider in sync
+          const top = document.getElementById('font-slider');
+          if (top) top.value = v;
+        }
+      });
+
+      // ============================ THEME =================================
+      const root = document.documentElement;
+      const toggle = $('#theme-toggle');
+      function syncIcons() { const dark = root.dataset.theme === 'dark'; $('#icon-sun').classList.toggle('hidden', dark); $('#icon-moon').classList.toggle('hidden', !dark); }
+      syncIcons();
+
+      function applyTheme(next, origin) {
+        const run = () => { root.dataset.theme = next; root.style.colorScheme = next; localStorage.setItem('facts-theme', next); syncIcons(); };
+        if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) { run(); return; }
+        if (origin) { root.style.setProperty('--theme-x', `${origin.x}px`); root.style.setProperty('--theme-y', `${origin.y}px`); }
+        root.classList.add('theme-swap');
+        const vt = document.startViewTransition(run);
+        vt.finished.finally(() => root.classList.remove('theme-swap'));
+      }
+      toggle.addEventListener('click', (e) => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark', { x: e.clientX, y: e.clientY }));
+
+      // ============================ MOBILE DRAWER =========================
+      const hamburger = $('#hamburger'), lhs = $('#lhs-panel'), scrim = $('#lhs-scrim');
+      function toggleDrawer(force) {
+        const open = force !== undefined ? force : lhs.dataset.open !== 'true';
+        lhs.dataset.open = String(open);
+      }
+      hamburger.addEventListener('click', () => toggleDrawer());
+      scrim.addEventListener('click', () => toggleDrawer(false));
+
+      // ============================ KEYBOARD ==============================
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && lhs.dataset.open === 'true') toggleDrawer(false);
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'j') { e.preventDefault(); applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'); }
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); toggleDrawer(); }
+      });
+
+      // ============================ FONT SLIDER ===========================
+      const slider = $('#font-slider');
+      const saved = localStorage.getItem('facts-font'); if (saved) slider.value = saved;
+      slider.addEventListener('input', () => { root.style.setProperty('--fs-mult', slider.value); localStorage.setItem('facts-font', slider.value); });
+
+      // ============================ RE-ANALYZE ============================
+      const reanalyze = $('#reanalyze');
+      reanalyze.addEventListener('click', async () => {
+        reanalyze.disabled = true;
+        const original = reanalyze.innerHTML;
+        reanalyze.innerHTML = '<span class="mono text-xs">analyzing…</span>';
+        await loadDefault();
+        renderAll();
+        reanalyze.disabled = false;
+        reanalyze.innerHTML = original;
+      });
+
+      // ============================ OPEN FOLDER ===========================
+      // File System Access API — Chrome/Edge only. Falls back to alert if
+      // unavailable. Performs a shallow client-side walk (no tree-sitter)
+      // and rebuilds the dataset from the picked folder.
+      const openBtn = $('#open-folder');
+      openBtn.addEventListener('click', async () => {
+        if (!('showDirectoryPicker' in window)) {
+          alert(
+            "Your browser doesn't support the File System Access API yet.\n\n" +
+            "This demo uses it to read a folder directly. In the shipped CLI, you'd run:\n\n" +
+            "    factstack /path/to/project\n\n" +
+            "Try this page in Chrome or Edge to open a folder here."
+          );
+          return;
+        }
+        let handle;
+        try {
+          handle = await window.showDirectoryPicker();
+        } catch (e) { return; /* user cancelled */ }
+
+        openBtn.disabled = true;
+        const txt = openBtn.querySelector('span');
+        const orig = txt?.textContent;
+        if (txt) txt.textContent = 'scanning…';
+        try {
+          const dataset = await scanHandle(handle);
+          DATA = dataset;
+          SELECTED_FILE = null;
+          renderAll();
+        } catch (e) {
+          console.error(e);
+          alert('Scan failed: ' + (e.message || e));
+        } finally {
+          openBtn.disabled = false;
+          if (txt) txt.textContent = orig || 'Open';
+        }
+      });
+
+      // ------------------------------------------------------------------
+      // Shallow client-side walker (File System Access API)
+      // ------------------------------------------------------------------
+      const ALWAYS_EXCLUDE = new Set(['node_modules','dist','build','.next','.turbo','.cache','__pycache__','.venv','.git','vendor','target','coverage','.pnpm-store','.vscode','.idea']);
+      const EXT_LANG = {
+        '.ts': { id:'typescript', label:'TypeScript', iconColor:'#3178c6', tag:'TS' },
+        '.tsx': { id:'typescript', label:'TypeScript', iconColor:'#3178c6', tag:'TSX' },
+        '.js': { id:'javascript', label:'JavaScript', iconColor:'#f7df1e', tag:'JS' },
+        '.jsx': { id:'javascript', label:'JavaScript', iconColor:'#f7df1e', tag:'JSX' },
+        '.mjs': { id:'javascript', label:'JavaScript', iconColor:'#f7df1e', tag:'MJS' },
+        '.py': { id:'python', label:'Python', iconColor:'#3776ab', tag:'PY' },
+        '.json': { id:'json', label:'JSON', iconColor:'#cbd5e1', tag:'JSON' },
+        '.yaml': { id:'yaml', label:'YAML', iconColor:'#cb171e', tag:'YAML' },
+        '.yml': { id:'yaml', label:'YAML', iconColor:'#cb171e', tag:'YML' },
+        '.toml': { id:'toml', label:'TOML', iconColor:'#9c4221', tag:'TOML' },
+        '.md': { id:'markdown', label:'Markdown', iconColor:'#60a5fa', tag:'MD' },
+        '.html': { id:'html', label:'HTML', iconColor:'#e34f26', tag:'HTML' },
+        '.css': { id:'css', label:'CSS', iconColor:'#1572b6', tag:'CSS' },
+      };
+
+      async function scanHandle(dirHandle, relPath = '') {
+        const node = { name: dirHandle.name, path: relPath, files: [], children: [] };
+        let ignorePatterns = [];
+        // Parse .gitignore inside this folder
+        try {
+          const giHandle = await dirHandle.getFileHandle('.gitignore');
+          const gi = await giHandle.getFile();
+          const content = await gi.text();
+          ignorePatterns = content.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+        } catch {}
+
+        for await (const [name, entry] of dirHandle.entries()) {
+          if (ALWAYS_EXCLUDE.has(name)) continue;
+          if (ignorePatterns.some((p) => p === name || (p.startsWith('*.') && name.endsWith(p.slice(1))))) continue;
+
+          const childRel = relPath ? `${relPath}/${name}` : name;
+          if (entry.kind === 'directory') {
+            const sub = await scanHandle(entry, childRel);
+            if (sub.files.length || sub.children.length) node.children.push(sub);
+          } else {
+            try {
+              const file = await entry.getFile();
+              if (file.size > 1024 * 1024) continue;
+              const text = await file.text();
+              if (text.includes('\0')) continue;
+              const ext = '.' + name.split('.').pop().toLowerCase();
+              const lang = EXT_LANG[ext] || null;
+              const tokens = Math.max(1, Math.round(text.length / 3.5));
+              const loc = text.split('\n').length;
+              const todos = (text.match(/\b(TODO|FIXME|HACK|XXX)\b/g) || []).length;
+              node.files.push({
+                name, path: childRel, ext, language: lang,
+                size: file.size, loc, tokens, todos, status: 'ok', mtime: file.lastModified,
+                gzip: null,
+              });
+            } catch {}
+          }
+        }
+        node.files.sort((a, b) => a.name.localeCompare(b.name));
+        node.children.sort((a, b) => a.name.localeCompare(b.name));
+        return rootifyDataset(node);
+      }
+
+      function rootifyDataset(rootNode) {
+        // rollup
+        const rollup = (n) => {
+          let size = 0, tokens = 0, files = 0, loc = 0, todos = 0;
+          for (const f of n.files) { size += f.size; tokens += f.tokens; files++; loc += f.loc; todos += f.todos; }
+          for (const c of n.children) { const sub = rollup(c); size += sub.size; tokens += sub.tokens; files += sub.files; loc += sub.loc; todos += sub.todos; c.rollup = sub; }
+          return { size, tokens, files, loc, todos };
+        };
+        const totals = rollup(rootNode);
+        // languages
+        const langMap = new Map();
+        const walk = (n) => {
+          for (const f of n.files) {
+            if (!f.language) continue;
+            const k = f.language.id;
+            if (!langMap.has(k)) langMap.set(k, { ...f.language, loc: 0, tokens: 0, files: 0 });
+            const r = langMap.get(k);
+            r.loc += f.loc; r.tokens += f.tokens; r.files++;
+          }
+          for (const c of n.children) walk(c);
+        };
+        walk(rootNode);
+        const languages = [...langMap.values()].sort((a, b) => b.loc - a.loc);
+        return {
+          generatedAt: new Date().toISOString(),
+          project: { name: rootNode.name, root: rootNode.name, languages, frameworks: [] },
+          summary: {
+            oneLiner: `${rootNode.name} — ${totals.files} files`,
+            description: `Scanned ${rootNode.name} via File System Access API. Shallow browser-side walk — no tree-sitter parsing, no deep extraction. The shipped CLI performs full analysis.`,
+            capabilities: [],
+            health: { broken: 0, stale: 0, todos: totals.todos, secrets: 0 },
+          },
+          stats: { files: totals.files, loc: totals.loc, size: totals.size, gzip: 0, tokens: totals.tokens },
+          tree: rootNode,
+          entryPoints: [],
+          risks: [],
+        };
+      }
+
+      // ============================ BACKDROP ANIMATOR =====================
+      // ASMR-like smooth wander: each blob's (tx, ty, scale, rotation) is a
+      // sum of two sines with incommensurable periods — the composite
+      // trajectory never repeats in any human timeframe. Feels random yet
+      // perfectly continuous and soothing. Disabled when the user has asked
+      // for reduced motion.
+      (function animateBackdrop() {
+        const blobs = [...document.querySelectorAll('#backdrop .blob')];
+        if (!blobs.length) return;
+        const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (reduced) return;
+
+        // Per-blob coefficients — primes-ish to avoid resonance
+        const coeffs = blobs.map((_, i) => {
+          const seed = i * 37 + 13;
+          return {
+            fx1: 0.00009 + i * 0.00004,   // very slow primary x
+            fx2: 0.00017 + i * 0.00006,   // overtone x
+            fy1: 0.00011 + i * 0.00003,
+            fy2: 0.00021 + i * 0.00005,
+            fs:  0.00013 + i * 0.00004,   // scale pulse
+            fr:  0.00005 + i * 0.00002,   // rotation — extremely slow
+            px: seed * 0.73,
+            py: seed * 1.29,
+            ps: seed * 0.47,
+            pr: seed * 1.91,
+            ampX: 8 + (i % 2) * 4,        // vw — modest drift so blobs keep their corner anchors
+            ampY: 6 + ((i + 1) % 2) * 4,  // vh
+            ampS: 0.08 + i * 0.01,
+          };
+        });
+
+        let rafId = 0;
+        let start = performance.now();
+        function tick(now) {
+          const t = now - start;
+          for (let i = 0; i < blobs.length; i++) {
+            const c = coeffs[i];
+            const tx = (Math.sin(t * c.fx1 + c.px) * 0.65 + Math.sin(t * c.fx2 + c.px * 2) * 0.35) * c.ampX;
+            const ty = (Math.cos(t * c.fy1 + c.py) * 0.65 + Math.cos(t * c.fy2 + c.py * 2) * 0.35) * c.ampY;
+            const scale = 1 + Math.sin(t * c.fs + c.ps) * c.ampS;
+            const rot = Math.sin(t * c.fr + c.pr) * 30;
+            blobs[i].style.transform = `translate(${tx.toFixed(2)}vw, ${ty.toFixed(2)}vh) scale(${scale.toFixed(3)}) rotate(${rot.toFixed(1)}deg)`;
+          }
+          rafId = requestAnimationFrame(tick);
+        }
+        rafId = requestAnimationFrame(tick);
+
+        // Pause the animator when the tab is hidden to save CPU/GPU. The
+        // Page Visibility API fires `visibilitychange` on tab-switch, minimize,
+        // and (on mobile) app-backgrounding. Re-synchronise `start` on resume
+        // so blobs don't jump discontinuously.
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            cancelAnimationFrame(rafId);
+            rafId = 0;
+          } else if (!rafId) {
+            start = performance.now() - ((performance.now() - start) % 1e9);
+            rafId = requestAnimationFrame(tick);
+          }
+        });
+      })();
+
+      // ============================ BOOT ==================================
+      await loadDefault();
+      renderAll();
+    </script>
+  </body>
+</html>

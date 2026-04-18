@@ -1,0 +1,35 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "warn",
+    "perf": "warn",
+    "style": "off",
+    "nursery": "off"
+  },
+  "plugins": ["typescript", "unicorn", "import", "react", "react-hooks", "jsx-a11y", "promise", "node"],
+  "env": {
+    "node": true,
+    "browser": true,
+    "es2024": true
+  },
+  "rules": {
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_" }],
+    "import/no-default-export": "off"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "build",
+    ".turbo",
+    ".remix",
+    "coverage",
+    "**/*.d.ts",
+    "examples",
+    "prototype"
+  ]
+}

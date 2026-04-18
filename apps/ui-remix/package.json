@@ -2,13 +2,13 @@
   "name": "@factstack/ui-remix",
   "version": "0.0.0",
   "private": true,
-  "description": "Local WebUI — Remix 3 (latest). Two build targets: server mode (live re-analyze) and static mode (self-contained SPA for `factstack export` and future VS Code webview hosting).",
+  "description": "Local WebUI. Remix 3 (alpha) utility modules + React 19 + React Router v7, served by Vite. Two build targets: dev server (live re-analyze) and static mode (self-contained SPA for `factstack export` and future VS Code webview hosting).",
   "type": "module",
   "scripts": {
-    "build": "remix vite:build",
-    "build:static": "remix vite:build --mode static",
-    "dev": "remix vite:dev",
-    "start": "remix-serve ./build/server/index.js",
+    "dev": "vite --port 3000",
+    "build": "vite build",
+    "build:static": "vite build --mode static",
+    "start": "vite preview --port 3000",
     "test": "echo 'no tests yet' && exit 0",
     "lint": "echo 'no lint yet' && exit 0",
     "typecheck": "tsc --noEmit"
@@ -16,26 +16,24 @@
   "dependencies": {
     "@factstack/spec": "workspace:*",
     "@factstack/ui-theme": "workspace:*",
-    "@remix-run/node": "3.0.0-pre.3",
-    "@remix-run/react": "3.0.0-pre.3",
-    "@remix-run/serve": "3.0.0-pre.3",
     "@xyflow/react": "^12.3.5",
     "framer-motion": "^11.11.1",
-    "isbot": "^5.1.0",
     "lucide-react": "^0.451.0",
     "react": "^19.0.0",
     "react-arborist": "^3.4.0",
     "react-dom": "^19.0.0",
+    "react-router": "^7.14.1",
+    "remix": "3.0.0-alpha.4",
     "shiki": "^1.22.0",
     "tiktoken": "^1.0.17"
   },
   "devDependencies": {
-    "@remix-run/dev": "3.0.0-pre.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.1",
     "lightningcss": "^1.27.0",
     "tailwindcss": "^4.0.0-beta.3",
     "typescript": "^5.6.0",
-    "vite": "^5.4.8"
+    "vite": "^8.0.8"
   }
 }
