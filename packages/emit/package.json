@@ -1,0 +1,25 @@
+{
+  "name": "@factstack/emit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Serializers: agent.json, agent.jsonl, human.json, index.db (SQLite), static HTML export bundle. This is the only package allowed to use Node built-ins alongside core analysis.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no lint yet' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@factstack/core": "workspace:*",
+    "@factstack/spec": "workspace:*",
+    "better-sqlite3": "^11.3.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.14.0",
+    "typescript": "^5.6.0"
+  }
+}

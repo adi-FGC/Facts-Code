@@ -1,0 +1,26 @@
+node_modules/
+dist/
+build/
+.turbo/
+.remix/
+.cache/
+coverage/
+.vscode/
+.idea/
+*.log
+.DS_Store
+Thumbs.db
+
+# FACTS output (should be per-project, committed here because this repo IS FACTS)
+# .facts/
+
+# Local env
+.env
+.env.local
+.env.*.local
+
+# Test artifacts
+playwright-report/
+test-results/
+examples/__screenshots__/*-actual.png
+examples/__screenshots__/*-diff.png

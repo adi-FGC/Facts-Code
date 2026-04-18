@@ -1,0 +1,25 @@
+# Enforce LF line endings everywhere.
+# FACTS targets Mac and Windows; CRLF in text files causes spurious diffs,
+# test flakiness, and issues with Unix-only shell scripts.
+
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.mp4 binary
+*.mov binary
+*.zip binary
+*.wasm binary
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Windows-only files keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf

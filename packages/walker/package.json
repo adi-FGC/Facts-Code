@@ -1,0 +1,22 @@
+{
+  "name": "@factstack/walker",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Gitignore-aware filesystem walker. Takes a FactsFS interface (constraint C1) — no direct Node fs imports.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no lint yet' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@factstack/spec": "workspace:*",
+    "ignore": "^6.0.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

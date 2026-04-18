@@ -1,0 +1,35 @@
+{
+  "name": "@factstack/ui-theme",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared design tokens (light + dark), typography, motion presets, liquid-glass primitives, language-icon mapper, responsive breakpoints 340px-8K. Consumed by every UI surface.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css",
+    "./glass.css": "./src/glass.css",
+    "./themes/light.css": "./src/themes/light.css",
+    "./themes/dark.css": "./src/themes/dark.css",
+    "./motion": "./src/motion.ts",
+    "./language-icons": "./src/language-icons.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no lint yet' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "lucide-react": "^0.451.0",
+    "simple-icons": "^13.12.0"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "typescript": "^5.6.0"
+  }
+}
