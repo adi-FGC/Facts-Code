@@ -358,6 +358,142 @@
          labels can exist for screen readers without affecting layout. */
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 
+      /* ─── Scan modal ────────────────────────────────────────────────
+         Native <dialog> styling. Uses the same OKLCH tokens + glass
+         surface as the rest of the dashboard so it doesn't feel like
+         a separate component dropped in. The backdrop dims the
+         dashboard so the modal owns focus visually. */
+      .scan-modal {
+        padding: 0;
+        margin: auto;
+        max-width: min(560px, 92vw);
+        width: 100%;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface-1);
+        color: var(--fg);
+        box-shadow: 0 24px 64px -12px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--border);
+      }
+      .scan-modal::backdrop {
+        background: color-mix(in oklab, var(--bg) 55%, transparent);
+        backdrop-filter: blur(8px);
+      }
+      .scan-modal-head {
+        display: flex; justify-content: space-between; align-items: flex-start;
+        gap: 1rem; padding: 1.25rem 1.25rem 0.75rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .scan-path-row {
+        display: flex; align-items: center; gap: 0.5rem;
+        margin: 1rem 1.25rem 0; padding: 0.625rem 0.75rem;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 0.8125rem;
+      }
+      .scan-path-icon {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.5rem; height: 1.5rem; border-radius: 4px; flex-shrink: 0;
+        background: color-mix(in oklab, var(--info) 18%, transparent);
+        border: 1px solid color-mix(in oklab, var(--info) 35%, transparent);
+      }
+      .scan-progress { padding: 1rem 1.25rem; }
+      .scan-progress-status {
+        display: flex; justify-content: space-between; align-items: baseline;
+        margin-bottom: 0.5rem; font-size: 0.8125rem;
+      }
+      #scan-modal-status { color: var(--fg); font-weight: 500; }
+      #scan-modal-counter { font-size: 0.75rem; }
+      .scan-bar {
+        height: 6px; border-radius: 999px;
+        background: var(--surface-3);
+        overflow: hidden; position: relative;
+      }
+      .scan-bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg,
+          color-mix(in oklab, var(--accent) 75%, transparent),
+          var(--accent));
+        transition: width 200ms ease-out;
+        border-radius: 999px;
+      }
+      /* Indeterminate state — shimmer back-and-forth when we don't
+         know the total yet (during the initial walk phase). */
+      .scan-bar-fill[data-indeterminate="true"] {
+        width: 35% !important;
+        animation: scan-bar-slide 1400ms ease-in-out infinite;
+      }
+      @keyframes scan-bar-slide {
+        0%   { transform: translateX(-100%); }
+        50%  { transform: translateX(190%); }
+        100% { transform: translateX(-100%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .scan-bar-fill[data-indeterminate="true"] { animation: none; transform: none; width: 50% !important; opacity: 0.6; }
+      }
+      .scan-tips {
+        margin: 0.5rem 1.25rem 0; padding: 0.75rem 1rem;
+        background: color-mix(in oklab, var(--info) 6%, var(--surface-2));
+        border: 1px solid color-mix(in oklab, var(--info) 18%, var(--border));
+        border-radius: 8px;
+        font-size: 0.8125rem;
+      }
+      .scan-tips-summary {
+        cursor: pointer; list-style: none;
+        display: flex; justify-content: space-between; align-items: center;
+        font-weight: 500; color: var(--fg);
+      }
+      .scan-tips-summary::-webkit-details-marker { display: none; }
+      .scan-tips-chev { transition: transform 200ms ease; }
+      .scan-tips[open] .scan-tips-chev { transform: rotate(180deg); }
+      .scan-tips-list {
+        list-style: none; padding: 0; margin: 0.625rem 0 0;
+        display: grid; gap: 0.5rem;
+      }
+      .scan-tips-list li {
+        display: flex; align-items: flex-start; gap: 0.5rem;
+        line-height: 1.45; color: var(--fg-muted);
+      }
+      .scan-tip-mark {
+        flex-shrink: 0; width: 1.125rem; text-align: center;
+        font-weight: 600; font-size: 0.875rem;
+      }
+      .scan-tip-ok   { color: var(--ok); }
+      .scan-tip-warn { color: var(--warn); }
+      .scan-tip-info { color: var(--info); }
+      .scan-modal-foot {
+        display: flex; justify-content: flex-end; gap: 0.5rem;
+        padding: 1rem 1.25rem 1.25rem;
+        border-top: 1px solid var(--border);
+        margin-top: 1rem;
+      }
+      .scan-btn-ghost,
+      .scan-btn-primary {
+        height: 2rem; padding: 0 0.875rem;
+        border-radius: 6px; font-size: 0.8125rem; font-weight: 500;
+        cursor: pointer; transition: opacity 140ms, background 140ms;
+      }
+      .scan-btn-ghost {
+        background: transparent; color: var(--fg-muted);
+        border: 1px solid var(--border);
+      }
+      .scan-btn-ghost:hover { background: var(--surface-2); color: var(--fg); }
+      .scan-btn-primary {
+        background: var(--accent); color: var(--accent-fg); border: 0;
+      }
+      .scan-btn-primary:hover { opacity: 0.92; }
+      .scan-btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+      /* Error tone for failed scans */
+      .scan-modal[data-state="error"] .scan-bar-fill {
+        background: var(--danger);
+      }
+      .scan-modal[data-state="error"] #scan-modal-status {
+        color: var(--danger);
+      }
+      .scan-modal[data-state="done"] .scan-bar-fill {
+        background: var(--ok);
+      }
+
       /* Focus ring via double box-shadow: paints INSIDE the element's bounds,
          so it survives ancestors with `contain: paint` (e.g., .glass chrome).
          The inner ring is the accent; the outer ring is the page bg, so the
@@ -1077,6 +1213,68 @@
         <span class="text-[var(--fg-muted)]">loading…</span>
       </span>
     </footer>
+
+    <!-- ============================================================== -->
+    <!-- Scan modal — shown when the user picks a directory via the     -->
+    <!-- File System Access API. Surfaces three things the previous     -->
+    <!-- "scanning…" button label hid:                                  -->
+    <!--   1. The directory path that was actually selected             -->
+    <!--   2. Live progress (walk → read → parse → graph → done)        -->
+    <!--   3. Tips about browser permissions + what's being done        -->
+    <!-- Built on <dialog> so the browser handles modal semantics       -->
+    <!-- (escape to close, focus trap, role=dialog).                    -->
+    <!-- ============================================================== -->
+    <dialog id="scan-modal" class="scan-modal" aria-labelledby="scan-modal-title">
+      <div class="scan-modal-head">
+        <div>
+          <div class="ed-label" style="font-size:0.6rem;letter-spacing:0.18em;margin-bottom:0.4rem">SCANNING PROJECT</div>
+          <h2 id="scan-modal-title" class="text-lg font-semibold tracking-tight">Reading folder</h2>
+        </div>
+        <button id="scan-modal-close" type="button" class="rounded-md p-1.5 hover:bg-[var(--surface-2)]" aria-label="Cancel scan">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Selected directory path -->
+      <div class="scan-path-row" role="status" aria-live="polite">
+        <span class="scan-path-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        <span id="scan-modal-path" class="mono truncate" title="">—</span>
+      </div>
+
+      <!-- Progress bar + status line -->
+      <div class="scan-progress">
+        <div class="scan-progress-status">
+          <span id="scan-modal-status">Waiting for permission…</span>
+          <span id="scan-modal-counter" class="mono text-[var(--fg-subtle)]"></span>
+        </div>
+        <div class="scan-bar" role="progressbar" aria-label="Scan progress" aria-valuemin="0" aria-valuemax="100">
+          <div id="scan-bar-fill" class="scan-bar-fill" style="width:0%"></div>
+        </div>
+      </div>
+
+      <!-- Tips — collapsed when scanning is fast, useful when stuck -->
+      <details id="scan-tips" class="scan-tips" open>
+        <summary class="scan-tips-summary">
+          <span>Tips &amp; requirements</span>
+          <svg class="scan-tips-chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </summary>
+        <ul class="scan-tips-list">
+          <li><span class="scan-tip-mark scan-tip-ok">✓</span><span>Files are read in your browser. Nothing leaves your machine — no upload, no analytics.</span></li>
+          <li><span class="scan-tip-mark scan-tip-ok">✓</span><span><span class="mono">node_modules</span>, <span class="mono">dist</span>, <span class="mono">.git</span>, build caches are skipped automatically.</span></li>
+          <li><span class="scan-tip-mark scan-tip-warn">⚠</span><span>Grant the directory read prompt your browser shows. Without it the picker returns nothing.</span></li>
+          <li><span class="scan-tip-mark scan-tip-warn">⚠</span><span>The File System Access API is supported in Chrome, Edge, Brave, Opera, and Arc — not Firefox or Safari yet.</span></li>
+          <li><span class="scan-tip-mark scan-tip-info">ℹ</span><span>Imports are parsed via <span class="mono">@babel/parser</span> loaded from a CDN. If your network blocks <span class="mono">esm.sh</span>, dependency edges may be missing but file metrics still work.</span></li>
+          <li><span class="scan-tip-mark scan-tip-info">ℹ</span><span>Files larger than 1&nbsp;MB and binary files are flagged but not read — keeps the browser responsive on monorepos.</span></li>
+        </ul>
+      </details>
+
+      <div class="scan-modal-foot">
+        <button id="scan-modal-cancel" type="button" class="scan-btn-ghost">Cancel</button>
+        <button id="scan-modal-done"   type="button" class="scan-btn-primary" disabled>Done</button>
+      </div>
+    </dialog>
 
     <!-- ============================================================== -->
     <!-- Scripts                                                         -->
@@ -4969,36 +5167,154 @@
           setStatus(`Path: ${fullPath}`, 'ok');
         }
       });
+      // ──── Scan modal controller ───────────────────────────────────
+      // Encapsulates the dialog open/close + progress update. Kept
+      // closure-local so global state stays in sync with the dialog
+      // node references. Cancel is implemented via a shared flag the
+      // scanner polls between files.
+      const scanDialog = document.getElementById('scan-modal');
+      const scanCtl = (() => {
+        let cancelled = false;
+        const $path = document.getElementById('scan-modal-path');
+        const $title = document.getElementById('scan-modal-title');
+        const $status = document.getElementById('scan-modal-status');
+        const $counter = document.getElementById('scan-modal-counter');
+        const $bar = document.getElementById('scan-bar-fill');
+        const $progress = scanDialog?.querySelector('.scan-bar');
+        const $cancel = document.getElementById('scan-modal-cancel');
+        const $close = document.getElementById('scan-modal-close');
+        const $done = document.getElementById('scan-modal-done');
+        const $tips = document.getElementById('scan-tips');
+        // Phase → max-progress mapping. Walk takes ~30%, reading 60%,
+        // graph building 10%. So even an indeterminate file count
+        // gives the user a sense the bar is moving.
+        const PHASE_BUDGET = { walking: 0.30, reading: 0.90, parsing: 0.95, done: 1.0, error: 1.0 };
+        function setBar(pct, indeterminate) {
+          if (!$bar || !$progress) return;
+          const clamped = Math.max(0, Math.min(100, pct));
+          $bar.style.width = clamped + '%';
+          $bar.dataset.indeterminate = indeterminate ? 'true' : 'false';
+          $progress.setAttribute('aria-valuenow', String(Math.round(clamped)));
+        }
+        function open(path) {
+          cancelled = false;
+          if (!scanDialog) return;
+          scanDialog.dataset.state = 'opening';
+          if ($title) $title.textContent = 'Reading folder';
+          if ($path) {
+            $path.textContent = path || '(awaiting selection)';
+            $path.setAttribute('title', path || '');
+          }
+          if ($status) $status.textContent = 'Waiting for permission…';
+          if ($counter) $counter.textContent = '';
+          if ($done) $done.disabled = true;
+          setBar(2, true);
+          if (typeof scanDialog.showModal === 'function') {
+            try { scanDialog.showModal(); } catch (_) { scanDialog.setAttribute('open', ''); }
+          } else {
+            scanDialog.setAttribute('open', '');
+          }
+        }
+        function update({ phase, current, total, label }) {
+          if (!scanDialog) return;
+          scanDialog.dataset.state = phase;
+          if ($status) $status.textContent = label || phase;
+          if ($counter) $counter.textContent = current ? String(current) + ' file' + (current === 1 ? '' : 's') : '';
+          if (phase === 'walking') {
+            // Indeterminate while we don't know totals yet.
+            setBar(8, true);
+          } else if (phase === 'reading') {
+            // We know N files read but no total estimate. Cheap math:
+            // assume avg project = 200 files, scale up logarithmically
+            // so the bar keeps moving past that without overshooting.
+            const est = Math.max(60, Math.min(95, 30 + Math.log10(current + 1) * 22));
+            setBar(est, false);
+          } else if (phase === 'parsing') {
+            setBar(95, false);
+          } else if (phase === 'done') {
+            setBar(100, false);
+            if ($done) $done.disabled = false;
+            if ($title) $title.textContent = 'Done';
+          } else if (phase === 'error') {
+            setBar(100, false);
+            if ($title) $title.textContent = 'Scan failed';
+          }
+        }
+        function fail(message) {
+          update({ phase: 'error', current: 0, total: 0, label: message });
+        }
+        function close() {
+          if (!scanDialog) return;
+          if (typeof scanDialog.close === 'function') {
+            try { scanDialog.close(); } catch (_) { scanDialog.removeAttribute('open'); }
+          } else {
+            scanDialog.removeAttribute('open');
+          }
+        }
+        function cancel() { cancelled = true; close(); }
+        function isCancelled() { return cancelled; }
+        // Wire static buttons once.
+        if ($cancel) $cancel.addEventListener('click', () => cancel());
+        if ($close)  $close.addEventListener('click',  () => cancel());
+        if ($done)   $done.addEventListener('click',   () => close());
+        // Tips collapse to "closed" once a scan completes — keeps the
+        // modal slim when the user already saw them. Open again on
+        // next scan.
+        return { open, update, fail, close, cancel, isCancelled, $tips };
+      })();
+
       openBtn.addEventListener('click', async () => {
         if (!('showDirectoryPicker' in window)) {
-          alert(
-            "Your browser doesn't support the File System Access API yet.\n\n" +
-            "This demo uses it to read a folder directly. In the shipped CLI, you'd run:\n\n" +
-            "    factstack /path/to/project\n\n" +
-            "Try this page in Chrome or Edge to open a folder here."
-          );
+          // Show the modal in error state so the message + tips are
+          // surfaced consistently. Better than a blocking alert.
+          scanCtl.open('—');
+          scanCtl.fail("File System Access API not supported. Use Chrome, Edge, Brave, Opera, or Arc to scan a folder, or run `factstack ui /your/project` locally.");
           return;
         }
+        // Open modal BEFORE the picker so the user has a focal point
+        // while the OS dialog is up. Path stays "—" until selected.
+        scanCtl.open('—');
         let handle;
         try {
           handle = await window.showDirectoryPicker();
-        } catch (e) { return; /* user cancelled */ }
-
+        } catch (e) {
+          scanCtl.close();
+          return;
+        }
+        // Show the selected directory name. The browser doesn't
+        // expose absolute paths via this API (security), so we show
+        // the directory name + a note in the tips.
+        scanCtl.open(handle.name + '/');
         openBtn.disabled = true;
         const txt = openBtn.querySelector('span');
         const orig = txt?.textContent;
         if (txt) txt.textContent = 'scanning…';
         try {
-          const dataset = await scanHandle(handle);
+          const dataset = await scanHandle(handle, '', {
+            allFiles: [],
+            parse: await getBabelParser(),
+            packageJsons: [],
+            onProgress: (e) => scanCtl.update(e),
+            cancelled: () => scanCtl.isCancelled(),
+          });
           DATA = dataset;
           SELECTED_FILE = null;
           // New project → re-fit the dependency graph on next render.
           GRAPH_VIEW.dirty = true;
           COLLAPSED.clear();
           renderAll();
+          // Keep the modal showing the "Done" state for a beat so
+          // the user gets confirmation, then auto-close after 800ms.
+          // The Done button is also enabled in case they want to
+          // close immediately.
+          setTimeout(() => scanCtl.close(), 800);
         } catch (e) {
-          console.error(e);
-          alert('Scan failed: ' + (e.message || e));
+          if (e?.message === 'cancelled') {
+            scanCtl.close();
+          } else {
+            console.error(e);
+            scanCtl.fail('Scan failed: ' + (e?.message || e));
+          }
         } finally {
           openBtn.disabled = false;
           if (txt) txt.textContent = orig || 'Open';
@@ -5116,7 +5432,17 @@
 
       async function scanHandle(dirHandle, relPath = '', ctx) {
         const isRoot = !ctx;
-        ctx = ctx || { allFiles: [], parse: await getBabelParser(), packageJsons: [] };
+        ctx = ctx || { allFiles: [], parse: await getBabelParser(), packageJsons: [], onProgress: null, cancelled: () => false };
+        // Tick so the modal updates between phases. The `await` yields
+        // to the event loop; without it the modal looks frozen even
+        // though the scan IS running.
+        const tick = (phase, current, total, label) => {
+          if (typeof ctx.onProgress === 'function') {
+            try { ctx.onProgress({ phase, current, total, label }); } catch {}
+          }
+        };
+        if (isRoot) tick('walking', 0, 0, 'Walking files…');
+
         const node = { name: dirHandle.name, path: relPath, files: [], children: [] };
         let ignorePatterns = [];
         // Parse .gitignore inside this folder
@@ -5128,6 +5454,7 @@
         } catch {}
 
         for await (const [name, entry] of dirHandle.entries()) {
+          if (ctx.cancelled()) throw new Error('cancelled');
           if (ALWAYS_EXCLUDE.has(name)) continue;
           if (ignorePatterns.some((p) => p === name || (p.startsWith('*.') && name.endsWith(p.slice(1))))) continue;
 
@@ -5157,13 +5484,27 @@
               }
               node.files.push(fileEntry);
               ctx.allFiles.push(fileEntry);
+              // Report every 8 files so the bar moves visibly without
+              // flooding the renderer with reflows. Yield every 32 so
+              // the browser can repaint.
+              if (ctx.allFiles.length % 8 === 0) {
+                tick('reading', ctx.allFiles.length, 0, `Reading files… ${ctx.allFiles.length}`);
+              }
+              if (ctx.allFiles.length % 32 === 0) {
+                await new Promise((r) => setTimeout(r, 0));
+              }
             } catch {}
           }
         }
         node.files.sort((a, b) => a.name.localeCompare(b.name));
         node.children.sort((a, b) => a.name.localeCompare(b.name));
         if (!isRoot) return node;
-        return rootifyDataset(node, ctx);
+        // Root-level finishing phases — graph build + rollup happen in
+        // rootifyDataset. Tick before + after so the modal shows them.
+        tick('parsing', ctx.allFiles.length, ctx.allFiles.length, `Building dependency graph…`);
+        const dataset = rootifyDataset(node, ctx);
+        tick('done', ctx.allFiles.length, ctx.allFiles.length, `Scan complete · ${ctx.allFiles.length} files`);
+        return dataset;
       }
 
       function rootifyDataset(rootNode, ctx) {
