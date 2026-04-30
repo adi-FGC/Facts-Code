@@ -3565,11 +3565,14 @@
               },
             });
             // Only the served CLI (`factstack ui`) exposes /api/file.
-            // When opened via file:// we have no server, so show the
-            // explanatory shim from the old build.
+            // file:// loads have no server. Static hosts (Netlify) have
+            // an SPA fallback that returns the dashboard HTML for /api/*
+            // — so we ALSO check window.__STATIC_MODE which the live-
+            // update detector sets at startup.
             const served = location.protocol.startsWith('http');
-            if (!served) {
-              frame.textContent = `// ${f.path}\n// open via \`factstack ui\` to read source`;
+            const staticMode = window.__STATIC_MODE === true;
+            if (!served || staticMode) {
+              frame.textContent = `// ${f.path}\n// Source preview is only available when served by the CLI.\n// Run \`factstack ui /path/to/your/project\` to enable.`;
               wrap.append(frame);
               break;
             }
@@ -3704,8 +3707,9 @@
             // with @babel/parser and returns a hierarchical list.
             const outlineBox = h('div', { class: 'outline-box' });
             const served = location.protocol.startsWith('http');
-            if (!served) {
-              outlineBox.innerHTML = '<p class="ed-prose" style="font-size:0.9375rem">The outline is populated by <span class="mono">factstack ui</span>. When viewing a <span class="mono">file://</span> export, outlines aren\u2019t available.</p>';
+            const staticMode = window.__STATIC_MODE === true;
+            if (!served || staticMode) {
+              outlineBox.innerHTML = '<p class="ed-prose" style="font-size:0.9375rem">Outline is populated live by <span class="mono">factstack ui</span>. The hosted demo only ships the bundled artifact \u2014 run the CLI on your own project for outlines, source previews, and re-analysis.</p>';
               wrap.append(outlineBox);
               break;
             }
@@ -4658,8 +4662,16 @@
       // When the prototype is served by `factstack ui`, POST to /api/reanalyze
       // to re-run the Node analyzer. The server rebuilds its inlined data
       // AND serves fresh /data/factstack.json, so we reload the page to
-      // pick it up. When loaded via file:// (no server), the button
-      // explains how to re-analyze via the CLI.
+      // pick it up.
+      //
+      // Two modes the prototype runs in:
+      //   1. file://      — no server. Re-analyze tells the user to run
+      //                     `factstack ui .` from a project directory.
+      //   2. http(s)://   — but possibly a static host (Netlify) that
+      //                     answers `/api/reanalyze` with the SPA-fallback
+      //                     index.html instead of running the analyzer.
+      //                     We detect this at startup via the global
+      //                     STATIC_MODE flag set by detectStaticMode().
       const reanalyzeBtn = $('#reanalyze');
       if (reanalyzeBtn) {
         reanalyzeBtn.addEventListener('click', async () => {
@@ -4671,6 +4683,15 @@
               'Run this from the project directory:\n\n' +
               '    factstack ui .\n\n' +
               'The CLI will start a local server and re-run analysis on demand.',
+            );
+            return;
+          }
+          if (window.__STATIC_MODE === true) {
+            alert(
+              "This is the static demo — there's no analyzer server " +
+              "behind it.\n\nRun this on your own project:\n\n" +
+              "    factstack ui /path/to/your/project\n\n" +
+              "The CLI starts a local server and re-runs analysis on demand.",
             );
             return;
           }
@@ -4726,6 +4747,77 @@
         });
       }
 
+      // ============================ STATIC MODE DETECTION =================
+      /**
+       * True when the prototype is loaded from a static host that has
+       * no factstack analyzer behind it (Netlify, GitHub Pages, S3).
+       *
+       * Probe: GET /api/events. The CLI server responds with
+       * `text/event-stream`. Netlify's SPA fallback serves the index.html
+       * with `text/html`. We read the response headers ONLY (the body
+       * is the long-lived SSE stream — we never read it). If the probe
+       * fails entirely (network blip, CORS), we err on the side of the
+       * REAL server and keep things alive — better to see a momentary
+       * red banner than to hide live UI from a real CLI user.
+       */
+      async function detectStaticMode() {
+        try {
+          // AbortController so we don't hold the long-lived SSE stream open.
+          const ac = new AbortController();
+          const probe = fetch('/api/events', {
+            method: 'GET',
+            signal: ac.signal,
+            cache: 'no-store',
+          });
+          // Tiny window to inspect headers, then bail. The CLI server
+          // sets headers immediately; if we don't see them in 1500ms we
+          // treat as static.
+          const timeout = new Promise((resolve) => setTimeout(() => resolve('timeout'), 1500));
+          const result = await Promise.race([probe, timeout]);
+          if (result === 'timeout') {
+            ac.abort();
+            return true;
+          }
+          const ct = (result.headers.get('content-type') || '').toLowerCase();
+          ac.abort(); // close the SSE stream — we don't actually want it open
+          // CLI server: `text/event-stream`. Static host fallback to
+          // index.html: `text/html`. Anything else (JSON error, plain
+          // text) — assume static so the user sees the safe banner.
+          return !ct.startsWith('text/event-stream');
+        } catch (_) {
+          // Network error before headers arrived — most likely static.
+          return true;
+        }
+      }
+
+      /**
+       * Hide server-only controls and surface a one-line banner. Called
+       * once at startup when detectStaticMode() returns true. Idempotent
+       * (safe to invoke multiple times).
+       */
+      function activateStaticMode() {
+        document.documentElement.dataset.factstackMode = 'static';
+        // Hide Re-analyze button — clicking it would just alert. Easier
+        // to remove the affordance than to explain why it's broken.
+        const reanalyze = document.getElementById('reanalyze');
+        if (reanalyze) reanalyze.style.display = 'none';
+        // Replace the file-count chip with a calm "demo" hint. The
+        // status-line slot in the footer carries the longer message.
+        const status = document.getElementById('status-line');
+        if (status && !status.dataset.staticBannerShown) {
+          status.textContent = 'Static demo · run factstack ui /your/project for live analysis';
+          status.dataset.tone = 'ok';
+          status.dataset.staticBannerShown = '1';
+        }
+        // Replace the parse-state dot's pulsing color with a steady
+        // muted tone so the demo doesn't pretend to be live.
+        const dot = document.querySelector('footer .dot-pulse');
+        if (dot) {
+          dot.classList.remove('dot-pulse');
+          dot.style.background = 'var(--fg-subtle)';
+        }
+      }
+
       // ============================ LIVE UPDATES (SSE) ====================
       // When served by `factstack ui --watch`, the server publishes analysis
       // events to /api/events. We subscribe, coalesce updates within the
@@ -4734,8 +4826,21 @@
       //
       // Editorial status-bar treatment: "Updated N files · Ms ago" in a
       // calm tone; amber when the connection drops; red after 3 retries.
-      (function wireLiveUpdates() {
+      (async function wireLiveUpdates() {
         if (!location.protocol.startsWith('http')) return;
+        // Probe for a real analyzer server. On a static host (Netlify,
+        // GitHub Pages, S3) the SPA-fallback redirect serves index.html
+        // for unknown paths — content-type comes back as text/html
+        // instead of text/event-stream. When that's the case we set
+        // STATIC_MODE, hide the Re-analyze button, drop the SSE
+        // connect, and show a one-line banner explaining the demo
+        // is read-only.
+        const isStatic = await detectStaticMode();
+        window.__STATIC_MODE = isStatic;
+        if (isStatic) {
+          activateStaticMode();
+          return;
+        }
         const status = document.getElementById('status-line') || document.querySelector('[role="status"][aria-live]');
         let es = null;
         let retries = 0;
