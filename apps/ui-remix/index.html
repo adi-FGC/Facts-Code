@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>FACTS — AI Coding Tracker Stack</title>
+    <!-- Theme cookie inline script runs BEFORE paint to avoid flash. -->
+    <script>
+      (function () {
+        try {
+          var pref = localStorage.getItem('facts-theme') || 'system';
+          var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        } catch (_) {}
+      })();
+    </script>
+    <!-- Inline dataset — populated by `factstack ui` / `factstack export`.
+         When missing (dev mode), loadArtifacts() fetches /data/factstack.json
+         through Vite's proxy to the CLI server. -->
+    <script id="factstack-data" type="application/json">__INLINE_FACTSTACK_JSON__</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

@@ -12,7 +12,15 @@
  *   - File size cap: default 1 MB, configurable.
  */
 
-import ignore from 'ignore';
+// `ignore` is a CJS package whose default export is a callable factory.
+// Under NodeNext + verbatimModuleSyntax (our cli/mcp-server tsconfig)
+// `import ignore from 'ignore'` resolves to the namespace object, not the
+// callable. Importing as namespace + unwrapping `.default` works in BOTH
+// Bundler resolution (used by walker's own build) and NodeNext.
+import * as ignoreModule from 'ignore';
+import type { Ignore } from 'ignore';
+const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default
+  ?? (ignoreModule as unknown as () => Ignore)) as () => Ignore;
 import type { Dirent, FactsFS } from '@factstack/spec';
 
 const ALWAYS_EXCLUDE = new Set([
@@ -20,6 +28,22 @@ const ALWAYS_EXCLUDE = new Set([
   '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
   '.pnpm-store', '.vscode', '.idea',
 ]);
+
+/**
+ * File-name suffixes that are build artifacts / caches the analyzer should
+ * never count as source. Surfaces in: file count, activity stream, orphan
+ * list, framework detection. The walker drops these before any further
+ * processing; downstream consumers (UI, MCP, query) never see them.
+ */
+const ALWAYS_EXCLUDE_SUFFIXES = [
+  '.tsbuildinfo',
+  '.tsbuildinfo.json',
+];
+
+function isNoiseArtifact(name: string): boolean {
+  const lower = name.toLowerCase();
+  return ALWAYS_EXCLUDE_SUFFIXES.some((s) => lower.endsWith(s));
+}
 
 const IGNORE_FILES = ['.gitignore', '.dockerignore', '.cursorignore', '.aiignore', '.factsignore'];
 
@@ -60,10 +84,11 @@ export async function* walk(
 ): AsyncIterable<WalkedFile> {
   const maxFileSize = opts.maxFileSize ?? 1024 * 1024;
   const followSymlinks = opts.followSymlinks ?? false;
+  const skipGit = opts.skipGit ?? true;
   const rootNorm = fs.normalize(root);
   const visited = new Set<string>();
 
-  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, { maxFileSize, followSymlinks });
+  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, { maxFileSize, followSymlinks, skipGit });
 }
 
 async function* walkDir(
@@ -106,6 +131,7 @@ async function* walkDir(
 
   for (const entry of entries) {
     if (ALWAYS_EXCLUDE.has(entry.name)) continue;
+    if (!entry.isDirectory && isNoiseArtifact(entry.name)) continue;
 
     const relToRoot = relativeTo(base, entry.path, fs);
     const ignoreKey = entry.isDirectory ? relToRoot + '/' : relToRoot;

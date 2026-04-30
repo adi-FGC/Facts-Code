@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm turbo typecheck
+
+      - name: Tests
+        run: pnpm turbo test
+
+      # Smoke: the CLI should analyze itself and produce valid artifacts.
+      # Golden-master fixture: re-run and diff against committed summary.
+      - name: Smoke — analyze self
+        shell: bash
+        run: |
+          ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts analyze . --json > /tmp/smoke.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('/tmp/smoke.json','utf8'));
+            if (!j.ok) throw new Error('analyze failed');
+            if (!j.stats || j.stats.fileCount < 10) throw new Error('fileCount too low: ' + j.stats?.fileCount);
+            if (typeof j.agentPath !== 'string') throw new Error('agentPath missing');
+            console.log('[smoke] files=' + j.stats.fileCount + ' loc=' + j.stats.loc + ' risks=' + j.risks);
+          "

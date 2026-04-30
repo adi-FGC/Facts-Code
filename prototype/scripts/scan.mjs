@@ -8,6 +8,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { parse as babelParse } from '@babel/parser';
 
 const ALWAYS_EXCLUDE = new Set([
   'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
@@ -87,6 +88,144 @@ async function gzipSize(buffer) {
   });
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// AST import extraction — real @babel/parser parse of every JS/TS file.
+// Produces RawImport[] so the resolver below can turn specifiers into edges.
+// Mirrors packages/extractors/src/imports.ts; kept inline here so the
+// prototype stays a single-file standalone analyzer.
+// ──────────────────────────────────────────────────────────────────────────
+const JS_EXTS = new Set(['.js', '.jsx', '.mjs', '.cjs']);
+const TS_EXTS = new Set(['.ts', '.tsx', '.cts', '.mts']);
+function parseableForImports(ext) {
+  return JS_EXTS.has(ext) || TS_EXTS.has(ext);
+}
+function extractImports(source, ext) {
+  if (!parseableForImports(ext)) return [];
+  const jsx = ext.endsWith('x');
+  const plugins = ['importAssertions', 'decorators-legacy'];
+  if (TS_EXTS.has(ext)) plugins.push('typescript');
+  if (jsx) plugins.push('jsx');
+  let ast;
+  try {
+    ast = babelParse(source, {
+      sourceType: 'module',
+      allowImportExportEverywhere: true,
+      allowReturnOutsideFunction: true,
+      allowUndeclaredExports: true,
+      errorRecovery: true,
+      plugins,
+    });
+  } catch {
+    return [];
+  }
+  const out = [];
+  const body = ast?.program?.body ?? [];
+  for (const node of body) {
+    if (!node) continue;
+    if (node.type === 'ImportDeclaration' && typeof node.source?.value === 'string') {
+      out.push({ specifier: node.source.value, kind: node.importKind === 'type' ? 'type-import' : 'import', line: node.loc?.start?.line ?? 0 });
+    } else if ((node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') && typeof node.source?.value === 'string') {
+      out.push({ specifier: node.source.value, kind: node.exportKind === 'type' ? 'type-import' : 'import', line: node.loc?.start?.line ?? 0 });
+    }
+  }
+  (function walkAst(n) {
+    if (!n || typeof n !== 'object') return;
+    if (n.type === 'CallExpression' && n.callee?.type === 'Import') {
+      const a = n.arguments?.[0];
+      if (a?.type === 'StringLiteral' && typeof a.value === 'string') {
+        out.push({ specifier: a.value, kind: 'dynamic-import', line: n.loc?.start?.line ?? 0 });
+      }
+    }
+    if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'require') {
+      const a = n.arguments?.[0];
+      if (a?.type === 'StringLiteral' && typeof a.value === 'string') {
+        out.push({ specifier: a.value, kind: 'import', line: n.loc?.start?.line ?? 0 });
+      }
+    }
+    for (const k of Object.keys(n)) {
+      if (k === 'loc' || k === 'start' || k === 'end' || k === 'range') continue;
+      const v = n[k];
+      if (Array.isArray(v)) for (const c of v) walkAst(c);
+      else if (v && typeof v === 'object' && typeof v.type === 'string') walkAst(v);
+    }
+  })(ast);
+  const seen = new Set();
+  const dedup = [];
+  for (const x of out) {
+    const k = x.specifier + '|' + x.kind;
+    if (seen.has(k)) continue;
+    seen.add(k);
+    dedup.push(x);
+  }
+  return dedup;
+}
+
+// Resolver — mirrors packages/graph/src/resolver.ts (POSIX paths, workspace
+// lookup, extension/index probing). Null when external/unresolvable.
+const RESOLVE_EXTS = ['', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.json'];
+const RESOLVE_INDEX = ['index.ts', 'index.tsx', 'index.js', 'index.jsx', 'index.mjs'];
+const NODE_BUILTINS = new Set([
+  'assert','async_hooks','buffer','child_process','cluster','console','constants','crypto','dgram','diagnostics_channel',
+  'dns','domain','events','fs','fs/promises','http','http2','https','inspector','module','net','os','path','perf_hooks',
+  'process','punycode','querystring','readline','repl','stream','stream/promises','stream/web','string_decoder','sys',
+  'timers','timers/promises','tls','trace_events','tty','url','util','util/types','v8','vm','wasi','worker_threads','zlib','sqlite',
+]);
+function posixDirname(p) { const i = p.lastIndexOf('/'); return i < 0 ? '' : p.slice(0, i); }
+function posixNormalize(baseDir, rel) {
+  const parts = baseDir === '' ? [] : baseDir.split('/');
+  for (const seg of rel.split('/')) {
+    if (!seg || seg === '.') continue;
+    if (seg === '..') parts.pop();
+    else parts.push(seg);
+  }
+  return parts.join('/');
+}
+function probeFile(base, fileSet) {
+  for (const ext of RESOLVE_EXTS) if (fileSet.has(base + ext)) return base + ext;
+  for (const idx of RESOLVE_INDEX) if (fileSet.has(base + '/' + idx)) return base + '/' + idx;
+  if (base.endsWith('.js')) {
+    const ts = base.slice(0, -3) + '.ts'; if (fileSet.has(ts)) return ts;
+    const tsx = base.slice(0, -3) + '.tsx'; if (fileSet.has(tsx)) return tsx;
+  }
+  return null;
+}
+function resolveSpecifier(spec, importerPath, fileSet, workspaces) {
+  if (!spec) return null;
+  if (spec.startsWith('node:') || NODE_BUILTINS.has(spec)) return null;
+  if (spec.startsWith('./') || spec.startsWith('../')) {
+    return probeFile(posixNormalize(posixDirname(importerPath), spec), fileSet);
+  }
+  // Longest-prefix workspace match
+  let ws = null;
+  for (const w of workspaces.values()) {
+    if (spec === w.name || spec.startsWith(w.name + '/')) {
+      if (!ws || w.name.length > ws.name.length) ws = w;
+    }
+  }
+  if (!ws) return null;
+  const rest = spec.slice(ws.name.length).replace(/^\//, '');
+  if (!rest) {
+    return (ws.entry && fileSet.has(ws.entry))
+      ? ws.entry
+      : (probeFile(ws.dir + '/src/index', fileSet) || probeFile(ws.dir + '/index', fileSet));
+  }
+  return probeFile(ws.dir + '/src/' + rest, fileSet) || probeFile(ws.dir + '/' + rest, fileSet);
+}
+function buildWorkspaceIndex(packageJsons) {
+  const out = new Map();
+  for (const pj of packageJsons) {
+    let j; try { j = JSON.parse(pj.text); } catch { continue; }
+    if (typeof j?.name !== 'string' || !j.name) continue;
+    const dir = posixDirname(pj.path);
+    const mainRaw = (typeof j.module === 'string' && j.module) || (typeof j.main === 'string' && j.main) || null;
+    const entry = typeof mainRaw === 'string'
+      ? ((mainRaw.replace(/^\.\//, '')) ? (dir ? dir + '/' + mainRaw.replace(/^\.\//, '') : mainRaw.replace(/^\.\//, '')) : null)
+      : null;
+    out.set(j.name, { name: j.name, dir, entry });
+  }
+  return out;
+}
+
 async function walk(root, rel = '', ignorePatterns = []) {
   const abs = path.join(root, rel);
   const entries = await fs.readdir(abs, { withFileTypes: true });
@@ -129,6 +268,8 @@ async function walk(root, rel = '', ignorePatterns = []) {
       const gzip = ext.match(/\.(ts|tsx|js|jsx|mjs|cjs|html|css)$/) ? await gzipSize(buf) : null;
       const tokens = estimateTokens(stat.size, text);
       const lang = EXT_LANG[ext] || null;
+      // AST-extracted raw imports (specifier, kind, line) — resolved after walk.
+      const rawImports = extractImports(text, ext);
       // Structured TODO extraction — capture kind + line + text so the UI
       // can show the actual comment rather than a bare count.
       const todoPattern = /\b(TODO|FIXME|HACK|XXX|NOTE)\b[:\s]?\s*(.*)/;
@@ -153,6 +294,8 @@ async function walk(root, rel = '', ignorePatterns = []) {
         todoEntries: todoList,
         status,
         mtime: stat.mtimeMs,
+        imports: rawImports,
+        _packageJsonText: name === 'package.json' ? text : undefined,
       });
     }
   }
@@ -259,8 +402,29 @@ async function main() {
   const allFiles = flatten(tree);
   const frameworks = detectFrameworks(allFiles);
 
-  // Strip _content from output
-  for (const f of allFiles) delete f._content;
+  // ── Dependency edges (real AST imports → resolved project paths) ──────
+  const fileSet = new Set(allFiles.map((f) => f.path));
+  const packageJsons = allFiles
+    .filter((f) => f.name === 'package.json' && typeof f._packageJsonText === 'string')
+    .map((f) => ({ path: f.path, text: f._packageJsonText }));
+  const workspaces = buildWorkspaceIndex(packageJsons);
+  const edges = [];
+  const seenEdge = new Set();
+  for (const f of allFiles) {
+    if (!Array.isArray(f.imports) || f.imports.length === 0) continue;
+    for (const imp of f.imports) {
+      const to = resolveSpecifier(imp.specifier, f.path, fileSet, workspaces);
+      if (!to || to === f.path) continue;
+      const kind = imp.kind === 'dynamic-import' ? 'dynamic-import' : imp.kind === 'type-import' ? 'type-import' : 'import';
+      const key = f.path + '|' + to + '|' + kind;
+      if (seenEdge.has(key)) continue;
+      seenEdge.add(key);
+      edges.push({ from: f.path, to, kind });
+    }
+  }
+
+  // Strip internal-only fields from output
+  for (const f of allFiles) { delete f._content; delete f._packageJsonText; }
 
   const capabilities = [];
   if (frameworks.includes('React')) capabilities.push({ icon: '✓', head: 'Renders a React WebUI', sub: 'React 19 + React Router v7 + Vite' });
@@ -300,6 +464,7 @@ async function main() {
       tokens: totals.tokens,
     },
     tree,
+    edges,
     entryPoints: [
       // Best-effort detection — for a static-analyzer project, entry points
       // are the CLI and the UI dev server, not HTTP routes.

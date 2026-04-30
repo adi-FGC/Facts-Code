@@ -1,0 +1,8 @@
+/* Light theme — a no-op, since tokens.css defaults are light. This file
+ * exists so a consumer can import `@factstack/ui-theme/themes/light.css`
+ * explicitly when it wants to force-reset after a dark toggle. */
+@import '../tokens.css';
+
+:root[data-theme='light'] {
+  color-scheme: light;
+}

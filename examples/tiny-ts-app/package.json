@@ -1,0 +1,13 @@
+{
+  "name": "tiny-ts-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal golden-master fixture for the analyzer. Kept intentionally tiny so the expected artifact stays stable across revisions.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "dev": "node src/index.ts",
+    "build": "tsc",
+    "test": "echo 'tests would go here'"
+  }
+}

@@ -10,3 +10,4 @@ export * from './agent.js';
 export * from './human.js';
 export * from './fs.js';
 export * from './mcp.js';
+export * from './diff.js';

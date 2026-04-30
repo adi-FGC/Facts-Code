@@ -120,6 +120,9 @@ export const GraphNodeSchema = z.object({
   loc: z.number().int().nonnegative(),
   tokenCost: z.number().int().nonnegative(),
   status: StatusSchema,
+  /** File paths that import this node. Optional for backward compat;
+   *  populated by buildCallerIndex in @factstack/graph. */
+  callers: z.array(z.string()).optional(),
 });
 
 export const GraphEdgeSchema = z.object({
@@ -168,6 +171,7 @@ export const ProjectMetaSchema = z.object({
     })
     .nullable(),
 });
+export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 
 export const StatsSchema = z.object({
   loc: z.number().int().nonnegative(),

@@ -1,0 +1,8 @@
+/* Dark theme — consumers that only want dark (VS Code webviews that
+ * inherit the editor's theme, say) can import this alone. Otherwise the
+ * full tokens.css handles both via [data-theme='dark']. */
+@import '../tokens.css';
+
+:root {
+  color-scheme: dark;
+}

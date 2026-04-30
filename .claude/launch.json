@@ -12,6 +12,30 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev"],
       "port": 3000
+    },
+    {
+      "name": "FACTS prototype (static)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", "./prototype", "-p", "3001", "-c-1", "--silent"],
+      "port": 3001
+    },
+    {
+      "name": "factstack ui (CLI)",
+      "runtimeExecutable": "apps/cli/node_modules/.bin/tsx",
+      "runtimeArgs": ["apps/cli/src/cli.ts", "ui", ".", "--port", "4848", "--no-open"],
+      "port": 4848
+    },
+    {
+      "name": "factstack-qa-tiny",
+      "runtimeExecutable": "apps/cli/node_modules/.bin/tsx",
+      "runtimeArgs": ["apps/cli/src/cli.ts", "ui", "examples/tiny-ts-app", "--port", "4747", "--no-open"],
+      "port": 4747
+    },
+    {
+      "name": "ui-remix (React dev)",
+      "runtimeExecutable": "apps/ui-remix/node_modules/.bin/vite",
+      "runtimeArgs": ["--port", "3210", "--host", "127.0.0.1", "apps/ui-remix"],
+      "port": 3210
     }
   ]
 }

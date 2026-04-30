@@ -9,8 +9,9 @@
   },
   "main": "./src/cli.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "pnpm run sync:ui && tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
+    "sync:ui": "node scripts/sync-ui.mjs",
     "test": "echo 'no tests yet' && exit 0",
     "lint": "echo 'no lint yet' && exit 0",
     "typecheck": "tsc --noEmit"
@@ -18,6 +19,7 @@
   "dependencies": {
     "@factstack/core": "workspace:*",
     "@factstack/emit": "workspace:*",
+    "@factstack/extractors": "workspace:*",
     "@factstack/fs-node": "workspace:*",
     "@factstack/spec": "workspace:*",
     "chokidar": "^4.0.1",

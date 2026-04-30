@@ -1,0 +1,1885 @@
+[scan] walking D:/dev/ai agents/claude/RallyPro
+{
+  "$schema": "https://factstack.dev/schema/prototype.v1.json",
+  "generatedAt": "2026-04-18T20:28:57.293Z",
+  "project": {
+    "name": "RallyPro",
+    "root": "D:\\dev\\ai agents\\claude\\RallyPro",
+    "languages": [
+      {
+        "id": "yaml",
+        "label": "YAML",
+        "iconColor": "#cb171e",
+        "tag": "YAML",
+        "loc": 9448,
+        "tokens": 87051,
+        "files": 1
+      },
+      {
+        "id": "typescript",
+        "label": "TypeScript",
+        "iconColor": "#3178c6",
+        "tag": "TS",
+        "loc": 2493,
+        "tokens": 27838,
+        "files": 22
+      },
+      {
+        "id": "css",
+        "label": "CSS",
+        "iconColor": "#1572b6",
+        "tag": "CSS",
+        "loc": 511,
+        "tokens": 5496,
+        "files": 2
+      },
+      {
+        "id": "markdown",
+        "label": "Markdown",
+        "iconColor": "#60a5fa",
+        "tag": "MD",
+        "loc": 132,
+        "tokens": 2093,
+        "files": 1
+      },
+      {
+        "id": "json",
+        "label": "JSON",
+        "iconColor": "#cbd5e1",
+        "tag": "JSON",
+        "loc": 108,
+        "tokens": 806,
+        "files": 4
+      },
+      {
+        "id": "javascript",
+        "label": "JavaScript",
+        "iconColor": "#f7df1e",
+        "tag": "MJS",
+        "loc": 38,
+        "tokens": 254,
+        "files": 1
+      }
+    ],
+    "frameworks": [
+      "React",
+      "Vite",
+      "Tailwind CSS"
+    ]
+  },
+  "summary": {
+    "oneLiner": "A React + Vite + Tailwind CSS project",
+    "description": "Static code analyzer codebase. Monorepo with a shared @factstack/spec (Zod schemas), an isomorphic analyzer pipeline (walker → parsers → extractors → graph → scanners → emit), a Vite + React 19 + React Router v7 WebUI, and stubbed future surfaces (VS Code extension, Chrome extension, web app, MCP server).",
+    "capabilities": [
+      {
+        "icon": "✓",
+        "head": "Renders a React WebUI",
+        "sub": "React 19 + React Router v7 + Vite"
+      },
+      {
+        "icon": "✓",
+        "head": "Styled with Tailwind v4",
+        "sub": "Design tokens + liquid-glass"
+      }
+    ],
+    "health": {
+      "broken": 0,
+      "stale": 0,
+      "todos": 0,
+      "secrets": 0
+    }
+  },
+  "stats": {
+    "files": 65,
+    "loc": 17421,
+    "size": 643052,
+    "gzip": 38759,
+    "tokens": 183595
+  },
+  "tree": {
+    "files": [
+      {
+        "name": ".env.example",
+        "path": ".env.example",
+        "ext": ".example",
+        "language": null,
+        "size": 358,
+        "gzip": null,
+        "loc": 13,
+        "tokens": 102,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776535990278.0674,
+        "imports": []
+      },
+      {
+        "name": ".gitignore",
+        "path": ".gitignore",
+        "ext": "",
+        "language": null,
+        "size": 156,
+        "gzip": null,
+        "loc": 16,
+        "tokens": 45,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776539723771.633,
+        "imports": []
+      },
+      {
+        "name": ".npmrc",
+        "path": ".npmrc",
+        "ext": "",
+        "language": null,
+        "size": 75,
+        "gzip": null,
+        "loc": 4,
+        "tokens": 21,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776539733377.959,
+        "imports": []
+      },
+      {
+        "name": "app-plan-spec.md",
+        "path": "app-plan-spec.md",
+        "ext": ".md",
+        "language": {
+          "id": "markdown",
+          "label": "Markdown",
+          "iconColor": "#60a5fa",
+          "tag": "MD"
+        },
+        "size": 7439,
+        "gzip": null,
+        "loc": 132,
+        "tokens": 2093,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776543975203.8264,
+        "imports": []
+      },
+      {
+        "name": "astro.config.mjs",
+        "path": "astro.config.mjs",
+        "ext": ".mjs",
+        "language": {
+          "id": "javascript",
+          "label": "JavaScript",
+          "iconColor": "#f7df1e",
+          "tag": "MJS"
+        },
+        "size": 889,
+        "gzip": 430,
+        "loc": 38,
+        "tokens": 254,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776537174170.4746,
+        "imports": [
+          {
+            "specifier": "astro/config",
+            "kind": "import",
+            "line": 1
+          },
+          {
+            "specifier": "@astrojs/react",
+            "kind": "import",
+            "line": 2
+          },
+          {
+            "specifier": "@astrojs/netlify",
+            "kind": "import",
+            "line": 3
+          },
+          {
+            "specifier": "@tailwindcss/vite",
+            "kind": "import",
+            "line": 4
+          }
+        ]
+      },
+      {
+        "name": "package.json",
+        "path": "package.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 1005,
+        "gzip": null,
+        "loc": 42,
+        "tokens": 287,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776541441779.6838,
+        "imports": []
+      },
+      {
+        "name": "pnpm-lock.yaml",
+        "path": "pnpm-lock.yaml",
+        "ext": ".yaml",
+        "language": {
+          "id": "yaml",
+          "label": "YAML",
+          "iconColor": "#cb171e",
+          "tag": "YAML"
+        },
+        "size": 304680,
+        "gzip": null,
+        "loc": 9448,
+        "tokens": 87051,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776541479384.4045,
+        "imports": []
+      },
+      {
+        "name": "tsconfig.json",
+        "path": "tsconfig.json",
+        "ext": ".json",
+        "language": {
+          "id": "json",
+          "label": "JSON",
+          "iconColor": "#cbd5e1",
+          "tag": "JSON"
+        },
+        "size": 539,
+        "gzip": null,
+        "loc": 21,
+        "tokens": 154,
+        "todos": 0,
+        "todoEntries": [],
+        "status": "ok",
+        "mtime": 1776535737435.153,
+        "imports": []
+      }
+    ],
+    "children": [
+      {
+        "name": ".claude",
+        "path": ".claude",
+        "files": [
+          {
+            "name": "launch.json",
+            "path": ".claude/launch.json",
+            "ext": ".json",
+            "language": {
+              "id": "json",
+              "label": "JSON",
+              "iconColor": "#cbd5e1",
+              "tag": "JSON"
+            },
+            "size": 456,
+            "gzip": null,
+            "loc": 24,
+            "tokens": 130,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776535806979.2417,
+            "imports": []
+          },
+          {
+            "name": "settings.local.json",
+            "path": ".claude/settings.local.json",
+            "ext": ".json",
+            "language": {
+              "id": "json",
+              "label": "JSON",
+              "iconColor": "#cbd5e1",
+              "tag": "JSON"
+            },
+            "size": 822,
+            "gzip": null,
+            "loc": 21,
+            "tokens": 235,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776541108778.576,
+            "imports": []
+          }
+        ],
+        "children": [],
+        "rollup": {
+          "size": 1278,
+          "gzip": 0,
+          "tokens": 365,
+          "files": 2,
+          "loc": 45,
+          "todos": 0
+        }
+      },
+      {
+        "name": "src",
+        "path": "src",
+        "files": [
+          {
+            "name": "env.d.ts",
+            "path": "src/env.d.ts",
+            "ext": ".ts",
+            "language": {
+              "id": "typescript",
+              "label": "TypeScript",
+              "iconColor": "#3178c6",
+              "tag": "TS"
+            },
+            "size": 793,
+            "gzip": 357,
+            "loc": 28,
+            "tokens": 227,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776536099739.292,
+            "imports": []
+          },
+          {
+            "name": "middleware.ts",
+            "path": "src/middleware.ts",
+            "ext": ".ts",
+            "language": {
+              "id": "typescript",
+              "label": "TypeScript",
+              "iconColor": "#3178c6",
+              "tag": "TS"
+            },
+            "size": 1794,
+            "gzip": 775,
+            "loc": 53,
+            "tokens": 512,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776541374462.302,
+            "imports": [
+              {
+                "specifier": "astro:middleware",
+                "kind": "import",
+                "line": 1
+              },
+              {
+                "specifier": "@lib/db/supabase",
+                "kind": "import",
+                "line": 2
+              },
+              {
+                "specifier": "@lib/db/types",
+                "kind": "type-import",
+                "line": 3
+              }
+            ]
+          }
+        ],
+        "children": [
+          {
+            "name": "components",
+            "path": "src/components",
+            "files": [
+              {
+                "name": "Icon.astro",
+                "path": "src/components/Icon.astro",
+                "ext": ".astro",
+                "language": null,
+                "size": 4756,
+                "gzip": null,
+                "loc": 153,
+                "tokens": 1358,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776539988674.3972,
+                "imports": []
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 4756,
+              "gzip": 0,
+              "tokens": 1358,
+              "files": 1,
+              "loc": 153,
+              "todos": 0
+            }
+          },
+          {
+            "name": "islands",
+            "path": "src/islands",
+            "files": [
+              {
+                "name": "Broadcast.tsx",
+                "path": "src/islands/Broadcast.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 5088,
+                "gzip": 1841,
+                "loc": 119,
+                "tokens": 1452,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543252757.139,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "CouponRedeem.tsx",
+                "path": "src/islands/CouponRedeem.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 2838,
+                "gzip": 1196,
+                "loc": 73,
+                "tokens": 810,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543573042.4028,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "EventDetailActions.tsx",
+                "path": "src/islands/EventDetailActions.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 5194,
+                "gzip": 1669,
+                "loc": 122,
+                "tokens": 1483,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543169543.522,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  },
+                  {
+                    "specifier": "@lib/brackets/single_elim",
+                    "kind": "import",
+                    "line": 3
+                  }
+                ]
+              },
+              {
+                "name": "EventStudio.tsx",
+                "path": "src/islands/EventStudio.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 17530,
+                "gzip": 4616,
+                "loc": 439,
+                "tokens": 5006,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776542511009.1074,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  },
+                  {
+                    "specifier": "@lib/db/types",
+                    "kind": "type-import",
+                    "line": 3
+                  }
+                ]
+              },
+              {
+                "name": "LiveScoreboard.tsx",
+                "path": "src/islands/LiveScoreboard.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 7700,
+                "gzip": 2253,
+                "loc": 154,
+                "tokens": 2197,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543763796.7803,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  },
+                  {
+                    "specifier": "@lib/db/types",
+                    "kind": "type-import",
+                    "line": 3
+                  }
+                ]
+              },
+              {
+                "name": "LoginForm.tsx",
+                "path": "src/islands/LoginForm.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 6925,
+                "gzip": 2329,
+                "loc": 156,
+                "tokens": 1973,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541416995.5715,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "PersonaPicker.tsx",
+                "path": "src/islands/PersonaPicker.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 3840,
+                "gzip": 1639,
+                "loc": 70,
+                "tokens": 1095,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543608031.225,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "PlayerRegister.tsx",
+                "path": "src/islands/PlayerRegister.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 4441,
+                "gzip": 1720,
+                "loc": 108,
+                "tokens": 1267,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543462004.0872,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "ReactionsStrip.tsx",
+                "path": "src/islands/ReactionsStrip.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 4247,
+                "gzip": 1790,
+                "loc": 107,
+                "tokens": 1209,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543786243.787,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              },
+              {
+                "name": "Scorekeeper.tsx",
+                "path": "src/islands/Scorekeeper.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 11030,
+                "gzip": 3249,
+                "loc": 231,
+                "tokens": 3149,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543229370.6416,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  },
+                  {
+                    "specifier": "@lib/db/types",
+                    "kind": "type-import",
+                    "line": 3
+                  }
+                ]
+              },
+              {
+                "name": "ThemeToggle.tsx",
+                "path": "src/islands/ThemeToggle.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 2833,
+                "gzip": 1258,
+                "loc": 87,
+                "tokens": 809,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541658107.6025,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  }
+                ]
+              },
+              {
+                "name": "WatchToggle.tsx",
+                "path": "src/islands/WatchToggle.tsx",
+                "ext": ".tsx",
+                "language": {
+                  "id": "typescript",
+                  "label": "TypeScript",
+                  "iconColor": "#3178c6",
+                  "tag": "TSX"
+                },
+                "size": 1393,
+                "gzip": 692,
+                "loc": 37,
+                "tokens": 397,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776543796145.0063,
+                "imports": [
+                  {
+                    "specifier": "react",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "@lib/db/supabase",
+                    "kind": "import",
+                    "line": 2
+                  }
+                ]
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 73059,
+              "gzip": 24252,
+              "tokens": 20847,
+              "files": 12,
+              "loc": 1703,
+              "todos": 0
+            }
+          },
+          {
+            "name": "layouts",
+            "path": "src/layouts",
+            "files": [
+              {
+                "name": "BaseLayout.astro",
+                "path": "src/layouts/BaseLayout.astro",
+                "ext": ".astro",
+                "language": null,
+                "size": 1353,
+                "gzip": null,
+                "loc": 41,
+                "tokens": 386,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776535847094.2874,
+                "imports": []
+              },
+              {
+                "name": "PersonaLayout.astro",
+                "path": "src/layouts/PersonaLayout.astro",
+                "ext": ".astro",
+                "language": null,
+                "size": 26241,
+                "gzip": null,
+                "loc": 789,
+                "tokens": 7491,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541730877.3882,
+                "imports": []
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 27594,
+              "gzip": 0,
+              "tokens": 7877,
+              "files": 2,
+              "loc": 830,
+              "todos": 0
+            }
+          },
+          {
+            "name": "lib",
+            "path": "src/lib",
+            "files": [],
+            "children": [
+              {
+                "name": "brackets",
+                "path": "src/lib/brackets",
+                "files": [
+                  {
+                    "name": "single_elim.ts",
+                    "path": "src/lib/brackets/single_elim.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2839,
+                    "gzip": 1025,
+                    "loc": 103,
+                    "tokens": 811,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543072315.6487,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 2839,
+                  "gzip": 1025,
+                  "tokens": 811,
+                  "files": 1,
+                  "loc": 103,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "db",
+                "path": "src/lib/db",
+                "files": [
+                  {
+                    "name": "player-queries.ts",
+                    "path": "src/lib/db/player-queries.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 3521,
+                    "gzip": 1120,
+                    "loc": 104,
+                    "tokens": 1006,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543353600.5713,
+                    "imports": [
+                      {
+                        "specifier": "./supabase",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "./types",
+                        "kind": "type-import",
+                        "line": 2
+                      }
+                    ]
+                  },
+                  {
+                    "name": "queries.ts",
+                    "path": "src/lib/db/queries.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 5328,
+                    "gzip": 1902,
+                    "loc": 164,
+                    "tokens": 1521,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776542343195.555,
+                    "imports": [
+                      {
+                        "specifier": "./supabase",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "./types",
+                        "kind": "type-import",
+                        "line": 2
+                      }
+                    ]
+                  },
+                  {
+                    "name": "supabase.ts",
+                    "path": "src/lib/db/supabase.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2208,
+                    "gzip": 894,
+                    "loc": 67,
+                    "tokens": 630,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541965745.1504,
+                    "imports": [
+                      {
+                        "specifier": "astro",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "@supabase/ssr",
+                        "kind": "import",
+                        "line": 2
+                      },
+                      {
+                        "specifier": "@supabase/supabase-js",
+                        "kind": "import",
+                        "line": 8
+                      },
+                      {
+                        "specifier": "./types",
+                        "kind": "type-import",
+                        "line": 9
+                      }
+                    ]
+                  },
+                  {
+                    "name": "types.ts",
+                    "path": "src/lib/db/types.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 4650,
+                    "gzip": 1281,
+                    "loc": 173,
+                    "tokens": 1329,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776536118855.804,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 15707,
+                  "gzip": 5197,
+                  "tokens": 4486,
+                  "files": 4,
+                  "loc": 508,
+                  "todos": 0
+                }
+              }
+            ],
+            "rollup": {
+              "size": 18546,
+              "gzip": 6222,
+              "tokens": 5297,
+              "files": 5,
+              "loc": 611,
+              "todos": 0
+            }
+          },
+          {
+            "name": "pages",
+            "path": "src/pages",
+            "files": [
+              {
+                "name": "index.astro",
+                "path": "src/pages/index.astro",
+                "ext": ".astro",
+                "language": null,
+                "size": 6848,
+                "gzip": null,
+                "loc": 230,
+                "tokens": 1952,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776539808216.1848,
+                "imports": []
+              }
+            ],
+            "children": [
+              {
+                "name": "api",
+                "path": "src/pages/api",
+                "files": [
+                  {
+                    "name": "notify.ts",
+                    "path": "src/pages/api/notify.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2444,
+                    "gzip": 1119,
+                    "loc": 69,
+                    "tokens": 697,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543899201.1243,
+                    "imports": [
+                      {
+                        "specifier": "astro",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "resend",
+                        "kind": "import",
+                        "line": 2
+                      },
+                      {
+                        "specifier": "@lib/db/supabase",
+                        "kind": "import",
+                        "line": 3
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 2444,
+                  "gzip": 1119,
+                  "tokens": 697,
+                  "files": 1,
+                  "loc": 69,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "auth",
+                "path": "src/pages/auth",
+                "files": [
+                  {
+                    "name": "callback.ts",
+                    "path": "src/pages/auth/callback.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 573,
+                    "gzip": 333,
+                    "loc": 18,
+                    "tokens": 164,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541632137.1833,
+                    "imports": [
+                      {
+                        "specifier": "astro",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "@lib/db/supabase",
+                        "kind": "import",
+                        "line": 2
+                      }
+                    ]
+                  },
+                  {
+                    "name": "login.astro",
+                    "path": "src/pages/auth/login.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 3286,
+                    "gzip": null,
+                    "loc": 112,
+                    "tokens": 937,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541626131.6707,
+                    "imports": []
+                  },
+                  {
+                    "name": "logout.ts",
+                    "path": "src/pages/auth/logout.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 329,
+                    "gzip": 222,
+                    "loc": 11,
+                    "tokens": 94,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541638523.3274,
+                    "imports": [
+                      {
+                        "specifier": "astro",
+                        "kind": "type-import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "@lib/db/supabase",
+                        "kind": "import",
+                        "line": 2
+                      }
+                    ]
+                  },
+                  {
+                    "name": "persona.astro",
+                    "path": "src/pages/auth/persona.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 1273,
+                    "gzip": null,
+                    "loc": 28,
+                    "tokens": 363,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543587258.493,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 5461,
+                  "gzip": 555,
+                  "tokens": 1558,
+                  "files": 4,
+                  "loc": 169,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "organizer",
+                "path": "src/pages/organizer",
+                "files": [
+                  {
+                    "name": "broadcast.astro",
+                    "path": "src/pages/organizer/broadcast.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 1856,
+                    "gzip": null,
+                    "loc": 46,
+                    "tokens": 530,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543266350.6602,
+                    "imports": []
+                  },
+                  {
+                    "name": "index.astro",
+                    "path": "src/pages/organizer/index.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 15827,
+                    "gzip": null,
+                    "loc": 272,
+                    "tokens": 4521,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541827510.6394,
+                    "imports": []
+                  },
+                  {
+                    "name": "live.astro",
+                    "path": "src/pages/organizer/live.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 3806,
+                    "gzip": null,
+                    "loc": 83,
+                    "tokens": 1087,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543288603.8765,
+                    "imports": []
+                  },
+                  {
+                    "name": "new.astro",
+                    "path": "src/pages/organizer/new.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 1470,
+                    "gzip": null,
+                    "loc": 38,
+                    "tokens": 420,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776542522263.9517,
+                    "imports": []
+                  },
+                  {
+                    "name": "profile.astro",
+                    "path": "src/pages/organizer/profile.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 4553,
+                    "gzip": null,
+                    "loc": 94,
+                    "tokens": 1299,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543311580.9392,
+                    "imports": []
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "events",
+                    "path": "src/pages/organizer/events",
+                    "files": [
+                      {
+                        "name": "[id].astro",
+                        "path": "src/pages/organizer/events/[id].astro",
+                        "ext": ".astro",
+                        "language": null,
+                        "size": 12736,
+                        "gzip": null,
+                        "loc": 268,
+                        "tokens": 3635,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1776543146751.8562,
+                        "imports": []
+                      },
+                      {
+                        "name": "index.astro",
+                        "path": "src/pages/organizer/events/index.astro",
+                        "ext": ".astro",
+                        "language": null,
+                        "size": 7834,
+                        "gzip": null,
+                        "loc": 159,
+                        "tokens": 2237,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1776543046536.0425,
+                        "imports": []
+                      }
+                    ],
+                    "children": [
+                      {
+                        "name": "[id]",
+                        "path": "src/pages/organizer/events/[id]",
+                        "files": [
+                          {
+                            "name": "live.astro",
+                            "path": "src/pages/organizer/events/[id]/live.astro",
+                            "ext": ".astro",
+                            "language": null,
+                            "size": 2486,
+                            "gzip": null,
+                            "loc": 60,
+                            "tokens": 709,
+                            "todos": 0,
+                            "todoEntries": [],
+                            "status": "ok",
+                            "mtime": 1776543186726.9102,
+                            "imports": []
+                          }
+                        ],
+                        "children": [],
+                        "rollup": {
+                          "size": 2486,
+                          "gzip": 0,
+                          "tokens": 709,
+                          "files": 1,
+                          "loc": 60,
+                          "todos": 0
+                        }
+                      }
+                    ],
+                    "rollup": {
+                      "size": 23056,
+                      "gzip": 0,
+                      "tokens": 6581,
+                      "files": 3,
+                      "loc": 487,
+                      "todos": 0
+                    }
+                  }
+                ],
+                "rollup": {
+                  "size": 50568,
+                  "gzip": 0,
+                  "tokens": 14438,
+                  "files": 8,
+                  "loc": 1020,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "player",
+                "path": "src/pages/player",
+                "files": [
+                  {
+                    "name": "calendar.astro",
+                    "path": "src/pages/player/calendar.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 5256,
+                    "gzip": null,
+                    "loc": 110,
+                    "tokens": 1501,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543512688.9624,
+                    "imports": []
+                  },
+                  {
+                    "name": "discover.astro",
+                    "path": "src/pages/player/discover.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 6563,
+                    "gzip": null,
+                    "loc": 129,
+                    "tokens": 1875,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543431636.434,
+                    "imports": []
+                  },
+                  {
+                    "name": "index.astro",
+                    "path": "src/pages/player/index.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 10040,
+                    "gzip": null,
+                    "loc": 189,
+                    "tokens": 2865,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543399997.384,
+                    "imports": []
+                  },
+                  {
+                    "name": "profile.astro",
+                    "path": "src/pages/player/profile.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 5294,
+                    "gzip": null,
+                    "loc": 99,
+                    "tokens": 1511,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543538235.9565,
+                    "imports": []
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "events",
+                    "path": "src/pages/player/events",
+                    "files": [
+                      {
+                        "name": "[id].astro",
+                        "path": "src/pages/player/events/[id].astro",
+                        "ext": ".astro",
+                        "language": null,
+                        "size": 5413,
+                        "gzip": null,
+                        "loc": 117,
+                        "tokens": 1545,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1776543489794.7278,
+                        "imports": []
+                      }
+                    ],
+                    "children": [],
+                    "rollup": {
+                      "size": 5413,
+                      "gzip": 0,
+                      "tokens": 1545,
+                      "files": 1,
+                      "loc": 117,
+                      "todos": 0
+                    }
+                  }
+                ],
+                "rollup": {
+                  "size": 32566,
+                  "gzip": 0,
+                  "tokens": 9297,
+                  "files": 5,
+                  "loc": 644,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "spectator",
+                "path": "src/pages/spectator",
+                "files": [
+                  {
+                    "name": "discover.astro",
+                    "path": "src/pages/spectator/discover.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 3679,
+                    "gzip": null,
+                    "loc": 78,
+                    "tokens": 1051,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543818301.017,
+                    "imports": []
+                  },
+                  {
+                    "name": "index.astro",
+                    "path": "src/pages/spectator/index.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 7300,
+                    "gzip": null,
+                    "loc": 158,
+                    "tokens": 2085,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543695542.285,
+                    "imports": []
+                  },
+                  {
+                    "name": "profile.astro",
+                    "path": "src/pages/spectator/profile.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 2925,
+                    "gzip": null,
+                    "loc": 68,
+                    "tokens": 835,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543862941.3528,
+                    "imports": []
+                  },
+                  {
+                    "name": "stats.astro",
+                    "path": "src/pages/spectator/stats.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 3971,
+                    "gzip": null,
+                    "loc": 101,
+                    "tokens": 1134,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543838668.1118,
+                    "imports": []
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "events",
+                    "path": "src/pages/spectator/events",
+                    "files": [
+                      {
+                        "name": "[id].astro",
+                        "path": "src/pages/spectator/events/[id].astro",
+                        "ext": ".astro",
+                        "language": null,
+                        "size": 3715,
+                        "gzip": null,
+                        "loc": 92,
+                        "tokens": 1060,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1776543729446.9077,
+                        "imports": []
+                      }
+                    ],
+                    "children": [],
+                    "rollup": {
+                      "size": 3715,
+                      "gzip": 0,
+                      "tokens": 1060,
+                      "files": 1,
+                      "loc": 92,
+                      "todos": 0
+                    }
+                  }
+                ],
+                "rollup": {
+                  "size": 21590,
+                  "gzip": 0,
+                  "tokens": 6165,
+                  "files": 5,
+                  "loc": 497,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "wallet",
+                "path": "src/pages/wallet",
+                "files": [
+                  {
+                    "name": "index.astro",
+                    "path": "src/pages/wallet/index.astro",
+                    "ext": ".astro",
+                    "language": null,
+                    "size": 4690,
+                    "gzip": null,
+                    "loc": 95,
+                    "tokens": 1339,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776543559401.1792,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 4690,
+                  "gzip": 0,
+                  "tokens": 1339,
+                  "files": 1,
+                  "loc": 95,
+                  "todos": 0
+                }
+              }
+            ],
+            "rollup": {
+              "size": 124167,
+              "gzip": 1674,
+              "tokens": 35446,
+              "files": 25,
+              "loc": 2724,
+              "todos": 0
+            }
+          },
+          {
+            "name": "styles",
+            "path": "src/styles",
+            "files": [
+              {
+                "name": "global.css",
+                "path": "src/styles/global.css",
+                "ext": ".css",
+                "language": {
+                  "id": "css",
+                  "label": "CSS",
+                  "iconColor": "#1572b6",
+                  "tag": "CSS"
+                },
+                "size": 4852,
+                "gzip": 1593,
+                "loc": 169,
+                "tokens": 1385,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776535836718.3386,
+                "imports": []
+              },
+              {
+                "name": "tokens.css",
+                "path": "src/styles/tokens.css",
+                "ext": ".css",
+                "language": {
+                  "id": "css",
+                  "label": "CSS",
+                  "iconColor": "#1572b6",
+                  "tag": "CSS"
+                },
+                "size": 14422,
+                "gzip": 3456,
+                "loc": 342,
+                "tokens": 4111,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541704055.8386,
+                "imports": []
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 19274,
+              "gzip": 5049,
+              "tokens": 5496,
+              "files": 2,
+              "loc": 511,
+              "todos": 0
+            }
+          }
+        ],
+        "rollup": {
+          "size": 269983,
+          "gzip": 38329,
+          "tokens": 77060,
+          "files": 49,
+          "loc": 6613,
+          "todos": 0
+        }
+      },
+      {
+        "name": "supabase",
+        "path": "supabase",
+        "files": [
+          {
+            "name": "seed.sql",
+            "path": "supabase/seed.sql",
+            "ext": ".sql",
+            "language": null,
+            "size": 29289,
+            "gzip": null,
+            "loc": 413,
+            "tokens": 8358,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776541076104.6667,
+            "imports": []
+          }
+        ],
+        "children": [
+          {
+            "name": "migrations",
+            "path": "supabase/migrations",
+            "files": [
+              {
+                "name": "0001_init.sql",
+                "path": "supabase/migrations/0001_init.sql",
+                "ext": ".sql",
+                "language": null,
+                "size": 10485,
+                "gzip": null,
+                "loc": 228,
+                "tokens": 2991,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776536071327.1929,
+                "imports": []
+              },
+              {
+                "name": "0002_rls.sql",
+                "path": "supabase/migrations/0002_rls.sql",
+                "ext": ".sql",
+                "language": null,
+                "size": 6319,
+                "gzip": null,
+                "loc": 140,
+                "tokens": 1801,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776536092949.6914,
+                "imports": []
+              },
+              {
+                "name": "0003_doubles.sql",
+                "path": "supabase/migrations/0003_doubles.sql",
+                "ext": ".sql",
+                "language": null,
+                "size": 1287,
+                "gzip": null,
+                "loc": 31,
+                "tokens": 367,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776540755698.6562,
+                "imports": []
+              },
+              {
+                "name": "0004_wallet.sql",
+                "path": "supabase/migrations/0004_wallet.sql",
+                "ext": ".sql",
+                "language": null,
+                "size": 7956,
+                "gzip": null,
+                "loc": 211,
+                "tokens": 2271,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776540799838.4397,
+                "imports": []
+              },
+              {
+                "name": "0005_rls_wallet.sql",
+                "path": "supabase/migrations/0005_rls_wallet.sql",
+                "ext": ".sql",
+                "language": null,
+                "size": 1314,
+                "gzip": null,
+                "loc": 26,
+                "tokens": 375,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776540839302.281,
+                "imports": []
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 27361,
+              "gzip": 0,
+              "tokens": 7805,
+              "files": 5,
+              "loc": 636,
+              "todos": 0
+            }
+          }
+        ],
+        "rollup": {
+          "size": 56650,
+          "gzip": 0,
+          "tokens": 16163,
+          "files": 6,
+          "loc": 1049,
+          "todos": 0
+        }
+      }
+    ]
+  },
+  "edges": [
+    {
+      "from": "src/lib/db/player-queries.ts",
+      "to": "src/lib/db/supabase.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "src/lib/db/player-queries.ts",
+      "to": "src/lib/db/types.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "src/lib/db/queries.ts",
+      "to": "src/lib/db/supabase.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "src/lib/db/queries.ts",
+      "to": "src/lib/db/types.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "src/lib/db/supabase.ts",
+      "to": "src/lib/db/types.ts",
+      "kind": "type-import"
+    }
+  ],
+  "entryPoints": [
+    {
+      "label": "CLI",
+      "path": "factstack",
+      "handlerFile": "apps/cli/src/cli.ts",
+      "kind": "cli"
+    },
+    {
+      "label": "WebUI (dev)",
+      "path": "localhost:3000",
+      "handlerFile": "apps/ui-remix/app/root.tsx",
+      "kind": "ui"
+    },
+    {
+      "label": "Prototype",
+      "path": "localhost:3001",
+      "handlerFile": "prototype/index.html",
+      "kind": "ui"
+    }
+  ],
+  "risks": []
+}

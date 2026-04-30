@@ -1,53 +1,35 @@
 {
   "$schema": "https://factstack.dev/schema/prototype.v1.json",
-  "generatedAt": "2026-04-18T17:14:00.007Z",
+  "generatedAt": "2026-04-18T20:00:05.054Z",
   "project": {
     "name": "factstack",
     "root": "D:\\dev\\ai agents\\claude\\factstack",
     "languages": [
       {
-        "id": "yaml",
-        "label": "YAML",
-        "iconColor": "#cb171e",
-        "tag": "YAML",
-        "loc": 3615,
-        "tokens": 33379,
-        "files": 2
+        "id": "markdown",
+        "label": "Markdown",
+        "iconColor": "#60a5fa",
+        "tag": "MD",
+        "loc": 6636,
+        "tokens": 88021,
+        "files": 42
       },
       {
         "id": "html",
         "label": "HTML",
         "iconColor": "#e34f26",
         "tag": "HTML",
-        "loc": 2903,
-        "tokens": 33917,
-        "files": 2
+        "loc": 4114,
+        "tokens": 51374,
+        "files": 3
       },
       {
-        "id": "markdown",
-        "label": "Markdown",
-        "iconColor": "#60a5fa",
-        "tag": "MD",
-        "loc": 1559,
-        "tokens": 23142,
-        "files": 12
-      },
-      {
-        "id": "json",
-        "label": "JSON",
-        "iconColor": "#cbd5e1",
-        "tag": "JSON",
-        "loc": 521,
-        "tokens": 3943,
-        "files": 22
-      },
-      {
-        "id": "javascript",
-        "label": "JavaScript",
-        "iconColor": "#f7df1e",
-        "tag": "MJS",
-        "loc": 476,
-        "tokens": 4797,
+        "id": "yaml",
+        "label": "YAML",
+        "iconColor": "#cb171e",
+        "tag": "YAML",
+        "loc": 3655,
+        "tokens": 33747,
         "files": 2
       },
       {
@@ -55,9 +37,27 @@
         "label": "TypeScript",
         "iconColor": "#3178c6",
         "tag": "TS",
-        "loc": 448,
-        "tokens": 3668,
+        "loc": 2418,
+        "tokens": 22746,
+        "files": 25
+      },
+      {
+        "id": "javascript",
+        "label": "JavaScript",
+        "iconColor": "#f7df1e",
+        "tag": "MJS",
+        "loc": 1123,
+        "tokens": 12804,
         "files": 5
+      },
+      {
+        "id": "json",
+        "label": "JSON",
+        "iconColor": "#cbd5e1",
+        "tag": "JSON",
+        "loc": 596,
+        "tokens": 4466,
+        "files": 31
       }
     ],
     "frameworks": [
@@ -110,16 +110,16 @@
     "health": {
       "broken": 0,
       "stale": 0,
-      "todos": 10,
+      "todos": 33,
       "secrets": 0
     }
   },
   "stats": {
-    "files": 49,
-    "loc": 9593,
-    "size": 363941,
-    "gzip": 36537,
-    "tokens": 103151
+    "files": 113,
+    "loc": 18620,
+    "size": 751896,
+    "gzip": 88730,
+    "tokens": 213483
   },
   "tree": {
     "files": [
@@ -135,7 +135,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525831428.0754
+        "mtime": 1776525831428.0754,
+        "imports": []
       },
       {
         "name": ".gitattributes",
@@ -149,21 +150,23 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776526250349.0725
+        "mtime": 1776526250349.0725,
+        "imports": []
       },
       {
         "name": ".gitignore",
         "path": ".gitignore",
         "ext": "",
         "language": null,
-        "size": 363,
+        "size": 399,
         "gzip": null,
-        "loc": 27,
-        "tokens": 104,
+        "loc": 30,
+        "tokens": 114,
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525827787.3665
+        "mtime": 1776537564327.93,
+        "imports": []
       },
       {
         "name": ".nvmrc",
@@ -177,7 +180,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525835662.678
+        "mtime": 1776525835662.678,
+        "imports": []
       },
       {
         "name": ".oxlintrc.json",
@@ -196,7 +200,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776528273654.256
+        "mtime": 1776528273654.256,
+        "imports": []
       },
       {
         "name": ".prettierrc.json",
@@ -215,7 +220,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525839042.8877
+        "mtime": 1776525839042.8877,
+        "imports": []
       },
       {
         "name": "animations_spec.md",
@@ -234,7 +240,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525782507.0232
+        "mtime": 1776525782507.0232,
+        "imports": []
       },
       {
         "name": "app_plan_spec.md",
@@ -246,30 +253,36 @@
           "iconColor": "#60a5fa",
           "tag": "MD"
         },
-        "size": 30766,
+        "size": 38430,
         "gzip": null,
-        "loc": 460,
-        "tokens": 8422,
-        "todos": 3,
+        "loc": 561,
+        "tokens": 10480,
+        "todos": 4,
         "todoEntries": [
           {
             "kind": "TODO",
-            "line": 111,
-            "text": "/FIXME harvest, bundle-size + token-cost. Pure."
+            "line": 22,
+            "text": "/FIXME harvester (kind + line + text), secrets (9 rules + entropy gate + redacted previews), frameworks (≈ 45 dep→framework), tiktoken approximation |"
           },
           {
             "kind": "TODO",
-            "line": 184,
-            "text": "/FIXME/HACK/XXX** harvesting with git blame-lite."
+            "line": 67,
+            "text": "/secrets/frameworks. AST extractors land in v0.2."
           },
           {
             "kind": "TODO",
-            "line": 193,
-            "text": "`/`FIXME`."
+            "line": 211,
+            "text": "/FIXME/HACK/XXX/NOTE** ✅: regex harvester with kind + line + text."
+          },
+          {
+            "kind": "TODO",
+            "line": 222,
+            "text": "`/`FIXME` (v0.2 once git history lands)."
           }
         ],
         "status": "ok",
-        "mtime": 1776528196796.0598
+        "mtime": 1776539751476.2446,
+        "imports": []
       },
       {
         "name": "app_spec.md",
@@ -288,7 +301,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525595419.2708
+        "mtime": 1776525595419.2708,
+        "imports": []
       },
       {
         "name": "design_spec.md",
@@ -307,7 +321,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525713673.5063
+        "mtime": 1776525713673.5063,
+        "imports": []
       },
       {
         "name": "eslint.config.mjs",
@@ -326,7 +341,24 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776526206482.264
+        "mtime": 1776526206482.264,
+        "imports": [
+          {
+            "specifier": "@eslint/js",
+            "kind": "import",
+            "line": 12
+          },
+          {
+            "specifier": "eslint-plugin-boundaries",
+            "kind": "import",
+            "line": 13
+          },
+          {
+            "specifier": "typescript-eslint",
+            "kind": "import",
+            "line": 14
+          }
+        ]
       },
       {
         "name": "package.json",
@@ -345,7 +377,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776528242000.7932
+        "mtime": 1776528242000.7932,
+        "imports": []
       },
       {
         "name": "pnpm-lock.yaml",
@@ -357,14 +390,15 @@
           "iconColor": "#cb171e",
           "tag": "YAML"
         },
-        "size": 116533,
+        "size": 117804,
         "gzip": null,
-        "loc": 3605,
-        "tokens": 33295,
+        "loc": 3644,
+        "tokens": 33658,
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776529430873.5837
+        "mtime": 1776542390679.411,
+        "imports": []
       },
       {
         "name": "pnpm-workspace.yaml",
@@ -376,14 +410,15 @@
           "iconColor": "#cb171e",
           "tag": "YAML"
         },
-        "size": 294,
+        "size": 310,
         "gzip": null,
-        "loc": 10,
-        "tokens": 84,
+        "loc": 11,
+        "tokens": 89,
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776528222975.4458
+        "mtime": 1776542382865.412,
+        "imports": []
       },
       {
         "name": "README.md",
@@ -402,7 +437,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525880107.515
+        "mtime": 1776525880107.515,
+        "imports": []
       },
       {
         "name": "tsconfig.base.json",
@@ -421,7 +457,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525822627.7979
+        "mtime": 1776525822627.7979,
+        "imports": []
       },
       {
         "name": "tsconfig.json",
@@ -440,7 +477,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776526216090.3296
+        "mtime": 1776526216090.3296,
+        "imports": []
       },
       {
         "name": "turbo.json",
@@ -459,7 +497,8 @@
         "todos": 0,
         "todoEntries": [],
         "status": "ok",
-        "mtime": 1776525815968.4475
+        "mtime": 1776525815968.4475,
+        "imports": []
       }
     ],
     "children": [
@@ -484,17 +523,988 @@
             "todos": 0,
             "todoEntries": [],
             "status": "ok",
-            "mtime": 1776526564225.738
+            "mtime": 1776526564225.738,
+            "imports": []
           }
         ],
-        "children": [],
+        "children": [
+          {
+            "name": "skills",
+            "path": ".claude/skills",
+            "files": [],
+            "children": [
+              {
+                "name": "adapt",
+                "path": ".claude/skills/adapt",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/adapt/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 7141,
+                    "gzip": null,
+                    "loc": 199,
+                    "tokens": 2037,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 7141,
+                  "gzip": 0,
+                  "tokens": 2037,
+                  "files": 1,
+                  "loc": 199,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "animate",
+                "path": ".claude/skills/animate",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/animate/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 7681,
+                    "gzip": null,
+                    "loc": 175,
+                    "tokens": 2189,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 7681,
+                  "gzip": 0,
+                  "tokens": 2189,
+                  "files": 1,
+                  "loc": 175,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "audit",
+                "path": ".claude/skills/audit",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/audit/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 7575,
+                    "gzip": null,
+                    "loc": 148,
+                    "tokens": 2159,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 7575,
+                  "gzip": 0,
+                  "tokens": 2159,
+                  "files": 1,
+                  "loc": 148,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "bolder",
+                "path": ".claude/skills/bolder",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/bolder/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 6740,
+                    "gzip": null,
+                    "loc": 117,
+                    "tokens": 1922,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6740,
+                  "gzip": 0,
+                  "tokens": 1922,
+                  "files": 1,
+                  "loc": 117,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "clarify",
+                "path": ".claude/skills/clarify",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/clarify/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 6773,
+                    "gzip": null,
+                    "loc": 183,
+                    "tokens": 1933,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6773,
+                  "gzip": 0,
+                  "tokens": 1933,
+                  "files": 1,
+                  "loc": 183,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "colorize",
+                "path": ".claude/skills/colorize",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/colorize/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 6897,
+                    "gzip": null,
+                    "loc": 143,
+                    "tokens": 1968,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6897,
+                  "gzip": 0,
+                  "tokens": 1968,
+                  "files": 1,
+                  "loc": 143,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "critique",
+                "path": ".claude/skills/critique",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/critique/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 13480,
+                    "gzip": null,
+                    "loc": 227,
+                    "tokens": 3851,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "reference",
+                    "path": ".claude/skills/critique/reference",
+                    "files": [
+                      {
+                        "name": "cognitive-load.md",
+                        "path": ".claude/skills/critique/reference/cognitive-load.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 4826,
+                        "gzip": null,
+                        "loc": 107,
+                        "tokens": 1366,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "heuristics-scoring.md",
+                        "path": ".claude/skills/critique/reference/heuristics-scoring.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 8934,
+                        "gzip": null,
+                        "loc": 235,
+                        "tokens": 2518,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "personas.md",
+                        "path": ".claude/skills/critique/reference/personas.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 7132,
+                        "gzip": null,
+                        "loc": 179,
+                        "tokens": 2031,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      }
+                    ],
+                    "children": [],
+                    "rollup": {
+                      "size": 20892,
+                      "gzip": 0,
+                      "tokens": 5915,
+                      "files": 3,
+                      "loc": 521,
+                      "todos": 0
+                    }
+                  }
+                ],
+                "rollup": {
+                  "size": 34372,
+                  "gzip": 0,
+                  "tokens": 9766,
+                  "files": 4,
+                  "loc": 748,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "delight",
+                "path": ".claude/skills/delight",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/delight/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 10030,
+                    "gzip": null,
+                    "loc": 304,
+                    "tokens": 2863,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 10030,
+                  "gzip": 0,
+                  "tokens": 2863,
+                  "files": 1,
+                  "loc": 304,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "distill",
+                "path": ".claude/skills/distill",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/distill/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 6255,
+                    "gzip": null,
+                    "loc": 122,
+                    "tokens": 1784,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6255,
+                  "gzip": 0,
+                  "tokens": 1784,
+                  "files": 1,
+                  "loc": 122,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "harden",
+                "path": ".claude/skills/harden",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/harden/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 10640,
+                    "gzip": null,
+                    "loc": 389,
+                    "tokens": 3037,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 10640,
+                  "gzip": 0,
+                  "tokens": 3037,
+                  "files": 1,
+                  "loc": 389,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "impeccable",
+                "path": ".claude/skills/impeccable",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/impeccable/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 21941,
+                    "gzip": null,
+                    "loc": 365,
+                    "tokens": 6253,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [
+                  {
+                    "name": "reference",
+                    "path": ".claude/skills/impeccable/reference",
+                    "files": [
+                      {
+                        "name": "color-and-contrast.md",
+                        "path": ".claude/skills/impeccable/reference/color-and-contrast.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 5786,
+                        "gzip": null,
+                        "loc": 106,
+                        "tokens": 1646,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "craft.md",
+                        "path": ".claude/skills/impeccable/reference/craft.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 3770,
+                        "gzip": null,
+                        "loc": 71,
+                        "tokens": 1077,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "extract.md",
+                        "path": ".claude/skills/impeccable/reference/extract.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 3480,
+                        "gzip": null,
+                        "loc": 71,
+                        "tokens": 994,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "interaction-design.md",
+                        "path": ".claude/skills/impeccable/reference/interaction-design.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 7085,
+                        "gzip": null,
+                        "loc": 196,
+                        "tokens": 2023,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "motion-design.md",
+                        "path": ".claude/skills/impeccable/reference/motion-design.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 4753,
+                        "gzip": null,
+                        "loc": 100,
+                        "tokens": 1351,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "responsive-design.md",
+                        "path": ".claude/skills/impeccable/reference/responsive-design.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 3464,
+                        "gzip": null,
+                        "loc": 115,
+                        "tokens": 988,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "spatial-design.md",
+                        "path": ".claude/skills/impeccable/reference/spatial-design.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 3545,
+                        "gzip": null,
+                        "loc": 101,
+                        "tokens": 1005,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "typography.md",
+                        "path": ".claude/skills/impeccable/reference/typography.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 7710,
+                        "gzip": null,
+                        "loc": 143,
+                        "tokens": 2199,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      },
+                      {
+                        "name": "ux-writing.md",
+                        "path": ".claude/skills/impeccable/reference/ux-writing.md",
+                        "ext": ".md",
+                        "language": {
+                          "id": "markdown",
+                          "label": "Markdown",
+                          "iconColor": "#60a5fa",
+                          "tag": "MD"
+                        },
+                        "size": 4330,
+                        "gzip": null,
+                        "loc": 108,
+                        "tokens": 1234,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": []
+                      }
+                    ],
+                    "children": [],
+                    "rollup": {
+                      "size": 43923,
+                      "gzip": 0,
+                      "tokens": 12517,
+                      "files": 9,
+                      "loc": 1011,
+                      "todos": 0
+                    }
+                  },
+                  {
+                    "name": "scripts",
+                    "path": ".claude/skills/impeccable/scripts",
+                    "files": [
+                      {
+                        "name": "cleanup-deprecated.mjs",
+                        "path": ".claude/skills/impeccable/scripts/cleanup-deprecated.mjs",
+                        "ext": ".mjs",
+                        "language": {
+                          "id": "javascript",
+                          "label": "JavaScript",
+                          "iconColor": "#f7df1e",
+                          "tag": "MJS"
+                        },
+                        "size": 6683,
+                        "gzip": 2379,
+                        "loc": 215,
+                        "tokens": 1909,
+                        "todos": 0,
+                        "todoEntries": [],
+                        "status": "ok",
+                        "mtime": 1775831282000,
+                        "imports": [
+                          {
+                            "specifier": "node:fs",
+                            "kind": "import",
+                            "line": 21
+                          },
+                          {
+                            "specifier": "node:path",
+                            "kind": "import",
+                            "line": 22
+                          }
+                        ]
+                      }
+                    ],
+                    "children": [],
+                    "rollup": {
+                      "size": 6683,
+                      "gzip": 2379,
+                      "tokens": 1909,
+                      "files": 1,
+                      "loc": 215,
+                      "todos": 0
+                    }
+                  }
+                ],
+                "rollup": {
+                  "size": 72547,
+                  "gzip": 2379,
+                  "tokens": 20679,
+                  "files": 11,
+                  "loc": 1591,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "layout",
+                "path": ".claude/skills/layout",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/layout/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 7409,
+                    "gzip": null,
+                    "loc": 125,
+                    "tokens": 2098,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 7409,
+                  "gzip": 0,
+                  "tokens": 2098,
+                  "files": 1,
+                  "loc": 125,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "optimize",
+                "path": ".claude/skills/optimize",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/optimize/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 7804,
+                    "gzip": null,
+                    "loc": 266,
+                    "tokens": 2227,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 7804,
+                  "gzip": 0,
+                  "tokens": 2227,
+                  "files": 1,
+                  "loc": 266,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "overdrive",
+                "path": ".claude/skills/overdrive",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/overdrive/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 9742,
+                    "gzip": null,
+                    "loc": 142,
+                    "tokens": 2747,
+                    "todos": 1,
+                    "todoEntries": [
+                      {
+                        "kind": "NOTE",
+                        "line": 94,
+                        "text": "**: This skill is about enhancing how an interface FEELS, not changing what a product DOES. Adding real-time collaboration, offline support, or new backend capa"
+                      }
+                    ],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 9742,
+                  "gzip": 0,
+                  "tokens": 2747,
+                  "files": 1,
+                  "loc": 142,
+                  "todos": 1
+                }
+              },
+              {
+                "name": "polish",
+                "path": ".claude/skills/polish",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/polish/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 9549,
+                    "gzip": null,
+                    "loc": 224,
+                    "tokens": 2725,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 9549,
+                  "gzip": 0,
+                  "tokens": 2725,
+                  "files": 1,
+                  "loc": 224,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "quieter",
+                "path": ".claude/skills/quieter",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/quieter/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 5149,
+                    "gzip": null,
+                    "loc": 103,
+                    "tokens": 1467,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 5149,
+                  "gzip": 0,
+                  "tokens": 1467,
+                  "files": 1,
+                  "loc": 103,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "shape",
+                "path": ".claude/skills/shape",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/shape/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 5192,
+                    "gzip": null,
+                    "loc": 96,
+                    "tokens": 1483,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 5192,
+                  "gzip": 0,
+                  "tokens": 1483,
+                  "files": 1,
+                  "loc": 96,
+                  "todos": 0
+                }
+              },
+              {
+                "name": "typeset",
+                "path": ".claude/skills/typeset",
+                "files": [
+                  {
+                    "name": "SKILL.md",
+                    "path": ".claude/skills/typeset/SKILL.md",
+                    "ext": ".md",
+                    "language": {
+                      "id": "markdown",
+                      "label": "Markdown",
+                      "iconColor": "#60a5fa",
+                      "tag": "MD"
+                    },
+                    "size": 5782,
+                    "gzip": null,
+                    "loc": 116,
+                    "tokens": 1646,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1775831282000,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 5782,
+                  "gzip": 0,
+                  "tokens": 1646,
+                  "files": 1,
+                  "loc": 116,
+                  "todos": 0
+                }
+              }
+            ],
+            "rollup": {
+              "size": 227278,
+              "gzip": 2379,
+              "tokens": 64730,
+              "files": 31,
+              "loc": 5191,
+              "todos": 1
+            }
+          }
+        ],
         "rollup": {
-          "size": 361,
-          "gzip": 0,
-          "tokens": 103,
-          "files": 1,
-          "loc": 18,
-          "todos": 0
+          "size": 227639,
+          "gzip": 2379,
+          "tokens": 64833,
+          "files": 32,
+          "loc": 5209,
+          "todos": 1
         }
       },
       {
@@ -523,7 +1533,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526034186.912
+                "mtime": 1776526034186.912,
+                "imports": []
               }
             ],
             "children": [],
@@ -541,6 +1552,21 @@
             "path": "apps/cli",
             "files": [
               {
+                "name": ".gitignore",
+                "path": "apps/cli/.gitignore",
+                "ext": "",
+                "language": null,
+                "size": 36,
+                "gzip": null,
+                "loc": 4,
+                "tokens": 10,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537513704.6204,
+                "imports": []
+              },
+              {
                 "name": "package.json",
                 "path": "apps/cli/package.json",
                 "ext": ".json",
@@ -557,16 +1583,114 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525990779.7114
+                "mtime": 1776525990779.7114,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "apps/cli/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 208,
+                "gzip": null,
+                "loc": 11,
+                "tokens": 59,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537463965.5105,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "apps/cli/src",
+                "files": [
+                  {
+                    "name": "cli.ts",
+                    "path": "apps/cli/src/cli.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 6236,
+                    "gzip": 2368,
+                    "loc": 168,
+                    "tokens": 1766,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537430761.4502,
+                    "imports": [
+                      {
+                        "specifier": "node:perf_hooks",
+                        "kind": "import",
+                        "line": 14
+                      },
+                      {
+                        "specifier": "node:path",
+                        "kind": "import",
+                        "line": 15
+                      },
+                      {
+                        "specifier": "commander",
+                        "kind": "import",
+                        "line": 16
+                      },
+                      {
+                        "specifier": "kleur",
+                        "kind": "import",
+                        "line": 17
+                      },
+                      {
+                        "specifier": "@factstack/core",
+                        "kind": "import",
+                        "line": 18
+                      },
+                      {
+                        "specifier": "@factstack/emit",
+                        "kind": "import",
+                        "line": 19
+                      },
+                      {
+                        "specifier": "@factstack/fs-node",
+                        "kind": "import",
+                        "line": 20
+                      },
+                      {
+                        "specifier": "node:sqlite",
+                        "kind": "dynamic-import",
+                        "line": 126
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6236,
+                  "gzip": 2368,
+                  "tokens": 1766,
+                  "files": 1,
+                  "loc": 168,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 955,
-              "gzip": 0,
-              "tokens": 272,
-              "files": 1,
-              "loc": 34,
+              "size": 7435,
+              "gzip": 2368,
+              "tokens": 2107,
+              "files": 4,
+              "loc": 217,
               "todos": 0
             }
           },
@@ -591,7 +1715,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526053672.8645
+                "mtime": 1776526053672.8645,
+                "imports": []
               }
             ],
             "children": [],
@@ -625,7 +1750,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776527380829.9294
+                "mtime": 1776527380829.9294,
+                "imports": []
               }
             ],
             "children": [],
@@ -659,7 +1785,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526022758.8845
+                "mtime": 1776526022758.8845,
+                "imports": []
               }
             ],
             "children": [],
@@ -693,7 +1820,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526044168.2405
+                "mtime": 1776526044168.2405,
+                "imports": []
               }
             ],
             "children": [],
@@ -708,11 +1836,11 @@
           }
         ],
         "rollup": {
-          "size": 6161,
-          "gzip": 0,
-          "tokens": 1755,
-          "files": 6,
-          "loc": 171,
+          "size": 12641,
+          "gzip": 2368,
+          "tokens": 3590,
+          "files": 9,
+          "loc": 354,
           "todos": 0
         }
       },
@@ -737,7 +1865,8 @@
             "todos": 0,
             "todoEntries": [],
             "status": "ok",
-            "mtime": 1776526074496.819
+            "mtime": 1776526074496.819,
+            "imports": []
           }
         ],
         "children": [],
@@ -776,17 +1905,116 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525968251.5486
+                "mtime": 1776525968251.5486,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/core/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537457019.8313,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/core/src",
+                "files": [
+                  {
+                    "name": "index.ts",
+                    "path": "packages/core/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 18354,
+                    "gzip": 6050,
+                    "loc": 539,
+                    "tokens": 5236,
+                    "todos": 1,
+                    "todoEntries": [
+                      {
+                        "kind": "TODO",
+                        "line": 418,
+                        "text": "${todos === 1 ? '' : 's'}`);"
+                      }
+                    ],
+                    "status": "ok",
+                    "mtime": 1776542142447.219,
+                    "imports": [
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 14
+                      },
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "import",
+                        "line": 21
+                      },
+                      {
+                        "specifier": "@factstack/walker",
+                        "kind": "import",
+                        "line": 22
+                      },
+                      {
+                        "specifier": "@factstack/scanners",
+                        "kind": "import",
+                        "line": 23
+                      },
+                      {
+                        "specifier": "@factstack/extractors",
+                        "kind": "import",
+                        "line": 33
+                      },
+                      {
+                        "specifier": "@factstack/graph",
+                        "kind": "import",
+                        "line": 34
+                      },
+                      {
+                        "specifier": "zod",
+                        "kind": "type-import",
+                        "line": 40
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 18354,
+                  "gzip": 6050,
+                  "tokens": 5236,
+                  "files": 1,
+                  "loc": 539,
+                  "todos": 1
+                }
+              }
+            ],
             "rollup": {
-              "size": 851,
-              "gzip": 0,
-              "tokens": 243,
-              "files": 1,
-              "loc": 27,
-              "todos": 0
+              "size": 19341,
+              "gzip": 6050,
+              "tokens": 5518,
+              "files": 3,
+              "loc": 572,
+              "todos": 1
             }
           },
           {
@@ -810,16 +2038,156 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776528210584.6577
+                "mtime": 1776528210584.6577,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/emit/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537456964.796,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/emit/src",
+                "files": [
+                  {
+                    "name": "gzip.ts",
+                    "path": "packages/emit/src/gzip.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 555,
+                    "gzip": 384,
+                    "loc": 17,
+                    "tokens": 159,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537274329.63,
+                    "imports": [
+                      {
+                        "specifier": "node:zlib",
+                        "kind": "import",
+                        "line": 1
+                      }
+                    ]
+                  },
+                  {
+                    "name": "index.ts",
+                    "path": "packages/emit/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 147,
+                    "gzip": 113,
+                    "loc": 4,
+                    "tokens": 42,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537301438.5747,
+                    "imports": [
+                      {
+                        "specifier": "./gzip.js",
+                        "kind": "import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "./write.js",
+                        "kind": "import",
+                        "line": 2
+                      },
+                      {
+                        "specifier": "./write.js",
+                        "kind": "type-import",
+                        "line": 3
+                      }
+                    ]
+                  },
+                  {
+                    "name": "write.ts",
+                    "path": "packages/emit/src/write.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2721,
+                    "gzip": 1125,
+                    "loc": 77,
+                    "tokens": 777,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537293388.6335,
+                    "imports": [
+                      {
+                        "specifier": "node:fs/promises",
+                        "kind": "import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "node:path",
+                        "kind": "import",
+                        "line": 2
+                      },
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 3
+                      },
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "import",
+                        "line": 4
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 3423,
+                  "gzip": 1622,
+                  "tokens": 978,
+                  "files": 3,
+                  "loc": 98,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 750,
-              "gzip": 0,
-              "tokens": 214,
-              "files": 1,
-              "loc": 24,
+              "size": 4309,
+              "gzip": 1622,
+              "tokens": 1231,
+              "files": 5,
+              "loc": 128,
               "todos": 0
             }
           },
@@ -837,23 +2205,92 @@
                   "iconColor": "#cbd5e1",
                   "tag": "JSON"
                 },
-                "size": 627,
+                "size": 766,
                 "gzip": null,
-                "loc": 23,
-                "tokens": 179,
+                "loc": 25,
+                "tokens": 218,
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525947648.7104
+                "mtime": 1776541950057.2551,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/extractors/src",
+                "files": [
+                  {
+                    "name": "imports.ts",
+                    "path": "packages/extractors/src/imports.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 4557,
+                    "gzip": 1683,
+                    "loc": 155,
+                    "tokens": 1299,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541973983.291,
+                    "imports": [
+                      {
+                        "specifier": "@babel/parser",
+                        "kind": "import",
+                        "line": 22
+                      }
+                    ]
+                  },
+                  {
+                    "name": "index.ts",
+                    "path": "packages/extractors/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 379,
+                    "gzip": 267,
+                    "loc": 11,
+                    "tokens": 107,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776541979876.2888,
+                    "imports": [
+                      {
+                        "specifier": "./imports.js",
+                        "kind": "import",
+                        "line": 10
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 4936,
+                  "gzip": 1950,
+                  "tokens": 1406,
+                  "files": 2,
+                  "loc": 166,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 627,
-              "gzip": 0,
-              "tokens": 179,
-              "files": 1,
-              "loc": 23,
+              "size": 5702,
+              "gzip": 1950,
+              "tokens": 1624,
+              "files": 3,
+              "loc": 191,
               "todos": 0
             }
           },
@@ -878,7 +2315,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525933935.6562
+                "mtime": 1776525933935.6562,
+                "imports": []
               }
             ],
             "children": [],
@@ -912,16 +2350,79 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525926608.2993
+                "mtime": 1776525926608.2993,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/fs-memory/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537456797.9463,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/fs-memory/src",
+                "files": [
+                  {
+                    "name": "index.ts",
+                    "path": "packages/fs-memory/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 3341,
+                    "gzip": 1268,
+                    "loc": 110,
+                    "tokens": 954,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537101846.64,
+                    "imports": [
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 12
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 3341,
+                  "gzip": 1268,
+                  "tokens": 954,
+                  "files": 1,
+                  "loc": 110,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 513,
-              "gzip": 0,
-              "tokens": 147,
-              "files": 1,
-              "loc": 22,
+              "size": 3990,
+              "gzip": 1268,
+              "tokens": 1140,
+              "files": 3,
+              "loc": 138,
               "todos": 0
             }
           },
@@ -946,16 +2447,94 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525921238.1772
+                "mtime": 1776525921238.1772,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/fs-node/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537440073.625,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/fs-node/src",
+                "files": [
+                  {
+                    "name": "index.ts",
+                    "path": "packages/fs-node/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2751,
+                    "gzip": 1166,
+                    "loc": 92,
+                    "tokens": 785,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537078664.9248,
+                    "imports": [
+                      {
+                        "specifier": "node:fs/promises",
+                        "kind": "import",
+                        "line": 13
+                      },
+                      {
+                        "specifier": "node:path",
+                        "kind": "import",
+                        "line": 14
+                      },
+                      {
+                        "specifier": "node:url",
+                        "kind": "import",
+                        "line": 15
+                      },
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 16
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 2751,
+                  "gzip": 1166,
+                  "tokens": 785,
+                  "files": 1,
+                  "loc": 92,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 578,
-              "gzip": 0,
-              "tokens": 165,
-              "files": 1,
-              "loc": 23,
+              "size": 3465,
+              "gzip": 1166,
+              "tokens": 989,
+              "files": 3,
+              "loc": 121,
               "todos": 0
             }
           },
@@ -980,16 +2559,120 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525953028.9988
+                "mtime": 1776525953028.9988,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/graph/src",
+                "files": [
+                  {
+                    "name": "dependency.ts",
+                    "path": "packages/graph/src/dependency.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 4120,
+                    "gzip": 1512,
+                    "loc": 127,
+                    "tokens": 1175,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776542045438.678,
+                    "imports": [
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 8
+                      },
+                      {
+                        "specifier": "@factstack/extractors",
+                        "kind": "type-import",
+                        "line": 9
+                      },
+                      {
+                        "specifier": "./resolver.js",
+                        "kind": "import",
+                        "line": 10
+                      }
+                    ]
+                  },
+                  {
+                    "name": "index.ts",
+                    "path": "packages/graph/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 298,
+                    "gzip": 213,
+                    "loc": 10,
+                    "tokens": 83,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776542050701.9817,
+                    "imports": [
+                      {
+                        "specifier": "./resolver.js",
+                        "kind": "import",
+                        "line": 8
+                      },
+                      {
+                        "specifier": "./dependency.js",
+                        "kind": "import",
+                        "line": 9
+                      }
+                    ]
+                  },
+                  {
+                    "name": "resolver.ts",
+                    "path": "packages/graph/src/resolver.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 6134,
+                    "gzip": 2326,
+                    "loc": 181,
+                    "tokens": 1747,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776542026981.0908,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 10552,
+                  "gzip": 4051,
+                  "tokens": 3005,
+                  "files": 3,
+                  "loc": 318,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 637,
-              "gzip": 0,
-              "tokens": 182,
-              "files": 1,
-              "loc": 23,
+              "size": 11189,
+              "gzip": 4051,
+              "tokens": 3187,
+              "files": 4,
+              "loc": 341,
               "todos": 0
             }
           },
@@ -1014,7 +2697,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525940706.4766
+                "mtime": 1776525940706.4766,
+                "imports": []
               }
             ],
             "children": [],
@@ -1048,17 +2732,253 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525959077.593
+                "mtime": 1776525959077.593,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/scanners/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537456910.5415,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/scanners/src",
+                "files": [
+                  {
+                    "name": "frameworks.ts",
+                    "path": "packages/scanners/src/frameworks.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 3891,
+                    "gzip": 1296,
+                    "loc": 98,
+                    "tokens": 1111,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537235843.8525,
+                    "imports": []
+                  },
+                  {
+                    "name": "index.ts",
+                    "path": "packages/scanners/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 200,
+                    "gzip": 114,
+                    "loc": 7,
+                    "tokens": 57,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537263241.2212,
+                    "imports": [
+                      {
+                        "specifier": "./languages.js",
+                        "kind": "import",
+                        "line": 1
+                      },
+                      {
+                        "specifier": "./todos.js",
+                        "kind": "import",
+                        "line": 2
+                      },
+                      {
+                        "specifier": "./secrets.js",
+                        "kind": "import",
+                        "line": 3
+                      },
+                      {
+                        "specifier": "./frameworks.js",
+                        "kind": "import",
+                        "line": 4
+                      },
+                      {
+                        "specifier": "./tokencost.js",
+                        "kind": "import",
+                        "line": 5
+                      },
+                      {
+                        "specifier": "./types.js",
+                        "kind": "type-import",
+                        "line": 6
+                      }
+                    ]
+                  },
+                  {
+                    "name": "languages.ts",
+                    "path": "packages/scanners/src/languages.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 2089,
+                    "gzip": 698,
+                    "loc": 44,
+                    "tokens": 596,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537163386.1692,
+                    "imports": []
+                  },
+                  {
+                    "name": "secrets.ts",
+                    "path": "packages/scanners/src/secrets.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 3216,
+                    "gzip": 1406,
+                    "loc": 83,
+                    "tokens": 918,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537198738.5742,
+                    "imports": []
+                  },
+                  {
+                    "name": "todos.ts",
+                    "path": "packages/scanners/src/todos.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 986,
+                    "gzip": 602,
+                    "loc": 29,
+                    "tokens": 281,
+                    "todos": 3,
+                    "todoEntries": [
+                      {
+                        "kind": "TODO",
+                        "line": 2,
+                        "text": "/ FIXME / HACK / XXX / NOTE comment harvester."
+                      },
+                      {
+                        "kind": "TODO",
+                        "line": 7,
+                        "text": "\"). For the v0.1 CLI we accept the false"
+                      },
+                      {
+                        "kind": "TODO",
+                        "line": 13,
+                        "text": "|FIXME|HACK|XXX|NOTE)\\b[:\\s]?\\s*(.*)/;"
+                      }
+                    ],
+                    "status": "ok",
+                    "mtime": 1776537177103.5671,
+                    "imports": [
+                      {
+                        "specifier": "./types.js",
+                        "kind": "type-import",
+                        "line": 11
+                      }
+                    ]
+                  },
+                  {
+                    "name": "tokencost.ts",
+                    "path": "packages/scanners/src/tokencost.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 712,
+                    "gzip": 461,
+                    "loc": 19,
+                    "tokens": 203,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537249516.4973,
+                    "imports": []
+                  },
+                  {
+                    "name": "types.ts",
+                    "path": "packages/scanners/src/types.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 115,
+                    "gzip": 123,
+                    "loc": 6,
+                    "tokens": 33,
+                    "todos": 1,
+                    "todoEntries": [
+                      {
+                        "kind": "TODO",
+                        "line": 2,
+                        "text": "' | 'FIXME' | 'HACK' | 'XXX' | 'NOTE';"
+                      }
+                    ],
+                    "status": "ok",
+                    "mtime": 1776537256245.028,
+                    "imports": []
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 11209,
+                  "gzip": 4700,
+                  "tokens": 3199,
+                  "files": 7,
+                  "loc": 286,
+                  "todos": 4
+                }
+              }
+            ],
             "rollup": {
-              "size": 714,
-              "gzip": 0,
-              "tokens": 204,
-              "files": 1,
-              "loc": 24,
-              "todos": 0
+              "size": 12059,
+              "gzip": 4700,
+              "tokens": 3442,
+              "files": 9,
+              "loc": 316,
+              "todos": 4
             }
           },
           {
@@ -1082,7 +3002,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525896218.0144
+                "mtime": 1776525896218.0144,
+                "imports": []
               },
               {
                 "name": "tsconfig.json",
@@ -1101,7 +3022,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526166482.8557
+                "mtime": 1776526166482.8557,
+                "imports": []
               }
             ],
             "children": [
@@ -1132,7 +3054,14 @@
                       }
                     ],
                     "status": "ok",
-                    "mtime": 1776526121574.647
+                    "mtime": 1776526121574.647,
+                    "imports": [
+                      {
+                        "specifier": "zod",
+                        "kind": "import",
+                        "line": 9
+                      }
+                    ]
                   },
                   {
                     "name": "fs.ts",
@@ -1151,7 +3080,8 @@
                     "todos": 0,
                     "todoEntries": [],
                     "status": "ok",
-                    "mtime": 1776526093814.2864
+                    "mtime": 1776526093814.2864,
+                    "imports": []
                   },
                   {
                     "name": "human.ts",
@@ -1170,7 +3100,19 @@
                     "todos": 0,
                     "todoEntries": [],
                     "status": "ok",
-                    "mtime": 1776526139361.3765
+                    "mtime": 1776526139361.3765,
+                    "imports": [
+                      {
+                        "specifier": "zod",
+                        "kind": "import",
+                        "line": 8
+                      },
+                      {
+                        "specifier": "./agent.js",
+                        "kind": "import",
+                        "line": 9
+                      }
+                    ]
                   },
                   {
                     "name": "index.ts",
@@ -1189,7 +3131,29 @@
                     "todos": 0,
                     "todoEntries": [],
                     "status": "ok",
-                    "mtime": 1776526162636.3987
+                    "mtime": 1776526162636.3987,
+                    "imports": [
+                      {
+                        "specifier": "./agent.js",
+                        "kind": "import",
+                        "line": 9
+                      },
+                      {
+                        "specifier": "./human.js",
+                        "kind": "import",
+                        "line": 10
+                      },
+                      {
+                        "specifier": "./fs.js",
+                        "kind": "import",
+                        "line": 11
+                      },
+                      {
+                        "specifier": "./mcp.js",
+                        "kind": "import",
+                        "line": 12
+                      }
+                    ]
                   },
                   {
                     "name": "mcp.ts",
@@ -1208,7 +3172,14 @@
                     "todos": 0,
                     "todoEntries": [],
                     "status": "ok",
-                    "mtime": 1776526154686.029
+                    "mtime": 1776526154686.029,
+                    "imports": [
+                      {
+                        "specifier": "zod",
+                        "kind": "import",
+                        "line": 9
+                      }
+                    ]
                   }
                 ],
                 "children": [],
@@ -1252,7 +3223,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525982539.6255
+                "mtime": 1776525982539.6255,
+                "imports": []
               }
             ],
             "children": [],
@@ -1286,27 +3258,95 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776525915994.3606
+                "mtime": 1776525915994.3606,
+                "imports": []
+              },
+              {
+                "name": "tsconfig.json",
+                "path": "packages/walker/tsconfig.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 136,
+                "gzip": null,
+                "loc": 6,
+                "tokens": 39,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776537456853.7595,
+                "imports": []
               }
             ],
-            "children": [],
+            "children": [
+              {
+                "name": "src",
+                "path": "packages/walker/src",
+                "files": [
+                  {
+                    "name": "index.ts",
+                    "path": "packages/walker/src/index.ts",
+                    "ext": ".ts",
+                    "language": {
+                      "id": "typescript",
+                      "label": "TypeScript",
+                      "iconColor": "#3178c6",
+                      "tag": "TS"
+                    },
+                    "size": 6122,
+                    "gzip": 2412,
+                    "loc": 193,
+                    "tokens": 1749,
+                    "todos": 0,
+                    "todoEntries": [],
+                    "status": "ok",
+                    "mtime": 1776537147439.1306,
+                    "imports": [
+                      {
+                        "specifier": "ignore",
+                        "kind": "import",
+                        "line": 15
+                      },
+                      {
+                        "specifier": "@factstack/spec",
+                        "kind": "type-import",
+                        "line": 16
+                      }
+                    ]
+                  }
+                ],
+                "children": [],
+                "rollup": {
+                  "size": 6122,
+                  "gzip": 2412,
+                  "tokens": 1749,
+                  "files": 1,
+                  "loc": 193,
+                  "todos": 0
+                }
+              }
+            ],
             "rollup": {
-              "size": 591,
-              "gzip": 0,
-              "tokens": 168,
-              "files": 1,
-              "loc": 23,
+              "size": 6849,
+              "gzip": 2412,
+              "tokens": 1956,
+              "files": 3,
+              "loc": 222,
               "todos": 0
             }
           }
         ],
         "rollup": {
-          "size": 21331,
-          "gzip": 4652,
-          "tokens": 6090,
-          "files": 18,
-          "loc": 744,
-          "todos": 1
+          "size": 82974,
+          "gzip": 27871,
+          "tokens": 23675,
+          "files": 43,
+          "loc": 2584,
+          "todos": 6
         }
       },
       {
@@ -1335,7 +3375,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776526062776.683
+                "mtime": 1776526062776.683,
+                "imports": []
               }
             ],
             "children": [],
@@ -1379,7 +3420,8 @@
             "todos": 0,
             "todoEntries": [],
             "status": "ok",
-            "mtime": 1776530598182.0593
+            "mtime": 1776530598182.0593,
+            "imports": []
           },
           {
             "name": "index.html",
@@ -1391,38 +3433,174 @@
               "iconColor": "#e34f26",
               "tag": "HTML"
             },
-            "size": 116839,
-            "gzip": 25659,
-            "loc": 2831,
-            "tokens": 33347,
-            "todos": 4,
+            "size": 166070,
+            "gzip": 39034,
+            "loc": 3812,
+            "tokens": 47386,
+            "todos": 20,
             "todoEntries": [
               {
                 "kind": "TODO",
-                "line": 2402,
-                "text": "/ FIXME / HACK / XXX / NOTE comments found in this file.</p>`;"
+                "line": 893,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 895,
+                "text": "harvest, bundle-size + token-cost. Pure.\""
               },
               {
                 "kind": "TODO",
-                "line": 2404,
-                "text": "'chip-warn', FIXME: 'chip-danger', HACK: 'chip-danger', XXX: 'chip-danger', NOTE: 'chip-info' }[kind] || 'chip-muted');"
+                "line": 898,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 900,
+                "text": "/HACK/XXX** harvesting with git blame-lite.\""
               },
               {
                 "kind": "TODO",
-                "line": 2441,
-                "text": "/ FIXME count</div><div class=\"mono\">${f.todoEntries?.length ?? f.todos ?? 0}</div>"
+                "line": 903,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 905,
+                "text": "`.\""
               },
               {
                 "kind": "TODO",
-                "line": 2724,
-                "text": "|FIXME|HACK|XXX)\\b/g) || []).length;"
+                "line": 1766,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 1768,
+                "text": "', 'HACK', 'XXX', 'NOTE']),\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2038,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 2040,
+                "text": "/ HACK / XXX / NOTE comments found in this file.</p>`;\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2043,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 2045,
+                "text": "'chip-danger', HACK: 'chip-danger', XXX: 'chip-danger', NOTE: 'chip-info' }[kind] || 'chip-muted');\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2048,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 2050,
+                "text": "count</div><div class=\\\"mono\\\">${f.todoEntries?.length ?? f.todos ?? 0}</div>\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2053,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 2055,
+                "text": "|HACK|XXX)\\\\b/g) || []).length;\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2118,
+                "text": "\","
+              },
+              {
+                "kind": "TODO",
+                "line": 2123,
+                "text": "\","
+              },
+              {
+                "kind": "FIXME",
+                "line": 2125,
+                "text": "|HACK|XXX|NOTE)\\\\b[:\\\\s]?\\\\s*(.*)/;\""
+              },
+              {
+                "kind": "TODO",
+                "line": 2461,
+                "text": "hotspot: which folder owns the most?"
               }
             ],
             "status": "ok",
-            "mtime": 1776532421404.75
+            "mtime": 1776541745939.4497,
+            "imports": []
+          },
+          {
+            "name": "package.json",
+            "path": "prototype/package.json",
+            "ext": ".json",
+            "language": {
+              "id": "json",
+              "label": "JSON",
+              "iconColor": "#cbd5e1",
+              "tag": "JSON"
+            },
+            "size": 428,
+            "gzip": null,
+            "loc": 14,
+            "tokens": 122,
+            "todos": 0,
+            "todoEntries": [],
+            "status": "ok",
+            "mtime": 1776542375099.758,
+            "imports": []
           }
         ],
         "children": [
+          {
+            "name": ".claude",
+            "path": "prototype/.claude",
+            "files": [
+              {
+                "name": "launch.json",
+                "path": "prototype/.claude/launch.json",
+                "ext": ".json",
+                "language": {
+                  "id": "json",
+                  "label": "JSON",
+                  "iconColor": "#cbd5e1",
+                  "tag": "JSON"
+                },
+                "size": 241,
+                "gzip": null,
+                "loc": 12,
+                "tokens": 69,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541508591.145,
+                "imports": []
+              }
+            ],
+            "children": [],
+            "rollup": {
+              "size": 241,
+              "gzip": 0,
+              "tokens": 69,
+              "files": 1,
+              "loc": 12,
+              "todos": 0
+            }
+          },
           {
             "name": "data",
             "path": "prototype/data",
@@ -1444,7 +3622,8 @@
                 "todos": 0,
                 "todoEntries": [],
                 "status": "ok",
-                "mtime": 1776532439892.5833
+                "mtime": 1776542404708.4556,
+                "imports": []
               }
             ],
             "children": [],
@@ -1462,6 +3641,82 @@
             "path": "prototype/scripts",
             "files": [
               {
+                "name": "do-splice.mjs",
+                "path": "prototype/scripts/do-splice.mjs",
+                "ext": ".mjs",
+                "language": {
+                  "id": "javascript",
+                  "label": "JavaScript",
+                  "iconColor": "#f7df1e",
+                  "tag": "MJS"
+                },
+                "size": 1008,
+                "gzip": 475,
+                "loc": 23,
+                "tokens": 288,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541428202.1123,
+                "imports": [
+                  {
+                    "specifier": "node:fs",
+                    "kind": "import",
+                    "line": 1
+                  },
+                  {
+                    "specifier": "node:path",
+                    "kind": "import",
+                    "line": 2
+                  },
+                  {
+                    "specifier": "node:url",
+                    "kind": "import",
+                    "line": 3
+                  }
+                ]
+              },
+              {
+                "name": "graph-block.html",
+                "path": "prototype/scripts/graph-block.html",
+                "ext": ".html",
+                "language": {
+                  "id": "html",
+                  "label": "HTML",
+                  "iconColor": "#e34f26",
+                  "tag": "HTML"
+                },
+                "size": 11982,
+                "gzip": 3796,
+                "loc": 230,
+                "tokens": 3418,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541212263.3923,
+                "imports": []
+              },
+              {
+                "name": "replace-graph.mjs",
+                "path": "prototype/scripts/replace-graph.mjs",
+                "ext": ".mjs",
+                "language": {
+                  "id": "javascript",
+                  "label": "JavaScript",
+                  "iconColor": "#f7df1e",
+                  "tag": "MJS"
+                },
+                "size": 12880,
+                "gzip": 4253,
+                "loc": 244,
+                "tokens": 3674,
+                "todos": 0,
+                "todoEntries": [],
+                "status": "ok",
+                "mtime": 1776541137062.2302,
+                "imports": []
+              },
+              {
                 "name": "scan.mjs",
                 "path": "prototype/scripts/scan.mjs",
                 "ext": ".mjs",
@@ -1471,49 +3726,248 @@
                   "iconColor": "#f7df1e",
                   "tag": "MJS"
                 },
-                "size": 12126,
-                "gzip": 4316,
-                "loc": 320,
-                "tokens": 3457,
+                "size": 19923,
+                "gzip": 6644,
+                "loc": 485,
+                "tokens": 5593,
                 "todos": 2,
                 "todoEntries": [
                   {
                     "kind": "TODO",
-                    "line": 132,
+                    "line": 273,
                     "text": "extraction — capture kind + line + text so the UI"
                   },
                   {
                     "kind": "TODO",
-                    "line": 134,
+                    "line": 275,
                     "text": "|FIXME|HACK|XXX|NOTE)\\b[:\\s]?\\s*(.*)/;"
                   }
                 ],
                 "status": "ok",
-                "mtime": 1776532270012.7485
+                "mtime": 1776542343286.4321,
+                "imports": [
+                  {
+                    "specifier": "node:fs/promises",
+                    "kind": "import",
+                    "line": 8
+                  },
+                  {
+                    "specifier": "node:path",
+                    "kind": "import",
+                    "line": 9
+                  },
+                  {
+                    "specifier": "node:zlib",
+                    "kind": "import",
+                    "line": 10
+                  },
+                  {
+                    "specifier": "@babel/parser",
+                    "kind": "import",
+                    "line": 11
+                  }
+                ]
               }
             ],
             "children": [],
             "rollup": {
-              "size": 12126,
-              "gzip": 4316,
-              "tokens": 3457,
-              "files": 1,
-              "loc": 320,
+              "size": 45793,
+              "gzip": 15168,
+              "tokens": 12973,
+              "files": 4,
+              "loc": 982,
               "todos": 2
             }
           }
         ],
         "rollup": {
-          "size": 130960,
-          "gzip": 30638,
-          "tokens": 37375,
-          "files": 4,
-          "loc": 3224,
-          "todos": 6
+          "size": 214527,
+          "gzip": 54865,
+          "tokens": 61121,
+          "files": 9,
+          "loc": 4893,
+          "todos": 22
         }
       }
     ]
   },
+  "edges": [
+    {
+      "from": "apps/cli/src/cli.ts",
+      "to": "packages/core/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "apps/cli/src/cli.ts",
+      "to": "packages/emit/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "apps/cli/src/cli.ts",
+      "to": "packages/fs-node/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/walker/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/scanners/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/extractors/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/core/src/index.ts",
+      "to": "packages/graph/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/emit/src/index.ts",
+      "to": "packages/emit/src/gzip.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/emit/src/index.ts",
+      "to": "packages/emit/src/write.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/emit/src/index.ts",
+      "to": "packages/emit/src/write.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/emit/src/write.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/emit/src/write.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/extractors/src/index.ts",
+      "to": "packages/extractors/src/imports.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/fs-memory/src/index.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/fs-node/src/index.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/graph/src/dependency.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/graph/src/dependency.ts",
+      "to": "packages/extractors/src/index.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/graph/src/dependency.ts",
+      "to": "packages/graph/src/resolver.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/graph/src/index.ts",
+      "to": "packages/graph/src/resolver.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/graph/src/index.ts",
+      "to": "packages/graph/src/dependency.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/languages.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/todos.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/secrets.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/frameworks.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/tokencost.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/scanners/src/index.ts",
+      "to": "packages/scanners/src/types.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/scanners/src/todos.ts",
+      "to": "packages/scanners/src/types.ts",
+      "kind": "type-import"
+    },
+    {
+      "from": "packages/spec/src/human.ts",
+      "to": "packages/spec/src/agent.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/spec/src/index.ts",
+      "to": "packages/spec/src/agent.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/spec/src/index.ts",
+      "to": "packages/spec/src/human.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/spec/src/index.ts",
+      "to": "packages/spec/src/fs.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/spec/src/index.ts",
+      "to": "packages/spec/src/mcp.ts",
+      "kind": "import"
+    },
+    {
+      "from": "packages/walker/src/index.ts",
+      "to": "packages/spec/src/index.ts",
+      "kind": "type-import"
+    }
+  ],
   "entryPoints": [
     {
       "label": "CLI",

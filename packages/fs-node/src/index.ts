@@ -89,3 +89,4 @@ export function nodeFS(root: string): FactsFS {
 }
 
 export { pathToFileURL };
+export { mineGitStats, type GitStats } from './git.js';

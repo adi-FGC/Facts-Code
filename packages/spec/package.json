@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./agent": "./src/agent.ts",
     "./human": "./src/human.ts",
+    "./diff": "./src/diff.ts",
     "./fs": "./src/fs.ts",
     "./mcp": "./src/mcp.ts"
   },

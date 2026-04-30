@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Prototype (http-server)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", ".", "-p", "4747", "-c-1", "--silent"],
+      "port": 4747
+    },
+    {
+      "name": "factstack ui (CLI → analyzer)",
+      "runtimeExecutable": "../apps/cli/node_modules/.bin/tsx",
+      "runtimeArgs": ["../apps/cli/src/cli.ts", "ui", "..", "--port", "4848", "--no-open"],
+      "port": 4848
+    }
+  ]
+}

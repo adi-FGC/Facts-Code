@@ -1,98 +1,160 @@
-# FACTS — AI Coding Tracker Stack
+# FACTS — File Analysis & Context Tracking Stack
 
-> **File Analysis & Context Tracking Stack.** One analysis pass → two artifacts: an AI-agent-optimized codebase map and a CXO-readable executive dashboard.
+> One analysis pass → two artifacts (an AI-agent-readable codebase map and a CXO-readable executive dashboard) plus a live MCP surface for AI coding agents.
 
-**Status**: v0.1 scaffold · pre-release
+**Status:** v0.2 (analyzer + UI + MCP server + watch + diff + query)
 
 ---
 
-## What is this?
+## What ships today
 
-FACTS walks any code project on macOS or Windows and produces:
+| Surface | Command | What it does |
+|---|---|---|
+| **Analyze** | `factstack analyze [path]` | Walks the project, extracts JS/TS imports + symbols + routes + license headers + secrets, builds the dependency graph, mines git history, writes `.facts/agent.json` + `.facts/human.json` + a snapshot. |
+| **WebUI** | `factstack ui [path]` | Serves the editorial dashboard at `http://localhost:4747`. Re-analyze button, live source preview, graph view, file outline. |
+| **Watch** | `factstack watch [path]` | UI + chokidar file-watcher + Server-Sent Events. Edits trigger re-analysis (500ms debounce); UI tree rows pulse. |
+| **Diff** | `factstack diff [snapA] [snapB]` | Compare two analyses. Zero args = current vs latest snapshot. One arg = current vs named snapshot. Two args = explicit snapshots. |
+| **Query** | `factstack query <verb> [target]` | Structured graph queries: `callers <path>`, `imports <path>`, `cycles`, `orphans`. |
+| **Export** | `factstack export [path]` | Self-contained HTML report (no server needed). |
+| **Doctor** | `factstack doctor` | Verifies Node version + `node:sqlite` availability. |
+| **MCP server** | `factstack-mcp --root <path>` | stdio MCP server exposing 5 tools + 5 resources for AI agents. |
 
-1. **`.facts/agent.json`** — a path-addressable, dense, versioned map of the codebase for AI coding agents (Claude, Cursor, Aider, etc.).
-2. **`.facts/human.json`** + a local WebUI — a CXO-readable dashboard that a non-developer can navigate to understand what a codebase does, what it's made of, and where its risks are.
+All commands accept `--json` for machine-invocable output. `--json` is also a top-level flag (`factstack --json analyze .`).
 
-Same analysis. Two audiences. Same truth.
+---
+
+## Quick start
+
+```bash
+# 1. Install
+pnpm install
+
+# 2. Analyze any project (no global install needed in dev — use the workspace tsx)
+pnpm --filter @factstack/cli exec tsx src/cli.ts analyze /path/to/your/project
+
+# 3. Open the dashboard
+pnpm --filter @factstack/cli exec tsx src/cli.ts ui /path/to/your/project
+# → http://localhost:4747 opens in your default browser
+
+# 4. (Optional) Live-update mode
+pnpm --filter @factstack/cli exec tsx src/cli.ts watch /path/to/your/project
+```
+
+For repeated use, link the binary globally:
+
+```bash
+cd apps/cli
+pnpm link --global       # exposes `factstack` on PATH
+factstack analyze /path/to/your/project
+factstack ui /path/to/your/project
+```
+
+> **Note**: `pnpm build` currently has unresolved type errors in a few packages (tracked in `app_plan_spec.md`). The CLI works via `tsx` regardless — TypeScript runtime, no build step needed for development. Production binary builds land with v0.3.
+
+---
+
+## MCP server — Claude Desktop / Cursor / Claude Code config
+
+The MCP server runs over stdio and exposes the cached analysis to any compliant client:
+
+```jsonc
+// claude_desktop_config.json (or .cursor/mcp.json or any MCP client)
+{
+  "mcpServers": {
+    "factstack": {
+      "command": "node",
+      "args": [
+        "/abs/path/to/factstack/apps/mcp-server/dist/server.js",
+        "--root",
+        "/abs/path/to/the/project/you/want/analyzed"
+      ]
+    }
+  }
+}
+```
+
+For dev (no build step):
+
+```jsonc
+{
+  "mcpServers": {
+    "factstack": {
+      "command": "node",
+      "args": [
+        "--import", "tsx",
+        "/abs/path/to/factstack/apps/mcp-server/src/server.ts",
+        "--root",
+        "/abs/path/to/the/project"
+      ]
+    }
+  }
+}
+```
+
+The server caches the analysis at boot. **Tools**: `analyze`, `query_graph` (verbs: callers, imports, cycles, orphans), `get_outline`, `list_risks`, `reanalyze_file` (deprecated stub). **Resources**: `facts://project`, `facts://graph`, `facts://routes`, `facts://risks`, `facts://file/{path}`.
+
+---
 
 ## Specs
 
 Read these in order:
 
-1. [`app_spec.md`](./app_spec.md) — **what** FACTS does (features, artifacts, CLI, roadmap).
-2. [`design_spec.md`](./design_spec.md) — **how** FACTS looks and feels (layout, typography, color, accessibility, liquid-glass aesthetic, responsive 340 px → 8 K).
-3. [`animations_spec.md`](./animations_spec.md) — **how** motion works (View Transition API, fallbacks, reduced-motion).
+1. [`app_spec.md`](./app_spec.md) — what FACTS does (functional spec)
+2. [`app_plan_spec.md`](./app_plan_spec.md) — engineering plan, constraints, roadmap
+3. [`design_spec.md`](./design_spec.md) — UI design system
+4. [`animations_spec.md`](./animations_spec.md) — motion catalogue + reduced-motion rules
+
+---
 
 ## Repository layout
 
 ```
 factstack/
-├── packages/                  # Shared core — consumed by every surface
-│   ├── spec/                  # Zod schemas, MCP resource/tool sketch, FactsFS interface
-│   ├── walker/                # Gitignore-aware walker, takes a FactsFS
-│   ├── fs-node/               # Node fs implementation of FactsFS (for CLI)
-│   ├── fs-memory/             # In-memory FactsFS (for tests)
-│   ├── fs-browser/            # v0.4 stub — browser FactsFS (File System Access API)
-│   ├── parsers/               # web-tree-sitter WASM registry
-│   ├── extractors/            # Per-language symbol/route extractors (pure)
-│   ├── graph/                 # Dependency + outline graph builders
-│   ├── scanners/              # Secrets, licenses, frameworks, TODOs, git history
-│   ├── emit/                  # Serializers: agent.json, human.json, SQLite, static export
-│   ├── core/                  # Analyzer orchestration (isomorphic)
-│   └── ui-theme/              # Shared design tokens, motion presets, language-icon mapper
+├── packages/
+│   ├── spec/          # Zod schemas, MCP tool/resource catalog, FactsFS interface
+│   ├── walker/        # Gitignore-aware walker, takes a FactsFS
+│   ├── fs-node/       # Node fs implementation + git history miner
+│   ├── fs-memory/     # In-memory FactsFS (for tests)
+│   ├── fs-browser/    # v0.4 stub (browser FactsFS via File System Access API)
+│   ├── parsers/       # web-tree-sitter WASM grammar registry (v0.3)
+│   ├── extractors/    # JS/TS imports + symbols + routes; Python imports; outline
+│   ├── graph/         # Dependency graph + Tarjan cycles + caller index + module resolver
+│   ├── scanners/      # Secrets, licenses, frameworks, TODOs, languages, token cost
+│   ├── emit/          # agent.json + human.json + snapshots + viz transformer + gzip
+│   ├── core/          # Pipeline orchestrator + diff + query
+│   └── ui-theme/      # CSS tokens, motion presets, language icons (v0.3)
 ├── apps/
-│   ├── cli/                   # factstack binary — primary v0.1 surface
-│   ├── ui-remix/              # Local Remix 3 WebUI + static export target
-│   ├── vscode-ext/            # v0.3 stub
-│   ├── chrome-ext/            # v0.4 stub
-│   ├── webapp/                # v0.5 stub
-│   └── mcp-server/            # v0.5 stub
+│   ├── cli/           # `factstack` binary — primary v0.2 surface
+│   ├── ui-remix/      # React 19 + React Router v7 — full dashboard (alongside the prototype)
+│   ├── mcp-server/    # `factstack-mcp` binary — MCP stdio server (v0.2)
+│   ├── vscode-ext/    # v0.3 stub (will host the static-mode UI)
+│   ├── chrome-ext/    # v0.4 stub
+│   └── webapp/        # v0.5 stub
 ├── plugins/
-│   └── mcp-app/               # v0.6 stub
-├── examples/                  # Fixture projects for golden-master testing
-├── app_spec.md
-├── design_spec.md
-└── animations_spec.md
+│   └── mcp-app/       # v0.6 stub
+├── prototype/         # Standalone editorial UI (open via file:// or factstack ui)
+├── examples/
+│   └── tiny-ts-app/   # Minimal SPDX-MIT fixture
+└── *spec*.md          # Living specs
 ```
 
-## Locked architectural constraints
+---
 
-These are enforced in CI via ESLint boundary rules (`.eslintrc`). Violations fail the build.
+## Architectural constraints (enforced via ESLint boundaries)
 
-### C1 — Isomorphic core (for future Chrome extension / WASM analyzer)
+### C1 · Isomorphic core
+Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`, `graph`, `scanners`) imports zero Node built-ins. I/O flows through the `FactsFS` interface. The Chrome extension (v0.4) will inject a browser FactsFS without touching core.
 
-`packages/core` and every package it transitively depends on (`spec`, `graph`, `extractors`, `scanners`, `parsers`, `walker`) **must not import Node built-ins** (`fs`, `path`, `os`, `worker_threads`, `child_process`).
+### C2 · Artifact discipline
+- Schemas in `packages/spec` are versioned (`$schema`, `factsVersion`) and additive-only within a major.
+- Artifacts target ≤ 5 MB (agent.json) / ≤ 2 MB (human.json) — overflow chunking lands with the SQLite index in v0.3.
+- Artifacts never contain raw secrets — scanners redact before serialization.
+- The MCP tool/resource catalog (`packages/spec/src/mcp.ts`) is the single source of truth shared by CLI + MCP server.
 
-All I/O is injected via the `FactsFS` interface (`packages/spec/src/fs.ts`). `packages/fs-node` is the Node implementation; `packages/fs-browser` (v0.4) will be the browser one. No changes to core are needed when a new filesystem backend lands.
+### C3 · Webview-ready UI
+`apps/ui-remix` builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON). Used by `factstack export` and the future VS Code webview. CSP-clean — no inline scripts, no third-party CDN runtime deps.
 
-Parsers use `web-tree-sitter` (WASM) exclusively — no native bindings.
-
-### C2 — Artifact discipline (for future web app + MCP server + cloud sync)
-
-- Schemas in `packages/spec` are **versioned** (`$schema`, `factsVersion`) and additive-only within a major.
-- Artifacts are **size-bounded** (`agent.json` ≤ 5 MB, `human.json` ≤ 2 MB; overflow chunked).
-- Artifacts **never contain raw secrets** — scanners redact before serialization.
-- MCP resource/tool surface is sketched in `packages/spec` today so v0.5 server code is a thin adapter.
-- CLI has a machine-invocable mode (`factstack analyze --json`) from day one.
-
-### C3 — Webview-ready UI (for future VS Code / Antigravity extension)
-
-`apps/ui-remix` builds to two targets:
-
-1. **Server mode** — full Remix 3 with loaders/actions, server-side re-analysis endpoint.
-2. **Static mode** — pure client-side SPA, no server, data hydrated from embedded `human.json` + `agent.json`. Used by `factstack export` and hosted inside VS Code webviews.
-
-Static mode is enforced via a single `loadArtifacts()` abstraction with two implementations. UI never uses APIs blocked by VS Code webview CSP.
-
-## Quick start (once scaffold is complete)
-
-```bash
-pnpm install
-pnpm build
-pnpm --filter @factstack/cli link   # expose `factstack` locally
-cd ../my-project
-factstack                            # analyzes, emits .facts/, opens UI
-```
+---
 
 ## Package dependency rules
 
@@ -107,21 +169,37 @@ Enforced via `eslint-plugin-boundaries`:
 | `graph`, `scanners` | `spec`, `extractors` |
 | `core` | `spec`, `graph`, `scanners`, `extractors` (not `fs-*`) |
 | `emit` | everything above + Node built-ins allowed |
-| `apps/cli` | `emit`, `fs-node`, `core` |
-| `apps/ui-remix` | `spec` only (schemas for data types) |
+| `apps/cli` | `spec`, `core`, `emit`, `fs-node`, `extractors` |
+| `apps/mcp-server` | `spec`, `core`, `emit`, `fs-node`, `extractors` |
+| `apps/ui-remix` | `spec`, `ui-theme` only |
+
+---
 
 ## Roadmap
 
-| Version | Surface | Target |
+| Version | Surface | Status |
 |---|---|---|
-| v0.1 | CLI + local Remix 3 UI | Weeks 1–10 |
-| v0.2 | npm global install | Weeks 11–12 |
-| v0.3 | VS Code / Antigravity extension | Weeks 13–18 |
-| v0.4 | Chrome extension (WASM analyzer) | Weeks 19–24 |
-| v0.5 | Web app + cloud + MCP server | Weeks 25–36 |
-| v0.6 | MCP app + skills bundle | Weeks 37–42 |
-| v0.7+ | Preview/emulation, test generation, code-review engine | post-42 |
+| v0.1 | CLI + emit + JS/TS imports + WebUI prototype | **shipped** |
+| v0.2 | Symbols + call graph + MCP server + watch + diff + query | **shipped** |
+| v0.3 | VS Code / Antigravity extension + SQLite index + tree-sitter Python + per-TODO git blame + per-file incremental re-analyze | next |
+| v0.4 | Chrome extension (WASM analyzer) | planned |
+| v0.5 | Web app + cloud + MCP HTTP/SSE transport | planned |
+| v0.6 | MCP app + skills bundle | planned |
+
+---
+
+## Tests
+
+```bash
+pnpm turbo test                         # 19 vitest specs across extractors + scanners
+pnpm --filter @factstack/cli exec tsx src/cli.ts analyze .
+pnpm --filter @factstack/cli exec tsx src/cli.ts query callers packages/spec/src/index.ts
+```
+
+CI runs typecheck + tests + a smoke `analyze .` on Ubuntu/macOS/Windows × Node 22.
+
+---
 
 ## License
 
-UNLICENSED — pre-release. License to be selected before v0.1 ships.
+UNLICENSED — pre-release. License decision lands before v0.3 ships. (See `app_plan_spec.md` §10 risk #3 for the trade-off discussion.)

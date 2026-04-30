@@ -63,7 +63,8 @@ export default tseslint.config(
         { type: 'ui-theme', pattern: 'packages/ui-theme/**' },
         { type: 'app-cli', pattern: 'apps/cli/**' },
         { type: 'app-ui', pattern: 'apps/ui-remix/**' },
-        { type: 'app-stub', pattern: 'apps/{vscode-ext,chrome-ext,webapp,mcp-server}/**' },
+        { type: 'app-mcp', pattern: 'apps/mcp-server/**' },
+        { type: 'app-stub', pattern: 'apps/{vscode-ext,chrome-ext,webapp}/**' },
         { type: 'plugin', pattern: 'plugins/*/**' },
       ],
     },
@@ -91,11 +92,18 @@ export default tseslint.config(
               allow: ['spec', 'core', 'walker', 'parsers', 'extractors', 'graph', 'scanners'],
             },
             { from: 'ui-theme', allow: [] },
+            // Each app's allow list mirrors its package.json dependencies
+            // exactly — adding a workspace import requires declaring the
+            // dep AND listing it here. Drift caught by lint, not runtime.
             {
               from: 'app-cli',
-              allow: ['spec', 'core', 'emit', 'fs-node', 'scanners', 'graph'],
+              allow: ['spec', 'core', 'emit', 'fs-node', 'extractors'],
             },
             { from: 'app-ui', allow: ['spec', 'ui-theme'] },
+            {
+              from: 'app-mcp',
+              allow: ['spec', 'core', 'emit', 'fs-node', 'extractors'],
+            },
             {
               from: 'app-stub',
               allow: [

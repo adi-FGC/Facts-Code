@@ -22,12 +22,26 @@ export interface WriteOptions {
   streamable?: boolean;
   /** Auto-add `.facts/` to root .gitignore if missing. Default true. */
   addGitignoreEntry?: boolean;
+  /**
+   * Write a small snapshot (`.facts/snapshots/<ISO>/summary.json`) that
+   * stores the 6 headline metrics + timestamp. Used by the History tab
+   * to draw trend lines. Off by default so `ui`/`export` don't accrete
+   * noise; the `analyze` command turns it on.
+   */
+  writeSnapshot?: boolean;
+  /**
+   * Maximum number of snapshots to retain in `.facts/snapshots/`. Older
+   * ones are deleted oldest-first. Default 50; pass 0 to disable retention
+   * (keep every snapshot — safe but unbounded growth in watch mode).
+   */
+  snapshotRetention?: number;
 }
 
 export async function writeArtifacts(opts: WriteOptions): Promise<{
   agentPath: string;
   humanPath: string;
   jsonlPath: string | null;
+  snapshotPath: string | null;
   bytesWritten: number;
 }> {
   // Validate up front; throws a useful error if the shape drifted.
@@ -57,11 +71,104 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     bytes += Buffer.byteLength(lines);
   }
 
+  let snapshotPath: string | null = null;
+  if (opts.writeSnapshot ?? false) {
+    const snapDir = path.join(dir, 'snapshots');
+    await fs.mkdir(snapDir, { recursive: true });
+    // Millisecond-resolution ISO + exclusive-create retry: two analyses
+    // triggered in the same millisecond (rare, but `/api/reanalyze` on a
+    // fast loopback can do it) get unique filenames instead of a silent
+    // overwrite. Format: 2026-04-22T14-23-07-123Z.json — lexi-sort = chrono.
+    const body = JSON.stringify({
+      at: opts.human.generatedAt,
+      stats: opts.agent.stats,
+      risks: opts.agent.risks.length,
+      broken: opts.human.summary.health.broken,
+      stale: opts.human.summary.health.stale,
+      todos: opts.human.summary.health.todos,
+      secrets: opts.human.summary.health.secrets,
+    }, null, 2);
+    const baseStamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
+    for (let suffix = 0; suffix < 1000; suffix++) {
+      const name = suffix === 0 ? `${baseStamp}Z.json` : `${baseStamp}Z-${suffix}.json`;
+      const candidate = path.join(snapDir, name);
+      try {
+        await fs.writeFile(candidate, body, { flag: 'wx' });
+        snapshotPath = candidate;
+        break;
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== 'EEXIST') throw err;
+        // else: collision — bump suffix and retry.
+      }
+    }
+    if (snapshotPath) bytes += Buffer.byteLength(body);
+
+    // Retention: keep the N most recent snapshots so `factstack watch`
+    // doesn't accumulate hundreds of files in `.facts/snapshots/`.
+    // Default 50; configurable via `WriteOptions.snapshotRetention`.
+    // Lexical sort = chrono sort because filenames are ISO timestamps.
+    // 0 disables retention (keep everything).
+    const keep = opts.snapshotRetention ?? 50;
+    if (keep > 0) {
+      try {
+        const all = (await fs.readdir(snapDir))
+          .filter((n) => n.endsWith('.json'))
+          .sort();
+        if (all.length > keep) {
+          const drop = all.slice(0, all.length - keep);
+          await Promise.all(drop.map((n) => fs.unlink(path.join(snapDir, n)).catch(() => undefined)));
+        }
+      } catch { /* readdir failures are non-fatal — snapshots still written */ }
+    }
+  }
+
   if (opts.addGitignoreEntry ?? true) {
     await ensureGitignoreEntry(opts.root);
   }
 
-  return { agentPath, humanPath, jsonlPath, bytesWritten: bytes };
+  return { agentPath, humanPath, jsonlPath, snapshotPath, bytesWritten: bytes };
+}
+
+/**
+ * Read the snapshot sidecar (`.facts/snapshots/*.json`) into memory so
+ * the History tab can plot a sparkline. Returns empty array if absent
+ * or on read errors (History shows its empty state).
+ */
+export async function readSnapshots(root: string): Promise<Array<{
+  at: string;
+  loc: number;
+  tokens: number;
+  files: number;
+  risks: number;
+  todos: number;
+}>> {
+  const snapDir = path.join(root, '.facts', 'snapshots');
+  let entries: string[];
+  try { entries = await fs.readdir(snapDir); }
+  catch { return []; }
+  const out: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }> = [];
+  for (const name of entries.sort()) {
+    if (!name.endsWith('.json')) continue;
+    try {
+      const text = await fs.readFile(path.join(snapDir, name), 'utf8');
+      const j = JSON.parse(text) as {
+        at: string;
+        stats?: { loc?: number; totalTokenCost?: number; fileCount?: number };
+        risks?: number;
+        todos?: number;
+      };
+      out.push({
+        at: j.at,
+        loc: j.stats?.loc ?? 0,
+        tokens: j.stats?.totalTokenCost ?? 0,
+        files: j.stats?.fileCount ?? 0,
+        risks: j.risks ?? 0,
+        todos: j.todos ?? 0,
+      });
+    } catch { /* skip malformed */ }
+  }
+  return out;
 }
 
 async function ensureGitignoreEntry(root: string): Promise<void> {

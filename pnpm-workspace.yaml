@@ -3,6 +3,7 @@ packages:
   - "apps/*"
   - "plugins/*"
   - "examples/*"
+  - "prototype"
 allowBuilds:
   esbuild: true
 # better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
