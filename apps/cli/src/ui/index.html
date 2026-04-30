@@ -5431,8 +5431,22 @@
       };
 
       async function scanHandle(dirHandle, relPath = '', ctx) {
-        const isRoot = !ctx;
+        // Rootness must be detected by relPath, NOT by `!ctx`. The
+        // openBtn handler passes a pre-built ctx (to inject the
+        // onProgress + cancelled hooks); using `!ctx` as the root
+        // signal made root invocations look like recursive calls,
+        // skipping rootifyDataset and returning a raw tree node
+        // instead of the {project, summary, stats, tree, ...} shape
+        // the renderers expect. (Caused: "Cannot read properties of
+        // undefined (reading 'languages')" on every Open click.)
+        const isRoot = relPath === '';
         ctx = ctx || { allFiles: [], parse: await getBabelParser(), packageJsons: [], onProgress: null, cancelled: () => false };
+        // Defensive: even when caller passes a ctx, fill in any
+        // missing fields the recursion + rootification rely on.
+        if (!Array.isArray(ctx.allFiles)) ctx.allFiles = [];
+        if (!Array.isArray(ctx.packageJsons)) ctx.packageJsons = [];
+        if (typeof ctx.cancelled !== 'function') ctx.cancelled = () => false;
+        if (ctx.parse === undefined) ctx.parse = await getBabelParser();
         // Tick so the modal updates between phases. The `await` yields
         // to the event loop; without it the modal looks frozen even
         // though the scan IS running.
