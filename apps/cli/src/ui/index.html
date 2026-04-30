@@ -353,6 +353,10 @@
       .chip-danger { background: color-mix(in oklab, var(--danger) 18%, transparent); color: var(--danger); border-color: color-mix(in oklab, var(--danger) 35%, transparent); }
       .chip-info { background: color-mix(in oklab, var(--info) 18%, transparent); color: var(--info); border-color: color-mix(in oklab, var(--info) 35%, transparent); }
       .chip-muted { background: var(--surface-3); color: var(--fg-muted); border-color: var(--border); }
+      /* Visually hidden but available to assistive tech. Standard
+         pattern (matches Tailwind's `.sr-only`) so headings + landmark
+         labels can exist for screen readers without affecting layout. */
+      .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
 
       /* Focus ring via double box-shadow: paints INSIDE the element's bounds,
          so it survives ancestors with `contain: paint` (e.g., .glass chrome).
@@ -7732,6 +7736,18 @@
       let LIBRARY_SELECTED = null;
       let LIBRARY_SEARCH = '';
 
+      /** Quick-lookup map from language id → language metadata (color,
+       *  label, tag). Refreshed by `refreshLangsById()` on every render
+       *  pass before the LHS list rebuild — cheap (≤10 entries) but
+       *  called many times during library re-render. Declared here at
+       *  the top of the library state block so all callers in this
+       *  IIFE see the same instance. */
+      const LANGS_BY_ID = new Map();
+      function refreshLangsById() {
+        LANGS_BY_ID.clear();
+        for (const l of DATA?.project?.languages || []) LANGS_BY_ID.set(l.id, l);
+      }
+
       function renderLibrary() {
         const p = $('#panel-library');
         if (!p) return;
@@ -7791,7 +7807,12 @@
 
         // ── two-pane layout ───────────────────────────────────────────
         const grid = h('div', { class: 'flex h-full' });
-        const left = h('aside', { class: 'shrink-0 border-r border-[var(--border)] overflow-y-auto', style: 'width:22rem;max-width:35vw' });
+        const left = h('aside', { class: 'shrink-0 border-r border-[var(--border)] overflow-y-auto', style: 'width:22rem;max-width:35vw', 'aria-label': 'Library file index' });
+        // Visually-hidden heading so screen readers announce the
+        // sidebar as a navigation landmark instead of an unstructured
+        // list of buttons.
+        const srHeading = h('h2', { class: 'sr-only' }, 'Library files');
+        left.append(srHeading);
         const right = h('section', { class: 'flex-1 overflow-y-auto p-5 sm:p-8' });
 
         // Header + search
@@ -7921,13 +7942,6 @@
         return false;
       }
 
-      /** Build a quick-lookup map from language id → language metadata
-       *  (color, label, tag) for icon rendering in the LHS list. */
-      const LANGS_BY_ID = new Map();
-      function refreshLangsById() {
-        LANGS_BY_ID.clear();
-        for (const l of DATA?.project?.languages || []) LANGS_BY_ID.set(l.id, l);
-      }
 
       /**
        * Map a file to a coarse role bucket. The order of checks matters:
@@ -7953,7 +7967,13 @@
         if (/(?:^|\/)(?:pages|routes|views|screens)\//.test(p)) return 'Pages & Routes';
         if (/(?:^|\/)hooks\//.test(p) || /(?:^|\/)use[A-Z]\w+\.(?:t|j)sx?$/.test(original)) return 'Hooks';
         if (/(?:^|\/)(?:components|widgets|elements|ui)\//.test(p)) return 'Components';
-        if (/(?:^|\/)(?:redux|store|state|stores|slices|reducers)\//.test(p)) return 'State';
+        // State management folders. Catches Redux Toolkit (`redux/slices`),
+        // generic state buckets, and the modern store libraries that
+        // each have their own folder convention: zustand, jotai, valtio,
+        // recoil, mobx. If a project uses an unconventional folder name,
+        // the content-based fallback below still picks it up via
+        // declaration kinds.
+        if (/(?:^|\/)(?:redux|store|stores|state|slices|reducers|atoms|zustand|jotai|valtio|recoil|mobx)\//.test(p)) return 'State';
         if (/(?:^|\/)(?:api|server|backend|services|controllers|handlers|functions)\//.test(p)) return 'API & Backend';
         if (/(?:^|\/)(?:utils|util|lib|libs|helpers|shared|common)\//.test(p)) return 'Utilities';
         // Content-based fallback: if it exports a React-shaped default,
@@ -8143,15 +8163,19 @@
           return { html: '<span class="text-[var(--fg-muted)] text-xs uppercase tracking-wide mr-2">Author note</span>' + escapeHtml(firstDoc) };
         }
 
-        // Role-shaped templates. Each is true by construction:
-        // we only assert what's directly observable.
+        // Evidence-conditional templates. Don't claim "used elsewhere"
+        // unless we can see callers; don't claim "page-level route"
+        // unless agent.routes points a route at this file. Falls back
+        // to the simpler shape when evidence is missing.
+        const callerCount = (DATA?.edges || []).filter((e) => e.to === f.path).length;
+        const hasRoute = (DATA?.routes || []).some((r) => r.handlerFile === f.path);
         const ROLE_TEMPLATES = {
-          'Pages & Routes':   'a page-level route component',
-          'Components':       'a reusable UI component',
+          'Pages & Routes':   hasRoute ? 'a page-level route component' : 'a page-shaped component',
+          'Components':       callerCount > 0 ? 'a reusable UI component' : 'a UI component',
           'State':            'state management (a store, slice, or reducer)',
-          'API & Backend':    'a server-side handler or backend service',
-          'Hooks':            'a custom React hook',
-          'Utilities':        'a utility module — helpers used elsewhere',
+          'API & Backend':    hasRoute ? 'a server-side handler or backend service' : 'a backend module',
+          'Hooks':            callerCount > 0 ? 'a custom React hook used in ' + callerCount + ' file' + (callerCount === 1 ? '' : 's') : 'a custom React hook',
+          'Utilities':        callerCount > 0 ? 'a utility module — used in ' + callerCount + ' other file' + (callerCount === 1 ? '' : 's') : 'a utility module',
           'Styles':           'a stylesheet',
           'Config':           'a configuration module',
           'Other':            'a source file',
@@ -8235,45 +8259,44 @@
         wrap.append(naming);
 
         // ── HOW IT HELPS ──────────────────────────────────────────────
+        // Editorial numbered list (not a 3-card grid of identical emoji-
+        // headed boxes). Each audience gets its own paragraph anchored
+        // by a numerical marker + role name, with a left rule for
+        // visual rhythm. Matches the editorial voice used elsewhere
+        // in the dashboard (Risks, Overview).
         const helps = h('section', { class: 'px-6 sm:px-12 py-14 border-t border-[var(--border)]' });
         helps.innerHTML = `
-          <div class="max-w-5xl mx-auto">
+          <div class="max-w-3xl mx-auto">
             <div class="ed-label mb-3" style="font-size:0.625rem;letter-spacing:0.18em">WHO IT'S FOR</div>
             <h2 class="ed-head font-serif" style="font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.1;margin-bottom:2rem">
               Three audiences. One source of truth.
             </h2>
-            <div class="grid sm:grid-cols-3 gap-6">
-              <div>
-                <div class="text-2xl mb-3">🤖</div>
-                <h3 class="text-lg font-semibold mb-2">AI coding agents</h3>
-                <p class="text-sm leading-relaxed text-[var(--fg-muted)]">
-                  Read <span class="mono text-xs">agent.json</span> once,
-                  navigate the codebase as a graph, never re-read every file.
-                  Streamable JSONL companion fits tight context windows.
-                  Works with Claude, GPT, Gemini, Cursor, Aider — agent-agnostic.
+            <ol class="space-y-7" style="counter-reset:about-aud">
+              <li class="pl-12 relative" style="counter-increment:about-aud">
+                <span aria-hidden="true" class="absolute left-0 top-0 mono text-xs text-[var(--fg-subtle)]" style="content-visibility:auto">01</span>
+                <div class="absolute left-7 top-1 bottom-1 w-px bg-[var(--border)]" aria-hidden="true"></div>
+                <h3 class="text-base font-semibold mb-1.5">AI coding agents</h3>
+                <p class="text-[15px] leading-relaxed text-[var(--fg-muted)]" style="max-width:60ch">
+                  Read <span class="mono text-xs">agent.json</span> once, navigate the codebase as a graph, never re-read every file. The streamable JSONL companion fits tight context windows. Works with Claude, GPT, Gemini, Cursor, Aider — agent-agnostic by design.
                 </p>
-              </div>
-              <div>
-                <div class="text-2xl mb-3">📊</div>
-                <h3 class="text-lg font-semibold mb-2">CXOs &amp; investors</h3>
-                <p class="text-sm leading-relaxed text-[var(--fg-muted)]">
-                  Open the dashboard without a developer present. See what
-                  the project does, what's broken, what's drifting.
-                  Every claim is clickable; every metric maps to evidence
-                  in source. No black boxes, no health-score mysteries.
+              </li>
+              <li class="pl-12 relative" style="counter-increment:about-aud">
+                <span aria-hidden="true" class="absolute left-0 top-0 mono text-xs text-[var(--fg-subtle)]">02</span>
+                <div class="absolute left-7 top-1 bottom-1 w-px bg-[var(--border)]" aria-hidden="true"></div>
+                <h3 class="text-base font-semibold mb-1.5">CXOs &amp; investors</h3>
+                <p class="text-[15px] leading-relaxed text-[var(--fg-muted)]" style="max-width:60ch">
+                  Open the dashboard without a developer present. See what the project does, what's broken, what's drifting. Every claim is clickable, every metric maps to evidence in source — no black boxes, no health-score mysteries.
                 </p>
-              </div>
-              <div>
-                <div class="text-2xl mb-3">👩‍💻</div>
-                <h3 class="text-lg font-semibold mb-2">Developers</h3>
-                <p class="text-sm leading-relaxed text-[var(--fg-muted)]">
-                  Find dead code, import cycles, and exposed secrets in
-                  one pass. Watch mode keeps the dashboard honest as you
-                  edit. The MCP server lets your assistants query the
-                  graph without re-scanning.
+              </li>
+              <li class="pl-12 relative" style="counter-increment:about-aud">
+                <span aria-hidden="true" class="absolute left-0 top-0 mono text-xs text-[var(--fg-subtle)]">03</span>
+                <div class="absolute left-7 top-1 bottom-1 w-px bg-[var(--border)]" aria-hidden="true"></div>
+                <h3 class="text-base font-semibold mb-1.5">Developers</h3>
+                <p class="text-[15px] leading-relaxed text-[var(--fg-muted)]" style="max-width:60ch">
+                  Find dead code, import cycles, and exposed secrets in one pass. Watch mode keeps the dashboard honest as you edit. The MCP server lets your assistants query the graph without re-scanning the project.
                 </p>
-              </div>
-            </div>
+              </li>
+            </ol>
           </div>
         `;
         wrap.append(helps);
@@ -8288,11 +8311,19 @@
             <h2 class="ed-head font-serif" style="font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.1;margin-bottom:1.25rem">
               Right now, you're looking at <span class="num">${escapeHtml(meta.name || '…')}</span>.
             </h2>
-            <p class="ed-prose text-lg leading-relaxed text-[var(--fg-muted)]" style="max-width:62ch">
-              ${(stats.files || 0)} files. ${fmtTok(stats.tokens || 0)} tokens. ${(meta.frameworks || []).length} frameworks detected. The Overview tab walks you through what the project does and how healthy it is. The Library tab explains every source file in plain language. The Graph + DAG tabs visualize how it all connects. The Risks tab flags secrets, broken imports, and supply-chain concerns. Routes lists every URL a user can bookmark and every API endpoint exposed.
+            <p class="ed-prose text-lg leading-relaxed text-[var(--fg-muted)] mb-6" style="max-width:62ch">
+              <span class="num text-[var(--fg)]">${(stats.files || 0)}</span> files · <span class="num text-[var(--fg)]">${fmtTok(stats.tokens || 0)}</span> tokens · <span class="num text-[var(--fg)]">${(meta.frameworks || []).length}</span> frameworks detected. Each tab is one lens on the same artifact:
             </p>
-            <p class="ed-prose text-base leading-relaxed text-[var(--fg-muted)] mt-6" style="max-width:62ch">
-              Run <span class="mono text-sm bg-[var(--surface-2)] rounded px-1.5 py-0.5">factstack ui /path/to/your/project</span> in any directory to point this dashboard at your own code. The artifacts live in <span class="mono text-sm">.facts/</span> — local-first, never uploaded, auto-added to your <span class="mono text-sm">.gitignore</span>.
+            <ul class="space-y-2.5 mb-7" style="max-width:62ch">
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Overview</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">What the project does and how healthy it is.</span></li>
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Library</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">Every source file explained in plain language.</span></li>
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Graph &amp; DAG</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">How it all connects — containment + import edges.</span></li>
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Routes</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">Every URL a user can bookmark + every API endpoint.</span></li>
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Risks</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">Secrets, broken imports, license + supply-chain flags.</span></li>
+              <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">History</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">Trend lines from prior snapshots — file count, tokens, risks.</span></li>
+            </ul>
+            <p class="ed-prose text-base leading-relaxed text-[var(--fg-muted)]" style="max-width:62ch">
+              Run <span class="mono text-sm bg-[var(--surface-2)] rounded px-1.5 py-0.5">factstack ui /path/to/your/project</span> in any directory to point this dashboard at your own code. Artifacts live in <span class="mono text-sm">.facts/</span> — local-first, never uploaded, auto-added to <span class="mono text-sm">.gitignore</span>.
             </p>
           </div>
         `;

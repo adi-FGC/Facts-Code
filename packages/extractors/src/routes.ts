@@ -72,22 +72,11 @@ export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
     out.push({ framework: 'nextjs', method: 'GET', path: '/', handlerFile: filePath, handlerSymbol: 'default' });
     return out;
   }
-  // Next.js Pages Router: pages/**/*.{ts,tsx,js}
-  const pagesMatch = /(?:^|\/)pages\/(.+)\.(ts|tsx|js|jsx|mjs)$/.exec(filePath);
-  if (pagesMatch && pagesMatch[1] && !pagesMatch[1].startsWith('_')) {
-    // Strip trailing "index" regardless of whether it's at the root
-    // (`pages/index.tsx` → "") or nested (`pages/blog/index.tsx` → "blog").
-    const route = pagesMatch[1].replace(/(^|\/)index$/, '') || '';
-    out.push({
-      framework: 'nextjs',
-      method: 'GET',
-      path: '/' + toNextRoute(route),
-      handlerFile: filePath,
-      handlerSymbol: 'default',
-    });
-    return out;
-  }
-  // Astro: src/pages/**/*.{astro,ts,js,md,mdx}.
+  // Astro: src/pages/**/*.{astro,ts,js,md,mdx}. Checked BEFORE the
+  // Next.js pages-router because both share the `pages/` segment;
+  // running pages-router first would steal `src/pages/foo.tsx` away
+  // from the Astro path which has a more specific (and thus more
+  // accurate) handler.
   //   src/pages/about.astro     → /about (GET)
   //   src/pages/blog/[slug].md  → /blog/:slug (GET)
   //   src/pages/api/foo.ts      → /api/foo (method refined by source extractor)
@@ -106,6 +95,24 @@ export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
       path: '/' + toAstroRoute(route),
       handlerFile: filePath,
       handlerSymbol: isApi ? null : 'default',
+    });
+    return out;
+  }
+  // Next.js Pages Router: pages/**/*.{ts,tsx,js}
+  // Checked AFTER Astro because both share the `pages/` segment —
+  // checking Astro first means `src/pages/foo.tsx` lands in Astro
+  // (more specific path → more accurate framework label).
+  const pagesMatch = /(?:^|\/)pages\/(.+)\.(ts|tsx|js|jsx|mjs)$/.exec(filePath);
+  if (pagesMatch && pagesMatch[1] && !pagesMatch[1].startsWith('_')) {
+    // Strip trailing "index" regardless of whether it's at the root
+    // (`pages/index.tsx` → "") or nested (`pages/blog/index.tsx` → "blog").
+    const route = pagesMatch[1].replace(/(^|\/)index$/, '') || '';
+    out.push({
+      framework: 'nextjs',
+      method: 'GET',
+      path: '/' + toNextRoute(route),
+      handlerFile: filePath,
+      handlerSymbol: 'default',
     });
     return out;
   }

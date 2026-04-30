@@ -528,14 +528,21 @@ function reclassifyRoutes(routes: DetectedRoute[], frameworks: string[]): Detect
   const fwSet = new Set(frameworks);
   const hasNext = fwSet.has('Next.js');
   const hasRemix = fwSet.has('Remix');
+  const hasAstro = fwSet.has('Astro');
   const hasReactRouter = fwSet.has('React Router');
-  // If a route says nextjs/remix but the manifest doesn't agree, re-label
-  // to the most accurate alternative we have evidence for.
+  // If a route extractor matched a file convention but the project's
+  // manifest doesn't actually use that framework, re-label to the most
+  // accurate alternative we have evidence for. Common case: a Vite SPA
+  // with `src/pages/` triggers nextjs detection without Next.js being
+  // installed; same shape for Astro projects without Astro.
   return routes.map((r) => {
     if (r.framework === 'nextjs' && !hasNext) {
       return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
     }
     if (r.framework === 'remix' && !hasRemix) {
+      return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
+    }
+    if (r.framework === 'astro' && !hasAstro) {
       return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
     }
     return r;
@@ -670,12 +677,58 @@ function extractReadmeFirstSentence(md: string): string | null {
     // Drop trailing inline links/badges from prose lines.
     line = trimmed.replace(/\s*\[!\[.*$/, '').trim();
     if (!line) continue;
-    // Take just the first sentence (up to first `.`/`!`/`?` followed by
-    // whitespace or end-of-line). Avoids dragging in multi-paragraph intros.
-    const sentenceMatch = /^(.+?[.!?])(?:\s|$)/.exec(line);
-    return (sentenceMatch && sentenceMatch[1] ? sentenceMatch[1] : line).trim();
+    // Take just the first sentence — but skip terminators that are
+    // actually abbreviations or version numbers. Naive `[.!?]` matching
+    // truncates "E.g.", "i.e.", "v0.2", "Mr." etc. on the first dot.
+    // Strategy: walk character-by-character looking for `[.!?]` followed
+    // by whitespace AND preceded by something other than a 1-2 letter
+    // word or digit. Falls through to the first 240 chars when no
+    // robust terminator is found.
+    return findFirstSentence(line);
   }
   return null;
+}
+
+/**
+ * Sentence finder that tolerates common English abbreviations and
+ * version numbers. Walks the string and looks for a terminator
+ * (`. ? !`) immediately followed by whitespace/end-of-line, where
+ * the preceding 1–2 chars don't look like an abbreviation.
+ *
+ * Examples:
+ *   "E.g. an apple. The end."   → "E.g. an apple."  (skips "g.")
+ *   "v0.2 ships today."          → "v0.2 ships today."  (skips "0.")
+ *   "Mr. Smith arrived."         → "Mr. Smith arrived."  (skips "r.")
+ *   "Hello world."               → "Hello world."
+ */
+function findFirstSentence(line: string): string {
+  // Cap at 240 chars. Most README first paragraphs fit; anything
+  // longer becomes a digest of an over-long sentence anyway.
+  const cap = 240;
+  if (line.length <= cap && !/[.!?]/.test(line)) return line.trim();
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (ch === '.' || ch === '!' || ch === '?') {
+      const next = line[i + 1];
+      const nextIsBoundary = next == null || /\s/.test(next);
+      if (nextIsBoundary) {
+        // Look back at the previous 2-3 chars. Single letter + dot
+        // (`E.g.`, `i.e.`) or digit + dot (`v0.2`) is an abbreviation;
+        // we keep going. Anything longer than 2 letters is probably
+        // a real sentence end.
+        const before = line.slice(Math.max(0, i - 4), i);
+        const isAbbrev = /(?:^|[\s.])[A-Za-z]\.[A-Za-z]?$/.test(before)
+          || /\d$/.test(before);
+        if (!isAbbrev) {
+          return line.slice(0, i + 1).trim();
+        }
+      }
+    }
+    i++;
+  }
+  // No terminator found — return the line capped.
+  return line.length > cap ? line.slice(0, cap - 1) + '…' : line.trim();
 }
 
 function buildHealthHeadline(broken: number, stale: number, todos: number, secrets: number): string {
