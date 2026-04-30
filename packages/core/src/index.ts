@@ -668,14 +668,18 @@ function extractReadmeFirstSentence(md: string): string | null {
     // raw HTML, or setext underline lines.
     if (/^#{1,6}\s/.test(trimmed)) continue;
     if (/^[-=]{3,}\s*$/.test(trimmed)) continue;
-    if (/^>\s/.test(trimmed)) continue;
     if (/^[-*+]\s/.test(trimmed)) continue;
     if (/^\d+\.\s/.test(trimmed)) continue;
     if (/^!\[/.test(trimmed)) continue;            // image-only line (badges)
     if (/^<[a-zA-Z!]/.test(trimmed)) continue;     // raw HTML
     if (/^\[!\[/.test(trimmed)) continue;          // linked badges [![...]
+    // Strip the leading `> ` of a blockquote — README authors often
+    // put the project's tagline in a blockquote right under the title
+    // (the GitHub convention). The content of that blockquote IS the
+    // most useful one-liner, so we treat it as prose.
+    line = trimmed.replace(/^>\s+/, '');
     // Drop trailing inline links/badges from prose lines.
-    line = trimmed.replace(/\s*\[!\[.*$/, '').trim();
+    line = line.replace(/\s*\[!\[.*$/, '').trim();
     if (!line) continue;
     // Take just the first sentence — but skip terminators that are
     // actually abbreviations or version numbers. Naive `[.!?]` matching

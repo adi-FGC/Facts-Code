@@ -1,0 +1,60 @@
+###############################################################################
+# Netlify configuration — FACTS public demo
+#
+# What gets deployed: prototype/index.html + the inline-baked
+# factstack.json data (FACTS analyzing itself). Single-file static
+# deploy; no build step required because the prototype is already
+# self-contained.
+#
+# The hosted demo is read-only — there's no /api/reanalyze, no SSE,
+# no /api/file. Visitors get the v0.2 dashboard with FACTS's own
+# 168-file analysis baked in. The CLI (`factstack ui /your/project`)
+# is the live, interactive entry point.
+###############################################################################
+
+[build]
+  publish    = "prototype"
+  # No build command — `prototype/index.html` ships as-is. The inline
+  # <script id="factstack-data"> block was populated by
+  # `node prototype/scripts/inject-data.mjs` at commit time.
+  command    = "echo 'no build — prototype is pre-built'"
+
+###############################################################################
+# Caching: HTML never cached so updates ship instantly. Inline data is
+# part of the HTML so the same rule covers it. Asset URLs (the SVG
+# language icons / fonts via `data:` and external `cdn.jsdelivr.net`
+# URLs) are CDN-fronted and have their own cache headers.
+###############################################################################
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"
+
+###############################################################################
+# Security headers — the demo doesn't accept user input, so these are
+# baseline hardening. Adjust if you embed third-party scripts later.
+###############################################################################
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "no-referrer-when-downgrade"
+    Permissions-Policy     = "interest-cohort=()"
+
+###############################################################################
+# SPA-style fallback: any unknown path serves the dashboard. The hash
+# router inside the prototype (#tab=overview etc.) handles in-app
+# routing client-side.
+###############################################################################
+
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
