@@ -1,125 +1,263 @@
+/**
+ * Overview — the editorial landing.
+ *
+ * Composition:
+ *   ┌──────────────────────────────────────┬──────────────────┐
+ *   │ KICKER                                                  │
+ *   │ DISPLAY HEADLINE (oneLiner — Fraunces, 4-6 lines max)   │
+ *   │ Lede paragraph                                          │
+ *   │ ─────────────── hairline ─────────────                  │
+ *   │ FILES   LOC   TOKENS   RISKS    ←  LabelNumberRow       │
+ *   │ ─────────────── hairline ─────────────                  │
+ *   │                                                         │
+ *   │ ## Stack                              FRAMEWORKS         │
+ *   │ Stack rows                            ⌐                  │
+ *   │                                       │ React, Vite, …   │
+ *   │ ## Capabilities                       ⌐                  │
+ *   │ Capabilities                          │ MARGIN CHIPS     │
+ *   │                                       │                  │
+ *   └──────────────────────────────────────┴──────────────────┘
+ *
+ * < 1280px: margin column collapses, chips stack into the body flow.
+ */
 import type { Handle } from '@remix-run/ui';
 import { css } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
+import { Section } from '../ui/Section.tsx';
+import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
+import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
+import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 
 interface OverviewProps {
   data: Dataset;
 }
 
 function fmt(n: number): string {
+  // Numbers > 999 get K/M shortened so the display column stays compact;
+  // smaller values render as-is (43,890 stays 43.9K to keep visual weight
+  // proportional in the row).
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return String(n);
 }
 
+const kicker = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.18em',
+  textTransform: 'uppercase',
+  color: 'var(--accent)',
+  marginBottom: 'var(--space-5)',
+  display: 'flex',
+  gap: 'var(--space-3)',
+  alignItems: 'baseline',
+});
+
+const kickerDot = css({
+  width: '6px',
+  height: '6px',
+  borderRadius: '50%',
+  background: 'var(--accent)',
+  display: 'inline-block',
+});
+
+const headline = css({
+  fontFamily: 'var(--font-display)',
+  fontSize: 'var(--fs-display)',
+  fontWeight: '600',
+  letterSpacing: '-0.025em',
+  lineHeight: '1.04',
+  color: 'var(--fg)',
+  marginBottom: 'var(--space-6)',
+  fontVariationSettings: '"opsz" 144',
+  /* Hanging punctuation for a quote-like opening when the oneLiner
+     starts with a quotation mark. */
+  hangingPunctuation: 'first',
+});
+
+const stackRow = css({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+  alignItems: 'baseline',
+  columnGap: 'var(--space-4)',
+  paddingBlock: 'var(--space-3)',
+  borderBottom: '1px solid var(--hairline)',
+});
+
+const langSwatch = (color: string) => css({
+  display: 'inline-block',
+  width: '10px',
+  height: '10px',
+  background: color,
+  marginRight: 'var(--space-3)',
+  verticalAlign: 'baseline',
+  transform: 'translateY(1px)',
+});
+
+const stackName = css({
+  fontFamily: 'var(--font-display)',
+  fontSize: 'var(--fs-16)',
+  fontWeight: '500',
+});
+
+const stackMeta = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  fontVariantNumeric: 'tabular-nums',
+  color: 'var(--fg-subtle)',
+  whiteSpace: 'nowrap',
+});
+
+const capList = css({
+  listStyle: 'none',
+  margin: '0',
+  padding: '0',
+});
+
+const capItem = css({
+  display: 'grid',
+  gridTemplateColumns: '24px 1fr',
+  gap: 'var(--space-3)',
+  alignItems: 'baseline',
+  paddingBlock: 'var(--space-3)',
+  borderBottom: '1px solid var(--hairline)',
+});
+
+const capMark = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--accent)',
+  fontWeight: '500',
+  letterSpacing: '0.04em',
+});
+
+const capText = css({
+  fontSize: 'var(--fs-14)',
+  color: 'var(--fg)',
+  lineHeight: '1.5',
+});
+
+const capSub = css({
+  display: 'block',
+  fontSize: 'var(--fs-12)',
+  color: 'var(--fg-muted)',
+  marginTop: 'var(--space-1)',
+});
+
+const ledeText = css({
+  fontFamily: 'var(--font-display)',
+  fontSize: 'var(--fs-20)',
+  fontWeight: '400',
+  letterSpacing: '-0.005em',
+  lineHeight: '1.45',
+  color: 'var(--fg-muted)',
+  fontVariationSettings: '"opsz" 24',
+  maxWidth: '56ch',
+  marginBottom: 'var(--space-12)',
+});
+
 export function Overview(_h: Handle<OverviewProps>) {
   return ({ data }: OverviewProps) => {
     const { project, summary, stats } = data;
+    const topLanguages = project.languages.slice(0, 6);
+    const remainingFrameworks = Math.max(0, project.frameworks.length - 6);
+    const showFrameworks = project.frameworks.slice(0, 6);
     return (
-      <article mix={css({ padding: '40px 32px', maxWidth: '880px', margin: '0 auto' })}>
-        <div class="mono" mix={css({
-          fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
-          color: 'var(--fg-subtle)', marginBottom: '14px',
-        })}>Overview · analysis</div>
+      <ContentWithMargin>
+        {/* Kicker · headline · lede ────────────────────────────── */}
+        <div mix={css({ gridColumn: '1' })}>
+          <div mix={kicker}>
+            <span aria-hidden="true" mix={kickerDot} />
+            Overview
+            <span mix={css({ color: 'var(--fg-faint)' })}>·</span>
+            <span mix={css({ color: 'var(--fg-subtle)' })}>analysis</span>
+          </div>
+          <h1 mix={headline}>{summary.oneLiner}</h1>
+          <p mix={ledeText}>
+            {project.name} spans <strong style="font-weight:600;color:var(--fg)">{fmt(stats.files)} files</strong>
+            {' '}and{' '}
+            <strong style="font-weight:600;color:var(--fg)">{fmt(stats.loc)} lines</strong>
+            , a roughly{' '}
+            <strong style="font-weight:600;color:var(--fg)">{fmt(stats.tokens)}-token</strong>
+            {' '}context window. Every metric below links to its source.
+          </p>
 
-        <h1 class="serif" mix={css({
-          fontSize: '36px', lineHeight: '1.1',
-          letterSpacing: '-0.02em', marginBottom: '20px',
-        })}>{summary.oneLiner}</h1>
+          {/* Headline figures — LabelNumberRow */}
+          <LabelNumberRow>
+            <LabelNumber label="Files"  value={fmt(stats.files)} />
+            <LabelNumber label="Lines"  value={fmt(stats.loc)} />
+            <LabelNumber label="Tokens" value={fmt(stats.tokens)} unit="cl100k" />
+            <LabelNumber
+              label="Risks"
+              value={data.risks.length}
+              hint={data.risks.length === 0 ? 'clean' : 'review'}
+              last
+            />
+          </LabelNumberRow>
 
-        <p mix={css({
-          fontSize: '15px', color: 'var(--fg-muted)',
-          maxWidth: '62ch', lineHeight: '1.6', marginBottom: '32px',
-        })}>
-          {project.name} spans <strong>{fmt(stats.files)} files</strong>{' '}
-          and <strong>{fmt(stats.loc)} LOC</strong>, costing{' '}
-          <strong>~{fmt(stats.tokens)} tokens</strong> to fit into an AI context.
-          The editorial dashboard surfaces routes, risks, and snapshots as evidence —
-          every claim links back to its source.
-        </p>
-
-        {/* Stack chips */}
-        {project.languages.length > 0 && (
-          <section mix={css({ marginBottom: '32px' })}>
-            <div class="mono" mix={css({
-              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
-              color: 'var(--fg-subtle)', marginBottom: '12px',
-            })}>Stack</div>
-            <div mix={css({
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
-              gap: '10px',
-            })}>
-              {project.languages.slice(0, 8).map((l) => (
-                <div
-                  key={l.id}
-                  class="surface"
-                  mix={css({
-                    display: 'flex', alignItems: 'center', gap: '10px',
-                    padding: '10px 12px', borderRadius: '8px',
-                    fontSize: '13px',
-                  })}
-                >
-                  <span mix={css({
-                    width: '10px', height: '10px', borderRadius: '2px',
-                    background: l.iconColor, flex: 'none',
-                  })} />
-                  <span mix={css({ flex: '1', fontWeight: '500' })}>{l.label}</span>
-                  <span class="mono" mix={css({ fontSize: '11px', color: 'var(--fg-subtle)' })}>
-                    {fmt(l.tokens)} · {l.files}f
+          {/* Stack — language list as agate column */}
+          <Section label="Stack" title="What it's made of">
+            <ul mix={css({ listStyle: 'none', margin: '0', padding: '0' })}>
+              {topLanguages.map((l) => (
+                <li key={l.id} mix={stackRow}>
+                  <span mix={stackName}>
+                    <span aria-hidden="true" mix={langSwatch(l.iconColor)} />
+                    {l.label}
                   </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Frameworks */}
-        {project.frameworks.length > 0 && (
-          <section mix={css({ marginBottom: '32px' })}>
-            <div class="mono" mix={css({
-              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
-              color: 'var(--fg-subtle)', marginBottom: '12px',
-            })}>Frameworks detected</div>
-            <div mix={css({ display: 'flex', flexWrap: 'wrap', gap: '6px' })}>
-              {project.frameworks.map((f) => (
-                <span
-                  key={f}
-                  mix={css({
-                    padding: '4px 10px', borderRadius: '999px',
-                    fontSize: '12px', border: '1px solid var(--border)',
-                    color: 'var(--fg-muted)',
-                  })}
-                >{f}</span>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Capabilities */}
-        {summary.capabilities.length > 0 && (
-          <section>
-            <div class="mono" mix={css({
-              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
-              color: 'var(--fg-subtle)', marginBottom: '12px',
-            })}>Capabilities</div>
-            <ul mix={css({ listStyle: 'none', padding: '0', margin: '0', display: 'grid', gap: '6px' })}>
-              {summary.capabilities.map((c, i) => (
-                <li
-                  key={i}
-                  mix={css({ display: 'flex', gap: '10px', alignItems: 'baseline', fontSize: '14px' })}
-                >
-                  <span mix={css({ color: 'var(--ok)' })}>{c.icon || '✓'}</span>
-                  <span>
-                    <strong>{c.head}</strong>
-                    {c.sub && <span mix={css({ color: 'var(--fg-muted)' })}> — {c.sub}</span>}
-                  </span>
+                  <span mix={stackMeta}>{fmt(l.tokens)} tokens</span>
+                  <span mix={stackMeta}>{l.files} {l.files === 1 ? 'file' : 'files'}</span>
                 </li>
               ))}
             </ul>
-          </section>
-        )}
-      </article>
+          </Section>
+
+          {/* Capabilities — bullet list, no boxes */}
+          {summary.capabilities.length > 0 && (
+            <Section label="Capabilities" title="What it does">
+              <ul mix={capList}>
+                {summary.capabilities.map((c, i) => (
+                  <li key={i} mix={capItem}>
+                    <span mix={capMark}>{String(i + 1).padStart(2, '0')}</span>
+                    <span mix={capText}>
+                      <strong style="font-weight:600">{c.head}</strong>
+                      {c.sub && <span mix={capSub}>{c.sub}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+        </div>
+
+        {/* Margin column — frameworks, health, intent ───────── */}
+        <MarginColumn>
+          {project.frameworks.length > 0 && (
+            <FootnoteChip
+              label="Frameworks"
+              aside={remainingFrameworks > 0 ? `+${remainingFrameworks} more` : undefined}
+            >
+              {showFrameworks.join(', ')}
+            </FootnoteChip>
+          )}
+          <FootnoteChip
+            label="Health"
+            tone={
+              summary.health.broken > 0 || summary.health.secrets > 0
+                ? 'danger'
+                : summary.health.todos > 0
+                ? 'warn'
+                : 'ok'
+            }
+          >
+            {summary.health.broken === 0 && summary.health.secrets === 0
+              ? 'Clean. No broken imports, no secrets in source.'
+              : `${summary.health.broken} broken · ${summary.health.secrets} secrets · ${summary.health.todos} todos`}
+          </FootnoteChip>
+          {summary.description && (
+            <FootnoteChip label="Intent">{summary.description}</FootnoteChip>
+          )}
+        </MarginColumn>
+      </ContentWithMargin>
     );
   };
 }

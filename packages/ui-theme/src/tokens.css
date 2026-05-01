@@ -1,146 +1,228 @@
 /* --------------------------------------------------------------------- *
  * @factstack/ui-theme — base design tokens.
  *
- * Source of truth for color / surface / typography / shadow variables.
- * Theme overrides live in ./themes/{light,dark}.css; this file defines
- * the light defaults at :root so the app reads sensibly even before a
- * theme class lands.
+ * Editorial broadsheet × terminal. Warm OKLCH neutrals tinted toward
+ * the safety-orange accent (h=65) for subconscious cohesion. Hairlines
+ * over drop shadows. Glass surfaces ONLY on chrome (top nav, drawer,
+ * tooltips) — see ./glass.css.
  *
- * Both prototype/index.html and apps/ui-remix/ consume these via
- * <link> / Vite's CSS import, giving every surface one shared palette.
+ * Source of truth for color / typography / spacing / layout sizing.
+ * Both legacy/prototype/index.html and apps/ui-remix/ consume these.
  * --------------------------------------------------------------------- */
 
 :root {
   color-scheme: light dark;
 
-  /* ── Light theme — tinted warm off-white (audit: pure white is AI slop). ── */
-  --bg: oklch(99% 0.005 95);
-  --bg-rgb: 253, 252, 248;
-  --surface-1: oklch(100% 0 0);
-  --surface-1-rgb: 255, 255, 255;
-  --surface-2: color-mix(in oklab, black 4%, transparent);
-  --surface-3: color-mix(in oklab, black 7%, transparent);
-  --surface-glass-bg: color-mix(in oklab, black 5%, transparent);
-  --surface-glass-border: color-mix(in oklab, black 12%, transparent);
+  /* ─── Light theme — warm tinted neutrals, hue=65° (orange family) ─── */
+  --bg:           oklch(98.8% 0.006 65);   /* near-white, warm */
+  --bg-rgb:       253, 250, 244;
+  --surface-1:    oklch(99.6% 0.003 65);   /* slightly cooler "page" tint */
+  --surface-1-rgb:255, 253, 248;
+  --surface-2:    oklch(96.5% 0.008 65);   /* recessed panels */
+  --surface-3:    oklch(93.2% 0.012 65);   /* deepest recess */
+  --surface-glass-bg:        color-mix(in oklab, oklch(96% 0.008 65) 62%, transparent);
+  --surface-glass-border:    color-mix(in oklab, oklch(20% 0.018 65) 14%, transparent);
   --surface-glass-highlight: color-mix(in oklab, white 70%, transparent);
 
-  --fg: #0b0d10;
-  --fg-muted: #3f434a;    /* AA headroom against bg */
-  --fg-subtle: #5f646c;   /* 5.6:1 — AA */
-  --border: color-mix(in oklab, black 10%, transparent);
-  --border-strong: color-mix(in oklab, black 20%, transparent);
-  --hairline: color-mix(in oklab, black 18%, transparent);
+  --fg:        oklch(14% 0.018 65);    /* deep warm-black */
+  --fg-muted:  oklch(38% 0.014 65);    /* AA over bg */
+  --fg-subtle: oklch(52% 0.010 65);    /* AA over bg */
+  --fg-faint:  oklch(68% 0.008 65);    /* hairline-grade text */
 
-  --accent: #08703f;      /* 5.82:1 over warm bg */
-  --accent-fg: #ffffff;
-  --accent-soft: color-mix(in oklab, #08703f 15%, transparent);
-  --ok: #0e6b32;
-  --warn: #a3570a;
-  --danger: #9a1515;
-  --info: #1850b8;
+  --border:        color-mix(in oklab, oklch(20% 0.018 65) 12%, transparent);
+  --border-strong: color-mix(in oklab, oklch(20% 0.018 65) 24%, transparent);
+  --hairline:      color-mix(in oklab, oklch(20% 0.018 65) 18%, transparent);
 
-  --code-bg: color-mix(in oklab, black 4%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklab, black 4%, transparent);
-  --shadow-md: 0 12px 40px -12px color-mix(in oklab, black 18%, transparent);
+  /* Safety orange — construction-sign hue. Locked in. */
+  --accent:      oklch(64% 0.17 50);    /* deepened for AA on warm bg */
+  --accent-fg:   oklch(99% 0.005 65);
+  --accent-soft: color-mix(in oklab, oklch(64% 0.17 50) 14%, transparent);
+
+  --ok:     oklch(48% 0.13 155);   /* moss green */
+  --warn:   oklch(64% 0.17 50);    /* orange — same as accent */
+  --danger: oklch(48% 0.18 25);    /* warm red */
+  --info:   oklch(48% 0.13 250);   /* deep blue, dimmed */
+
+  --code-bg: color-mix(in oklab, oklch(20% 0.018 65) 4%, transparent);
 
   /* Language brand colors — dimmed for legibility over warm paper. */
-  --lang-typescript: #2e6cb0;
-  --lang-javascript: #b08d0f;
-  --lang-python:     #2d6590;
-  --lang-react:      #0a7ca5;
-  --lang-json:       #6f7681;
-  --lang-yaml:       #a32428;
-  --lang-toml:       #8a3a1d;
-  --lang-markdown:   #1850b8;
-  --lang-html:       #9a4214;
-  --lang-css:        #1466a5;
-  --lang-folder:     #2f72d4;
+  --lang-typescript: oklch(58% 0.13 245);
+  --lang-javascript: oklch(64% 0.13 90);
+  --lang-python:     oklch(56% 0.10 235);
+  --lang-react:      oklch(58% 0.10 220);
+  --lang-json:       oklch(58% 0.01 65);
+  --lang-yaml:       oklch(54% 0.16 25);
+  --lang-toml:       oklch(56% 0.13 40);
+  --lang-markdown:   oklch(48% 0.13 250);
+  --lang-html:       oklch(56% 0.16 35);
+  --lang-css:        oklch(56% 0.13 230);
+  --lang-folder:     oklch(58% 0.13 250);
 
-  /* ASMR backdrop blob gradient. */
-  --blob-a-start: #ff3b86;
-  --blob-a-mid:   #ff7a1a;
-  --blob-a-end:   #ffd21a;
-  --blob-b-start: #d83333;
-  --blob-b-mid:   #ff2d7a;
-  --blob-b-end:   #8b4dff;
-  --blob-opacity: 0.18;
-  --blob-blur: 100px;
-
-  /* Typography. */
-  --font-display: 'Urbanist', system-ui, -apple-system, sans-serif;
-  --font-body:    'Inter',    system-ui, -apple-system, sans-serif;
+  /* ─── Typography ───────────────────────────────────────────────── */
+  --font-display: 'Fraunces', 'Times New Roman', Georgia, serif;
+  --font-body:    'Mona Sans', 'Mona Sans Fallback', system-ui, -apple-system, sans-serif;
   --font-mono:    'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --font-serif:   'Fraunces', 'Times New Roman', Georgia, serif;
 
-  /* Motion — durations + easings exposed as CSS vars for transitions. */
-  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
-  --ease-exit:  cubic-bezier(0.4, 0, 1, 1);
+  /* User-adjustable root multiplier. Wired from the Config tab + ⌘;. */
+  --fs-mult: 1;
+
+  /* Fluid type scale — clamps so 4K/8K still reads well. Multiplied by
+     --fs-mult so the user slider scales every step proportionally. */
+  --fs-10:  calc(clamp(10px, 0.65rem, 11px) * var(--fs-mult));
+  --fs-11:  calc(clamp(11px, 0.7rem,  12px) * var(--fs-mult));
+  --fs-12:  calc(clamp(12px, 0.75rem, 13px) * var(--fs-mult));
+  --fs-13:  calc(clamp(13px, 0.81rem, 14px) * var(--fs-mult));
+  --fs-14:  calc(clamp(14px, 0.875rem, 15px) * var(--fs-mult));
+  --fs-16:  calc(clamp(15px, 1rem,    17px) * var(--fs-mult));
+  --fs-20:  calc(clamp(18px, 1.25rem, 22px) * var(--fs-mult));
+  --fs-24:  calc(clamp(20px, 1.5rem,  28px) * var(--fs-mult));
+  --fs-32:  calc(clamp(26px, 2rem,    40px) * var(--fs-mult));
+  --fs-display:    calc(clamp(32px, 4.5vw, 64px) * var(--fs-mult));
+  --fs-display-sm: calc(clamp(24px, 3vw,   42px) * var(--fs-mult));
+
+  /* ─── Layout sizing — single source of truth for the shell ────── */
+  --nav-h:        56px;
+  --status-h:     24px;
+  --tree-w:       clamp(220px, 22dvw, 360px);
+  --content-max:  1180px;
+  --margin-col-w: clamp(160px, 18vw, 240px);
+  --gutter:       clamp(20px, 3.5vw, 56px);
+
+  /* 4-pt vertical rhythm */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+
+  /* Border radii — restrained. Anything > 8 except .pill is AI slop. */
+  --r-sm:   4px;
+  --r-md:   6px;
+  --r-lg:   8px;
+  --r-pill: 999px;
+
+  /* ─── Motion — durations + easings ────────────────────────────── */
+  --ease-enter:     cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit:      cubic-bezier(0.4, 0, 1, 1);
   --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
 
-  --dur-instant: 120ms;
-  --dur-quick:   180ms;
-  --dur-state:   260ms;
-  --dur-layout:  380ms;
+  --dur-instant:   120ms;
+  --dur-quick:     180ms;
+  --dur-state:     260ms;
+  --dur-layout:    380ms;
   --dur-signature: 500ms;
 }
 
-/* Dark theme override — mirrors every token so hairlines, chips, and
-   data-viz palettes read correctly on a midnight bg. */
+/* ─── Dark theme — tuned independently, NOT inverted ─────────────── */
 :root[data-theme='dark'] {
-  --bg: oklch(13% 0.02 250);
-  --bg-rgb: 8, 11, 22;
-  --surface-1: color-mix(in oklab, white 3%, transparent);
-  --surface-1-rgb: 24, 27, 38;
-  --surface-2: color-mix(in oklab, white 5%, transparent);
-  --surface-3: color-mix(in oklab, white 8%, transparent);
-  --surface-glass-bg: color-mix(in oklab, white 4%, transparent);
-  --surface-glass-border: color-mix(in oklab, white 12%, transparent);
-  --surface-glass-highlight: color-mix(in oklab, white 10%, transparent);
+  /* Near-black with a cool tint, deeper than the warm light bg. The
+     hue stays at 65° so chrome reads as the same brand, just at low
+     light. Tweaked to 250 for the bg only — gives the page a quiet
+     cool cast that feels like dim ambient light, with the accent
+     burning warm against it. */
+  --bg:        oklch(13% 0.012 250);
+  --bg-rgb:    14, 17, 24;
+  --surface-1: oklch(16% 0.014 250);
+  --surface-1-rgb: 22, 25, 32;
+  --surface-2: oklch(19% 0.014 250);
+  --surface-3: oklch(23% 0.014 250);
 
-  --fg: #eef1f8;
-  --fg-muted: #bcc3d8;      /* 10.1:1 */
-  --fg-subtle: #9098b6;     /* 6.4:1 — AA */
-  --border: color-mix(in oklab, white 10%, transparent);
+  --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.014 250) 48%, transparent);
+  --surface-glass-border:    color-mix(in oklab, white 14%, transparent);
+  --surface-glass-highlight: color-mix(in oklab, white 8%, transparent);
+
+  --fg:        oklch(94% 0.008 65);    /* softened off-white, warm */
+  --fg-muted:  oklch(72% 0.012 65);    /* 9.5:1 against bg */
+  --fg-subtle: oklch(58% 0.012 65);    /* 5.8:1 — AA */
+  --fg-faint:  oklch(42% 0.012 65);
+
+  --border:        color-mix(in oklab, white 9%, transparent);
   --border-strong: color-mix(in oklab, white 22%, transparent);
-  --hairline: color-mix(in oklab, white 14%, transparent);
+  --hairline:      color-mix(in oklab, white 14%, transparent);
 
-  --accent: #6ee7b7;
-  --accent-fg: #05261a;
-  --accent-soft: color-mix(in oklab, #6ee7b7 15%, transparent);
-  --ok: #6ee7b7;
-  --warn: #fcd34d;
-  --danger: #fca5a5;
-  --info: #93c5fd;
+  /* Accent desaturated ~15% for dark per design_spec.md §5.2 */
+  --accent:      oklch(74% 0.15 50);    /* lifted L for dark legibility */
+  --accent-fg:   oklch(15% 0.015 50);
+  --accent-soft: color-mix(in oklab, oklch(74% 0.15 50) 18%, transparent);
+
+  --ok:     oklch(72% 0.16 155);
+  --warn:   oklch(74% 0.15 50);
+  --danger: oklch(70% 0.18 25);
+  --info:   oklch(72% 0.13 250);
 
   --code-bg: color-mix(in oklab, white 4%, transparent);
-  --shadow-sm: 0 1px 2px color-mix(in oklab, black 40%, transparent);
-  --shadow-md: 0 12px 40px -10px color-mix(in oklab, black 80%, transparent);
 
-  --lang-typescript: #5aa8e8;
-  --lang-javascript: #e8c95a;
-  --lang-python:     #5e9ed1;
-  --lang-react:      #5abbdb;
-  --lang-json:       #a0a7b4;
-  --lang-yaml:       #e8656b;
-  --lang-toml:       #d78260;
-  --lang-markdown:   #7fa8ff;
-  --lang-html:       #e48855;
-  --lang-css:        #5eabd9;
-  --lang-folder:     #7fa8ff;
-
-  --blob-a-start: #ff7acc;
-  --blob-a-mid:   #ffa366;
-  --blob-a-end:   #ffe58a;
-  --blob-b-start: #ff5e5e;
-  --blob-b-mid:   #ff8ac8;
-  --blob-b-end:   #b794ff;
-  --blob-opacity: 0.28;
-  --blob-blur: 120px;
+  --lang-typescript: oklch(72% 0.12 245);
+  --lang-javascript: oklch(78% 0.13 90);
+  --lang-python:     oklch(70% 0.10 235);
+  --lang-react:      oklch(74% 0.10 220);
+  --lang-json:       oklch(72% 0.01 65);
+  --lang-yaml:       oklch(70% 0.16 25);
+  --lang-toml:       oklch(72% 0.13 40);
+  --lang-markdown:   oklch(72% 0.13 250);
+  --lang-html:       oklch(72% 0.16 35);
+  --lang-css:        oklch(72% 0.13 230);
+  --lang-folder:     oklch(74% 0.13 250);
 }
 
-/* System-pref fallback when the user hasn't explicitly picked a theme. */
+/* System-pref fallback. The no-flash inline script in apps/ui-remix's
+   index.html sets data-theme on first paint, so this CSS path normally
+   doesn't fire. But when the script is blocked (strict CSP, sandboxed
+   webview, crawlers, Lighthouse with JS disabled), CSS alone drives the
+   theme. We duplicate every dark token here so the system-dark user
+   gets the same painted result either way. */
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']):not([data-theme='dark']) {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
+
+    --bg:        oklch(13% 0.012 250);
+    --bg-rgb:    14, 17, 24;
+    --surface-1: oklch(16% 0.014 250);
+    --surface-1-rgb: 22, 25, 32;
+    --surface-2: oklch(19% 0.014 250);
+    --surface-3: oklch(23% 0.014 250);
+
+    --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.014 250) 48%, transparent);
+    --surface-glass-border:    color-mix(in oklab, white 14%, transparent);
+    --surface-glass-highlight: color-mix(in oklab, white 8%, transparent);
+
+    --fg:        oklch(94% 0.008 65);
+    --fg-muted:  oklch(72% 0.012 65);
+    --fg-subtle: oklch(58% 0.012 65);
+    --fg-faint:  oklch(42% 0.012 65);
+
+    --border:        color-mix(in oklab, white 9%, transparent);
+    --border-strong: color-mix(in oklab, white 22%, transparent);
+    --hairline:      color-mix(in oklab, white 14%, transparent);
+
+    --accent:      oklch(74% 0.15 50);
+    --accent-fg:   oklch(15% 0.015 50);
+    --accent-soft: color-mix(in oklab, oklch(74% 0.15 50) 18%, transparent);
+
+    --ok:     oklch(72% 0.16 155);
+    --warn:   oklch(74% 0.15 50);
+    --danger: oklch(70% 0.18 25);
+    --info:   oklch(72% 0.13 250);
+
+    --code-bg: color-mix(in oklab, white 4%, transparent);
+
+    --lang-typescript: oklch(72% 0.12 245);
+    --lang-javascript: oklch(78% 0.13 90);
+    --lang-python:     oklch(70% 0.10 235);
+    --lang-react:      oklch(74% 0.10 220);
+    --lang-json:       oklch(72% 0.01 65);
+    --lang-yaml:       oklch(70% 0.16 25);
+    --lang-toml:       oklch(72% 0.13 40);
+    --lang-markdown:   oklch(72% 0.13 250);
+    --lang-html:       oklch(72% 0.16 35);
+    --lang-css:        oklch(72% 0.13 230);
+    --lang-folder:     oklch(74% 0.13 250);
   }
 }

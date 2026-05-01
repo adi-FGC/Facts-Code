@@ -6,8 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
-    "build": "vite build && node scripts/inject-data.mjs",
-    "build:static": "vite build --mode static && node scripts/inject-data.mjs",
+    "build": "vite build && node scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
+    "build:static": "vite build --mode static && node scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "start": "vite preview --port 3000",
     "test": "echo 'no tests yet' && exit 0",
     "lint": "echo 'no lint yet' && exit 0",

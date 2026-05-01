@@ -1,13 +1,12 @@
 /**
- * Project file tree panel — flat list of top-level folders + files
- * with rollup stats. Simpler than the legacy `react-arborist` tree
- * (which we dropped along with React); the v1 here is a single-level
- * directory listing with click-to-expand handled inline.
+ * Project tree — agate-column listing of top-level folders + files.
  *
- * Refinement plan (TASKS.md): port the recursive collapsible tree as
- * a self-rendering component using the Remix runtime's `handle.update()`
- * pattern for each branch's open/closed state. For now, a one-level
- * flatten gets the panel populated and useful.
+ * Stays a flat one-level listing for v1. Recursive collapsible tree
+ * is in TASKS.md as a follow-up. The single-level view is enough to
+ * orient at a glance and pairs naturally with the editorial body.
+ *
+ * Each row is a hairline-divided line, not a card. Bytes hang in the
+ * right column like a price column in an FT table.
  */
 import type { Handle } from '@remix-run/ui';
 import { css } from '@remix-run/ui';
@@ -17,20 +16,15 @@ interface TreePanelProps {
   data: Dataset;
 }
 
-function fmtBytes(n: number): string {
-  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
-  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
-  return n + ' B';
-}
-
-function flattenTopLevel(node: DatasetTreeNode): Array<{
+type Row = {
   kind: 'dir' | 'file';
   name: string;
   size: number;
   loc: number;
-  status?: string;
-}> {
-  const rows: Array<{ kind: 'dir' | 'file'; name: string; size: number; loc: number; status?: string }> = [];
+};
+
+function flattenTopLevel(node: DatasetTreeNode): Row[] {
+  const rows: Row[] = [];
   for (const c of node.children) {
     rows.push({
       kind: 'dir',
@@ -45,61 +39,108 @@ function flattenTopLevel(node: DatasetTreeNode): Array<{
       name: f.name,
       size: f.size,
       loc: f.loc,
-      status: f.status,
     });
   }
   return rows;
 }
 
+function fmtBytes(n: number): string {
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + 'M';
+  if (n >= 1024) return (n / 1024).toFixed(1) + 'K';
+  return n + 'B';
+}
+
+const wrap = css({
+  overflowY: 'auto',
+  paddingTop: 'var(--space-4)',
+  paddingBottom: 'var(--space-4)',
+  borderRight: '1px solid var(--hairline)',
+  background: 'var(--bg)',
+});
+
+const head = css({
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'baseline',
+  paddingInline: 'var(--space-5)',
+  paddingBottom: 'var(--space-3)',
+  borderBottom: '1px solid var(--hairline)',
+  marginBottom: 'var(--space-2)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-subtle)',
+});
+
+const list = css({
+  listStyle: 'none',
+  margin: '0',
+  padding: '0',
+});
+
+const row = css({
+  display: 'grid',
+  gridTemplateColumns: '12px 1fr auto',
+  alignItems: 'baseline',
+  gap: 'var(--space-3)',
+  paddingInline: 'var(--space-5)',
+  paddingBlock: '6px',
+  borderBottom: '1px solid var(--hairline)',
+  cursor: 'default',
+});
+
+const rowDir = css({
+  fontWeight: '500',
+});
+
+const rowFile = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  color: 'var(--fg-muted)',
+});
+
+const marker = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+});
+
+const sizeCell = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  fontVariantNumeric: 'tabular-nums',
+  color: 'var(--fg-faint)',
+  whiteSpace: 'nowrap',
+});
+
+const nameCell = css({
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  fontSize: 'var(--fs-13)',
+  color: 'var(--fg)',
+});
+
 export function TreePanel(_handle: Handle<TreePanelProps>) {
   return ({ data }: TreePanelProps) => {
     const rows = flattenTopLevel(data.tree);
     return (
-      <aside
-        class="glass"
-        aria-label="Project tree"
-        mix={css({
-          gridArea: 'tree',
-          overflowY: 'auto',
-          padding: '12px 8px',
-          borderRight: '1px solid var(--border)',
-          fontSize: '12px',
-        })}
-      >
-        <div class="mono" mix={css({
-          padding: '0 8px 8px',
-          color: 'var(--fg-subtle)',
-          fontSize: '11px',
-          display: 'flex',
-          justifyContent: 'space-between',
-        })}>
+      <aside aria-label="Project tree" mix={wrap}>
+        <div mix={head}>
           <span>{data.project.name}</span>
-          <span>{data.stats.files} files</span>
+          <span>
+            {data.stats.files} <span mix={css({ color: 'var(--fg-faint)', marginLeft: '4px' })}>files</span>
+          </span>
         </div>
-        <ul mix={css({ listStyle: 'none', padding: '0', margin: '0', display: 'grid', gap: '2px' })}>
+        <ul mix={list}>
           {rows.map((r, i) => (
-            <li
-              key={i}
-              mix={css({
-                padding: '6px 8px',
-                borderRadius: '6px',
-                display: 'grid',
-                gridTemplateColumns: '14px 1fr auto',
-                gap: '8px',
-                alignItems: 'center',
-                color: r.kind === 'dir' ? 'var(--fg)' : 'var(--fg-muted)',
-              })}
-            >
-              <span aria-hidden="true" mix={css({ fontSize: '10px', color: 'var(--fg-subtle)' })}>
+            <li key={i} mix={[row, r.kind === 'dir' ? rowDir : rowFile]}>
+              <span aria-hidden="true" mix={marker}>
                 {r.kind === 'dir' ? '▸' : '·'}
               </span>
-              <span mix={css({
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                fontFamily: r.kind === 'file' ? 'var(--font-mono)' : 'inherit',
-              })}>{r.name}</span>
-              <span class="mono" mix={css({ fontSize: '10px', color: 'var(--fg-subtle)' })}>
-                {fmtBytes(r.size)}
-              </span>
+              <span mix={nameCell}>{r.name}</span>
+              <span mix={sizeCell}>{fmtBytes(r.size)}</span>
             </li>
           ))}
         </ul>

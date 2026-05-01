@@ -4,20 +4,51 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <title>FACTS — AI Coding Tracker Stack</title>
-    <!-- Theme cookie inline script runs BEFORE paint to avoid flash. -->
+    <title>FACTS — File Analysis &amp; Context Tracking Stack</title>
+
+    <!-- Editorial typography: Fraunces (display, optical-sized), Mona Sans
+         (body), JetBrains Mono (data). Loaded from Google Fonts with
+         preconnect → preload to keep first paint un-FOUC'd. The Mona Sans
+         "Fallback" face referenced in tokens.css is generated at runtime
+         by the browser to size-match while waiting for the variable file. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="preload"
+      as="style"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=JetBrains+Mono:wght@400..600&family=Mona+Sans:wght@400..700&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=JetBrains+Mono:wght@400..600&family=Mona+Sans:wght@400..700&display=swap"
+    />
+
+    <!-- No-flash theme + font-scale init. Reads localStorage BEFORE the
+         CSS bundle paints so dark mode + the user's chosen font scale
+         apply on first frame. ~600 bytes minified. Wrapped in try/catch
+         because file:// + private-mode browsers throw on localStorage. -->
     <script>
       (function () {
         try {
-          var pref = localStorage.getItem('facts-theme') || 'system';
-          var dark = pref === 'dark' || (pref === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
-          document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-        } catch (_) {}
+          var t = localStorage.getItem('facts-theme') || 'system';
+          var dark =
+            t === 'dark' ||
+            (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          var html = document.documentElement;
+          html.dataset.theme = dark ? 'dark' : 'light';
+          html.style.colorScheme = dark ? 'dark' : 'light';
+          var scale = parseFloat(localStorage.getItem('facts-font-scale') || '1');
+          if (!Number.isFinite(scale) || scale < 0.85 || scale > 1.35) scale = 1;
+          html.style.setProperty('--fs-mult', String(scale));
+        } catch (_) { /* file:// or sandboxed — defaults are fine */ }
       })();
     </script>
-    <!-- Inline dataset — populated by `factstack ui` / `factstack export`.
-         When missing (dev mode), loadArtifacts() fetches /data/factstack.json
-         through Vite's proxy to the CLI server. -->
+
+    <!-- Inline dataset placeholder. `scripts/inject-data.mjs` swaps this
+         for the real JSON at build time so static deploys (Netlify,
+         `factstack export`, VS Code webview) work without a server.
+         When still placeholder (dev), loadArtifacts() falls back to
+         /data/factstack.json. -->
     <script id="factstack-data" type="application/json">__INLINE_FACTSTACK_JSON__</script>
   </head>
   <body>

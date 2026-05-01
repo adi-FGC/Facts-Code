@@ -1,119 +1,95 @@
 /**
- * Top navigation: brand + project chip + tabs + actions.
+ * Top navigation: brand · project chip · NumberedNav.
  *
- * No state, no event-listener-mixin churn — clicks on tabs are
- * intercepted globally in main.tsx via the linkClick helper, which
- * pushState's + fires a re-render. Header is a pure render fn.
+ * The header is the only piece of chrome that gets `.glass`. Per
+ * design_spec.md §2: glass for chrome, paper for content.
  */
 import type { Handle } from '@remix-run/ui';
-import type { Dataset } from '../lib/loadArtifacts.ts';
-import { TABS, activeTab } from '../lib/routes.ts';
 import { css } from '@remix-run/ui';
+import type { Dataset } from '../lib/loadArtifacts.ts';
+import { NumberedNav } from '../ui/NumberedNav.tsx';
 
 interface HeaderProps {
   data: Dataset;
 }
 
+const wrap = css({
+  display: 'grid',
+  gridTemplateColumns: 'auto 1fr auto',
+  alignItems: 'center',
+  columnGap: 'var(--space-6)',
+  paddingInline: 'var(--gutter)',
+  borderRadius: '0',
+  zIndex: '50',
+});
+
+const brand = css({
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 'var(--space-3)',
+  whiteSpace: 'nowrap',
+});
+
+const brandMark = css({
+  fontFamily: 'var(--font-display)',
+  fontSize: 'var(--fs-20)',
+  fontWeight: '700',
+  letterSpacing: '-0.03em',
+  color: 'var(--fg)',
+  fontVariationSettings: '"opsz" 20',
+});
+
+const brandSub = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.16em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
+const projectChip = css({
+  display: 'inline-flex',
+  alignItems: 'baseline',
+  gap: 'var(--space-3)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: 'var(--space-1)',
+  borderLeft: '1px solid var(--border)',
+  minWidth: '0',
+  maxWidth: '38ch',
+});
+
+const projectName = css({
+  fontFamily: 'var(--font-display)',
+  fontWeight: '600',
+  fontSize: 'var(--fs-14)',
+  color: 'var(--fg)',
+  letterSpacing: '-0.01em',
+  whiteSpace: 'nowrap',
+});
+
+const projectRoot = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-subtle)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+
 export function Header(_handle: Handle<HeaderProps>) {
   return ({ data }: HeaderProps) => {
-    const current = activeTab(location.pathname);
     const root = data.project.root.replace(/\\/g, '/');
     return (
-      <header
-        class="glass"
-        role="banner"
-        mix={css({
-          display: 'flex', alignItems: 'center', gap: '8px',
-          padding: '0 16px', borderRadius: '0', zIndex: '50',
-        })}
-      >
-        {/* Brand mark */}
-        <div mix={css({
-          display: 'flex', alignItems: 'center', gap: '8px',
-          paddingRight: '12px', borderRight: '1px solid var(--border)',
-          height: '100%',
-        })}>
-          <span mix={css({
-            width: '24px', height: '24px', display: 'inline-flex',
-            alignItems: 'center', justifyContent: 'center',
-            background: 'color-mix(in oklab, var(--ok) 22%, transparent)',
-            borderRadius: '6px', fontSize: '12px', color: 'var(--ok)',
-          })}>✓</span>
-          <span mix={css({ display: 'flex', flexDirection: 'column', lineHeight: '1.05' })}>
-            <span mix={css({ fontSize: '13px', fontWeight: '600' })}>FACTS</span>
-            <span class="mono" mix={css({ fontSize: '10px', color: 'var(--fg-subtle)' })}>v0.1 · Remix UI</span>
-          </span>
+      <header class="glass" role="banner" mix={wrap}>
+        <div mix={brand}>
+          <span mix={brandMark}>FACTS</span>
+          <span mix={brandSub}>v0.1 · Remix UI</span>
         </div>
-
-        {/* Project chip */}
-        <div
-          mix={css({
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '8px',
-            minWidth: '0', maxWidth: '24rem',
-          })}
-          title={root}
-        >
-          <span mix={css({
-            width: '16px', height: '16px', flex: 'none',
-            background: 'color-mix(in oklab, var(--info) 18%, transparent)',
-            borderRadius: '4px',
-          })} />
-          <span mix={css({ display: 'flex', flexDirection: 'column', minWidth: '0' })}>
-            <span mix={css({ fontSize: '13px', fontWeight: '500', whiteSpace: 'nowrap',
-              overflow: 'hidden', textOverflow: 'ellipsis' })}>{data.project.name}</span>
-            <span class="mono" mix={css({ fontSize: '11px', color: 'var(--fg-muted)',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })}>{root}</span>
-          </span>
+        <NumberedNav />
+        <div mix={projectChip} title={root}>
+          <span mix={projectName}>{data.project.name}</span>
+          <span mix={projectRoot} dir="rtl">{root}</span>
         </div>
-
-        {/* Tabs (sourced from lib/routes.ts) */}
-        <nav role="tablist" aria-label="Primary navigation"
-          mix={css({ display: 'flex', gap: '2px', flex: '1', overflowX: 'auto' })}>
-          {TABS.map((t) => {
-            const isActive = t.key === current;
-            return (
-              <a
-                key={t.key}
-                href={t.href}
-                role="tab"
-                aria-selected={isActive ? 'true' : 'false'}
-                title={t.ported ? t.label : `${t.label} — porting from legacy prototype`}
-                mix={css({
-                  position: 'relative',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  color: isActive ? 'var(--fg)' : 'var(--fg-muted)',
-                  fontWeight: isActive ? '500' : '400',
-                  textDecoration: 'none',
-                  whiteSpace: 'nowrap',
-                  minHeight: '44px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  opacity: t.ported ? '1' : '0.78',
-                })}
-              >
-                {t.label}
-                {!t.ported && (
-                  <span aria-label="porting" title="Porting from legacy prototype"
-                    mix={css({
-                      width: '5px', height: '5px', borderRadius: '9999px',
-                      background: 'var(--warn, #f59e0b)', display: 'inline-block',
-                    })} />
-                )}
-                {isActive && (
-                  <span aria-hidden="true"
-                    mix={css({
-                      position: 'absolute', left: '12px', right: '12px', bottom: '-1px',
-                      height: '2px', background: 'var(--accent)', borderRadius: '2px',
-                    })} />
-                )}
-              </a>
-            );
-          })}
-        </nav>
       </header>
     );
   };
