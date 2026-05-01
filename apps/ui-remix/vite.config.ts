@@ -1,22 +1,32 @@
 /**
- * Vite config — two build modes.
+ * Vite config — Remix v3 UI runtime, React-free.
  *
- * - `pnpm dev`           → standard dev server on :3000, proxies /api/*
- *                          and /data/* to the CLI's `factstack ui` server
- *                          (:4848) so a live re-analyze round-trip works
- *                          even when the React app is running in dev mode.
- * - `pnpm build:static`  → emits a pure client-side SPA (`dist/`) suitable
- *                          for `factstack export` and VS Code webview hosts.
- *                          No server loaders; data comes from the inline
- *                          `<script id="factstack-data">` block.
+ * - `pnpm dev`           → dev server on :3000, proxies /api/* and /data/*
+ *                          to the CLI's `factstack ui` server (:4848) so a
+ *                          live re-analyze round-trip works in dev.
+ * - `pnpm build`         → emits a pure client-side SPA (`dist/`) suitable
+ *                          for the Netlify deploy + `factstack export` +
+ *                          future VS Code webview hosts. Data comes from
+ *                          the inline `<script id="factstack-data">` block
+ *                          baked by `scripts/inject-data.mjs`.
+ *
+ * JSX is handled by esbuild with the `@remix-run/ui` jsx-runtime — no
+ * React, no `@vitejs/plugin-react`. The `mix` prop, theme tokens, and
+ * `Frame` component come from the Remix runtime.
  */
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => ({
-  plugins: [react() as never],
+  esbuild: {
+    // Tells esbuild to compile JSX with the automatic runtime sourced
+    // from @remix-run/ui (re-exported as remix/ui via the `remix`
+    // package). Same flag-set React uses for its automatic runtime,
+    // pointed at a different VDOM.
+    jsx: 'automatic',
+    jsxImportSource: '@remix-run/ui',
+  },
   define: {
-    // Let components branch on the build target without string literals.
+    // Build-time toggle without string-literal branching in components.
     __FACTS_STATIC__: JSON.stringify(mode === 'static'),
   },
   server: {
@@ -29,10 +39,8 @@ export default defineConfig(({ mode }) => ({
   build: {
     outDir: 'dist',
     sourcemap: mode !== 'static',
-    // Inline small chunks so the static SPA is a single HTML + one JS.
+    // Inline small chunks so the static SPA stays close to a single
+    // HTML + one JS bundle.
     assetsInlineLimit: 4096,
-    rollupOptions: {
-      output: {},
-    },
   },
 }));

@@ -1,7 +1,8 @@
+import type { Handle } from '@remix-run/ui';
 import { PortFromLegacy } from '../components/PortFromLegacy.tsx';
 
-export function Library() {
-  return (
+export function Library(_h: Handle) {
+  return () => (
     <PortFromLegacy
       tab="Library"
       legacyHash="#tab=library"

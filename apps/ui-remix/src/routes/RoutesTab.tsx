@@ -1,7 +1,8 @@
+import type { Handle } from '@remix-run/ui';
 import { PortFromLegacy } from '../components/PortFromLegacy.tsx';
 
-export function RoutesTab() {
-  return (
+export function RoutesTab(_h: Handle) {
+  return () => (
     <PortFromLegacy
       tab="Routes"
       legacyHash="#tab=routes"

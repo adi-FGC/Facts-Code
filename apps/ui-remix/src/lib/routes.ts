@@ -1,24 +1,12 @@
 /**
  * Route catalog — single source of truth for every page in the app.
  *
- * Uses `remix/route-pattern` (Remix v3 beta) for strongly-typed URL
- * matching and generation. This lets the rest of the app reference
- * routes by name (`tabs.routes.href()`) instead of stringly-typed
- * paths that drift when we rename a page.
- *
- * Why Remix's RoutePattern over hand-rolled strings:
- *   - typed param extraction (e.g. `/files/:path` → `{ path: string }`)
- *   - `href()` method gives compile-time errors for missing params
- *   - the same patterns can match incoming requests if/when we add
- *     server-side endpoints later (e.g. `/api/reanalyze` becomes a
- *     RoutePattern instance shared by client + server).
+ * Uses `remix/route-pattern` for strongly-typed URL matching and
+ * `href()` generation. Same data structure feeds the Header tablist
+ * and the App's route table.
  */
 import { RoutePattern } from 'remix/route-pattern';
 
-/**
- * The 11 global tabs that mirror the legacy prototype's surface.
- * Order is canonical — used by the Header tablist.
- */
 export const tabPatterns = {
   overview: new RoutePattern('/'),
   graph:    new RoutePattern('/graph'),
@@ -35,27 +23,23 @@ export const tabPatterns = {
 
 export type TabKey = keyof typeof tabPatterns;
 
-/**
- * Tab metadata used by the Header. The href() calls happen once at
- * module load — they're constants for the lifetime of the app.
- */
 export interface TabMeta {
   key: TabKey;
   label: string;
   href: string;
   /**
-   * `true` when the route is fully implemented; `false` for stubs
-   * that point at the legacy prototype. Header uses this to render
-   * a "porting" badge.
+   * `true` when the route renders the actual feature. `false` flips on
+   * the "porting" amber dot in the Header so users see the work in
+   * progress.
    */
   ported: boolean;
 }
 
 export const TABS: readonly TabMeta[] = [
   { key: 'overview', label: 'Overview', href: tabPatterns.overview.href(), ported: true  },
-  { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: true  },
+  { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: false },
   { key: 'dag',      label: 'DAG',      href: tabPatterns.dag.href(),      ported: false },
-  { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: true  },
+  { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: false },
   { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: false },
   { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: false },
   { key: 'risks',    label: 'Risks',    href: tabPatterns.risks.href(),    ported: true  },
@@ -65,5 +49,18 @@ export const TABS: readonly TabMeta[] = [
   { key: 'config',   label: 'Config',   href: tabPatterns.config.href(),   ported: false },
 ] as const;
 
-/** Public URL of the legacy prototype demo, for "see this feature working" links. */
+/**
+ * Match the current pathname to a tab key. Falls back to `overview` for
+ * anything unrecognized — same behavior as React Router's `<Navigate />`
+ * fallback in the previous version.
+ */
+export function activeTab(pathname: string): TabKey {
+  // Strip trailing slash (except for root)
+  const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  for (const t of TABS) {
+    if (t.href === p) return t.key;
+  }
+  return 'overview';
+}
+
 export const LEGACY_DEMO_URL = 'https://factstack-demo.netlify.app';

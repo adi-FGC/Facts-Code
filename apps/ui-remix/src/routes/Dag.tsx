@@ -1,7 +1,8 @@
+import type { Handle } from '@remix-run/ui';
 import { PortFromLegacy } from '../components/PortFromLegacy.tsx';
 
-export function Dag() {
-  return (
+export function Dag(_h: Handle) {
+  return () => (
     <PortFromLegacy
       tab="DAG"
       legacyHash="#tab=dag"

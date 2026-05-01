@@ -1,81 +1,125 @@
+import type { Handle } from '@remix-run/ui';
+import { css } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 
-/**
- * Overview — editorial landing page. Prose with inline numbers, stack
- * cards, language badges. No hero-metric template; the design principle
- * is evidence-first, not dashboard-generator.
- */
-export function Overview({ data }: { data: Dataset }) {
-  const langs = data.project.languages.slice(0, 6);
-  const fmt = (n: number) => n >= 1_000_000 ? (n / 1_000_000).toFixed(1) + 'M'
-    : n >= 1_000 ? (n / 1_000).toFixed(1) + 'K' : String(n);
+interface OverviewProps {
+  data: Dataset;
+}
 
-  return (
-    <article style={{ padding: '24px 32px', maxWidth: 960, margin: '0 auto' }}>
-      <div className="mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--fg-subtle)', marginBottom: 14 }}>
-        Overview · analysis
-      </div>
+function fmt(n: number): string {
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+  return String(n);
+}
 
-      <h1 className="serif" style={{ fontSize: 'clamp(2rem, 4vw, 3.25rem)', lineHeight: 1.1, letterSpacing: '-0.02em', marginBottom: 16 }}>
-        {data.summary.oneLiner}
-      </h1>
+export function Overview(_h: Handle<OverviewProps>) {
+  return ({ data }: OverviewProps) => {
+    const { project, summary, stats } = data;
+    return (
+      <article mix={css({ padding: '40px 32px', maxWidth: '880px', margin: '0 auto' })}>
+        <div class="mono" mix={css({
+          fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
+          color: 'var(--fg-subtle)', marginBottom: '14px',
+        })}>Overview · analysis</div>
 
-      <p style={{ fontSize: 17, maxWidth: '62ch', color: 'var(--fg-muted)', marginBottom: 24 }}>
-        {data.project.name} spans <strong style={{ color: 'var(--fg)' }}>{fmt(data.stats.files)} files</strong> and
-        {' '}<strong style={{ color: 'var(--fg)' }}>{fmt(data.stats.loc)} LOC</strong>, costing
-        {' '}<strong style={{ color: 'var(--fg)' }}>~{fmt(data.stats.tokens)} tokens</strong> to fit into an AI
-        context. The editorial dashboard surfaces routes, risks, and snapshots as evidence — every claim links
-        back to its source.
-      </p>
+        <h1 class="serif" mix={css({
+          fontSize: '36px', lineHeight: '1.1',
+          letterSpacing: '-0.02em', marginBottom: '20px',
+        })}>{summary.oneLiner}</h1>
 
-      <hr style={{ border: 0, borderTop: '1px solid var(--hairline)', margin: '28px 0' }} />
+        <p mix={css({
+          fontSize: '15px', color: 'var(--fg-muted)',
+          maxWidth: '62ch', lineHeight: '1.6', marginBottom: '32px',
+        })}>
+          {project.name} spans <strong>{fmt(stats.files)} files</strong>{' '}
+          and <strong>{fmt(stats.loc)} LOC</strong>, costing{' '}
+          <strong>~{fmt(stats.tokens)} tokens</strong> to fit into an AI context.
+          The editorial dashboard surfaces routes, risks, and snapshots as evidence —
+          every claim links back to its source.
+        </p>
 
-      <div className="mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--fg-subtle)', marginBottom: 12 }}>Stack</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
-        {langs.map((l) => (
-          <div
-            key={l.id}
-            className="surface"
-            style={{ borderRadius: 10, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}
-          >
-            <span aria-hidden="true" style={{ width: 10, height: 10, borderRadius: 2, background: l.iconColor }} />
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>{l.label}</span>
-            <span className="mono" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--fg-subtle)' }}>
-              {fmt(l.loc)} · {l.files}f
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {data.project.frameworks.length > 0 && (
-        <>
-          <div className="mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--fg-subtle)', marginBottom: 12 }}>Frameworks detected</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 24 }}>
-            {data.project.frameworks.map((f) => (
-              <span key={f} className="mono" style={{ fontSize: 11, padding: '3px 8px', border: '1px solid var(--border)', borderRadius: 999, color: 'var(--fg-muted)' }}>
-                {f}
-              </span>
-            ))}
-          </div>
-        </>
-      )}
-
-      {data.summary.capabilities.length > 0 && (
-        <>
-          <div className="mono" style={{ fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'var(--fg-subtle)', marginBottom: 12 }}>Capabilities</div>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8, marginBottom: 24 }}>
-            {data.summary.capabilities.map((c, i) => (
-              <li key={i} style={{ display: 'flex', gap: 10 }}>
-                <span style={{ color: 'var(--accent)' }}>{c.icon}</span>
-                <div>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600 }}>{c.head}</span>
-                  {c.sub && <span style={{ color: 'var(--fg-subtle)', fontSize: 13 }}> — {c.sub}</span>}
+        {/* Stack chips */}
+        {project.languages.length > 0 && (
+          <section mix={css({ marginBottom: '32px' })}>
+            <div class="mono" mix={css({
+              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
+              color: 'var(--fg-subtle)', marginBottom: '12px',
+            })}>Stack</div>
+            <div mix={css({
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+              gap: '10px',
+            })}>
+              {project.languages.slice(0, 8).map((l) => (
+                <div
+                  key={l.id}
+                  class="surface"
+                  mix={css({
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '10px 12px', borderRadius: '8px',
+                    fontSize: '13px',
+                  })}
+                >
+                  <span mix={css({
+                    width: '10px', height: '10px', borderRadius: '2px',
+                    background: l.iconColor, flex: 'none',
+                  })} />
+                  <span mix={css({ flex: '1', fontWeight: '500' })}>{l.label}</span>
+                  <span class="mono" mix={css({ fontSize: '11px', color: 'var(--fg-subtle)' })}>
+                    {fmt(l.tokens)} · {l.files}f
+                  </span>
                 </div>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-    </article>
-  );
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Frameworks */}
+        {project.frameworks.length > 0 && (
+          <section mix={css({ marginBottom: '32px' })}>
+            <div class="mono" mix={css({
+              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
+              color: 'var(--fg-subtle)', marginBottom: '12px',
+            })}>Frameworks detected</div>
+            <div mix={css({ display: 'flex', flexWrap: 'wrap', gap: '6px' })}>
+              {project.frameworks.map((f) => (
+                <span
+                  key={f}
+                  mix={css({
+                    padding: '4px 10px', borderRadius: '999px',
+                    fontSize: '12px', border: '1px solid var(--border)',
+                    color: 'var(--fg-muted)',
+                  })}
+                >{f}</span>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Capabilities */}
+        {summary.capabilities.length > 0 && (
+          <section>
+            <div class="mono" mix={css({
+              fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase',
+              color: 'var(--fg-subtle)', marginBottom: '12px',
+            })}>Capabilities</div>
+            <ul mix={css({ listStyle: 'none', padding: '0', margin: '0', display: 'grid', gap: '6px' })}>
+              {summary.capabilities.map((c, i) => (
+                <li
+                  key={i}
+                  mix={css({ display: 'flex', gap: '10px', alignItems: 'baseline', fontSize: '14px' })}
+                >
+                  <span mix={css({ color: 'var(--ok)' })}>{c.icon || '✓'}</span>
+                  <span>
+                    <strong>{c.head}</strong>
+                    {c.sub && <span mix={css({ color: 'var(--fg-muted)' })}> — {c.sub}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </article>
+    );
+  };
 }

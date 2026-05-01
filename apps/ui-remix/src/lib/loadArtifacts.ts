@@ -3,19 +3,20 @@
  *
  * Two implementations, picked at runtime:
  *
- *   1. **Server mode** (`pnpm dev` + `factstack ui`):
- *        fetch('/data/factstack.json'). Vite proxies to :4848 in dev.
- *   2. **Static mode** (`pnpm build:static` + `factstack export`):
+ *   1. **Static mode** (`pnpm build` + Netlify deploy + `factstack export`):
  *        read the inline <script id="factstack-data"> block. No server.
+ *   2. **Server mode** (`pnpm dev` + `factstack ui`):
+ *        fetch('/data/factstack.json'). Vite proxies to :4848 in dev.
  *
- * The inline block is left as the literal placeholder
- * `__INLINE_FACTSTACK_JSON__` in the template; `factstack export` / `ui`
- * replace it with real JSON at emit time. When the placeholder is still
- * present (dev mode without a served artifact) we fall back to fetch.
+ * The inline block is the placeholder `__INLINE_FACTSTACK_JSON__` in
+ * the template; `scripts/inject-data.mjs` substitutes real JSON at build
+ * time. When the placeholder is still present (dev mode without a served
+ * artifact) we fall back to fetch.
+ *
+ * Framework-agnostic — no React, no Remix runtime, just the browser
+ * platform. Same module shape as the previous React version.
  */
 
-// Shape locally declared — @factstack/emit is server-only (node:fs).
-// If the canonical shape drifts, keep it in lockstep here.
 export interface DatasetFile {
   name: string;
   path: string;
@@ -66,7 +67,7 @@ const INLINE_ID = 'factstack-data';
 const INLINE_PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
 
 export async function loadArtifacts(): Promise<Dataset> {
-  // 1. Inline (static mode / exported single-file HTML)
+  // 1. Inline (static deploy / exported single-file HTML)
   const inline = document.getElementById(INLINE_ID);
   if (inline && inline.textContent && !inline.textContent.includes(INLINE_PLACEHOLDER)) {
     try {
@@ -75,7 +76,7 @@ export async function loadArtifacts(): Promise<Dataset> {
       console.warn('[loadArtifacts] inline JSON parse failed, falling back to fetch', err);
     }
   }
-  // 2. Fetch — works against `factstack ui` (port 4848 in dev via Vite proxy)
+  // 2. Fetch — works when served by `factstack ui`
   const res = await fetch('/data/factstack.json', { cache: 'no-store' });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' loading /data/factstack.json');
   return (await res.json()) as Dataset;

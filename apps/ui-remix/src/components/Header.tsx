@@ -1,196 +1,120 @@
-import { useState } from 'react';
-import { NavLink } from 'react-router';
+/**
+ * Top navigation: brand + project chip + tabs + actions.
+ *
+ * No state, no event-listener-mixin churn — clicks on tabs are
+ * intercepted globally in main.tsx via the linkClick helper, which
+ * pushState's + fires a re-render. Header is a pure render fn.
+ */
+import type { Handle } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
-import { requestReanalyze } from '../lib/loadArtifacts.ts';
-import { TABS } from '../lib/routes.ts';
+import { TABS, activeTab } from '../lib/routes.ts';
+import { css } from '@remix-run/ui';
 
-interface Props {
+interface HeaderProps {
   data: Dataset;
-  onReanalyze: (next: Dataset) => void;
 }
 
-export function Header({ data, onReanalyze }: Props) {
-  const [busy, setBusy] = useState(false);
-  const reanalyze = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const fresh = await requestReanalyze();
-      onReanalyze(fresh);
-    } catch (err) {
-      console.error(err);
-      alert((err instanceof Error ? err.message : String(err))
-        + '\n\nRe-analyze works when the UI is served by `factstack ui`.');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <header
-      className="glass"
-      role="banner"
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '0 16px',
-        borderRadius: 0,
-        zIndex: 50,
-      }}
-    >
-      {/* Brand mark */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          paddingRight: 12,
-          borderRight: '1px solid var(--border)',
+export function Header(_handle: Handle<HeaderProps>) {
+  return ({ data }: HeaderProps) => {
+    const current = activeTab(location.pathname);
+    const root = data.project.root.replace(/\\/g, '/');
+    return (
+      <header
+        class="glass"
+        role="banner"
+        mix={css({
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '0 16px', borderRadius: '0', zIndex: '50',
+        })}
+      >
+        {/* Brand mark */}
+        <div mix={css({
+          display: 'flex', alignItems: 'center', gap: '8px',
+          paddingRight: '12px', borderRight: '1px solid var(--border)',
           height: '100%',
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            width: 28, height: 28, borderRadius: 6,
-            background: 'color-mix(in oklab, var(--accent) 20%, transparent)',
-            border: '1px solid color-mix(in oklab, var(--accent) 45%, transparent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="var(--accent)" strokeWidth="1.5" />
-            <path d="M5.5 8.5l2 2 3-4" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-          </svg>
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-          <span style={{ fontSize: 13, fontWeight: 600, fontFamily: 'var(--font-display)' }}>FACTS</span>
-          <span style={{ fontSize: 10, color: 'var(--fg-subtle)' }}>v0.1 · React port</span>
+        })}>
+          <span mix={css({
+            width: '24px', height: '24px', display: 'inline-flex',
+            alignItems: 'center', justifyContent: 'center',
+            background: 'color-mix(in oklab, var(--ok) 22%, transparent)',
+            borderRadius: '6px', fontSize: '12px', color: 'var(--ok)',
+          })}>✓</span>
+          <span mix={css({ display: 'flex', flexDirection: 'column', lineHeight: '1.05' })}>
+            <span mix={css({ fontSize: '13px', fontWeight: '600' })}>FACTS</span>
+            <span class="mono" mix={css({ fontSize: '10px', color: 'var(--fg-subtle)' })}>v0.1 · Remix UI</span>
+          </span>
         </div>
-      </div>
 
-      {/* Project chip */}
-      <div
-        aria-label={`Currently open project: ${data.project.name}`}
-        title={data.project.root}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '4px 10px 4px 6px',
-          borderRadius: 6,
-          border: '1px solid var(--border)',
-          minWidth: 0, maxWidth: 320,
-        }}
-      >
-        <span
-          aria-hidden="true"
-          style={{
-            width: 22, height: 22, borderRadius: 4, flexShrink: 0,
+        {/* Project chip */}
+        <div
+          mix={css({
+            display: 'inline-flex', alignItems: 'center', gap: '8px',
+            padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '8px',
+            minWidth: '0', maxWidth: '24rem',
+          })}
+          title={root}
+        >
+          <span mix={css({
+            width: '16px', height: '16px', flex: 'none',
             background: 'color-mix(in oklab, var(--info) 18%, transparent)',
-            border: '1px solid color-mix(in oklab, var(--info) 35%, transparent)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--info)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-          </svg>
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, lineHeight: 1.2 }} role="status" aria-live="polite">
-          <span style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {data.project.name}
-          </span>
-          <span
-            className="mono"
-            dir="rtl"
-            style={{ fontSize: 10, color: 'var(--fg-subtle)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-          >
-            {data.project.root}
+            borderRadius: '4px',
+          })} />
+          <span mix={css({ display: 'flex', flexDirection: 'column', minWidth: '0' })}>
+            <span mix={css({ fontSize: '13px', fontWeight: '500', whiteSpace: 'nowrap',
+              overflow: 'hidden', textOverflow: 'ellipsis' })}>{data.project.name}</span>
+            <span class="mono" mix={css({ fontSize: '11px', color: 'var(--fg-muted)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })}>{root}</span>
           </span>
         </div>
-      </div>
 
-      {/* Tabs — sourced from lib/routes.ts (single source of truth shared
-           with App.tsx route definitions). `ported: false` tabs render with
-           a muted dot so users see the work in progress. */}
-      <nav role="tablist" aria-label="Primary navigation" style={{ display: 'flex', gap: 2, flex: 1, overflowX: 'auto' }}>
-        {TABS.map((t) => (
-          <NavLink
-            key={t.key}
-            to={t.href}
-            end={t.href === '/'}
-            role="tab"
-            title={t.ported ? t.label : `${t.label} — porting from legacy prototype`}
-            style={({ isActive }) => ({
-              position: 'relative',
-              padding: '8px 12px',
-              borderRadius: 6,
-              fontSize: 13,
-              color: isActive ? 'var(--fg)' : 'var(--fg-muted)',
-              fontFamily: 'var(--font-display)',
-              fontWeight: isActive ? 500 : 400,
-              textDecoration: 'none',
-              whiteSpace: 'nowrap',
-              minHeight: 44,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              opacity: t.ported ? 1 : 0.78,
-            })}
-          >
-            {({ isActive }) => (
-              <>
+        {/* Tabs (sourced from lib/routes.ts) */}
+        <nav role="tablist" aria-label="Primary navigation"
+          mix={css({ display: 'flex', gap: '2px', flex: '1', overflowX: 'auto' })}>
+          {TABS.map((t) => {
+            const isActive = t.key === current;
+            return (
+              <a
+                key={t.key}
+                href={t.href}
+                role="tab"
+                aria-selected={isActive ? 'true' : 'false'}
+                title={t.ported ? t.label : `${t.label} — porting from legacy prototype`}
+                mix={css({
+                  position: 'relative',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  color: isActive ? 'var(--fg)' : 'var(--fg-muted)',
+                  fontWeight: isActive ? '500' : '400',
+                  textDecoration: 'none',
+                  whiteSpace: 'nowrap',
+                  minHeight: '44px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: t.ported ? '1' : '0.78',
+                })}
+              >
                 {t.label}
                 {!t.ported && (
-                  <span
-                    aria-label="porting"
-                    title="Porting from legacy prototype"
-                    style={{
-                      width: 5, height: 5, borderRadius: 9999,
-                      background: 'var(--warn, #f59e0b)',
-                      display: 'inline-block',
-                    }}
-                  />
+                  <span aria-label="porting" title="Porting from legacy prototype"
+                    mix={css({
+                      width: '5px', height: '5px', borderRadius: '9999px',
+                      background: 'var(--warn, #f59e0b)', display: 'inline-block',
+                    })} />
                 )}
                 {isActive && (
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      position: 'absolute', left: 12, right: 12, bottom: -1,
-                      height: 2, background: 'var(--accent)', borderRadius: 2,
-                    }}
-                  />
+                  <span aria-hidden="true"
+                    mix={css({
+                      position: 'absolute', left: '12px', right: '12px', bottom: '-1px',
+                      height: '2px', background: 'var(--accent)', borderRadius: '2px',
+                    })} />
                 )}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-
-      <button
-        type="button"
-        onClick={reanalyze}
-        disabled={busy}
-        style={{
-          height: 32,
-          padding: '0 12px',
-          borderRadius: 6,
-          fontSize: 12,
-          fontWeight: 500,
-          background: 'var(--accent)',
-          color: 'var(--accent-fg)',
-          opacity: busy ? 0.6 : 1,
-          display: 'inline-flex', alignItems: 'center', gap: 6,
-        }}
-        aria-label="Re-analyze project"
-      >
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-          <path d="M21 3v5h-5" />
-          <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-          <path d="M3 21v-5h5" />
-        </svg>
-        <span role="status" aria-live="polite">{busy ? 'analyzing…' : 'Re-analyze'}</span>
-      </button>
-    </header>
-  );
+              </a>
+            );
+          })}
+        </nav>
+      </header>
+    );
+  };
 }

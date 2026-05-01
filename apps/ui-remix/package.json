@@ -2,7 +2,7 @@
   "name": "@factstack/ui-remix",
   "version": "0.0.0",
   "private": true,
-  "description": "Primary WebUI for FACTS. Remix 3 (beta) utility modules + React 19 + React Router v7, served by Vite. Two build targets: dev server (live re-analyze) and static mode (self-contained SPA for `factstack export`, Netlify deploy, and future VS Code webview hosting).",
+  "description": "Primary WebUI for FACTS. Built on Remix v3 (beta) — its own VDOM runtime, no React. Vite + JSX via @remix-run/ui's automatic runtime. Two build targets: dev server (live re-analyze) and static (Netlify deploy, `factstack export`, VS Code webview).",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
@@ -16,23 +16,11 @@
   "dependencies": {
     "@factstack/spec": "workspace:*",
     "@factstack/ui-theme": "workspace:*",
-    "@xyflow/react": "^12.3.5",
-    "framer-motion": "^11.11.1",
-    "lucide-react": "^0.451.0",
-    "react": "^19.0.0",
-    "react-arborist": "^3.4.0",
-    "react-dom": "^19.0.0",
-    "react-router": "^7.14.1",
-    "remix": "3.0.0-beta.0",
-    "shiki": "^1.22.0",
-    "tiktoken": "^1.0.17"
+    "remix": "3.0.0-beta.0"
   },
   "devDependencies": {
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@remix-run/ui": "0.1.1",
     "lightningcss": "^1.27.0",
-    "tailwindcss": "^4.0.0-beta.3",
     "typescript": "^5.6.0",
     "vite": "^8.0.8"
   }
