@@ -39,9 +39,17 @@ const wrap = css({
   display: 'grid',
   gridTemplateColumns: '4px 1fr auto',
   columnGap: 'var(--space-4)',
+  paddingInline: 'var(--space-3)',
+  marginInline: 'calc(var(--space-3) * -1)',
   paddingBlock: 'var(--space-4)',
   borderBottom: '1px solid var(--hairline)',
   alignItems: 'baseline',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  /* Yellow hover wash so dense risk lists scan row-by-row even when
+     the page is full of severity bars. */
+  '&:hover': {
+    background: 'var(--highlight-faint)',
+  },
 });
 
 const bar = (color: string) => css({

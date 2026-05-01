@@ -80,8 +80,14 @@ const stackRow = css({
   gridTemplateColumns: 'minmax(0, 1fr) auto auto',
   alignItems: 'baseline',
   columnGap: 'var(--space-4)',
+  paddingInline: 'var(--space-3)',
+  marginInline: 'calc(var(--space-3) * -1)',
   paddingBlock: 'var(--space-3)',
   borderBottom: '1px solid var(--hairline)',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  '&:hover': {
+    background: 'var(--highlight-faint)',
+  },
 });
 
 const langSwatch = (color: string) => css({
@@ -119,8 +125,14 @@ const capItem = css({
   gridTemplateColumns: '24px 1fr',
   gap: 'var(--space-3)',
   alignItems: 'baseline',
+  paddingInline: 'var(--space-3)',
+  marginInline: 'calc(var(--space-3) * -1)',
   paddingBlock: 'var(--space-3)',
   borderBottom: '1px solid var(--hairline)',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  '&:hover': {
+    background: 'var(--highlight-faint)',
+  },
 });
 
 const capMark = css({

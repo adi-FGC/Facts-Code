@@ -88,6 +88,13 @@ const row = css({
   paddingBlock: '6px',
   borderBottom: '1px solid var(--hairline)',
   cursor: 'default',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  /* Yellow wash on hover in dark mode (terminal vibe), subtle warm
+     wash in light. Reads as "the row your cursor is on" without ever
+     looking like a clickable button. */
+  '&:hover': {
+    background: 'var(--highlight-faint)',
+  },
 });
 
 const rowDir = css({

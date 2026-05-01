@@ -45,6 +45,14 @@
 
   --code-bg: color-mix(in oklab, oklch(20% 0.018 65) 4%, transparent);
 
+  /* Highlight — used by RuledRow hover + dense-data emphasis. Dark
+     mode swaps these to a real terminal yellow (Bloomberg-style); in
+     light mode we keep them as a subtle warm wash so the same code
+     path doesn't pop intrusively against paper. */
+  --highlight:        oklch(64% 0.17 50);
+  --highlight-soft:   color-mix(in oklab, oklch(64% 0.17 50) 8%,  transparent);
+  --highlight-faint:  color-mix(in oklab, oklch(64% 0.17 50) 4%,  transparent);
+
   /* Language brand colors — dimmed for legibility over warm paper. */
   --lang-typescript: oklch(58% 0.13 245);
   --lang-javascript: oklch(64% 0.13 90);
@@ -120,56 +128,87 @@
   --dur-signature: 500ms;
 }
 
-/* ─── Dark theme — tuned independently, NOT inverted ─────────────── */
+/* ─── Dark theme — Bloomberg terminal palette ──────────────────────
+ *
+ * Deep blue ground, warm cream text, safety-orange accent, and a
+ * dedicated yellow `--highlight` token for dense-data emphasis (row
+ * hovers, currently-changing values, key marks). Yellow on deep blue
+ * is the highest natural-light contrast pair the eye reads — every
+ * financial terminal since the 80s leans on it for a reason.
+ *
+ * Tuned independently from light. NOT inverted.
+ *
+ * Key axis numbers:
+ *   bg       L 11%  C 0.045  H 240  → terminal-deep, real blue (not gray)
+ *   surfaces lift toward L 21% in 5pt steps, chroma decays to 0.025
+ *   fg       L 94%  C 0.012  H 60   → warm cream against the blue (Bloomberg)
+ *   accent   safety orange — same family as light, lifted for dark legibility
+ *   warn     yellow oklch(82% 0.16 90) — was a duplicate of orange before
+ *   highlight new — same yellow, used for hovers + dense-data marks
+ */
 :root[data-theme='dark'] {
-  /* Near-black with a cool tint, deeper than the warm light bg. The
-     hue stays at 65° so chrome reads as the same brand, just at low
-     light. Tweaked to 250 for the bg only — gives the page a quiet
-     cool cast that feels like dim ambient light, with the accent
-     burning warm against it. */
-  --bg:        oklch(13% 0.012 250);
-  --bg-rgb:    14, 17, 24;
-  --surface-1: oklch(16% 0.014 250);
-  --surface-1-rgb: 22, 25, 32;
-  --surface-2: oklch(19% 0.014 250);
-  --surface-3: oklch(23% 0.014 250);
+  /* Pushed L higher (15% vs 11%) AND chroma higher (0.075 vs 0.045)
+     so the blue actually reads as blue, not near-black. At L=11 with
+     low chroma the eye perceives "very dark gray" — Bloomberg's
+     terminal blue is closer to L=18/C=0.08, which we approach in
+     surface-1+. Hue 245 picks up a slight indigo cast that warms
+     against the orange accent at 50°. */
+  --bg:        oklch(14% 0.075 245);   /* deep navy */
+  --bg-rgb:    14, 22, 48;
+  --surface-1: oklch(17% 0.070 245);   /* page tint, distinctly blue */
+  --surface-1-rgb: 22, 30, 56;
+  --surface-2: oklch(21% 0.060 245);   /* recessed panels */
+  --surface-3: oklch(25% 0.050 245);   /* deepest recess */
 
-  --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.014 250) 48%, transparent);
-  --surface-glass-border:    color-mix(in oklab, white 14%, transparent);
+  --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.065 245) 58%, transparent);
+  --surface-glass-border:    color-mix(in oklab, white 16%, transparent);
   --surface-glass-highlight: color-mix(in oklab, white 8%, transparent);
 
-  --fg:        oklch(94% 0.008 65);    /* softened off-white, warm */
-  --fg-muted:  oklch(72% 0.012 65);    /* 9.5:1 against bg */
-  --fg-subtle: oklch(58% 0.012 65);    /* 5.8:1 — AA */
-  --fg-faint:  oklch(42% 0.012 65);
+  /* Warm cream text — the Bloomberg move. Hue 60° picks up warmth
+     against the cool blue ground without bleeding into the orange
+     accent's territory (50°). */
+  --fg:        oklch(94% 0.020 60);    /* cream, ~14.5:1 against bg */
+  --fg-muted:  oklch(75% 0.018 60);    /* AA on bg */
+  --fg-subtle: oklch(58% 0.014 60);    /* AA on bg */
+  --fg-faint:  oklch(42% 0.012 60);    /* hairline-grade text */
 
-  --border:        color-mix(in oklab, white 9%, transparent);
-  --border-strong: color-mix(in oklab, white 22%, transparent);
-  --hairline:      color-mix(in oklab, white 14%, transparent);
+  --border:        color-mix(in oklab, oklch(70% 0.04 240) 22%, transparent);
+  --border-strong: color-mix(in oklab, oklch(70% 0.04 240) 38%, transparent);
+  --hairline:      color-mix(in oklab, oklch(70% 0.04 240) 26%, transparent);
 
-  /* Accent desaturated ~15% for dark per design_spec.md §5.2 */
-  --accent:      oklch(74% 0.15 50);    /* lifted L for dark legibility */
-  --accent-fg:   oklch(15% 0.015 50);
-  --accent-soft: color-mix(in oklab, oklch(74% 0.15 50) 18%, transparent);
+  /* Safety orange — same brand, lifted L for dark legibility. */
+  --accent:      oklch(74% 0.16 50);
+  --accent-fg:   oklch(15% 0.018 240);
+  --accent-soft: color-mix(in oklab, oklch(74% 0.16 50) 22%, transparent);
 
-  --ok:     oklch(72% 0.16 155);
-  --warn:   oklch(74% 0.15 50);
-  --danger: oklch(70% 0.18 25);
-  --info:   oklch(72% 0.13 250);
+  /* Status colors — distinct from accent in dark. The big change:
+     warn is now a true yellow, no longer an orange duplicate. */
+  --ok:     oklch(74% 0.18 155);   /* moss green, lifted */
+  --warn:   oklch(82% 0.16 90);    /* terminal yellow */
+  --danger: oklch(70% 0.20 25);    /* deeper red, more bite */
+  --info:   oklch(74% 0.13 240);   /* matches the bg hue family */
 
-  --code-bg: color-mix(in oklab, white 4%, transparent);
+  /* NEW: yellow highlight token. Used for row hovers in RuledTable,
+     emphasis on dense-data values, search-match background, and the
+     "currently-changing" mark. Light mode doesn't define this — the
+     paper-and-ink aesthetic doesn't need a third accent. */
+  --highlight:        oklch(82% 0.16 90);
+  --highlight-soft:   color-mix(in oklab, oklch(82% 0.16 90) 14%, transparent);
+  --highlight-faint:  color-mix(in oklab, oklch(82% 0.16 90) 6%,  transparent);
+
+  --code-bg: color-mix(in oklab, white 6%, transparent);
 
   --lang-typescript: oklch(72% 0.12 245);
-  --lang-javascript: oklch(78% 0.13 90);
-  --lang-python:     oklch(70% 0.10 235);
-  --lang-react:      oklch(74% 0.10 220);
-  --lang-json:       oklch(72% 0.01 65);
+  --lang-javascript: oklch(82% 0.15 95);    /* lifted toward yellow */
+  --lang-python:     oklch(72% 0.10 235);
+  --lang-react:      oklch(76% 0.10 220);
+  --lang-json:       oklch(74% 0.012 60);   /* matches fg hue */
   --lang-yaml:       oklch(70% 0.16 25);
   --lang-toml:       oklch(72% 0.13 40);
-  --lang-markdown:   oklch(72% 0.13 250);
+  --lang-markdown:   oklch(74% 0.13 250);
   --lang-html:       oklch(72% 0.16 35);
-  --lang-css:        oklch(72% 0.13 230);
-  --lang-folder:     oklch(74% 0.13 250);
+  --lang-css:        oklch(74% 0.13 230);
+  --lang-folder:     oklch(76% 0.13 250);
 }
 
 /* System-pref fallback. The no-flash inline script in apps/ui-remix's
@@ -182,47 +221,51 @@
   :root:not([data-theme='light']) {
     color-scheme: dark;
 
-    --bg:        oklch(13% 0.012 250);
-    --bg-rgb:    14, 17, 24;
-    --surface-1: oklch(16% 0.014 250);
-    --surface-1-rgb: 22, 25, 32;
-    --surface-2: oklch(19% 0.014 250);
-    --surface-3: oklch(23% 0.014 250);
+    --bg:        oklch(14% 0.075 245);
+    --bg-rgb:    14, 22, 48;
+    --surface-1: oklch(17% 0.070 245);
+    --surface-1-rgb: 22, 30, 56;
+    --surface-2: oklch(21% 0.060 245);
+    --surface-3: oklch(25% 0.050 245);
 
-    --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.014 250) 48%, transparent);
-    --surface-glass-border:    color-mix(in oklab, white 14%, transparent);
+    --surface-glass-bg:        color-mix(in oklab, oklch(20% 0.065 245) 58%, transparent);
+    --surface-glass-border:    color-mix(in oklab, white 16%, transparent);
     --surface-glass-highlight: color-mix(in oklab, white 8%, transparent);
 
-    --fg:        oklch(94% 0.008 65);
-    --fg-muted:  oklch(72% 0.012 65);
-    --fg-subtle: oklch(58% 0.012 65);
-    --fg-faint:  oklch(42% 0.012 65);
+    --fg:        oklch(94% 0.020 60);
+    --fg-muted:  oklch(75% 0.018 60);
+    --fg-subtle: oklch(58% 0.014 60);
+    --fg-faint:  oklch(42% 0.012 60);
 
-    --border:        color-mix(in oklab, white 9%, transparent);
-    --border-strong: color-mix(in oklab, white 22%, transparent);
-    --hairline:      color-mix(in oklab, white 14%, transparent);
+    --border:        color-mix(in oklab, oklch(70% 0.04 240) 22%, transparent);
+    --border-strong: color-mix(in oklab, oklch(70% 0.04 240) 38%, transparent);
+    --hairline:      color-mix(in oklab, oklch(70% 0.04 240) 26%, transparent);
 
-    --accent:      oklch(74% 0.15 50);
-    --accent-fg:   oklch(15% 0.015 50);
-    --accent-soft: color-mix(in oklab, oklch(74% 0.15 50) 18%, transparent);
+    --accent:      oklch(74% 0.16 50);
+    --accent-fg:   oklch(15% 0.018 240);
+    --accent-soft: color-mix(in oklab, oklch(74% 0.16 50) 22%, transparent);
 
-    --ok:     oklch(72% 0.16 155);
-    --warn:   oklch(74% 0.15 50);
-    --danger: oklch(70% 0.18 25);
-    --info:   oklch(72% 0.13 250);
+    --ok:     oklch(74% 0.18 155);
+    --warn:   oklch(82% 0.16 90);
+    --danger: oklch(70% 0.20 25);
+    --info:   oklch(74% 0.13 240);
 
-    --code-bg: color-mix(in oklab, white 4%, transparent);
+    --highlight:        oklch(82% 0.16 90);
+    --highlight-soft:   color-mix(in oklab, oklch(82% 0.16 90) 14%, transparent);
+    --highlight-faint:  color-mix(in oklab, oklch(82% 0.16 90) 6%,  transparent);
+
+    --code-bg: color-mix(in oklab, white 6%, transparent);
 
     --lang-typescript: oklch(72% 0.12 245);
-    --lang-javascript: oklch(78% 0.13 90);
-    --lang-python:     oklch(70% 0.10 235);
-    --lang-react:      oklch(74% 0.10 220);
-    --lang-json:       oklch(72% 0.01 65);
+    --lang-javascript: oklch(82% 0.15 95);
+    --lang-python:     oklch(72% 0.10 235);
+    --lang-react:      oklch(76% 0.10 220);
+    --lang-json:       oklch(74% 0.012 60);
     --lang-yaml:       oklch(70% 0.16 25);
     --lang-toml:       oklch(72% 0.13 40);
-    --lang-markdown:   oklch(72% 0.13 250);
+    --lang-markdown:   oklch(74% 0.13 250);
     --lang-html:       oklch(72% 0.16 35);
-    --lang-css:        oklch(72% 0.13 230);
-    --lang-folder:     oklch(74% 0.13 250);
+    --lang-css:        oklch(74% 0.13 230);
+    --lang-folder:     oklch(76% 0.13 250);
   }
 }

@@ -48,10 +48,7 @@ export function RuledRow(_h: Handle<RowProps>) {
   return ({ children, header }: RowProps) => (
     <div
       role="row"
-      mix={css({
-        display: 'contents',
-        ...(header ? {} : {}),
-      })}
+      mix={css({ display: 'contents' })}
       data-row-header={header ? 'true' : undefined}
     >
       {children}
