@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
 import { Route, Routes, Navigate } from 'react-router';
 import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
+import { tabPatterns } from './lib/routes.ts';
 import { Header } from './components/Header.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { TreePanel } from './components/TreePanel.tsx';
 import { Overview } from './routes/Overview.tsx';
 import { GraphRoute } from './routes/GraphRoute.tsx';
+import { Dag } from './routes/Dag.tsx';
 import { Files } from './routes/Files.tsx';
+import { Library } from './routes/Library.tsx';
+import { RoutesTab } from './routes/RoutesTab.tsx';
 import { Risks } from './routes/Risks.tsx';
+import { Tests } from './routes/Tests.tsx';
 import { History } from './routes/History.tsx';
+import { About } from './routes/About.tsx';
+import { Config } from './routes/Config.tsx';
 
 export function App() {
   const [data, setData] = useState<Dataset | null>(null);
@@ -49,12 +56,21 @@ export function App() {
         <TreePanel data={data} />
         <main id="main">
           <Routes>
-            <Route path="/" element={<Overview data={data} />} />
-            <Route path="/graph" element={<GraphRoute data={data} />} />
-            <Route path="/files" element={<Files data={data} />} />
-            <Route path="/risks" element={<Risks data={data} />} />
-            <Route path="/history" element={<History data={data} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* Paths come from the route-pattern catalog — single source
+                 of truth shared with the Header tablist. Adding a new tab
+                 = one line in lib/routes.ts + one Route here. */}
+            <Route path={tabPatterns.overview.source} element={<Overview data={data} />} />
+            <Route path={tabPatterns.graph.source}    element={<GraphRoute data={data} />} />
+            <Route path={tabPatterns.dag.source}      element={<Dag />} />
+            <Route path={tabPatterns.files.source}    element={<Files data={data} />} />
+            <Route path={tabPatterns.library.source}  element={<Library />} />
+            <Route path={tabPatterns.routes.source}   element={<RoutesTab />} />
+            <Route path={tabPatterns.risks.source}    element={<Risks data={data} />} />
+            <Route path={tabPatterns.tests.source}    element={<Tests />} />
+            <Route path={tabPatterns.history.source}  element={<History data={data} />} />
+            <Route path={tabPatterns.about.source}    element={<About />} />
+            <Route path={tabPatterns.config.source}   element={<Config />} />
+            <Route path="*" element={<Navigate to={tabPatterns.overview.href()} replace />} />
           </Routes>
         </main>
         <StatusBar data={data} />

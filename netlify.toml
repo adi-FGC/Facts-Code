@@ -1,29 +1,35 @@
 ###############################################################################
 # Netlify configuration — FACTS public demo
 #
-# What gets deployed: prototype/index.html + the inline-baked
-# factstack.json data (FACTS analyzing itself). Single-file static
-# deploy; no build step required because the prototype is already
-# self-contained.
+# What gets deployed: the Remix v3 React app at `apps/ui-remix/`.
+# The legacy single-file prototype lives at `legacy/prototype/` and is
+# no longer the deploy target — it's reference material while the new
+# app finishes porting (see apps/ui-remix/TASKS.md).
 #
-# The hosted demo is read-only — there's no /api/reanalyze, no SSE,
-# no /api/file. Visitors get the v0.2 dashboard with FACTS's own
-# 168-file analysis baked in. The CLI (`factstack ui /your/project`)
-# is the live, interactive entry point.
+# The hosted demo is read-only — no /api/reanalyze, no SSE, no /api/file.
+# Visitors get FACTS's own analysis baked into the HTML at build time
+# (78 KB inline). The CLI (`factstack ui /your/project`) remains the
+# live, interactive entry point with re-analyze + watch.
 ###############################################################################
 
 [build]
-  publish    = "prototype"
-  # No build command — `prototype/index.html` ships as-is. The inline
-  # <script id="factstack-data"> block was populated by
-  # `node prototype/scripts/inject-data.mjs` at commit time.
-  command    = "echo 'no build — prototype is pre-built'"
+  base    = "."
+  publish = "apps/ui-remix/dist"
+  # `pnpm install` + filtered build keeps the deploy fast — Netlify
+  # caches node_modules between runs and only rebuilds the @factstack
+  # workspace deps the UI app actually consumes.
+  command = "corepack enable && corepack use pnpm@10.33.0 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build"
+
+[build.environment]
+  # Pin Node high enough for Remix v3 + Vite 8. Remix 3 requires >=24.3.0.
+  NODE_VERSION = "24"
 
 ###############################################################################
-# Caching: HTML never cached so updates ship instantly. Inline data is
-# part of the HTML so the same rule covers it. Asset URLs (the SVG
-# language icons / fonts via `data:` and external `cdn.jsdelivr.net`
-# URLs) are CDN-fronted and have their own cache headers.
+# Caching:
+#   - HTML stays uncached so Remix-app updates ship instantly. The inline
+#     dataset is embedded in /index.html; same rule applies.
+#   - Hashed asset URLs (Vite emits `assets/index-*.js` with content hashes)
+#     are immutable and get the long-term cache.
 ###############################################################################
 
 [[headers]]
@@ -32,13 +38,13 @@
     Cache-Control = "public, max-age=0, must-revalidate"
 
 [[headers]]
-  for = "/data/*"
+  for = "/assets/*"
   [headers.values]
-    Cache-Control = "public, max-age=300"
+    Cache-Control = "public, max-age=31536000, immutable"
 
 ###############################################################################
-# Security headers — the demo doesn't accept user input, so these are
-# baseline hardening. Adjust if you embed third-party scripts later.
+# Security headers — baseline hardening; the SPA doesn't accept any
+# server-side user input. Adjust if you embed third-party scripts later.
 ###############################################################################
 
 [[headers]]
@@ -49,9 +55,9 @@
     Permissions-Policy     = "interest-cohort=()"
 
 ###############################################################################
-# SPA-style fallback: any unknown path serves the dashboard. The hash
-# router inside the prototype (#tab=overview etc.) handles in-app
-# routing client-side.
+# SPA-style fallback: client-side routing in React Router v7 owns paths
+# like /graph, /files, /library, etc. Unknown paths serve index.html so
+# the router can take over.
 ###############################################################################
 
 [[redirects]]

@@ -2,19 +2,12 @@ import { useState } from 'react';
 import { NavLink } from 'react-router';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { requestReanalyze } from '../lib/loadArtifacts.ts';
+import { TABS } from '../lib/routes.ts';
 
 interface Props {
   data: Dataset;
   onReanalyze: (next: Dataset) => void;
 }
-
-const TABS = [
-  { to: '/',        label: 'Overview' },
-  { to: '/graph',   label: 'Graph' },
-  { to: '/files',   label: 'Files' },
-  { to: '/risks',   label: 'Risks' },
-  { to: '/history', label: 'History' },
-];
 
 export function Header({ data, onReanalyze }: Props) {
   const [busy, setBusy] = useState(false);
@@ -116,14 +109,17 @@ export function Header({ data, onReanalyze }: Props) {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — sourced from lib/routes.ts (single source of truth shared
+           with App.tsx route definitions). `ported: false` tabs render with
+           a muted dot so users see the work in progress. */}
       <nav role="tablist" aria-label="Primary navigation" style={{ display: 'flex', gap: 2, flex: 1, overflowX: 'auto' }}>
         {TABS.map((t) => (
           <NavLink
-            key={t.to}
-            to={t.to}
-            end={t.to === '/'}
+            key={t.key}
+            to={t.href}
+            end={t.href === '/'}
             role="tab"
+            title={t.ported ? t.label : `${t.label} — porting from legacy prototype`}
             style={({ isActive }) => ({
               position: 'relative',
               padding: '8px 12px',
@@ -137,11 +133,24 @@ export function Header({ data, onReanalyze }: Props) {
               minHeight: 44,
               display: 'inline-flex',
               alignItems: 'center',
+              gap: 6,
+              opacity: t.ported ? 1 : 0.78,
             })}
           >
             {({ isActive }) => (
               <>
                 {t.label}
+                {!t.ported && (
+                  <span
+                    aria-label="porting"
+                    title="Porting from legacy prototype"
+                    style={{
+                      width: 5, height: 5, borderRadius: 9999,
+                      background: 'var(--warn, #f59e0b)',
+                      display: 'inline-block',
+                    }}
+                  />
+                )}
                 {isActive && (
                   <span
                     aria-hidden="true"
