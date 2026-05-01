@@ -19,8 +19,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(here, '..');
 const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 
-/** Caps in bytes. Raw = pre-gzip; gz = transfer size on the wire. */
-const CAP_JS_RAW = 150 * 1024;
+/** Caps in bytes. Raw = pre-gzip; gz = transfer size on the wire.
+ *
+ * Raw bumped 150 → 180 KB on 2026-05-01 when the five remaining
+ * porting-stubs (Files, Tests, Dag, GraphRoute, Config) became real
+ * functionality — the gzipped budget (still 50 KB) is the wire-cost
+ * gate that matters for users; raw grows naturally as identifier
+ * names + repeated CSS atoms accumulate.
+ */
+const CAP_JS_RAW = 180 * 1024;
 const CAP_JS_GZ = 50 * 1024;
 const CAP_CSS_RAW = 24 * 1024;
 const CAP_CSS_GZ = 8 * 1024;

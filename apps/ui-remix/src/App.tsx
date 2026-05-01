@@ -134,15 +134,15 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   // pathname → tab mapping in lib/routes.ts.
   switch (tab) {
     case 'overview': return <Overview data={data} />;
-    case 'graph':    return <GraphRoute />;
-    case 'dag':      return <Dag />;
-    case 'files':    return <Files />;
+    case 'graph':    return <GraphRoute data={data} />;
+    case 'dag':      return <Dag data={data} />;
+    case 'files':    return <Files data={data} />;
     case 'library':  return <Library data={data} />;
     case 'routes':   return <RoutesTab data={data} />;
     case 'risks':    return <Risks data={data} />;
-    case 'tests':    return <Tests />;
+    case 'tests':    return <Tests data={data} />;
     case 'history':  return <History data={data} />;
     case 'about':    return <About data={data} />;
-    case 'config':   return <Config />;
+    case 'config':   return <Config data={data} />;
   }
 }

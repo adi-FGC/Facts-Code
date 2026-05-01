@@ -37,16 +37,16 @@ export interface TabMeta {
 
 export const TABS: readonly TabMeta[] = [
   { key: 'overview', label: 'Overview', href: tabPatterns.overview.href(), ported: true  },
-  { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: false },
-  { key: 'dag',      label: 'DAG',      href: tabPatterns.dag.href(),      ported: false },
-  { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: false },
+  { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: true  },
+  { key: 'dag',      label: 'DAG',      href: tabPatterns.dag.href(),      ported: true  },
+  { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: true  },
   { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: true  },
   { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: true  },
   { key: 'risks',    label: 'Risks',    href: tabPatterns.risks.href(),    ported: true  },
-  { key: 'tests',    label: 'Tests',    href: tabPatterns.tests.href(),    ported: false },
+  { key: 'tests',    label: 'Tests',    href: tabPatterns.tests.href(),    ported: true  },
   { key: 'history',  label: 'History',  href: tabPatterns.history.href(),  ported: true  },
   { key: 'about',    label: 'About',    href: tabPatterns.about.href(),    ported: true  },
-  { key: 'config',   label: 'Config',   href: tabPatterns.config.href(),   ported: false },
+  { key: 'config',   label: 'Config',   href: tabPatterns.config.href(),   ported: true  },
 ] as const;
 
 /**
