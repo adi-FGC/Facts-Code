@@ -35,6 +35,13 @@ export interface WriteOptions {
    * (keep every snapshot — safe but unbounded growth in watch mode).
    */
   snapshotRetention?: number;
+  /**
+   * Optional MEMORY.md body. When provided, written to `.facts/MEMORY.md`
+   * for AI agents to read FIRST. Caller is responsible for generating
+   * via `@factstack/core`'s `buildMemory(agent, human)`. We accept a
+   * pre-built string so this serializer stays source-agnostic.
+   */
+  memoryBody?: string;
 }
 
 export async function writeArtifacts(opts: WriteOptions): Promise<{
@@ -42,6 +49,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
   humanPath: string;
   jsonlPath: string | null;
   snapshotPath: string | null;
+  memoryPath: string | null;
   bytesWritten: number;
 }> {
   // Validate up front; throws a useful error if the shape drifted.
@@ -69,6 +77,15 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     const lines = opts.agent.files.map((f) => JSON.stringify(f)).join('\n') + '\n';
     await fs.writeFile(jsonlPath, lines);
     bytes += Buffer.byteLength(lines);
+  }
+
+  // MEMORY.md — the v0.3.1 brief that agents read FIRST. Written when
+  // caller provides `memoryBody` (CLI does this every analyze).
+  let memoryPath: string | null = null;
+  if (typeof opts.memoryBody === 'string' && opts.memoryBody.length > 0) {
+    memoryPath = path.join(dir, 'MEMORY.md');
+    await fs.writeFile(memoryPath, opts.memoryBody);
+    bytes += Buffer.byteLength(opts.memoryBody);
   }
 
   let snapshotPath: string | null = null;
@@ -127,7 +144,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     await ensureGitignoreEntry(opts.root);
   }
 
-  return { agentPath, humanPath, jsonlPath, snapshotPath, bytesWritten: bytes };
+  return { agentPath, humanPath, jsonlPath, snapshotPath, memoryPath, bytesWritten: bytes };
 }
 
 /**

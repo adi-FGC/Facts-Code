@@ -91,7 +91,31 @@ For dev (no build step):
 }
 ```
 
-The server caches the analysis at boot. **Tools**: `analyze`, `query_graph` (verbs: callers, imports, cycles, orphans), `get_outline`, `list_risks`, `reanalyze_file` (deprecated stub). **Resources**: `facts://project`, `facts://graph`, `facts://routes`, `facts://risks`, `facts://file/{path}`.
+The server caches the analysis at boot. **Tools**: `read_memory` (v0.3.1 — read FIRST when joining a project), `analyze`, `query_graph` (verbs: callers, imports, cycles, orphans), `get_outline`, `list_risks`, `reanalyze_file` (deprecated stub). **Resources**: `facts://project`, `facts://graph`, `facts://routes`, `facts://risks`, `facts://file/{path}`.
+
+### `.facts/MEMORY.md` — agent brief (v0.3.1)
+
+Every `factstack analyze` writes a 2-10 KB markdown digest to `.facts/MEMORY.md`. AI agents joining the project should read this FIRST — it replaces a 40-200 KB cold-read of `agent.json` for the orient-myself case.
+
+The brief is **deterministic** (same input → byte-identical output) and **section-ordered** so agents can rely on the layout:
+
+```
+# {project}
+> {one-liner}
+
+## At a glance        languages, frameworks, stats, health
+## Capabilities       inferred from frameworks + routes
+## Entry points       npm scripts, CLI commands, exposed URLs
+## Routes             grouped by framework, alphabetical
+## Key files          highest in-degree (most-imported = hubs)
+## Open risks         severity high/critical only
+## Recently active    top 5 from git mtime
+## How to read this codebase   5-step deterministic tour
+```
+
+Sections with no content are omitted entirely (keeps the artifact small). Caps applied per section: 8 frameworks, 8 risks, 5 active files, 6 routes per framework, 6 capabilities, 3 languages.
+
+Read it via the MCP `read_memory` tool, the file directly, or paste it into an agent prompt. Schema version: `factstack-memory.v1`.
 
 ---
 

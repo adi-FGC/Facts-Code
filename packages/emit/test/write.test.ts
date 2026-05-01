@@ -156,6 +156,51 @@ describe('writeArtifacts — snapshots', () => {
   });
 });
 
+describe('writeArtifacts — MEMORY.md persistence (v0.3.1)', () => {
+  it('does not write MEMORY.md when memoryBody is omitted', async () => {
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
+    expect(r.memoryPath).toBeNull();
+    expect(existsSync(join(tmp, '.facts', 'MEMORY.md'))).toBe(false);
+  });
+
+  it('does not write MEMORY.md when memoryBody is the empty string', async () => {
+    // Defensive: empty string is meaningful — caller chose to render
+    // nothing. Treat it the same as omission.
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: '' });
+    expect(r.memoryPath).toBeNull();
+    expect(existsSync(join(tmp, '.facts', 'MEMORY.md'))).toBe(false);
+  });
+
+  it('writes MEMORY.md when memoryBody is provided', async () => {
+    const body = '# test\n\n> hello\n';
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: body });
+    expect(r.memoryPath).not.toBeNull();
+    expect(existsSync(r.memoryPath!)).toBe(true);
+    expect(readFileSync(r.memoryPath!, 'utf8')).toBe(body);
+  });
+
+  it('writes MEMORY.md to .facts/MEMORY.md (canonical path)', async () => {
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: '# x\n' });
+    expect(r.memoryPath).toBe(join(tmp, '.facts', 'MEMORY.md'));
+  });
+
+  it('overwrites an existing MEMORY.md atomically (not appended)', async () => {
+    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: 'old content\n' });
+    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: 'new content\n' });
+    const finalText = readFileSync(join(tmp, '.facts', 'MEMORY.md'), 'utf8');
+    expect(finalText).toBe('new content\n');
+    expect(finalText).not.toContain('old content');
+  });
+
+  it('counts the MEMORY.md bytes in bytesWritten', async () => {
+    const body = 'x'.repeat(123);
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: body });
+    // Agent + human (validated JSON) + jsonl + memory body. The minimum
+    // floor is the body length itself.
+    expect(r.bytesWritten).toBeGreaterThanOrEqual(123);
+  });
+});
+
 describe('readSnapshots', () => {
   it('returns empty for a project with no snapshots', async () => {
     const snaps = await readSnapshots(tmp);

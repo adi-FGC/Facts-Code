@@ -57,6 +57,7 @@ import {
 export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
 export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
+export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
 import type { ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {

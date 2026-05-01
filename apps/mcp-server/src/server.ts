@@ -32,7 +32,7 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { analyze, executeQuery } from '@factstack/core';
+import { analyze, buildMemory, executeQuery } from '@factstack/core';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import { extractOutline } from '@factstack/extractors';
@@ -56,7 +56,7 @@ const projectName = path.basename(root);
  * + resource handler reads from here — there's no background file watch
  * in the MCP server (clients trigger updates explicitly).
  */
-let cached: { agent: AgentArtifact; human: HumanArtifact } | null = null;
+let cached: { agent: AgentArtifact; human: HumanArtifact; memory: string } | null = null;
 
 // Serialize analyze calls so two concurrent tool invocations can't race
 // into writeArtifacts. Same pattern as the CLI's `ui` command.
@@ -70,14 +70,16 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     gzip: gzippedBytes,
     gitStats: mineGitStats(root),
   });
+  const memoryBody = buildMemory(result.agent, result.human);
   await writeArtifacts({
     root,
     agent: result.agent,
     human: result.human,
     addGitignoreEntry: true,
     writeSnapshot: true,
+    memoryBody,
   });
-  cached = { agent: result.agent, human: result.human };
+  cached = { agent: result.agent, human: result.human, memory: memoryBody };
   return result.agent.stats;
 }
 
@@ -229,6 +231,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      // v0.3.1: the brief AI agents read FIRST when joining the project.
+      // Returns a 2-10 KB markdown digest synthesized from agent.json
+      // + human.json. Cheaper than walking agent.json by 10-100x for
+      // the cold-start case. Re-run `analyze` to refresh.
+      name: 'read_memory',
+      description: 'Read .facts/MEMORY.md — a compact (2-10 KB) markdown brief that summarizes the project for AI agents. ALWAYS call this first when joining a new project; it replaces a 40-200 KB cold-read of agent.json.',
+      inputSchema: { type: 'object', properties: {} },
+    },
   ],
 }));
 
@@ -309,6 +320,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (sev) risks = risks.filter((r) => r.severity === sev);
     if (cat) risks = risks.filter((r) => r.category === cat);
     return { content: [{ type: 'text', text: JSON.stringify({ count: risks.length, risks }) }] };
+  }
+
+  if (name === 'read_memory') {
+    if (!cached) await ensureAnalyzed();
+    // Return as plain text so agents render it as markdown directly.
+    // A JSON wrapper would force them to unwrap before reading.
+    return { content: [{ type: 'text', text: cached!.memory }] };
   }
 
   throw new Error(`Unknown tool: ${name}`);

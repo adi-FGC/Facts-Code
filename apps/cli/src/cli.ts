@@ -27,7 +27,7 @@ import { Command } from 'commander';
 import kleur from 'kleur';
 import open from 'open';
 import chokidar, { type FSWatcher } from 'chokidar';
-import { analyze, diffArtifacts, executeQuery, type DiffEndpoint } from '@factstack/core';
+import { analyze, buildMemory, diffArtifacts, executeQuery, type DiffEndpoint } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
 import { gzippedBytes, humanToViz, readSnapshots, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
@@ -110,6 +110,7 @@ program
       human: result.human,
       addGitignoreEntry: opts.gitignoreEntry ?? true,
       writeSnapshot: true,
+      memoryBody: buildMemory(result.agent, result.human),
     });
 
     const elapsed = performance.now() - t0;
@@ -170,7 +171,7 @@ program
       );
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true });
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
     }
 
     let agent: AgentArtifact;
@@ -212,7 +213,7 @@ program
     async function reanalyzeAndPush(reason: 'user' | 'watch'): Promise<AgentArtifact['stats']> {
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true });
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human) });
       const fresh = humanToViz(result.agent, result.human);
       fresh.project.root = root;
       fresh.history = await readSnapshots(root);
@@ -454,7 +455,7 @@ program
       process.stderr.write(kleur.dim('  no existing .facts/ — analyzing first…\n'));
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true });
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
     }
 
     let agent: AgentArtifact;
