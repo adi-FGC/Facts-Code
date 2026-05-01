@@ -76,6 +76,13 @@ export {
   type LearningOutcome,
   type LearningQuery,
 } from './learnings.js';
+export {
+  since,
+  sinceFromMtime,
+  sinceFromBaseline,
+  type SinceReport,
+  type SinceFileSummary,
+} from './since.js';
 import type { ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
@@ -275,7 +282,22 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         specifiers: [],
         isTypeOnly: r.kind === 'type-import',
       })),
-      exports: [],
+      /* v0.3.9 — derive exports from declarations.filter(s => s.exported).
+         The symbol extractor already records the `exported` flag; pulling
+         the export list out as a flat array gives agents an O(1) "what
+         does this module surface?" question without rescanning the
+         declarations array. `isDefault` is approximated: a symbol named
+         literally `default` (default function/class export) is the
+         common case; named-but-default exports lose the flag here and
+         need declarations[] for full fidelity. Refining when v0.3.5
+         symbol-refs lands. */
+      exports: symbols
+        .filter((s) => s.exported)
+        .map((s) => ({
+          name: s.name,
+          kind: s.kind,
+          isDefault: s.name === 'default',
+        })),
       declarations: symbols.map((s) => ({
         name: s.name,
         kind: s.kind,
@@ -388,6 +410,12 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const languages = [...languageTally.values()].sort((a, b) => b.tokens - a.tokens);
 
   const frameworks = mergeFrameworks(frameworksFromManifests);
+  /* v0.3.9 — surface "did the analyzer mine git?" so agents reading
+     churnScore/topContributors don't have to scan every file outline
+     to figure out whether absent values are honest "no churn" or
+     dishonest "we never had git." A non-empty gitStats map means we
+     successfully ran git log and got at least one entry. */
+  const gitAvailable = (opts.gitStats?.size ?? 0) > 0;
   const projectMeta: ProjectMeta = {
     name: rootName,
     root: rootPath,
@@ -395,6 +423,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     frameworks,
     entryPoints: synthesizeEntryPoints(frameworks, scriptsFromPkgJson, dedupeRoutes(detectedRoutes)),
     monorepo: detectMonorepo(outlines),
+    gitAvailable,
   };
 
   // Tokens total
@@ -465,7 +494,10 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     generatedAt: agent.generatedAt,
     summary: {
       oneLiner: oneLiner(frameworks, rootName, readmeOneLiner, pkgDescription),
-      intent: '',
+      /* v0.3.9 — intent omitted when no real value exists. Pre-v0.3.9
+         emitted empty string ''; readers couldn't tell "no intent
+         detected" from "intent is empty". A real intent generator
+         lives in v0.4. */
       capabilities: agent.capabilities,
       entryPoints: projectMeta.entryPoints.map((p: string) => ({
         label: p,
@@ -504,8 +536,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         churnScore: o.churnScore ?? 0,
         authorCount: opts.gitStats?.get(o.path)?.authorCount ?? 0,
       })),
-    risks: secrets,
-    glossary: [],
+    /* v0.3.9 — risks now go through applyRewrite at the agent level
+       above; the human-artifact mirrors the same already-rewritten
+       array so the dashboard doesn't show technical text the agent
+       summary already softened. */
+    risks: secrets.map((r) => applyRewrite(r)),
+    /* v0.3.9 — glossary omitted when empty. The empty-array stub was
+       lying about future capability. Populated when a real glossary
+       generator ships (v0.5). */
   };
 
   return {

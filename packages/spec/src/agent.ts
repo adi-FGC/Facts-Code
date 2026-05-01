@@ -196,6 +196,15 @@ export const ProjectMetaSchema = z.object({
       workspaces: z.array(z.string()),
     })
     .nullable(),
+  /**
+   * v0.3.9 — true when `git` was available and the analyzer mined
+   * history; false when the project is a zip-clone or fresh init.
+   *
+   * IMPORTANT for agents: `FileOutline.churnScore` and the `topContributors`
+   * arrays will be **null/missing** (NOT silently zero) when this flag is
+   * false. Read this before drawing conclusions about "stable" files.
+   */
+  gitAvailable: z.boolean().optional(),
 });
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 

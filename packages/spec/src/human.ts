@@ -69,9 +69,12 @@ export const SummarySchema = z.object({
   oneLiner: z.string(),
   /**
    * Inferred intent from README + manifests + route semantics.
-   * Deterministic in v0.1 (no LLM). Flagged in UI if AI-polished later.
+   * Deterministic (no LLM). v0.3.9 made this optional — pre-v0.3.9
+   * artifacts always emitted '' which lied to readers. Today: emit
+   * only when we have a real intent string; renderers must handle
+   * absence gracefully.
    */
-  intent: z.string(),
+  intent: z.string().optional(),
   capabilities: z.array(z.string()),
   entryPoints: z.array(EntryPointSchema),
   health: HealthHeadlineSchema,
@@ -94,6 +97,9 @@ export const HumanArtifactSchema = z.object({
   graph: GraphSchema,
   activity: z.array(ActivityEntrySchema),
   risks: z.array(RiskSchema),
-  glossary: z.array(GlossaryEntrySchema),
+  /** v0.3.9: optional. Empty array emission was a stub; today we
+   *  omit when no entries exist instead of lying with []. Future
+   *  glossary generator will populate it from detected jargon. */
+  glossary: z.array(GlossaryEntrySchema).optional(),
 });
 export type HumanArtifact = z.infer<typeof HumanArtifactSchema>;

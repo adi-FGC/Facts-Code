@@ -12,17 +12,26 @@
  *
  *   Tools:
  *     analyze               — run a full FACTS analysis (writes .facts/)
- *     reanalyze_file        — DEPRECATED stub; runs a full analyze + warns
  *     query_graph           — structured verb query (callers/imports/cycles/orphans)
  *     get_outline           — per-file symbol outline (reuses extractors)
  *     list_risks            — filter risks by severity/category
+ *     read_memory           — fetch the compact MEMORY.md session brief
+ *     since                 — what changed since an ISO timestamp (v0.3.2)
+ *     log_learning          — append a proposal/outcome to learnings.jsonl (v0.3.4)
+ *     query_learnings       — filter the learnings log (v0.3.4)
+ *     get_config            — env-var inventory + read sites (v0.3.6)
  *
  * Designed for agent consumption: every resource returns JSON matching
  * the Zod schemas in `@factstack/spec` so tools can validate.
+ *
+ * Removed in v0.3.9: `reanalyze_file` — was a deprecated stub that
+ * silently triggered a full re-analyze regardless of the `path`
+ * argument. Agents calling it expecting incremental work hit a
+ * footgun. Until SQLite-backed incremental lands, just use `analyze`.
  */
 
 import * as path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -32,7 +41,18 @@ import {
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { analyze, buildMemory, executeQuery } from '@factstack/core';
+import {
+  analyze,
+  buildMemory,
+  executeQuery,
+  formatLearningEvent,
+  parseLearningsJsonl,
+  proposalEvent,
+  queryLearnings,
+  selfCalibrateEvent,
+  since as buildSinceReport,
+  type LearningEvent,
+} from '@factstack/core';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import { extractOutline } from '@factstack/extractors';
@@ -52,9 +72,9 @@ const projectName = path.basename(root);
 
 /**
  * Mutable cache of the latest analyzer output. Populated on startup and
- * replaced by every `analyze` / `reanalyze_file` tool call. Every tool
- * + resource handler reads from here — there's no background file watch
- * in the MCP server (clients trigger updates explicitly).
+ * replaced by every `analyze` tool call. Every tool + resource handler
+ * reads from here — there's no background file watch in the MCP server
+ * (clients trigger updates explicitly).
  */
 let cached: { agent: AgentArtifact; human: HumanArtifact; memory: string } | null = null;
 
@@ -64,6 +84,7 @@ let analyzeChain: Promise<unknown> = Promise.resolve();
 
 async function runAnalyze(): Promise<AgentArtifact['stats']> {
   const fs = nodeFS(root);
+  const startedAt = Date.now();
   const result = await analyze(fs, {
     root: '.',
     projectName,
@@ -80,6 +101,24 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     memoryBody,
   });
   cached = { agent: result.agent, human: result.human, memory: memoryBody };
+  /* v0.3.4 — emit a self-calibrate event so learnings.jsonl begins
+     accumulating from day one. Even with no external agent connected,
+     FACTS itself becomes a tracked time series (file count, token
+     count, risk count, analyze duration). */
+  try {
+    appendLearning(
+      selfCalibrateEvent({
+        fileCount: result.agent.stats.fileCount,
+        totalLoc: result.agent.stats.loc,
+        totalTokens: result.agent.stats.totalTokenCost,
+        riskCount: result.agent.risks.length,
+        durationMs: Date.now() - startedAt,
+      }),
+    );
+  } catch {
+    // Non-fatal — never fail an analyze because we couldn't append a
+    // calibration row.
+  }
   return result.agent.stats;
 }
 
@@ -188,16 +227,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      // @deprecated — stubs to a full re-analyze; the `path` argument is
-      // accepted but not honored. Kept until v0.3 SQLite incremental.
-      name: 'reanalyze_file',
-      description: 'DEPRECATED in v0.2: runs a full analyze. The `path` argument is accepted but ignored. True per-file incremental lands with the v0.3 SQLite index.',
-      inputSchema: {
-        type: 'object',
-        properties: { path: { type: 'string' } },
-      },
-    },
-    {
       name: 'query_graph',
       description: 'Query the dependency graph. Verbs: callers (files importing X), imports (files imported BY X), cycles, orphans.',
       inputSchema: {
@@ -240,6 +269,70 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       description: 'Read .facts/MEMORY.md — a compact (2-10 KB) markdown brief that summarizes the project for AI agents. ALWAYS call this first when joining a new project; it replaces a 40-200 KB cold-read of agent.json.',
       inputSchema: { type: 'object', properties: {} },
     },
+    {
+      // v0.3.2: cross-session state recovery for long-running agents.
+      // Returns a structured "what changed since X" report — added /
+      // modified / removed files + new routes + new risks — so the
+      // agent reads ~5 KB instead of re-fetching the full artifact.
+      name: 'since',
+      description: 'What changed since an ISO timestamp. Returns added/modified/removed files plus new + removed routes + risks. Uses the most recent snapshot in .facts/snapshots/ as a baseline when available; falls back to mtime-only mode otherwise. The hasBaseline field tells the caller which mode produced the report.',
+      inputSchema: {
+        type: 'object',
+        required: ['timestamp'],
+        properties: {
+          timestamp: { type: 'string', description: 'ISO 8601 timestamp lower bound, e.g. "2026-04-30T00:00:00Z".' },
+        },
+      },
+    },
+    {
+      // v0.3.4: append a proposal/outcome event to .facts/learnings.jsonl.
+      // Foundation for the v0.6 trust framework — every accepted vs
+      // rejected proposal accumulates as calibration data.
+      name: 'log_learning',
+      description: 'Append a proposal/outcome event to .facts/learnings.jsonl. Use to record what your agent proposed and whether the human accepted, rejected, or left it pending. Required: agent (your stable id), action (verb-form, ≤64 chars), outcome (accepted|rejected|pending|self-calibrate). Optional: model, ticketId, reasoning, filesAffected, confidence (0..1), tags.',
+      inputSchema: {
+        type: 'object',
+        required: ['agent', 'action', 'outcome'],
+        properties: {
+          agent: { type: 'string' },
+          action: { type: 'string' },
+          outcome: { type: 'string', enum: ['accepted', 'rejected', 'pending', 'self-calibrate'] },
+          model: { type: 'string' },
+          ticketId: { type: 'string' },
+          reasoning: { type: 'string' },
+          filesAffected: { type: 'array', items: { type: 'string' } },
+          confidence: { type: 'number', minimum: 0, maximum: 1 },
+          tags: { type: 'array', items: { type: 'string' } },
+        },
+      },
+    },
+    {
+      // v0.3.4: read + filter the learnings log. Lets the next agent
+      // session pick up calibration context without re-reading every
+      // line.
+      name: 'query_learnings',
+      description: 'Filter .facts/learnings.jsonl by since/until/agent/outcome/action/tag. Returns most-recent-first, capped at 5000 events. Use for "what has this codebase\'s agents been right about?" calibration questions.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          since: { type: 'string', description: 'ISO timestamp lower bound.' },
+          until: { type: 'string', description: 'ISO timestamp upper bound.' },
+          agent: { type: 'string' },
+          outcome: { type: 'string', enum: ['accepted', 'rejected', 'pending', 'self-calibrate'] },
+          action: { type: 'string' },
+          tag: { type: 'string' },
+          limit: { type: 'number', default: 200, maximum: 5000 },
+        },
+      },
+    },
+    {
+      // v0.3.6: env-var inventory. Returns the same data the UI's
+      // Config tab renders — every var name, read sites, captured
+      // defaults, primary access pattern.
+      name: 'get_config',
+      description: 'List every environment variable read by the codebase, with read sites + captured defaults. Sorted by read count desc. Empty when no env reads are detected.',
+      inputSchema: { type: 'object', properties: {} },
+    },
   ],
 }));
 
@@ -251,14 +344,6 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (name === 'analyze') {
     const stats = await enqueueAnalyze();
     return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats }) }] };
-  }
-
-  if (name === 'reanalyze_file') {
-    // Stub: run a full analyze but warn the caller. This matches the
-    // locked decision (#4) — real incremental ships with v0.3 SQLite.
-    process.stderr.write('[factstack-mcp] reanalyze_file is a full re-analyze in v0.2; true incremental lands with the SQLite index.\n');
-    const stats = await enqueueAnalyze();
-    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats, warning: 'reanalyze_file runs a full analyze in v0.2' }) }] };
   }
 
   if (name === 'query_graph') {
@@ -329,8 +414,118 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: cached!.memory }] };
   }
 
+  // v0.3.2 — what changed since X?
+  if (name === 'since') {
+    if (!cached) await ensureAnalyzed();
+    const ts = typeof args.timestamp === 'string' ? args.timestamp : '';
+    if (!ts) throw new Error("since: 'timestamp' (ISO 8601) is required");
+    /* Try to load the most recent snapshot as a baseline. We pick the
+       latest .facts/snapshots/<dir>/agent.json by sort order — snapshot
+       directories are date-stamped so lexical sort = chronological. */
+    const baseline = readLatestSnapshot();
+    const report = buildSinceReport(cached!.agent, ts, baseline ?? undefined);
+    return { content: [{ type: 'text', text: JSON.stringify(report) }] };
+  }
+
+  // v0.3.4 — append a learning event to .facts/learnings.jsonl.
+  if (name === 'log_learning') {
+    /* Validate via the schema BEFORE we write — every line in the
+       JSONL must be valid; an invalid event is a caller error and
+       returning a structured complaint is more useful than a bad
+       file write. */
+    let event: LearningEvent;
+    try {
+      event = proposalEvent({
+        agent: String(args.agent ?? ''),
+        action: String(args.action ?? ''),
+        outcome: args.outcome as Parameters<typeof proposalEvent>[0]['outcome'],
+        ...(typeof args.model === 'string' ? { model: args.model } : {}),
+        ...(typeof args.ticketId === 'string' ? { ticketId: args.ticketId } : {}),
+        ...(typeof args.reasoning === 'string' ? { reasoning: args.reasoning } : {}),
+        ...(Array.isArray(args.filesAffected) ? { filesAffected: args.filesAffected as string[] } : {}),
+        ...(typeof args.confidence === 'number' ? { confidence: args.confidence } : {}),
+        ...(Array.isArray(args.tags) ? { tags: args.tags as string[] } : {}),
+      });
+    } catch (err) {
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: (err as Error).message }) }] };
+    }
+    appendLearning(event);
+    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, timestamp: event.timestamp }) }] };
+  }
+
+  // v0.3.4 — read + filter learnings.jsonl.
+  if (name === 'query_learnings') {
+    const events = readLearnings();
+    const result = queryLearnings(events, {
+      ...(typeof args.since === 'string' ? { since: args.since } : {}),
+      ...(typeof args.until === 'string' ? { until: args.until } : {}),
+      ...(typeof args.agent === 'string' ? { agent: args.agent } : {}),
+      ...(typeof args.outcome === 'string' ? { outcome: args.outcome as Parameters<typeof queryLearnings>[1] extends infer Q ? (Q extends { outcome?: infer O } ? O : never) : never } : {}),
+      ...(typeof args.action === 'string' ? { action: args.action } : {}),
+      ...(typeof args.tag === 'string' ? { tag: args.tag } : {}),
+      ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
+    });
+    return { content: [{ type: 'text', text: JSON.stringify({ count: result.length, events: result }) }] };
+  }
+
+  // v0.3.6 — env-var inventory.
+  if (name === 'get_config') {
+    if (!cached) await ensureAnalyzed();
+    const config = cached!.agent.config ?? { envVars: [], schemas: [] };
+    return { content: [{ type: 'text', text: JSON.stringify(config) }] };
+  }
+
   throw new Error(`Unknown tool: ${name}`);
 });
+
+/* ─── v0.3.2 / v0.3.4 helpers ───────────────────────────────────── */
+
+function readLatestSnapshot(): import('@factstack/spec').AgentArtifact | null {
+  try {
+    const snapDir = path.join(root, '.facts', 'snapshots');
+    if (!existsSync(snapDir)) return null;
+    const dirs = readdirSyncSafe(snapDir).sort();
+    for (let i = dirs.length - 1; i >= 0; i--) {
+      const candidate = path.join(snapDir, dirs[i]!, 'agent.json');
+      if (existsSync(candidate)) {
+        const text = readFileSync(candidate, 'utf8');
+        return JSON.parse(text);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function readdirSyncSafe(p: string): string[] {
+  try {
+    /* Avoid a top-level node:fs import we don't actually need
+       elsewhere — inline the fs.readdirSync via require. The MCP server
+       is Node-only by design, so this is fine. */
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
+    const fs = require('node:fs') as typeof import('node:fs');
+    return fs.readdirSync(p);
+  } catch { return []; }
+}
+
+function learningsPath(): string {
+  return path.join(root, '.facts', 'learnings.jsonl');
+}
+
+function appendLearning(event: LearningEvent): void {
+  const factsDir = path.join(root, '.facts');
+  if (!existsSync(factsDir)) mkdirSync(factsDir, { recursive: true });
+  appendFileSync(learningsPath(), formatLearningEvent(event), 'utf8');
+}
+
+function readLearnings(): LearningEvent[] {
+  const p = learningsPath();
+  if (!existsSync(p)) return [];
+  const text = readFileSync(p, 'utf8');
+  const { events } = parseLearningsJsonl(text);
+  return events;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────
 

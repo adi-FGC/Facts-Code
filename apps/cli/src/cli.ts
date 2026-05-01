@@ -27,7 +27,15 @@ import { Command } from 'commander';
 import kleur from 'kleur';
 import open from 'open';
 import chokidar, { type FSWatcher } from 'chokidar';
-import { analyze, buildMemory, diffArtifacts, executeQuery, type DiffEndpoint } from '@factstack/core';
+import {
+  analyze,
+  buildMemory,
+  diffArtifacts,
+  executeQuery,
+  formatLearningEvent,
+  selfCalibrateEvent,
+  type DiffEndpoint,
+} from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
 import { gzippedBytes, humanToViz, readSnapshots, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
@@ -114,6 +122,26 @@ program
     });
 
     const elapsed = performance.now() - t0;
+
+    /* v0.3.4 — append a self-calibrate event to .facts/learnings.jsonl
+       so the log starts accumulating from the very first analyze run.
+       Best-effort; never fail an analyze just because we couldn't write
+       a calibration row. */
+    try {
+      const ev = selfCalibrateEvent({
+        fileCount: result.agent.stats.fileCount,
+        totalLoc: result.agent.stats.loc,
+        totalTokens: result.agent.stats.totalTokenCost,
+        riskCount: result.agent.risks.length,
+        durationMs: Math.round(elapsed),
+      });
+      const factsDir = path.join(root, '.facts');
+      const fsmod = await import('node:fs');
+      if (!fsmod.existsSync(factsDir)) fsmod.mkdirSync(factsDir, { recursive: true });
+      fsmod.appendFileSync(path.join(factsDir, 'learnings.jsonl'), formatLearningEvent(ev), 'utf8');
+    } catch {
+      // Quiet — calibration is not load-bearing.
+    }
 
     if (machine) {
       process.stdout.write(JSON.stringify({

@@ -1046,6 +1046,22 @@
       <div class="blob blob-c"></div>
     </div>
 
+    <!-- ============================================================== -->
+    <!-- Supabase configuration (optional). When this deploy wants to    -->
+    <!-- save GitHub-repo analyses, replace the placeholders or set the  -->
+    <!-- two `data-*` values via Netlify build-time substitution. The    -->
+    <!-- anon key is publishable by design — RLS on the bucket controls  -->
+    <!-- write access. If either field is missing/placeholder the GH      -->
+    <!-- flow gracefully skips persistence (analyse-and-render only).    -->
+    <!-- ============================================================== -->
+    <script id="factstack-supa-config">
+      window.FACTSTACK_SUPABASE = {
+        url: document.currentScript.dataset.url || '',
+        anonKey: document.currentScript.dataset.anonKey || '',
+        bucket: document.currentScript.dataset.bucket || 'factstack-analyses',
+      };
+    </script>
+
     <!-- Inline dataset: makes this prototype standalone (file:// opens work
          with no fetch()). If this block is missing/empty the script falls
          back to ./data/factstack.json. -->
@@ -1117,6 +1133,15 @@
         <button id="open-folder" class="h-8 flex items-center gap-1.5 px-2.5 rounded-md text-xs text-[var(--fg)] hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors" aria-label="Open project folder">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
           <span class="hidden md:inline" role="status" aria-live="polite">Open</span>
+        </button>
+
+        <!-- Open from GitHub. Streams the repo zip via api.github.com,
+             unpacks in-browser with JSZip, then runs the same scanner.
+             Optional Supabase persistence (configured at deploy time)
+             saves the analysis so deep-links replay instantly. -->
+        <button id="open-github" class="h-8 flex items-center gap-1.5 px-2.5 rounded-md text-xs text-[var(--fg)] hover:bg-[var(--surface-2)] border border-[var(--border)] hover:border-[var(--border-strong)] transition-colors" aria-label="Scan a GitHub repository" title="Scan a GitHub repository — paste owner/repo or a github.com URL">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.36-3.87-1.36-.52-1.32-1.27-1.67-1.27-1.67-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.75 2.69 1.25 3.34.95.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.27-5.24-5.66 0-1.25.45-2.27 1.18-3.07-.12-.29-.51-1.46.11-3.04 0 0 .96-.31 3.15 1.17.91-.25 1.89-.38 2.86-.38s1.95.13 2.86.38c2.18-1.48 3.14-1.17 3.14-1.17.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.07 0 4.4-2.69 5.36-5.26 5.65.41.36.78 1.05.78 2.13v3.16c0 .31.21.67.8.56C20.21 21.39 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z"/></svg>
+          <span class="hidden md:inline">GitHub</span>
         </button>
 
         <!-- Scan = re-run analysis on the current project. Always
@@ -1276,6 +1301,62 @@
         <button id="scan-modal-cancel" type="button" class="scan-btn-ghost">Cancel</button>
         <button id="scan-modal-done"   type="button" class="scan-btn-primary" disabled>Done</button>
       </div>
+    </dialog>
+
+    <!-- ============================================================== -->
+    <!-- GitHub repo modal — small prompt for owner/repo[@ref] + an     -->
+    <!-- optional PAT (5000 req/hr instead of 60). Submit downloads the -->
+    <!-- zipball, hands it off to the shared scan modal for progress.   -->
+    <!-- A "Saved analyses" list lights up when a Supabase bucket has   -->
+    <!-- been configured for this deploy.                               -->
+    <!-- ============================================================== -->
+    <dialog id="gh-modal" class="scan-modal" aria-labelledby="gh-modal-title">
+      <div class="scan-modal-head">
+        <div>
+          <div class="ed-label" style="font-size:0.6rem;letter-spacing:0.18em;margin-bottom:0.4rem">SCAN A GITHUB REPO</div>
+          <h2 id="gh-modal-title" class="text-lg font-semibold tracking-tight">Open from GitHub</h2>
+        </div>
+        <button id="gh-modal-close" type="button" class="rounded-md p-1.5 hover:bg-[var(--surface-2)]" aria-label="Close">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <form id="gh-form" class="space-y-3" style="margin-top:0.5rem">
+        <label class="block text-xs">
+          <span class="block mb-1 text-[var(--fg-muted)]">Repository</span>
+          <input id="gh-repo" type="text" required autocomplete="off" placeholder="vercel/next.js  or  https://github.com/vercel/next.js"
+                 class="w-full h-9 rounded-md px-3 text-sm mono" style="background:var(--surface-2); border:1px solid var(--border)" />
+          <span class="block mt-1 text-[0.6875rem] text-[var(--fg-subtle)]">Accepts <span class="mono">owner/repo</span>, <span class="mono">owner/repo@branch</span>, or a full GitHub URL.</span>
+        </label>
+
+        <details>
+          <summary class="text-xs cursor-pointer text-[var(--fg-muted)] hover:text-[var(--fg)]">Auth (optional · raises rate limit 60→5000/hr)</summary>
+          <label class="block text-xs mt-2">
+            <span class="block mb-1 text-[var(--fg-muted)]">GitHub personal access token</span>
+            <input id="gh-token" type="password" autocomplete="off" placeholder="ghp_… or github_pat_…"
+                   class="w-full h-9 rounded-md px-3 text-sm mono" style="background:var(--surface-2); border:1px solid var(--border)" />
+            <span class="block mt-1 text-[0.6875rem] text-[var(--fg-subtle)]">Stored only in <span class="mono">localStorage</span>. Needs no scopes for public repos; <span class="mono">repo</span> scope for private.</span>
+          </label>
+        </details>
+
+        <!-- Saved analyses list (filled in by JS when Supabase is configured) -->
+        <div id="gh-saved-wrap" class="hidden" style="margin-top:0.5rem">
+          <div class="ed-label" style="font-size:0.6rem;letter-spacing:0.18em;margin-bottom:0.4rem">SAVED ANALYSES</div>
+          <div id="gh-saved" class="space-y-1 text-xs" style="max-height:10rem; overflow-y:auto"></div>
+        </div>
+
+        <div id="gh-form-error" class="hidden text-xs" style="color: var(--danger)"></div>
+
+        <div class="scan-modal-foot" style="margin-top:0.75rem">
+          <button id="gh-modal-cancel" type="button" class="scan-btn-ghost">Cancel</button>
+          <button id="gh-modal-submit" type="submit" class="scan-btn-primary">Scan repo</button>
+        </div>
+      </form>
+
+      <p class="text-[0.6875rem] text-[var(--fg-subtle)]" style="margin-top:0.75rem">
+        Repo zip is fetched directly from <span class="mono">api.github.com</span>, unpacked in your browser, and analyzed locally.
+        <span id="gh-supa-note" class="hidden">When this deploy has a Supabase bucket configured, results are also saved so the next visitor can replay instantly.</span>
+      </p>
     </dialog>
 
     <!-- ============================================================== -->
@@ -5023,12 +5104,57 @@
       }
 
       // ============================ TABS ==================================
+      // ─── Tab routing ────────────────────────────────────────────────
+      // Each global tab maps to a URL hash so deep links + back/forward
+      // work as users expect. The `?gh=...` query param (set by the
+      // GitHub source flow) is orthogonal and lives in the search
+      // string — combinations like `?gh=tj/co#tab=routes` are valid.
+      //
+      // Why hash, not path: the prototype is a single static file. Path
+      // routing would require Netlify rewrites for every tab and would
+      // collide with the SPA fallback rule. Hash gives us identical
+      // semantics with zero infra.
+      const VALID_TABS = new Set(['overview','graph','dag','files','library','routes','risks','tests','history','about','config']);
+      function tabFromHash() {
+        const m = location.hash.match(/^#tab=([a-z-]+)/i);
+        if (!m) return null;
+        const v = m[1].toLowerCase();
+        return VALID_TABS.has(v) ? v : null;
+      }
+      let _suppressHashSync = false;
+      function syncTabToHash(name) {
+        // Use pushState so back/forward navigates between tabs the user
+        // actually visited. Skip when the hash already matches (e.g.
+        // initial render reading the hash, or popstate-driven changes).
+        const want = '#tab=' + name;
+        if (location.hash === want) return;
+        try { history.pushState(history.state || null, '', want); } catch (_) { /* file:// guard */ }
+      }
+
       function activateTab(name) {
+        if (!VALID_TABS.has(name)) name = 'overview';
         $$('nav[aria-label="Primary navigation"] [role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
         $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
         const head = $('#rhs-content h1');
         if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
+        if (!_suppressHashSync) syncTabToHash(name);
       }
+
+      // Back/forward — read hash, activate without pushing a new entry.
+      window.addEventListener('popstate', () => {
+        const t = tabFromHash() || 'overview';
+        _suppressHashSync = true;
+        try { smoothSwap(() => activateTab(t)); } finally { _suppressHashSync = false; }
+      });
+      // Direct hash edits (e.g. user pastes `…#tab=routes` into the URL
+      // bar) fire hashchange but not popstate.
+      window.addEventListener('hashchange', () => {
+        const t = tabFromHash() || 'overview';
+        const current = document.querySelector('nav[aria-label="Primary navigation"] [role="tab"][aria-selected="true"]')?.dataset.tab;
+        if (t === current) return;
+        _suppressHashSync = true;
+        try { smoothSwap(() => activateTab(t)); } finally { _suppressHashSync = false; }
+      });
 
       // ============================ EVENT DELEGATION ======================
       // Single document-level click handler that survives re-renders, never
@@ -5666,6 +5792,552 @@
         }
       });
 
+      // ============================ GITHUB ================================
+      // Pulls a repo zip via api.github.com/zipball, unpacks in-browser
+      // with JSZip, and synthesises a FileSystemDirectoryHandle-shaped
+      // adapter so the EXISTING scanHandle pipeline runs unchanged.
+      // ----- Why zipball?  CORS works (api.github.com sets ACAO:*; the
+      //       302 to codeload.github.com also sets it). One request gets
+      //       the entire repo. With a PAT, rate limit is 5000/hr instead
+      //       of 60. PAT is held in localStorage only — never leaves the
+      //       browser, never lands in any artifact.
+      // -----  Optional Supabase persistence: when the deploy injects
+      //       window.FACTSTACK_SUPABASE.url/anonKey, the dataset is
+      //       uploaded to a public bucket so deep links replay instantly.
+      // FACTSTACK_GH_API_START — pure helpers covered by smoke-scan-github.mjs
+      //
+      // History: v1 used api.github.com/repos/{o}/{r}/zipball + JSZip
+      // unpacking. The 302 from api.github.com lands at codeload.github.com
+      // which sets Access-Control-Allow-Origin: render.githubusercontent.com
+      // (NOT *), so the browser blocks the response. Caught in QA on the
+      // deployed demo.
+      //
+      // v2 (current): use the Git Trees API for the recursive listing
+      // (1 request, has CORS) then fetch each blob from
+      // raw.githubusercontent.com (which does have CORS on every response).
+      // Trade-off: N+1 requests instead of 1, so we cap concurrency and
+      // pre-filter to text-ish extensions to avoid burning rate limit on
+      // PNGs / lockfiles. Token raises rate from 60 → 5000/hr.
+
+      // Files we'll actually analyze. Filtering at the network layer
+      // keeps small repos under the 60-req unauth rate limit.
+      const GH_TEXT_EXTS = new Set([
+        '.ts', '.tsx', '.mts', '.cts',
+        '.js', '.jsx', '.mjs', '.cjs',
+        '.py', '.rb', '.go', '.rs', '.java', '.kt', '.swift', '.php', '.sh',
+        '.json', '.yaml', '.yml', '.toml',
+        '.md', '.html', '.htm', '.css', '.scss', '.txt',
+      ]);
+      // Mirrors the in-memory ALWAYS_EXCLUDE set used by the local-folder
+      // scanner — keeps the two sources behaviorally consistent.
+      const GH_EXCLUDE_DIRS = new Set([
+        'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
+        '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
+        '.pnpm-store', '.vscode', '.idea',
+      ]);
+      const GH_MAX_FILE_BYTES = 1024 * 1024;
+      const GH_FETCH_CONCURRENCY = 10;
+
+      function ghIsTextish(path) {
+        const i = path.lastIndexOf('.');
+        if (i < 0) return false;
+        return GH_TEXT_EXTS.has(path.slice(i).toLowerCase());
+      }
+      function ghIsExcluded(path) {
+        // Any path segment matching an excluded dir → skip.
+        for (const seg of path.split('/')) {
+          if (GH_EXCLUDE_DIRS.has(seg)) return true;
+        }
+        return false;
+      }
+      function ghFriendlyError(res) {
+        let hint = '';
+        if (res.status === 404) hint = ' (repo not found or private — try adding a PAT)';
+        else if (res.status === 403) hint = ' (rate limit exceeded — add a PAT to raise to 5000/hr)';
+        else if (res.status === 401) hint = ' (token rejected — check it has not expired)';
+        return new Error(`GitHub returned ${res.status} ${res.statusText}${hint}`);
+      }
+
+      function parseRepoSpec(raw) {
+        // Accepts:
+        //   owner/repo
+        //   owner/repo@ref
+        //   https://github.com/owner/repo
+        //   https://github.com/owner/repo/tree/branch
+        //   https://github.com/owner/repo/blob/branch/path...
+        if (!raw || typeof raw !== 'string') return null;
+        let s = raw.trim().replace(/\.git$/, '');
+        let ref = '';
+        if (/^https?:\/\//i.test(s)) {
+          try {
+            const u = new URL(s);
+            if (u.hostname !== 'github.com') return null;
+            const parts = u.pathname.replace(/^\//, '').split('/').filter(Boolean);
+            const [owner, repo, kind, ...rest] = parts;
+            if (!owner || !repo) return null;
+            if ((kind === 'tree' || kind === 'blob') && rest.length) ref = rest[0];
+            return { owner, repo, ref };
+          } catch { return null; }
+        }
+        // bare owner/repo[@ref]
+        const at = s.indexOf('@');
+        if (at >= 0) { ref = s.slice(at + 1); s = s.slice(0, at); }
+        const slash = s.indexOf('/');
+        if (slash <= 0 || slash === s.length - 1) return null;
+        const owner = s.slice(0, slash);
+        const repo = s.slice(slash + 1).split('/')[0];
+        if (!owner || !repo) return null;
+        return { owner, repo, ref };
+      }
+
+      function repoSpecKey({ owner, repo, ref }) {
+        // Used as the storage path prefix and the cache key. ref="" means
+        // default branch — represented as just owner/repo.
+        const safe = (s) => String(s).replace(/[^a-zA-Z0-9._-]/g, '_');
+        return ref ? `${safe(owner)}/${safe(repo)}@${safe(ref)}` : `${safe(owner)}/${safe(repo)}`;
+      }
+
+      async function loadGitHubRepoAsHandle({ owner, repo, ref = '', token = '' }, onProgress) {
+        onProgress?.({ phase: 'walking', current: 0, total: 0, label: `Contacting GitHub… ${owner}/${repo}${ref ? '@' + ref : ''}` });
+        const headers = {
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        };
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+
+        // 1. Resolve default branch (raw.githubusercontent.com needs the
+        //    actual branch name, not "HEAD"). Skip if caller passed a ref.
+        let branch = ref;
+        if (!branch) {
+          const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, { headers });
+          if (!r.ok) throw ghFriendlyError(r);
+          const meta = await r.json();
+          branch = meta.default_branch || 'main';
+        }
+
+        // 2. Get the recursive tree (one request, returns paths + sizes
+        //    + SHAs for the whole repo at this ref).
+        onProgress?.({ phase: 'walking', current: 0, total: 0, label: `Listing files at ${branch}…` });
+        const treeRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers });
+        if (!treeRes.ok) throw ghFriendlyError(treeRes);
+        const treeData = await treeRes.json();
+        const tree = Array.isArray(treeData?.tree) ? treeData.tree : [];
+
+        // 3. Filter blobs to text-ish files within size cap, skipping
+        //    excluded directories. Filtering at the network boundary
+        //    keeps small repos under the 60-req unauth rate limit.
+        const interesting = [];
+        for (const node of tree) {
+          if (!node || node.type !== 'blob' || typeof node.path !== 'string') continue;
+          if (typeof node.size === 'number' && node.size > GH_MAX_FILE_BYTES) continue;
+          if (ghIsExcluded(node.path)) continue;
+          if (!ghIsTextish(node.path)) continue;
+          interesting.push(node);
+        }
+        if (interesting.length === 0 && treeData.truncated) {
+          throw new Error('GitHub tree was truncated (>100k entries) and no source files matched the filter — try a smaller subdir or a ref.');
+        }
+        const totalFiles = interesting.length;
+        onProgress?.({ phase: 'walking', current: 0, total: totalFiles, label: `Found ${totalFiles} source files…` });
+
+        // 4. Concurrent raw blob fetches. raw.githubusercontent.com sets
+        //    `Access-Control-Allow-Origin: *`, so this is the part that
+        //    actually works in the browser (vs zipball, which 302s into
+        //    a CORS-restricted codeload origin).
+        const blobs = new Map(); // path → Uint8Array
+        let cursor = 0;
+        let done = 0;
+        let lastTick = 0;
+        const fetchOpts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        async function worker() {
+          while (true) {
+            const i = cursor++;
+            if (i >= totalFiles) return;
+            const node = interesting[i];
+            try {
+              // path is already URL-safe per GitHub conventions; do not
+              // encodeURIComponent the slashes.
+              const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${node.path.split('/').map(encodeURIComponent).join('/')}`;
+              const r = await fetch(url, fetchOpts);
+              if (!r.ok) continue; // skip files that 404 (e.g., LFS pointers)
+              const buf = await r.arrayBuffer();
+              blobs.set(node.path, new Uint8Array(buf));
+            } catch { /* skip individual file failures */ }
+            done++;
+            const t = performance.now();
+            if (t - lastTick > 120 || done === totalFiles) {
+              onProgress?.({ phase: 'reading', current: done, total: totalFiles, label: `Fetching files… ${done}/${totalFiles}` });
+              lastTick = t;
+            }
+          }
+        }
+        const workers = [];
+        for (let w = 0; w < Math.min(GH_FETCH_CONCURRENCY, Math.max(1, totalFiles)); w++) workers.push(worker());
+        await Promise.all(workers);
+
+        const displayName = `${owner}/${repo}${ref ? '@' + ref : ''}`;
+        return buildHandleFromBlobs(blobs, displayName);
+      }
+
+      function buildHandleFromBlobs(blobs, displayName) {
+        // Build a tree of (dirPath → { dirs:Map<name,childPath>, files:Map<name,Uint8Array> }).
+        // Then expose a FileSystemDirectoryHandle-shaped object for each dir
+        // that the existing scanner walks unchanged.
+        const tree = new Map();
+        const ensureDir = (path) => {
+          if (!tree.has(path)) tree.set(path, { dirs: new Map(), files: new Map() });
+          return tree.get(path);
+        };
+        ensureDir('');
+        const wireParent = (path) => {
+          if (!path) return;
+          const i = path.lastIndexOf('/');
+          const parent = i >= 0 ? path.slice(0, i) : '';
+          const name = i >= 0 ? path.slice(i + 1) : path;
+          if (i >= 0) wireParent(parent);
+          ensureDir(parent).dirs.set(name, path);
+          ensureDir(path);
+        };
+        for (const [path, u8] of blobs) {
+          if (!path) continue;
+          const i = path.lastIndexOf('/');
+          const parent = i >= 0 ? path.slice(0, i) : '';
+          const name = i >= 0 ? path.slice(i + 1) : path;
+          if (parent) wireParent(parent);
+          ensureDir(parent).files.set(name, u8);
+        }
+        function makeFileHandle(name, u8) {
+          return {
+            kind: 'file',
+            name,
+            async getFile() {
+              // Sniff for binary BEFORE decoding so PNGs / woffs that
+              // slipped past the extension filter don't burn UTF-8 cycles.
+              let isBinary = false;
+              const probe = u8.subarray(0, Math.min(8192, u8.length));
+              for (let i = 0; i < probe.length; i++) {
+                if (probe[i] === 0) { isBinary = true; break; }
+              }
+              return {
+                size: u8.length,
+                lastModified: Date.now(),
+                text: async () => {
+                  // Returning '\0' makes scanHandle's existing
+                  // null-byte sniff skip the file as binary.
+                  if (isBinary) return '\0';
+                  try { return new TextDecoder('utf-8', { fatal: false }).decode(u8); }
+                  catch { return '\0'; }
+                },
+              };
+            },
+          };
+        }
+        function makeDirHandle(path, name) {
+          const t = tree.get(path) || { dirs: new Map(), files: new Map() };
+          return {
+            kind: 'directory',
+            name,
+            async *entries() {
+              for (const [n, p] of t.dirs) yield [n, makeDirHandle(p, n)];
+              for (const [n, u8] of t.files) yield [n, makeFileHandle(n, u8)];
+            },
+            async getFileHandle(n) {
+              const u8 = t.files.get(n);
+              if (!u8) { const e = new Error('ENOENT'); e.name = 'NotFoundError'; throw e; }
+              return makeFileHandle(n, u8);
+            },
+            async getDirectoryHandle(n) {
+              const p = t.dirs.get(n);
+              if (!p) { const e = new Error('ENOENT'); e.name = 'NotFoundError'; throw e; }
+              return makeDirHandle(p, n);
+            },
+          };
+        }
+        return makeDirHandle('', displayName);
+      }
+      // FACTSTACK_GH_API_END
+
+      // ─── Supabase persistence (optional) ────────────────────────────
+      let _supa = null;
+      function supabaseConfigured() {
+        const cfg = window.FACTSTACK_SUPABASE;
+        if (!cfg) return false;
+        if (!cfg.url || !cfg.anonKey) return false;
+        // Catch unsubstituted placeholders from a templated deploy.
+        if (cfg.url.includes('{{') || cfg.anonKey.includes('{{')) return false;
+        if (cfg.url.startsWith('YOUR_') || cfg.anonKey.startsWith('YOUR_')) return false;
+        return true;
+      }
+      async function getSupabase() {
+        if (!supabaseConfigured()) return null;
+        if (_supa) return _supa;
+        try {
+          const mod = await import('https://esm.sh/@supabase/supabase-js@2.45.4');
+          const cfg = window.FACTSTACK_SUPABASE;
+          _supa = mod.createClient(cfg.url, cfg.anonKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+        } catch (e) {
+          console.warn('supabase load failed; persistence disabled', e);
+          _supa = null;
+        }
+        return _supa;
+      }
+
+      async function uploadAnalysis(dataset, spec) {
+        const sb = await getSupabase();
+        if (!sb) return null;
+        const cfg = window.FACTSTACK_SUPABASE;
+        const key = repoSpecKey(spec);
+        // Strip raw file contents — we only persist the analyzed dataset
+        // shape, not source code. (Previews can be re-fetched from GH.)
+        const safe = JSON.parse(JSON.stringify(dataset));
+        const body = JSON.stringify({
+          repoSpec: spec,
+          generatedAt: new Date().toISOString(),
+          dataset: safe,
+        });
+        const ts = new Date().toISOString().replace(/[:.]/g, '-');
+        const path = `${key}/${ts}.json`;
+        const blob = new Blob([body], { type: 'application/json' });
+        try {
+          // Write the immutable snapshot first…
+          const up = await sb.storage.from(cfg.bucket).upload(path, blob, {
+            cacheControl: '31536000', upsert: false, contentType: 'application/json',
+          });
+          if (up.error) throw up.error;
+          // …then bump the latest pointer (upsert).
+          const latest = await sb.storage.from(cfg.bucket).upload(`${key}/latest.json`, blob, {
+            cacheControl: '60', upsert: true, contentType: 'application/json',
+          });
+          if (latest.error) console.warn('latest pointer upload failed', latest.error);
+          const { data: pub } = sb.storage.from(cfg.bucket).getPublicUrl(path);
+          return { snapshotPath: path, latestPath: `${key}/latest.json`, url: pub?.publicUrl || null };
+        } catch (e) {
+          console.warn('supabase upload failed', e);
+          return null;
+        }
+      }
+
+      async function loadSavedAnalysis(spec) {
+        const sb = await getSupabase();
+        if (!sb) return null;
+        const cfg = window.FACTSTACK_SUPABASE;
+        const key = repoSpecKey(spec);
+        try {
+          const { data, error } = await sb.storage.from(cfg.bucket).download(`${key}/latest.json`);
+          if (error || !data) return null;
+          const text = await data.text();
+          const env = JSON.parse(text);
+          return env?.dataset || null;
+        } catch { return null; }
+      }
+
+      async function listRecentAnalyses(limit = 8) {
+        const sb = await getSupabase();
+        if (!sb) return [];
+        const cfg = window.FACTSTACK_SUPABASE;
+        try {
+          // Top-level list = owner directories. For the modal preview we
+          // walk one level deep and read the latest.json pointers.
+          const { data: owners, error: e1 } = await sb.storage.from(cfg.bucket).list('', { limit: 50, sortBy: { column: 'updated_at', order: 'desc' } });
+          if (e1 || !Array.isArray(owners)) return [];
+          const out = [];
+          for (const o of owners) {
+            if (!o?.name || o.name.endsWith('.json')) continue;
+            const { data: repos } = await sb.storage.from(cfg.bucket).list(o.name, { limit: 20, sortBy: { column: 'updated_at', order: 'desc' } });
+            for (const r of (repos || [])) {
+              if (!r?.name || r.name.endsWith('.json')) continue;
+              out.push({ key: `${o.name}/${r.name}`, updated_at: r.updated_at });
+              if (out.length >= limit) return out;
+            }
+          }
+          return out;
+        } catch { return []; }
+      }
+
+      // ─── GitHub modal controller ─────────────────────────────────────
+      const ghDialog = document.getElementById('gh-modal');
+      const ghBtn = document.getElementById('open-github');
+      const ghForm = document.getElementById('gh-form');
+      const ghInput = document.getElementById('gh-repo');
+      const ghTokenInput = document.getElementById('gh-token');
+      const ghErr = document.getElementById('gh-form-error');
+      const ghCancel = document.getElementById('gh-modal-cancel');
+      const ghClose = document.getElementById('gh-modal-close');
+      const ghSavedWrap = document.getElementById('gh-saved-wrap');
+      const ghSavedList = document.getElementById('gh-saved');
+      const ghSupaNote = document.getElementById('gh-supa-note');
+
+      function ghShowError(msg) {
+        if (!ghErr) return;
+        ghErr.textContent = msg;
+        ghErr.classList.toggle('hidden', !msg);
+      }
+
+      function ghOpen() {
+        if (!ghDialog) return;
+        ghShowError('');
+        // Restore last-used token for convenience.
+        try {
+          const t = localStorage.getItem('factstack:gh-token') || '';
+          if (ghTokenInput) ghTokenInput.value = t;
+        } catch {}
+        try {
+          const r = localStorage.getItem('factstack:gh-last-repo') || '';
+          if (ghInput && !ghInput.value) ghInput.value = r;
+        } catch {}
+        if (supabaseConfigured()) {
+          ghSupaNote?.classList.remove('hidden');
+          // Lazy-fetch saved list — non-blocking.
+          listRecentAnalyses(8).then((items) => {
+            if (!items.length || !ghSavedList || !ghSavedWrap) return;
+            ghSavedList.innerHTML = '';
+            for (const it of items) {
+              const row = document.createElement('button');
+              row.type = 'button';
+              row.className = 'w-full text-left rounded-md px-2 py-1 hover:bg-[var(--surface-2)] flex items-center justify-between gap-2';
+              row.style.border = '1px solid var(--border)';
+              const updated = it.updated_at ? new Date(it.updated_at).toLocaleString() : '';
+              row.innerHTML = `<span class="mono truncate">${it.key}</span><span class="text-[var(--fg-subtle)] text-[0.6875rem] whitespace-nowrap">${updated}</span>`;
+              row.addEventListener('click', () => {
+                if (ghInput) ghInput.value = it.key.replace(/_/g, '/').replace(/\/(.+)$/, '/$1'); // best-effort
+                // Just set the input — let user submit. Avoids surprise scans.
+              });
+              ghSavedList.appendChild(row);
+            }
+            ghSavedWrap.classList.remove('hidden');
+          }).catch(() => {});
+        }
+        try { ghDialog.showModal(); } catch { ghDialog.setAttribute('open', ''); }
+        setTimeout(() => ghInput?.focus(), 60);
+      }
+      function ghClose2() {
+        try { ghDialog?.close(); } catch { ghDialog?.removeAttribute('open'); }
+      }
+      ghBtn?.addEventListener('click', ghOpen);
+      ghCancel?.addEventListener('click', ghClose2);
+      ghClose?.addEventListener('click', ghClose2);
+
+      async function runGitHubScan(spec, token) {
+        // Drive the SAME scan modal the local-folder flow uses, but
+        // with a header/path tuned to the GitHub source.
+        scanCtl.open(`github.com/${spec.owner}/${spec.repo}${spec.ref ? '@' + spec.ref : ''}`);
+        try {
+          const handle = await loadGitHubRepoAsHandle({ ...spec, token }, (e) => scanCtl.update(e));
+          const dataset = await scanHandle(handle, '', {
+            allFiles: [],
+            parse: await getBabelParser(),
+            packageJsons: [],
+            onProgress: (e) => scanCtl.update(e),
+            cancelled: () => scanCtl.isCancelled(),
+          });
+          // Tag the dataset with its source so the UI can render a
+          // small "from GitHub" provenance chip if it wants to.
+          if (dataset?.project) {
+            dataset.project.source = { kind: 'github', owner: spec.owner, repo: spec.repo, ref: spec.ref || '' };
+          }
+          DATA = dataset;
+          SELECTED_FILE = null;
+          GRAPH_VIEW.dirty = true;
+          COLLAPSED.clear();
+          renderAll();
+          // Persist if Supabase is wired up.
+          if (supabaseConfigured()) {
+            scanCtl.update({ phase: 'parsing', current: dataset?.stats?.files || 0, total: 0, label: 'Saving to Supabase…' });
+            const up = await uploadAnalysis(dataset, spec).catch((e) => { console.warn(e); return null; });
+            if (up) {
+              setStatus(`Saved · ${repoSpecKey(spec)}`, 'ok');
+            }
+          }
+          scanCtl.update({ phase: 'done', current: dataset?.stats?.files || 0, total: dataset?.stats?.files || 0, label: `Scan complete · ${dataset?.stats?.files || 0} files` });
+          setTimeout(() => scanCtl.close(), 800);
+          return dataset;
+        } catch (e) {
+          if (e?.message === 'cancelled') { scanCtl.close(); return null; }
+          console.error(e);
+          scanCtl.fail('GitHub scan failed: ' + (e?.message || e));
+          throw e;
+        }
+      }
+
+      ghForm?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        ghShowError('');
+        const raw = (ghInput?.value || '').trim();
+        const spec = parseRepoSpec(raw);
+        if (!spec) {
+          ghShowError('Could not parse "' + raw + '". Try owner/repo or a github.com URL.');
+          return;
+        }
+        const token = (ghTokenInput?.value || '').trim();
+        try {
+          localStorage.setItem('factstack:gh-last-repo', raw);
+          if (token) localStorage.setItem('factstack:gh-token', token);
+        } catch {}
+        ghClose2();
+        // Try cached version FIRST when we're configured for Supabase
+        // and the user is opening from the modal (vs a deep link). This
+        // makes repeat-views feel instant. Cancel by retrying within the
+        // scan modal if cache is missing.
+        if (supabaseConfigured()) {
+          scanCtl.open(`github.com/${spec.owner}/${spec.repo}${spec.ref ? '@' + spec.ref : ''}`);
+          scanCtl.update({ phase: 'walking', current: 0, total: 0, label: 'Looking for cached analysis…' });
+          const cached = await loadSavedAnalysis(spec).catch(() => null);
+          if (cached) {
+            DATA = cached;
+            SELECTED_FILE = null;
+            GRAPH_VIEW.dirty = true;
+            COLLAPSED.clear();
+            renderAll();
+            scanCtl.update({ phase: 'done', current: cached?.stats?.files || 0, total: cached?.stats?.files || 0, label: 'Loaded cached analysis' });
+            setStatus(`Loaded cached · ${repoSpecKey(spec)}`, 'ok');
+            setTimeout(() => scanCtl.close(), 700);
+            // Update URL so the deep link is shareable.
+            try { history.replaceState(null, '', `?gh=${encodeURIComponent(repoSpecKey(spec))}`); } catch {}
+            return;
+          }
+          // Fall through to fresh scan; modal already open.
+          scanCtl.update({ phase: 'walking', current: 0, total: 0, label: 'No cache — scanning fresh…' });
+        }
+        try {
+          await runGitHubScan(spec, token);
+          try { history.replaceState(null, '', `?gh=${encodeURIComponent(repoSpecKey(spec))}`); } catch {}
+        } catch {}
+      });
+
+      // ─── Deep link: ?gh=owner/repo[@ref] auto-loads on boot ──────────
+      // Cache-first when Supabase is configured; otherwise scans fresh
+      // (subject to the user accepting the "you're about to download X
+      // MB from GitHub" reality).
+      (function bootGhDeepLink() {
+        try {
+          const params = new URLSearchParams(location.search);
+          const gh = params.get('gh');
+          if (!gh) return;
+          const spec = parseRepoSpec(gh);
+          if (!spec) return;
+          // Defer until the rest of the app has finished its initial
+          // render, so the modal lands on top of populated chrome.
+          setTimeout(async () => {
+            if (supabaseConfigured()) {
+              const cached = await loadSavedAnalysis(spec).catch(() => null);
+              if (cached) {
+                DATA = cached;
+                SELECTED_FILE = null;
+                GRAPH_VIEW.dirty = true;
+                COLLAPSED.clear();
+                renderAll();
+                setStatus(`Loaded cached · ${repoSpecKey(spec)}`, 'ok');
+                return;
+              }
+            }
+            // No cache (or no Supabase) — open scan modal and run.
+            try { await runGitHubScan(spec, ''); } catch {}
+          }, 250);
+        } catch {}
+      })();
+
       // ------------------------------------------------------------------
       // Shallow client-side walker (File System Access API) + AST import
       // extraction via @babel/parser (loaded lazily from esm.sh). When the
@@ -6098,6 +6770,16 @@
       // ============================ BOOT ==================================
       await loadDefault();
       renderAll();
+      // Activate the tab named in the URL hash (if any). Suppress hash
+      // sync on this initial activation so we don't push a redundant
+      // history entry — the user's address bar already has the value.
+      {
+        const initial = tabFromHash();
+        if (initial && initial !== 'overview') {
+          _suppressHashSync = true;
+          try { activateTab(initial); } finally { _suppressHashSync = false; }
+        }
+      }
     </script>
   </body>
 </html>
