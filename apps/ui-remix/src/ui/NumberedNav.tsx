@@ -13,27 +13,40 @@ import type { Handle } from '@remix-run/ui';
 import { css } from '@remix-run/ui';
 import { TABS, activeTab } from '../lib/routes.ts';
 
+/**
+ * Wrap is horizontally-scrollable below the breakpoint where all 11
+ * tabs fit. The scrollbar is intentionally hidden — it eats vertical
+ * space inside the 56px nav row and the global app.css styled scrollbar
+ * is too heavy for chrome. Scroll still works via swipe / wheel /
+ * keyboard. The leading className lets the WebKit ::-webkit-scrollbar
+ * suppression in app.css target this element specifically.
+ */
 const wrap = css({
   display: 'flex',
   alignItems: 'center',
-  gap: 'var(--space-3)',
+  gap: 'var(--space-2)',     /* tightened from --space-3 (12 → 8px) */
   flex: '1',
   overflowX: 'auto',
-  scrollbarWidth: 'none',
+  scrollbarWidth: 'none',     /* Firefox */
+  /* WebKit: pseudo-element selector escape hatch for the css() runtime. */
+  '&::-webkit-scrollbar': { display: 'none', width: '0', height: '0' },
 });
 
 const link = css({
   position: 'relative',
   display: 'inline-flex',
   alignItems: 'baseline',
-  gap: 'var(--space-2)',
-  padding: 'var(--space-3) 0',
+  gap: '6px',                          /* was var(--space-2) (8px) */
+  paddingTop: 'var(--space-3)',
+  paddingBottom: 'var(--space-3)',
+  paddingLeft: '4px',                  /* small tap target padding */
+  paddingRight: '4px',
   textDecoration: 'none',
   color: 'var(--fg-muted)',
   fontFamily: 'var(--font-body)',
   fontSize: 'var(--fs-12)',
   fontWeight: '500',
-  letterSpacing: '0.04em',
+  letterSpacing: '0.03em',             /* tighter than 0.04em */
   textTransform: 'uppercase',
   whiteSpace: 'nowrap',
   minHeight: '40px',

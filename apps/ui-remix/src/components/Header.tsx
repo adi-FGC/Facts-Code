@@ -8,6 +8,7 @@ import type { Handle } from '@remix-run/ui';
 import { css } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { NumberedNav } from '../ui/NumberedNav.tsx';
+import { ThemeToggle } from '../ui/ThemeToggle.tsx';
 
 interface HeaderProps {
   data: Dataset;
@@ -15,12 +16,19 @@ interface HeaderProps {
 
 const wrap = css({
   display: 'grid',
-  gridTemplateColumns: 'auto 1fr auto',
+  /* brand · nav · project chip · theme toggle */
+  gridTemplateColumns: 'auto 1fr auto auto',
   alignItems: 'center',
-  columnGap: 'var(--space-6)',
+  columnGap: 'var(--space-5)',     /* tightened from --space-6 */
   paddingInline: 'var(--gutter)',
   borderRadius: '0',
   zIndex: '50',
+});
+
+const rightCluster = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
 });
 
 const brand = css({
@@ -89,6 +97,9 @@ export function Header(_handle: Handle<HeaderProps>) {
         <div mix={projectChip} title={root}>
           <span mix={projectName}>{data.project.name}</span>
           <span mix={projectRoot} dir="rtl">{root}</span>
+        </div>
+        <div mix={rightCluster}>
+          <ThemeToggle />
         </div>
       </header>
     );
