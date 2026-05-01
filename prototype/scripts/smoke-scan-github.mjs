@@ -2,19 +2,27 @@
 /**
  * GitHub-source smoke test for prototype/index.html.
  *
- * Verifies the new path that lets users scan any GitHub repo:
+ * Verifies the path that lets users scan any GitHub repo:
  *
  *   1. parseRepoSpec — accepts owner/repo, owner/repo@ref, full URLs.
  *   2. repoSpecKey   — produces stable, sanitized storage paths.
- *   3. buildHandleFromZip — builds a FileSystemDirectoryHandle-shaped
- *      tree from a JSZip-shaped object so the EXISTING scanHandle
+ *   3. ghIsTextish + ghIsExcluded — network-layer filters that keep small
+ *      repos under the 60-req unauth rate limit.
+ *   4. buildHandleFromBlobs — builds a FileSystemDirectoryHandle-shaped
+ *      tree from a Map<path, Uint8Array> so the EXISTING scanHandle
  *      pipeline (covered by smoke-scan-deep.mjs) runs unchanged.
  *
- * We don't hit the network here — the prod path uses
- *   GET https://api.github.com/repos/{owner}/{repo}/zipball
- * which is covered by manual QA + the live demo. This test pins the
- * adapter shape so refactors don't silently drop methods scanHandle
- * relies on (`entries`, `getFileHandle`, `kind`, `name`).
+ * We don't hit the network here — the prod path uses GitHub's Git Trees
+ * API + raw.githubusercontent.com fetches (CORS-friendly), covered by
+ * manual QA + the live demo. This test pins the adapter shape so
+ * refactors don't silently drop methods scanHandle relies on
+ * (`entries`, `getFileHandle`, `kind`, `name`).
+ *
+ * History:
+ *   v1 used api.github.com/zipball + JSZip. The 302 to codeload set
+ *   ACAO: render.githubusercontent.com (not *), so the browser blocked
+ *   the response. Caught in QA on the deployed demo.
+ *   v2 (current) uses Git Trees API + raw blob fetches.
  *
  * Run: node prototype/scripts/smoke-scan-github.mjs
  */
@@ -30,11 +38,9 @@ const html = readFileSync(resolve(here, '..', 'index.html'), 'utf8');
 // ── extract via markers ──────────────────────────────────────────────
 // Brace-tracking extractors trip on regex literals like /^https?:\/\//
 // (the // sequence is parsed as a line-comment). The prototype wraps
-// the three pure helpers we want to test in
-//   // FACTSTACK_GH_API_START
-//   …
-//   // FACTSTACK_GH_API_END
-// so this test pulls everything between them verbatim. Stable + simple.
+// the GitHub-flow helpers between FACTSTACK_GH_API_START and
+// FACTSTACK_GH_API_END so this test pulls everything between them
+// verbatim. Stable + simple.
 const START = '// FACTSTACK_GH_API_START';
 const END   = '// FACTSTACK_GH_API_END';
 const startIx = html.indexOf(START);
@@ -44,16 +50,19 @@ if (startIx < 0 || endIx < 0 || endIx < startIx) {
   process.exit(1);
 }
 let glue = html.slice(startIx, endIx);
-// Expose to the surrounding sandbox
 glue += '\nglobalThis.__parseRepoSpec__ = parseRepoSpec;\n';
 glue += 'globalThis.__repoSpecKey__ = repoSpecKey;\n';
-glue += 'globalThis.__buildHandleFromZip__ = buildHandleFromZip;\n';
+glue += 'globalThis.__buildHandleFromBlobs__ = buildHandleFromBlobs;\n';
+glue += 'globalThis.__ghIsTextish__ = ghIsTextish;\n';
+glue += 'globalThis.__ghIsExcluded__ = ghIsExcluded;\n';
 
 const sandbox = { console, Map, Set, Array, Object, JSON, Math, Date, RegExp, Error, TextDecoder, TextEncoder, URL, Promise, performance };
 vm.runInContext(glue, vm.createContext(sandbox), { filename: 'extracted-gh' });
 const parseRepoSpec = sandbox.__parseRepoSpec__;
 const repoSpecKey = sandbox.__repoSpecKey__;
-const buildHandleFromZip = sandbox.__buildHandleFromZip__;
+const buildHandleFromBlobs = sandbox.__buildHandleFromBlobs__;
+const ghIsTextish = sandbox.__ghIsTextish__;
+const ghIsExcluded = sandbox.__ghIsExcluded__;
 
 const fail = (msg) => { console.error('FAIL:', msg); process.exit(1); };
 const eq = (a, b, msg) => { if (JSON.stringify(a) !== JSON.stringify(b)) fail(`${msg} — expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); };
@@ -78,38 +87,40 @@ eq(repoSpecKey({ owner: '../evil', repo: '..' }), '.._evil/..', 'sanitizes trave
 // Special chars are normalized to underscores so storage paths stay flat.
 eq(repoSpecKey({ owner: 'a b', repo: 'c$d' }), 'a_b/c_d', 'spaces and $ sanitized');
 
-// ── buildHandleFromZip ───────────────────────────────────────────────
-// JSZip-shaped fixture: { files: { [zipPath]: { dir, async(type) } } }
-function fakeZip(entries) {
-  const files = {};
+// ── ghIsTextish ─────────────────────────────────────────────────────
+if (ghIsTextish('src/index.ts') !== true)  fail('ghIsTextish: .ts must be text-ish');
+if (ghIsTextish('package.json') !== true)  fail('ghIsTextish: .json must be text-ish');
+if (ghIsTextish('README.md') !== true)     fail('ghIsTextish: .md must be text-ish');
+if (ghIsTextish('logo.png') !== false)     fail('ghIsTextish: .png must NOT be text-ish');
+if (ghIsTextish('font.woff2') !== false)   fail('ghIsTextish: .woff2 must NOT be text-ish');
+if (ghIsTextish('LICENSE') !== false)      fail('ghIsTextish: extension-less files skip (avoids LFS pointers + binaries)');
+
+// ── ghIsExcluded ────────────────────────────────────────────────────
+if (ghIsExcluded('node_modules/foo/bar.js') !== true)     fail('ghIsExcluded: node_modules anywhere in path');
+if (ghIsExcluded('apps/cli/dist/index.js') !== true)      fail('ghIsExcluded: dist anywhere in path');
+if (ghIsExcluded('.git/HEAD') !== true)                   fail('ghIsExcluded: .git anywhere in path');
+if (ghIsExcluded('src/index.ts') !== false)               fail('ghIsExcluded: src must not be excluded');
+if (ghIsExcluded('packages/spec/src/index.ts') !== false) fail('ghIsExcluded: nested src must not be excluded');
+
+// ── buildHandleFromBlobs ─────────────────────────────────────────────
+// Fixture: Map<path, Uint8Array>. The new code path skips the JSZip
+// wrapper since raw blobs come straight from raw.githubusercontent.com.
+function blobMap(entries) {
+  const m = new Map();
   for (const [path, content] of Object.entries(entries)) {
-    const isDir = path.endsWith('/');
-    files[path] = {
-      dir: isDir,
-      async async(type) {
-        if (isDir) return type === 'uint8array' ? new Uint8Array() : '';
-        const text = String(content);
-        if (type === 'uint8array') return new TextEncoder().encode(text);
-        return text;
-      },
-      date: new Date('2026-04-30T00:00:00Z'),
-    };
+    m.set(path, new TextEncoder().encode(content));
   }
-  return { files };
+  return m;
 }
 
-// GitHub zipball wraps everything in `owner-repo-shortsha/`.
-const zip = fakeZip({
-  'vercel-next.js-abc1234/': null,
-  'vercel-next.js-abc1234/package.json': JSON.stringify({ name: 'next-fake', version: '15.0.0' }),
-  'vercel-next.js-abc1234/src/': null,
-  'vercel-next.js-abc1234/src/index.ts': "export const x = 1;\n",
-  'vercel-next.js-abc1234/src/lib/': null,
-  'vercel-next.js-abc1234/src/lib/util.ts': "export function util() { return 42; }\n",
-  'vercel-next.js-abc1234/README.md': '# next-fake\n\nA test repo.\n',
+const blobs = blobMap({
+  'package.json': JSON.stringify({ name: 'next-fake', version: '15.0.0' }),
+  'src/index.ts': "export const x = 1;\n",
+  'src/lib/util.ts': "export function util() { return 42; }\n",
+  'README.md': '# next-fake\n\nA test repo.\n',
 });
 
-const root = buildHandleFromZip(zip, 'vercel-next.js-abc1234', 'vercel/next.js');
+const root = buildHandleFromBlobs(blobs, 'vercel/next.js');
 
 // 1. Root handle must look like a FileSystemDirectoryHandle.
 if (root.kind !== 'directory') fail('root.kind must be "directory"');
@@ -159,20 +170,28 @@ let threw = false;
 try { await root.getFileHandle('does-not-exist'); } catch (e) { threw = true; if (e?.name !== 'NotFoundError') fail('expected NotFoundError, got ' + e?.name); }
 if (!threw) fail('getFileHandle must throw on missing file');
 
-// 5. Binary file detection — null bytes in first 8 KB make text() return '\0'
-//    so scanHandle skips it via the existing null-byte sniff.
-const binZip = fakeZip({
-  'r/': null,
-  'r/logo.png': ' PNGbinary',
-});
-const binRoot = buildHandleFromZip(binZip, 'r', 'r');
+// 5. Binary file detection — null bytes in first 8 KB make text() return
+//    a single null byte so scanHandle skips it via the existing sniff.
+const binBlobs = new Map();
+binBlobs.set('logo.png', new Uint8Array([0, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13])); // PNG signature with leading null
+const binRoot = buildHandleFromBlobs(binBlobs, 'r');
 const png = await binRoot.getFileHandle('logo.png');
 const pngFile = await png.getFile();
 const pngText = await pngFile.text();
 if (!pngText.includes('\0')) fail('binary file text() must contain null byte to trigger scanHandle skip');
 
-console.log('OK · 5 GitHub-adapter assertions pass');
+// 6. Empty blob map — handle still constructs cleanly (matches the
+//    truncated-tree-no-files-matched edge case from real repos).
+const emptyRoot = buildHandleFromBlobs(new Map(), 'empty/repo');
+if (emptyRoot.kind !== 'directory') fail('empty repo: root must still be a directory');
+const emptyEntries = await collect(emptyRoot);
+if (emptyEntries.length !== 0) fail('empty repo: collect must return zero entries');
+
+console.log('OK · 6 GitHub-adapter assertions pass');
 console.log('  parseRepoSpec  : 9 cases');
 console.log('  repoSpecKey    : 4 cases');
-console.log('  zip → handle   :', files.length, 'files,', dirs.length, 'dirs');
+console.log('  ghIsTextish    : 6 cases');
+console.log('  ghIsExcluded   : 5 cases');
+console.log('  blobs → handle :', files.length, 'files,', dirs.length, 'dirs');
 console.log('  binary detect  : null-byte sentinel returned for non-text payloads');
+console.log('  empty repo     : handles cleanly, no entries');

@@ -27,3 +27,4 @@ examples/__screenshots__/*-diff.png
 
 # FACTS analysis artifacts
 .facts/
+.gstack/

@@ -5760,21 +5760,57 @@
       //       window.FACTSTACK_SUPABASE.url/anonKey, the dataset is
       //       uploaded to a public bucket so deep links replay instantly.
       // FACTSTACK_GH_API_START — pure helpers covered by smoke-scan-github.mjs
-      let _jszip = null;
-      async function loadJSZip() {
-        if (_jszip) return _jszip;
-        try {
-          // ESM build keeps the rest of our import graph homogeneous.
-          // unpkg redirects to a versioned tarball — fast + cacheable.
-          const mod = await import('https://esm.sh/jszip@3.10.1');
-          _jszip = mod.default || mod.JSZip || mod;
-          if (!_jszip || typeof _jszip.loadAsync !== 'function') {
-            throw new Error('JSZip module missing loadAsync');
-          }
-        } catch (e) {
-          throw new Error('Failed to load JSZip from CDN: ' + (e?.message || e));
+      //
+      // History: v1 used api.github.com/repos/{o}/{r}/zipball + JSZip
+      // unpacking. The 302 from api.github.com lands at codeload.github.com
+      // which sets Access-Control-Allow-Origin: render.githubusercontent.com
+      // (NOT *), so the browser blocks the response. Caught in QA on the
+      // deployed demo.
+      //
+      // v2 (current): use the Git Trees API for the recursive listing
+      // (1 request, has CORS) then fetch each blob from
+      // raw.githubusercontent.com (which does have CORS on every response).
+      // Trade-off: N+1 requests instead of 1, so we cap concurrency and
+      // pre-filter to text-ish extensions to avoid burning rate limit on
+      // PNGs / lockfiles. Token raises rate from 60 → 5000/hr.
+
+      // Files we'll actually analyze. Filtering at the network layer
+      // keeps small repos under the 60-req unauth rate limit.
+      const GH_TEXT_EXTS = new Set([
+        '.ts', '.tsx', '.mts', '.cts',
+        '.js', '.jsx', '.mjs', '.cjs',
+        '.py', '.rb', '.go', '.rs', '.java', '.kt', '.swift', '.php', '.sh',
+        '.json', '.yaml', '.yml', '.toml',
+        '.md', '.html', '.htm', '.css', '.scss', '.txt',
+      ]);
+      // Mirrors the in-memory ALWAYS_EXCLUDE set used by the local-folder
+      // scanner — keeps the two sources behaviorally consistent.
+      const GH_EXCLUDE_DIRS = new Set([
+        'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
+        '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
+        '.pnpm-store', '.vscode', '.idea',
+      ]);
+      const GH_MAX_FILE_BYTES = 1024 * 1024;
+      const GH_FETCH_CONCURRENCY = 10;
+
+      function ghIsTextish(path) {
+        const i = path.lastIndexOf('.');
+        if (i < 0) return false;
+        return GH_TEXT_EXTS.has(path.slice(i).toLowerCase());
+      }
+      function ghIsExcluded(path) {
+        // Any path segment matching an excluded dir → skip.
+        for (const seg of path.split('/')) {
+          if (GH_EXCLUDE_DIRS.has(seg)) return true;
         }
-        return _jszip;
+        return false;
+      }
+      function ghFriendlyError(res) {
+        let hint = '';
+        if (res.status === 404) hint = ' (repo not found or private — try adding a PAT)';
+        else if (res.status === 403) hint = ' (rate limit exceeded — add a PAT to raise to 5000/hr)';
+        else if (res.status === 401) hint = ' (token rejected — check it has not expired)';
+        return new Error(`GitHub returned ${res.status} ${res.statusText}${hint}`);
       }
 
       function parseRepoSpec(raw) {
@@ -5818,59 +5854,88 @@
 
       async function loadGitHubRepoAsHandle({ owner, repo, ref = '', token = '' }, onProgress) {
         onProgress?.({ phase: 'walking', current: 0, total: 0, label: `Contacting GitHub… ${owner}/${repo}${ref ? '@' + ref : ''}` });
-        const refPart = ref ? '/' + encodeURIComponent(ref) : '';
-        const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/zipball${refPart}`;
-        const headers = { 'Accept': 'application/vnd.github+json' };
+        const headers = {
+          'Accept': 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+        };
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        const res = await fetch(url, { headers, redirect: 'follow' });
-        if (!res.ok) {
-          // 404 = wrong owner/repo or private+no-token; 403 = rate limit
-          let hint = '';
-          if (res.status === 404) hint = ' (repo not found or private — try adding a PAT)';
-          else if (res.status === 403) hint = ' (rate limit exceeded — add a PAT to raise to 5000/hr)';
-          else if (res.status === 401) hint = ' (token rejected — check it has not expired)';
-          throw new Error(`GitHub returned ${res.status} ${res.statusText}${hint}`);
+
+        // 1. Resolve default branch (raw.githubusercontent.com needs the
+        //    actual branch name, not "HEAD"). Skip if caller passed a ref.
+        let branch = ref;
+        if (!branch) {
+          const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, { headers });
+          if (!r.ok) throw ghFriendlyError(r);
+          const meta = await r.json();
+          branch = meta.default_branch || 'main';
         }
-        // Stream with progress so very large repos don't look frozen.
-        const total = +res.headers.get('Content-Length') || 0;
-        const reader = res.body && res.body.getReader ? res.body.getReader() : null;
-        let blob;
-        if (reader) {
-          const chunks = [];
-          let received = 0;
-          let lastTick = 0;
+
+        // 2. Get the recursive tree (one request, returns paths + sizes
+        //    + SHAs for the whole repo at this ref).
+        onProgress?.({ phase: 'walking', current: 0, total: 0, label: `Listing files at ${branch}…` });
+        const treeRes = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`, { headers });
+        if (!treeRes.ok) throw ghFriendlyError(treeRes);
+        const treeData = await treeRes.json();
+        const tree = Array.isArray(treeData?.tree) ? treeData.tree : [];
+
+        // 3. Filter blobs to text-ish files within size cap, skipping
+        //    excluded directories. Filtering at the network boundary
+        //    keeps small repos under the 60-req unauth rate limit.
+        const interesting = [];
+        for (const node of tree) {
+          if (!node || node.type !== 'blob' || typeof node.path !== 'string') continue;
+          if (typeof node.size === 'number' && node.size > GH_MAX_FILE_BYTES) continue;
+          if (ghIsExcluded(node.path)) continue;
+          if (!ghIsTextish(node.path)) continue;
+          interesting.push(node);
+        }
+        if (interesting.length === 0 && treeData.truncated) {
+          throw new Error('GitHub tree was truncated (>100k entries) and no source files matched the filter — try a smaller subdir or a ref.');
+        }
+        const totalFiles = interesting.length;
+        onProgress?.({ phase: 'walking', current: 0, total: totalFiles, label: `Found ${totalFiles} source files…` });
+
+        // 4. Concurrent raw blob fetches. raw.githubusercontent.com sets
+        //    `Access-Control-Allow-Origin: *`, so this is the part that
+        //    actually works in the browser (vs zipball, which 302s into
+        //    a CORS-restricted codeload origin).
+        const blobs = new Map(); // path → Uint8Array
+        let cursor = 0;
+        let done = 0;
+        let lastTick = 0;
+        const fetchOpts = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
+        async function worker() {
           while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            const now = performance.now();
-            if (now - lastTick > 120) {
-              const mb = (received / 1048576).toFixed(1);
-              const totalMb = total ? ` / ${(total / 1048576).toFixed(1)} MB` : '';
-              onProgress?.({ phase: 'walking', current: received, total, label: `Downloading… ${mb} MB${totalMb}` });
-              lastTick = now;
+            const i = cursor++;
+            if (i >= totalFiles) return;
+            const node = interesting[i];
+            try {
+              // path is already URL-safe per GitHub conventions; do not
+              // encodeURIComponent the slashes.
+              const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(branch)}/${node.path.split('/').map(encodeURIComponent).join('/')}`;
+              const r = await fetch(url, fetchOpts);
+              if (!r.ok) continue; // skip files that 404 (e.g., LFS pointers)
+              const buf = await r.arrayBuffer();
+              blobs.set(node.path, new Uint8Array(buf));
+            } catch { /* skip individual file failures */ }
+            done++;
+            const t = performance.now();
+            if (t - lastTick > 120 || done === totalFiles) {
+              onProgress?.({ phase: 'reading', current: done, total: totalFiles, label: `Fetching files… ${done}/${totalFiles}` });
+              lastTick = t;
             }
           }
-          blob = new Blob(chunks);
-        } else {
-          // Fallback for environments without streams
-          blob = await res.blob();
         }
-        onProgress?.({ phase: 'walking', current: blob.size, total: blob.size, label: `Unpacking ${(blob.size / 1048576).toFixed(1)} MB zip…` });
-        const JSZip = await loadJSZip();
-        const zip = await JSZip.loadAsync(blob);
-        // GitHub zipballs are wrapped in `owner-repo-shortsha/` — strip
-        // that single root so paths land at the project root.
-        const topKeys = Object.keys(zip.files);
-        const topDir = topKeys.find((k) => k.endsWith('/') && k.indexOf('/') === k.length - 1);
-        const rootPrefix = topDir ? topDir.slice(0, -1) : '';
+        const workers = [];
+        for (let w = 0; w < Math.min(GH_FETCH_CONCURRENCY, Math.max(1, totalFiles)); w++) workers.push(worker());
+        await Promise.all(workers);
+
         const displayName = `${owner}/${repo}${ref ? '@' + ref : ''}`;
-        return buildHandleFromZip(zip, rootPrefix, displayName);
+        return buildHandleFromBlobs(blobs, displayName);
       }
 
-      function buildHandleFromZip(zip, rootPrefix, displayName) {
-        // Build a tree of (dirPath → { dirs:Map<name,childPath>, files:Map<name,zipPath> }).
+      function buildHandleFromBlobs(blobs, displayName) {
+        // Build a tree of (dirPath → { dirs:Map<name,childPath>, files:Map<name,Uint8Array> }).
         // Then expose a FileSystemDirectoryHandle-shaped object for each dir
         // that the existing scanner walks unchanged.
         const tree = new Map();
@@ -5888,30 +5953,21 @@
           ensureDir(parent).dirs.set(name, path);
           ensureDir(path);
         };
-        for (const [zipPath, file] of Object.entries(zip.files)) {
-          let rel = rootPrefix && zipPath.startsWith(rootPrefix + '/')
-            ? zipPath.slice(rootPrefix.length + 1)
-            : (rootPrefix === '' ? zipPath : '');
-          if (!rel || rel === rootPrefix + '/' ) continue;
-          if (file.dir) {
-            wireParent(rel.replace(/\/$/, ''));
-          } else {
-            const i = rel.lastIndexOf('/');
-            const parent = i >= 0 ? rel.slice(0, i) : '';
-            const name = i >= 0 ? rel.slice(i + 1) : rel;
-            if (parent) wireParent(parent);
-            ensureDir(parent).files.set(name, zipPath);
-          }
+        for (const [path, u8] of blobs) {
+          if (!path) continue;
+          const i = path.lastIndexOf('/');
+          const parent = i >= 0 ? path.slice(0, i) : '';
+          const name = i >= 0 ? path.slice(i + 1) : path;
+          if (parent) wireParent(parent);
+          ensureDir(parent).files.set(name, u8);
         }
-        function makeFileHandle(name, zipPath) {
-          const file = zip.files[zipPath];
+        function makeFileHandle(name, u8) {
           return {
             kind: 'file',
             name,
             async getFile() {
-              // Decode lazily as bytes; sniff for binary BEFORE decoding
-              // so we don't burn UTF-8 cycles on PNGs/woffs/etc.
-              const u8 = await file.async('uint8array');
+              // Sniff for binary BEFORE decoding so PNGs / woffs that
+              // slipped past the extension filter don't burn UTF-8 cycles.
               let isBinary = false;
               const probe = u8.subarray(0, Math.min(8192, u8.length));
               for (let i = 0; i < probe.length; i++) {
@@ -5919,7 +5975,7 @@
               }
               return {
                 size: u8.length,
-                lastModified: file.date ? file.date.getTime() : Date.now(),
+                lastModified: Date.now(),
                 text: async () => {
                   // Returning '\0' makes scanHandle's existing
                   // null-byte sniff skip the file as binary.
@@ -5938,12 +5994,12 @@
             name,
             async *entries() {
               for (const [n, p] of t.dirs) yield [n, makeDirHandle(p, n)];
-              for (const [n, zp] of t.files) yield [n, makeFileHandle(n, zp)];
+              for (const [n, u8] of t.files) yield [n, makeFileHandle(n, u8)];
             },
             async getFileHandle(n) {
-              const zp = t.files.get(n);
-              if (!zp) { const e = new Error('ENOENT'); e.name = 'NotFoundError'; throw e; }
-              return makeFileHandle(n, zp);
+              const u8 = t.files.get(n);
+              if (!u8) { const e = new Error('ENOENT'); e.name = 'NotFoundError'; throw e; }
+              return makeFileHandle(n, u8);
             },
             async getDirectoryHandle(n) {
               const p = t.dirs.get(n);
