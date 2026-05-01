@@ -190,12 +190,69 @@ code, kbd, samp {
   font-size: 0.92em;
 }
 
-/* ── reduced-motion: kill all transitions/animations. */
+/* ── reduced-motion: kill transitions/animations + zero-out the
+   --dur-quick token so component-level transitions defined via the
+   token (e.g. row hover background fades) become instant too. The
+   class-level wildcard catches inline @keyframes; the token override
+   catches mix={css({ transition: '... var(--dur-quick) ...' })}. */
 @media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-quick: 0ms;
+    --dur-state: 0ms;
+    --dur-layout: 0ms;
+    --dur-signature: 0ms;
+  }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── Loading skeleton — shown by App.tsx while loadArtifacts() is
+     in flight. Renders the shell skeleton (header rule, tree column
+     rule, status bar rule) so the first paint isn't a bare "Loading…"
+     flash on slow connections. The cells inside are empty; this is
+     intentional — we're not faking content rows, just establishing
+     the layout grid so the eventual content arrival doesn't reflow
+     the whole page. */
+.skeleton-shell {
+  display: grid;
+  grid-template-rows: var(--nav-h) 1fr var(--status-h);
+  grid-template-columns: var(--tree-w) 1fr;
+  grid-template-areas:
+    "header  header"
+    "tree    main"
+    "footer  footer";
+  height: 100dvh;
+}
+.skeleton-shell > .sk-h { grid-area: header; border-bottom: 1px solid var(--hairline); }
+.skeleton-shell > .sk-t { grid-area: tree;   border-right:  1px solid var(--hairline); }
+.skeleton-shell > .sk-m { grid-area: main; }
+.skeleton-shell > .sk-f { grid-area: footer; border-top:    1px solid var(--hairline); }
+
+.skeleton-shell .sk-pulse {
+  width: 1px;
+  height: 14px;
+  background: var(--fg-faint);
+  margin: 21px 32px;
+  opacity: 0.6;
+  animation: sk-blink 1.2s var(--ease-out-quart) infinite;
+}
+@keyframes sk-blink {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 0.15; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-shell .sk-pulse { animation: none; }
+}
+
+@media (max-width: 899px) {
+  .skeleton-shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "header" "main" "footer";
+  }
+  .skeleton-shell > .sk-t { display: none; }
 }

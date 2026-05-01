@@ -10,6 +10,7 @@ import { css } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
+import { RuledTable, RuledRow, RuledCell } from '../ui/RuledColumn.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 
 interface AboutProps {
@@ -132,7 +133,7 @@ export function About(_h: Handle<AboutProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>About · self-disclosure</div>
+          <div mix={kicker}>About · v0.1 · Remix UI</div>
           <h1 mix={headline}>FACTS — File Analysis &amp; Context Tracking Stack.</h1>
           <p mix={lede}>
             One analysis pass produces two artifacts: a path-addressable
@@ -189,41 +190,49 @@ export function About(_h: Handle<AboutProps>) {
           </Section>
 
           <Section label="Roadmap" title="Where it's going">
-            <div mix={prose}>
-              <p mix={proseP}>
-                <strong>v0.3</strong> — memory layer: <code mix={codeInline}>MEMORY.md</code>{' '}
-                generator, <code mix={codeInline}>since(timestamp)</code>{' '}
-                tool, agent-identity log, postmortem learnings.
-              </p>
-              <p mix={proseP}>
-                <strong>v0.4</strong> — architecture / vulnerabilities /
-                staleness: tier taxonomy, supply-chain scan, taint flow,
-                effect graph, public-vs-private API surface, plus the
-                first agent power tools (
-                <code mix={codeInline}>impact_of</code>,{' '}
-                <code mix={codeInline}>find_examples</code>,{' '}
-                <code mix={codeInline}>unused</code>).
-              </p>
-              <p mix={proseP}>
-                <strong>v0.5</strong> — onboarding tour, decision archaeology,
-                clone detection, semantic diff, OpenAPI spec drift.
-              </p>
-              <p mix={proseP}>
-                <strong>v0.6</strong> — bug-to-PR pipeline. User reports a
-                bug; FACTS reproduces it, proposes a fix, runs adversarial
-                tests, opens a PR. Developer reviews and merges.
-              </p>
-              <p mix={proseP}>
-                Full feasibility scoring + sequencing in{' '}
-                <a href="https://github.com/adi-FGC/Facts-Code/blob/master/ROADMAP.md" mix={link} target="_blank" rel="noopener noreferrer">
-                  ROADMAP.md
-                </a>
-                {' · '}
-                <a href="https://github.com/adi-FGC/Facts-Code/blob/master/plan.md" mix={link} target="_blank" rel="noopener noreferrer">
-                  plan.md
-                </a>.
-              </p>
-            </div>
+            {/* Audit M3 fix: 4 paragraph runs replaced with a hairline
+                table. Same content, scans in 5 seconds vs 45. */}
+            <RuledTable cols="60px 1fr">
+              <RuledRow header>
+                <RuledCell header>Version</RuledCell>
+                <RuledCell header>What lands</RuledCell>
+              </RuledRow>
+              <RuledRow>
+                <RuledCell mono>v0.3</RuledCell>
+                <RuledCell>
+                  <strong>Memory layer.</strong> MEMORY.md generator, since(timestamp) tool,
+                  agent identity log, postmortem learnings.
+                </RuledCell>
+              </RuledRow>
+              <RuledRow>
+                <RuledCell mono>v0.4</RuledCell>
+                <RuledCell>
+                  <strong>Architecture / vulns / staleness.</strong> Tier taxonomy,
+                  supply-chain scan, taint flow, effect graph, public-vs-private API surface,
+                  plus the first agent power tools (impact_of, find_examples, unused).
+                </RuledCell>
+              </RuledRow>
+              <RuledRow>
+                <RuledCell mono>v0.5</RuledCell>
+                <RuledCell>
+                  <strong>Onboarding + drift.</strong> Onboarding tour, decision archaeology,
+                  clone detection, semantic diff, OpenAPI spec drift.
+                </RuledCell>
+              </RuledRow>
+              <RuledRow>
+                <RuledCell mono>v0.6</RuledCell>
+                <RuledCell>
+                  <strong>Bug-to-PR pipeline.</strong> User reports a bug; FACTS reproduces it,
+                  proposes a fix, runs adversarial tests, opens a PR. Developer reviews + merges.
+                </RuledCell>
+              </RuledRow>
+            </RuledTable>
+            <p mix={css({ marginTop: 'var(--space-5)', fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' })}>
+              Full feasibility scoring + sequencing in{' '}
+              <a href="https://github.com/adi-FGC/Facts-Code/blob/master/ROADMAP.md" mix={link} target="_blank" rel="noopener noreferrer">ROADMAP.md</a>
+              {' · '}
+              <a href="https://github.com/adi-FGC/Facts-Code/blob/master/plan.md" mix={link} target="_blank" rel="noopener noreferrer">plan.md</a>.
+            </p>
           </Section>
         </div>
 

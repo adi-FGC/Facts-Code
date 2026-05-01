@@ -58,7 +58,7 @@ export function Risks(_h: Handle<RisksProps>) {
       return (
         <ContentWithMargin>
           <div mix={css({ gridColumn: '1' })}>
-            <div mix={kicker}>Risks · audit</div>
+            <div mix={kicker}>Risks · 0 findings</div>
             <h1 mix={headline}>Nothing to flag today.</h1>
             <p mix={lede}>
               No exposed secrets, no unresolved imports, no dependency cycles,
@@ -88,7 +88,7 @@ export function Risks(_h: Handle<RisksProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Risks · {data.risks.length} findings</div>
+          <div mix={kicker}>Risks · {data.risks.length} {data.risks.length === 1 ? 'finding' : 'findings'}</div>
           <h1 mix={headline}>What to look at first.</h1>
           <p mix={lede}>
             Highest-severity items lead. Each finding ties back to a file

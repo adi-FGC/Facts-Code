@@ -189,7 +189,7 @@ export function Overview(_h: Handle<OverviewProps>) {
             <span aria-hidden="true" mix={kickerDot} />
             Overview
             <span mix={css({ color: 'var(--fg-faint)' })}>·</span>
-            <span mix={css({ color: 'var(--fg-subtle)' })}>analysis</span>
+            <span mix={css({ color: 'var(--fg-subtle)' })}>{fmt(stats.files)} files</span>
           </div>
           <h1 mix={headline}>{summary.oneLiner}</h1>
           <p mix={ledeText}>

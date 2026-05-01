@@ -29,10 +29,17 @@ interface LibraryProps {
   data: Dataset;
 }
 
+/* Audit M2 fix: K-suffix transitions at 1000 (1 → 1.0K), but for
+   table columns where both 270 and 62300 appear, the visual jitter
+   between "270" and "62.3K" breaks the column rhythm. We render
+   below-1K values with a grouping comma instead of bare digits so
+   every cell at least uses the same numeric grammar — and use
+   tabular-nums (already on RuledCell mono) to keep the columns true. */
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
-  return String(n);
+  if (n >= 10_000)    return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 1_000)     return (n / 1_000).toFixed(2) + 'K';
+  return n.toLocaleString('en-US');
 }
 
 function aggregate(node: DatasetTreeNode): { files: number; loc: number; tokens: number } {
@@ -169,7 +176,11 @@ export function Library(_h: Handle<LibraryProps>) {
               header replaces the previous 6 (one-per-category) — saves
               ~300px of vertical chrome and reads top-down by weight. */}
           <Section label="Packages" title="What it's made of">
-            <RuledTable cols="56px minmax(0, 1fr) auto auto auto">
+            {/* Audit follow-up: 56px → 88px for the KIND column. At
+                fs-10 with 0.14em letter-spacing, "DOCS" / "OTHER" + the
+                "KIND" header itself need ~85px just for glyphs + padding.
+                The previous narrower column truncated to "DO..." / "KI...". */}
+            <RuledTable cols="88px minmax(0, 1fr) auto auto auto">
               <RuledRow header>
                 <RuledCell header>Kind</RuledCell>
                 <RuledCell header>Name</RuledCell>

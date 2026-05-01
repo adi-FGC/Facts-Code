@@ -68,7 +68,7 @@ export function History(_h: Handle<HistoryProps>) {
       return (
         <ContentWithMargin>
           <div mix={css({ gridColumn: '1' })}>
-            <div mix={kicker}>History · trends</div>
+            <div mix={kicker}>History · 1 snapshot</div>
             <h1 mix={headline}>One snapshot so far.</h1>
             <p mix={lede}>
               Trend lines populate after multiple analyses. Re-run{' '}
@@ -95,7 +95,7 @@ export function History(_h: Handle<HistoryProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>History · {history.length} snapshots</div>
+          <div mix={kicker}>History · {history.length} {history.length === 1 ? 'snapshot' : 'snapshots'}</div>
           <h1 mix={headline}>Trends over time.</h1>
           <p mix={lede}>
             Each row below is a single analysis pass. The figures above

@@ -92,9 +92,21 @@ function ErrorScreen(_h: Handle<{ message: string }>) {
   );
 }
 
+/* Audit M6 fix: instead of a bare "Loading…" string in the corner,
+   render the same shell skeleton (header rule + tree column rule +
+   status rule + a tiny blinking caret) so first paint already has
+   the layout established. When data lands, only the content area
+   swaps — no whole-page reflow. */
 function Loading(_h: Handle) {
   return () => (
-    <div mix={css({ padding: '32px', color: 'var(--fg-muted)' })}>Loading…</div>
+    <div class="skeleton-shell" role="status" aria-label="Loading FACTS dashboard">
+      <div class="sk-h" />
+      <div class="sk-t" />
+      <div class="sk-m">
+        <div class="sk-pulse" />
+      </div>
+      <div class="sk-f" />
+    </div>
   );
 }
 
