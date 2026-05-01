@@ -11,3 +11,10 @@ export {
   type LicenseRisk,
 } from './licenses.js';
 export type { TodoEntry } from './types.js';
+export {
+  rewriteRiskMessage,
+  applyRewrite,
+  RULE_REWRITES,
+  type RewriteContext,
+  type RewriteTemplate,
+} from './risks-rewrite.js';

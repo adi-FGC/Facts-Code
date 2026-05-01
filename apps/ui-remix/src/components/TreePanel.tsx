@@ -211,10 +211,24 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
     for (const f of files) {
       const indent = `calc(var(--space-5) + ${depth * 12}px)`;
       const isActive = activePath === f.path;
+      /* v0.3.8 — native tooltip with reading-time + top-1 contributor.
+         Native `title` is intentionally simple here (richer custom
+         tooltips would fight the overflow-y:auto wrap). The Files
+         detail page renders the full Owners table in its margin. */
+      const mins = f.readingMinutes;
+      const topAuthor = f.topContributors?.[0];
+      const titleParts: string[] = [];
+      if (typeof mins === 'number' && mins > 0) titleParts.push(`~${mins} min read`);
+      titleParts.push(`${f.loc} LOC`);
+      if (topAuthor) {
+        const days = Math.round((Date.now() - topAuthor.lastTouchedMs) / 86_400_000);
+        titleParts.push(`${topAuthor.name || topAuthor.email.split('@')[0]} · ${days}d ago`);
+      }
       out.push(
         <li key={`f:${f.path}`}>
           <a
             href={`/files?p=${encodeURIComponent(f.path)}`}
+            title={titleParts.join(' · ')}
             mix={[
               rowBase,
               rowFile,

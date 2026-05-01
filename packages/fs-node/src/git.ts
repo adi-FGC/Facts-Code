@@ -14,10 +14,28 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
+export interface Contributor {
+  email: string;
+  /** Display name from git config user.name. Empty string when git
+   *  config didn't supply one — CLI consumer can fall back to the
+   *  email's local-part. */
+  name: string;
+  /** Number of commits this author made to the file in the lookback
+   *  window. Lifetime count is also captured but only the windowed
+   *  number influences the top-3 ranking. */
+  commits: number;
+  /** Most recent commit by this author touching this file. */
+  lastTouchedMs: number;
+}
+
 export interface GitStats {
   lastModifiedMs: number;
   churnScore: number;    // commits-in-window
   authorCount: number;
+  /** v0.3.8 — top-3 contributors by commits-in-window, with names +
+   *  last-touched timestamps. Empty array when no in-window commits
+   *  reach the file (e.g., legacy file untouched in 90 days). */
+  topContributors: Contributor[];
 }
 
 export interface MineOptions {
@@ -48,7 +66,11 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
   // previously truncated silently with no user-facing signal.
   const log = spawnSync(
     'git',
-    ['-C', root, 'log', '--no-merges', '--pretty=format:__C__%ae\x1f%ct', '--name-only', '-z', `--since=${windowDays * 2} days ago`],
+    /* %ae = author email · %an = author name · %ct = commit timestamp.
+       v0.3.8 added %an so we can attribute top contributors per file
+       with a display name. The ASCII US (\x1f) separator is still
+       safe — it cannot legally appear in a git config user.name. */
+    ['-C', root, 'log', '--no-merges', '--pretty=format:__C__%ae\x1f%an\x1f%ct', '--name-only', '-z', `--since=${windowDays * 2} days ago`],
     { encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 },
   );
   if (log.status !== 0 || !log.stdout) {
@@ -64,8 +86,20 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
   // Parse sequentially: on each sentinel we start a new commit; subsequent
   // non-sentinel lines are files touched by that commit.
   let currentEmail = '';
+  let currentName = '';
   let currentTs = 0;
-  const buckets = new Map<string, { last: number; churn: number; authors: Set<string> }>();
+  /* v0.3.8: per-file author tally moved from a Set<email> (just a count)
+     to a Map<email, {name, commits, lastMs}> so we can rank contributors
+     and surface display names. The Set is gone; authorCount is derived
+     from the map size at the end. */
+  const buckets = new Map<
+    string,
+    {
+      last: number;
+      churn: number;
+      authors: Map<string, { name: string; commits: number; lastMs: number }>;
+    }
+  >();
 
   const parts = log.stdout.split('\0');
   for (const raw of parts) {
@@ -74,24 +108,38 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
     for (const line of lines) {
       if (line.startsWith('__C__')) {
         const body = line.slice(5);
-        const sep = body.indexOf('\x1f');
-        if (sep < 0) {
-          // Malformed sentinel — skip this commit's files to avoid NaN
-          // propagating across every subsequent line.
-          currentEmail = ''; currentTs = 0;
+        // Three fields now: email\x1fname\x1fts. Split on \x1f and take
+        // the first three pieces. A missing name is fine (empty string).
+        const fields = body.split('\x1f');
+        if (fields.length < 3) {
+          currentEmail = ''; currentName = ''; currentTs = 0;
           continue;
         }
-        currentEmail = body.slice(0, sep);
-        const ts = Number(body.slice(sep + 1));
+        currentEmail = fields[0] ?? '';
+        currentName = fields[1] ?? '';
+        const ts = Number(fields[2]);
         currentTs = Number.isFinite(ts) ? ts * 1000 : 0;
       } else {
         if (currentTs === 0) continue;     // no valid commit context
         const posix = line.replace(/\\/g, '/');
-        const b = buckets.get(posix) ?? { last: 0, churn: 0, authors: new Set<string>() };
+        const b = buckets.get(posix) ?? {
+          last: 0,
+          churn: 0,
+          authors: new Map<string, { name: string; commits: number; lastMs: number }>(),
+        };
         if (currentTs > b.last) b.last = currentTs;
         if (currentTs >= cutoff) {
           b.churn++;
-          if (currentEmail) b.authors.add(currentEmail);
+          if (currentEmail) {
+            const a = b.authors.get(currentEmail) ?? { name: currentName, commits: 0, lastMs: 0 };
+            a.commits++;
+            if (currentTs > a.lastMs) a.lastMs = currentTs;
+            // Prefer the most recently-seen name when git history has
+            // the same email under different names (rebasing, contact
+            // changes). Only update if we actually got one this commit.
+            if (currentName) a.name = currentName;
+            b.authors.set(currentEmail, a);
+          }
         }
         buckets.set(posix, b);
       }
@@ -99,10 +147,20 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
   }
 
   for (const [file, b] of buckets) {
+    /* Build top-3 contributors per file: sort the per-email map by
+       commit count desc, then by recency desc as the tiebreaker. */
+    const sorted: Contributor[] = [];
+    for (const [email, a] of b.authors) {
+      sorted.push({ email, name: a.name, commits: a.commits, lastTouchedMs: a.lastMs });
+    }
+    sorted.sort((a, b) =>
+      b.commits !== a.commits ? b.commits - a.commits : b.lastTouchedMs - a.lastTouchedMs,
+    );
     out.set(file, {
       lastModifiedMs: b.last,
       churnScore: b.churn,
       authorCount: b.authors.size,
+      topContributors: sorted.slice(0, 3),
     });
   }
   return out;
@@ -134,7 +192,12 @@ function fallbackMostRecent(root: string): Map<string, GitStats> {
         const posix = line.replace(/\\/g, '/');
         const existing = out.get(posix);
         if (!existing || ts > existing.lastModifiedMs) {
-          out.set(posix, { lastModifiedMs: ts, churnScore: 0, authorCount: 0 });
+          out.set(posix, {
+            lastModifiedMs: ts,
+            churnScore: 0,
+            authorCount: 0,
+            topContributors: [],
+          });
         }
       }
     }

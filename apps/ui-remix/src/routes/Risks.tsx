@@ -112,6 +112,7 @@ export function Risks(_h: Handle<RisksProps>) {
                   message={r.message}
                   source={r.file ? `${r.file}${r.line != null ? ':' + r.line : ''}` : undefined}
                   preview={r.preview}
+                  messageTechnical={r.messageTechnical}
                 />
               ))}
             </Section>

@@ -25,6 +25,10 @@ interface RiskRowProps {
   source?: string | undefined;
   /** Optional redacted preview, mono. */
   preview?: string | undefined;
+  /** v0.3.8 — original technical message before the CXO rewrite.
+   *  Surfaces in a <details> disclosure so engineers can drop into
+   *  rule-id-shaped grep without losing the editorial summary. */
+  messageTechnical?: string | undefined;
 }
 
 const SEV_COLOR: Record<Severity, string> = {
@@ -96,7 +100,7 @@ const previewStyle = css({
 });
 
 export function RiskRow(_h: Handle<RiskRowProps>) {
-  return ({ severity, rule, category, message, source, preview }: RiskRowProps) => {
+  return ({ severity, rule, category, message, source, preview, messageTechnical }: RiskRowProps) => {
     const c = SEV_COLOR[severity];
     return (
       <div mix={wrap}>
@@ -113,6 +117,42 @@ export function RiskRow(_h: Handle<RiskRowProps>) {
             )}
           </span>
           {preview && <code mix={previewStyle}>{preview}</code>}
+          {/* v0.3.8 — technical disclosure. Native <details> so it's
+              keyboard-accessible and screen-reader friendly without
+              needing closure state. Mono + dim so it doesn't compete
+              with the CXO message. */}
+          {messageTechnical && (
+            <details
+              mix={css({
+                marginTop: 'var(--space-2)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--fs-10)',
+                letterSpacing: '0.04em',
+                color: 'var(--fg-faint)',
+              })}
+            >
+              <summary
+                mix={css({
+                  cursor: 'pointer',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.14em',
+                  '&:hover': { color: 'var(--accent)' },
+                })}
+              >
+                Technical detail
+              </summary>
+              <p
+                mix={css({
+                  marginTop: '4px',
+                  marginBottom: '0',
+                  color: 'var(--fg-subtle)',
+                  lineHeight: '1.5',
+                })}
+              >
+                {messageTechnical}
+              </p>
+            </details>
+          )}
         </div>
       </div>
     );

@@ -110,7 +110,29 @@ export const FileOutlineSchema = z.object({
   status: StatusSchema,
   lastModifiedMs: z.number().nonnegative().nullable(),
   churnScore: z.number().nonnegative().nullable(),
+  /** v0.3.8 — estimated read-through time in minutes. Floored at 1
+   *  for non-empty files; folders and skipped files emit 0. Optional
+   *  for backward-compat with pre-v0.3.8 artifacts. */
+  readingMinutes: z.number().nonnegative().optional(),
+  /** v0.3.8 — top-3 git contributors by commit count, with last-touched
+   *  timestamps. Empty / absent when no git history is available
+   *  (zip-only, fresh clone, etc). */
+  topContributors: z.array(
+    z.object({
+      email: z.string(),
+      name: z.string(),
+      commits: z.number().int().nonnegative(),
+      lastTouchedMs: z.number().nonnegative(),
+    }),
+  ).optional(),
 });
+export const ContributorSchema = z.object({
+  email: z.string(),
+  name: z.string(),
+  commits: z.number().int().nonnegative(),
+  lastTouchedMs: z.number().nonnegative(),
+});
+export type Contributor = z.infer<typeof ContributorSchema>;
 export type FileOutline = z.infer<typeof FileOutlineSchema>;
 
 export const GraphNodeSchema = z.object({
@@ -153,6 +175,10 @@ export const RiskSchema = z.object({
   file: z.string().optional(),
   line: z.number().int().positive().optional(),
   message: z.string(),
+  /** v0.3.8 — when set, the original technical message that the CXO
+   *  rewrite replaced. Agents read both; UI hides this behind a
+   *  `<details>` disclosure. Absent when the rule had no rewrite. */
+  messageTechnical: z.string().optional(),
   /** Redacted preview — raw secret values MUST NOT appear here. */
   preview: z.string().optional(),
 });

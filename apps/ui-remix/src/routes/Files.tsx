@@ -330,6 +330,45 @@ export function Files(_h: Handle<FilesProps>) {
             <FootnoteChip label="Status" tone={file.status === 'ok' ? 'ok' : file.status === 'broken' ? 'danger' : 'warn'}>
               {file.status.toUpperCase()}
             </FootnoteChip>
+            {/* v0.3.8 — reading-time chip when present. Skipped/empty
+                files emit 0 minutes from the analyzer; we render only
+                when there's something honest to say. */}
+            {typeof file.readingMinutes === 'number' && file.readingMinutes > 0 && (
+              <FootnoteChip label="Reading time" aside="estimate">
+                ~{file.readingMinutes} min
+              </FootnoteChip>
+            )}
+            {/* v0.3.8 — owners section. Renders a hairline-divided list
+                of top-3 contributors with display name, days-since,
+                commit count. Hidden entirely when the analyzer didn't
+                receive git history. */}
+            {file.topContributors && file.topContributors.length > 0 && (
+              <FootnoteChip label="Owners" aside="last 90 days">
+                <ul mix={css({ listStyle: 'none', margin: '0', padding: '0' })}>
+                  {file.topContributors.map((c) => {
+                    const days = Math.round((Date.now() - c.lastTouchedMs) / 86_400_000);
+                    const display = c.name || c.email.split('@')[0] || 'unknown';
+                    return (
+                      <li
+                        key={c.email}
+                        mix={css({
+                          paddingBlock: '4px',
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 'var(--fs-11)',
+                          color: 'var(--fg-muted)',
+                        })}
+                      >
+                        <span mix={css({ color: 'var(--fg)' })}>{display}</span>
+                        <span mix={css({ color: 'var(--fg-faint)' })}>
+                          {' · '}{c.commits} commit{c.commits === 1 ? '' : 's'}
+                          {' · '}{days}d ago
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </FootnoteChip>
+            )}
             <FootnoteChip label="Path" aside="copy-friendly">
               <span mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)', wordBreak: 'break-all' })}>
                 {file.path}

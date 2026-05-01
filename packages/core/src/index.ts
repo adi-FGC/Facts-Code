@@ -21,6 +21,7 @@ import type {
 import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
 import { walk, type WalkedFile } from '@factstack/walker';
 import {
+  applyRewrite,
   approximateTokens,
   deriveLicenseRisks,
   detectLanguage,
@@ -60,6 +61,8 @@ export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
 export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
+export { computeReadingTime, sumReadingMinutes, type ReadingTimeInput } from './reading-time.js';
+import { computeReadingTime } from './reading-time.js';
 import type { ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
@@ -72,8 +75,13 @@ export interface AnalyzeOptions {
   gzip?: (text: string) => number;
   /** Pre-mined git stats keyed by project-relative path. Isomorphic core
    *  never shells out to git; the CLI injects this map via @factstack/fs-node's
-   *  mineGitStats() helper. */
-  gitStats?: Map<string, { lastModifiedMs: number; churnScore: number; authorCount: number }> | undefined;
+   *  mineGitStats() helper. v0.3.8 added topContributors to the shape. */
+  gitStats?: Map<string, {
+    lastModifiedMs: number;
+    churnScore: number;
+    authorCount: number;
+    topContributors?: Array<{ email: string; name: string; commits: number; lastTouchedMs: number }>;
+  }> | undefined;
   /** Called with percent-complete (0–1) and the file being processed. */
   onProgress?: ((pct: number, file: string) => void) | undefined;
 }
@@ -279,6 +287,16 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // latter is clone-time, not authoring-time.
       lastModifiedMs: opts.gitStats?.get(f.path)?.lastModifiedMs ?? f.mtimeMs ?? null,
       churnScore: opts.gitStats?.get(f.path)?.churnScore ?? null,
+      /* v0.3.8 — reading-time estimate. Cyclomatic is stubbed at 0
+         today (the AST complexity pass lands in v0.4); the formula
+         degrades to pure-LOC scaling, which is still useful. */
+      readingMinutes: computeReadingTime({ loc: f.loc, cyclomatic: 0 }),
+      /* v0.3.8 — top-3 contributors from git history. Pass through
+         only when the CLI's git mine succeeded; absent in static
+         deploys + non-git roots. */
+      ...(opts.gitStats?.get(f.path)?.topContributors?.length
+        ? { topContributors: opts.gitStats.get(f.path)!.topContributors }
+        : {}),
     });
     filesScanned++;
   }
@@ -394,7 +412,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     })),
     scripts: scriptsFromPkgJson,
     capabilities: inferCapabilities(frameworks, outlines),
-    risks: secrets,
+    /* v0.3.8 — funnel every risk through applyRewrite, which swaps
+       in the CXO-readable variant where one exists and stashes the
+       original technical text on `messageTechnical`. Rules without
+       a rewrite pass through unchanged. */
+    risks: secrets.map((r) => applyRewrite(r)),
     stats: {
       loc: totalLOC,
       fileCount: filesScanned,
@@ -600,6 +622,10 @@ function minimalOutline(f: WalkedFile, status: FileOutline['status']): FileOutli
     status,
     lastModifiedMs: f.mtimeMs || null,
     churnScore: null,
+    /* Skipped / minimal outlines emit 0 minutes (not the floored 1)
+       so they don't inflate folder rollups — per the architect's risk
+       note. The full path produces a real number through computeReadingTime. */
+    readingMinutes: 0,
   };
 }
 

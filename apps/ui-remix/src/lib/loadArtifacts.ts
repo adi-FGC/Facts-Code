@@ -30,6 +30,12 @@ export interface DatasetFile {
   todoEntries: Array<{ kind: string; line: number; text: string }>;
   status: 'ok' | 'broken' | 'stale' | 'parse_error';
   mtime: number;
+  /** v0.3.8 — pre-computed read-through time in minutes. Undefined
+   *  for older artifacts that pre-date the spec change. */
+  readingMinutes?: number;
+  /** v0.3.8 — top-3 git contributors. Undefined when no git history
+   *  was available at analyze time. */
+  topContributors?: Array<{ email: string; name: string; commits: number; lastTouchedMs: number }>;
 }
 
 export interface DatasetTreeNode {
@@ -73,7 +79,18 @@ export interface Dataset {
     handlerFile: string;
     handlerSymbol: string | null;
   }>;
-  risks: Array<{ severity: string; category: string; rule: string; file?: string; line?: number; message: string; preview?: string }>;
+  risks: Array<{
+    severity: string;
+    category: string;
+    rule: string;
+    file?: string;
+    line?: number;
+    message: string;
+    /** v0.3.8 — original technical message when a CXO rewrite replaced
+     *  it. UI hides this behind a <details> disclosure. */
+    messageTechnical?: string;
+    preview?: string;
+  }>;
   history?: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }>;
   /**
    * v0.3.6 — env-var inventory. Optional for backward-compat with
