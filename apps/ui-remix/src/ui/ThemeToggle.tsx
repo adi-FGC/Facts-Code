@@ -113,6 +113,19 @@ export function ThemeToggle(handle: Handle) {
   mql.addEventListener('change', onMqlChange);
   handle.signal.addEventListener('abort', () => mql.removeEventListener('change', onMqlChange));
 
+  /* ⌘J cycles theme via lib/theme.ts → dispatches `factstack:theme`.
+     We sync the segmented control's `current` to the new theme so the
+     active pill flips visually without us re-reading storage. */
+  const onThemeShortcut = (e: Event) => {
+    const next = (e as CustomEvent<Theme>).detail;
+    if (next === 'light' || next === 'dark' || next === 'system') {
+      current = next;
+      void handle.update();
+    }
+  };
+  window.addEventListener('factstack:theme', onThemeShortcut);
+  handle.signal.addEventListener('abort', () => window.removeEventListener('factstack:theme', onThemeShortcut));
+
   function set(next: Theme) {
     if (next === current) {
       // Re-clicking the active segment is a no-op visually, but if it's

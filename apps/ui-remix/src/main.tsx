@@ -37,3 +37,17 @@ window.addEventListener('factstack:nav', rerender);
 // pushState's the URL, fires `factstack:nav`, suppresses the page reload.
 import { linkClick } from './lib/navigate.ts';
 document.addEventListener('click', linkClick);
+
+/* Global keyboard shortcuts. ⌘K is owned by CommandPalette (which
+   attaches its own listener). ⌘J cycles the theme — discoverable via
+   the Config tab + theme toggle; we don't render a separate "press ?
+   for help" flash because the palette footer already shows its three
+   shortcuts and the design spec rule against modals applies to a
+   shortcuts-help modal too. */
+import { cycleThemeShortcut } from './lib/theme.ts';
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'j' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    cycleThemeShortcut();
+  }
+});

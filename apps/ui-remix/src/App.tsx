@@ -32,6 +32,7 @@ import { RoutesTab } from './routes/RoutesTab.tsx';
 import { Tests } from './routes/Tests.tsx';
 import { About } from './routes/About.tsx';
 import { Config } from './routes/Config.tsx';
+import { CommandPalette } from './ui/CommandPalette.tsx';
 
 interface AppProps {
   /** Empty — App takes no props. Declared so the JSX type checks. */
@@ -143,6 +144,10 @@ function Shell(_h: Handle<{ data: Dataset }>) {
           </main>
           <StatusBar data={data} />
         </div>
+        {/* Command palette overlays everything when open. The component
+            attaches its own document-level ⌘K listener so it doesn't
+            need wiring into Header. */}
+        <CommandPalette data={data} />
       </>
     );
   };
