@@ -1,53 +1,44 @@
 /**
- * Project tree — agate-column listing of top-level folders + files.
+ * Project tree — recursive, collapsible, click-to-navigate.
  *
- * Stays a flat one-level listing for v1. Recursive collapsible tree
- * is in TASKS.md as a follow-up. The single-level view is enough to
- * orient at a glance and pairs naturally with the editorial body.
+ * v1 rendered a flat one-level listing. This is the v2 — a real tree
+ * with the same agate-column rhythm, but every row is now interactive:
  *
- * Each row is a hairline-divided line, not a card. Bytes hang in the
- * right column like a price column in an FT table.
+ *   - **File rows** are `<a href="/files?p=...">`. The document-level
+ *     `linkClick` listener intercepts and pushState-navigates, so the
+ *     URL deep-links cleanly when shared.
+ *   - **Directory rows** are `<button>` toggles. Open/closed state is
+ *     held in a closure-level `Set<string>` of paths; mutation calls
+ *     `handle.update()` to re-render.
+ *   - **Active file** (matches `?p=` in the current URL) gets the
+ *     yellow `--highlight` wash + bold weight so the reader can scan
+ *     "where am I" at a glance.
+ *
+ * Initial expansion: top-level directories are open by default; deeper
+ * directories collapsed. Keeps the first paint scannable on a 168-file
+ * project without burying the file list.
  */
 import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
-import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
+import { css, on } from '@remix-run/ui';
+import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 
 interface TreePanelProps {
   data: Dataset;
-}
-
-type Row = {
-  kind: 'dir' | 'file';
-  name: string;
-  size: number;
-  loc: number;
-};
-
-function flattenTopLevel(node: DatasetTreeNode): Row[] {
-  const rows: Row[] = [];
-  for (const c of node.children) {
-    rows.push({
-      kind: 'dir',
-      name: c.name,
-      size: c.rollup?.size ?? 0,
-      loc: c.rollup?.loc ?? 0,
-    });
-  }
-  for (const f of node.files) {
-    rows.push({
-      kind: 'file',
-      name: f.name,
-      size: f.size,
-      loc: f.loc,
-    });
-  }
-  return rows;
 }
 
 function fmtBytes(n: number): string {
   if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + 'M';
   if (n >= 1024) return (n / 1024).toFixed(1) + 'K';
   return n + 'B';
+}
+
+/** Read the active file path from the current URL — same key Files.tsx uses. */
+function activeFilePath(): string | null {
+  if (typeof location === 'undefined') return null;
+  if (location.pathname !== '/files') return null;
+  const qs = new URLSearchParams(location.search);
+  const p = qs.get('p');
+  return p && p.length > 0 ? p : null;
 }
 
 const wrap = css({
@@ -73,32 +64,48 @@ const head = css({
   color: 'var(--fg-subtle)',
 });
 
-const list = css({
+const tree = css({
   listStyle: 'none',
   margin: '0',
   padding: '0',
 });
 
-const row = css({
-  display: 'grid',
-  gridTemplateColumns: '12px 1fr auto',
-  alignItems: 'baseline',
-  gap: 'var(--space-3)',
+/* Each row: chevron / dot · name · size. We render direct children of
+   the same flex-row inline so the chevron sits at a consistent left
+   edge across depth levels (depth controls the leading padding). */
+const rowBase = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  width: '100%',
+  paddingBlock: '4px',
   paddingInline: 'var(--space-5)',
-  paddingBlock: '6px',
   borderBottom: '1px solid var(--hairline)',
-  cursor: 'default',
+  cursor: 'pointer',
+  background: 'transparent',
+  border: 'none',
+  borderBottomWidth: '1px',
+  borderBottomStyle: 'solid',
+  borderBottomColor: 'var(--hairline)',
+  textAlign: 'left',
+  font: 'inherit',
+  color: 'inherit',
+  textDecoration: 'none',
   transition: 'background var(--dur-quick) var(--ease-out-quart)',
-  /* Yellow wash on hover in dark mode (terminal vibe), subtle warm
-     wash in light. Reads as "the row your cursor is on" without ever
-     looking like a clickable button. */
   '&:hover': {
     background: 'var(--highlight-faint)',
+  },
+  '&:focus-visible': {
+    outline: '2px solid var(--accent)',
+    outlineOffset: '-2px',
   },
 });
 
 const rowDir = css({
+  fontFamily: 'var(--font-display)',
   fontWeight: '500',
+  fontSize: 'var(--fs-13)',
+  color: 'var(--fg)',
 });
 
 const rowFile = css({
@@ -107,10 +114,33 @@ const rowFile = css({
   color: 'var(--fg-muted)',
 });
 
+/* Active row: a SOFT wash + a 2px accent leading bar so the eye locks
+   onto "you are here" without the row screaming. Using the full
+   --highlight (terminal-yellow in dark / safety-orange in light) was
+   too loud for a passive locator; the -soft variants are exactly what
+   they exist for. The leading bar is the editorial flag — same shape
+   StatusChip uses, so the visual grammar carries. */
+const rowActive = css({
+  background: 'var(--highlight-soft)',
+  color: 'var(--fg)',
+  fontWeight: '600',
+  boxShadow: 'inset 2px 0 0 0 var(--accent)',
+});
+
 const marker = css({
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-10)',
   color: 'var(--fg-faint)',
+  width: '10px',
+  flexShrink: '0',
+  textAlign: 'center',
+});
+
+const nameCell = css({
+  flex: '1',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
 });
 
 const sizeCell = css({
@@ -119,19 +149,109 @@ const sizeCell = css({
   fontVariantNumeric: 'tabular-nums',
   color: 'var(--fg-faint)',
   whiteSpace: 'nowrap',
+  marginLeft: '6px',
 });
 
-const nameCell = css({
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  fontSize: 'var(--fs-13)',
-  color: 'var(--fg)',
-});
+export function TreePanel(handle: Handle<TreePanelProps>) {
+  // Closure state: which directory paths are expanded.
+  // Initial seed = every top-level dir under root.
+  const open = new Set<string>();
 
-export function TreePanel(_handle: Handle<TreePanelProps>) {
+  // Re-render when the URL changes so the active file highlight follows
+  // the page. We listen to popstate + the in-app `factstack:nav` event.
+  const rerender = () => { void handle.update(); };
+  window.addEventListener('popstate', rerender);
+  window.addEventListener('factstack:nav', rerender);
+  handle.signal.addEventListener('abort', () => {
+    window.removeEventListener('popstate', rerender);
+    window.removeEventListener('factstack:nav', rerender);
+  });
+
+  function toggle(path: string) {
+    if (open.has(path)) open.delete(path);
+    else open.add(path);
+    void handle.update();
+  }
+
+  /* Recursive renderer. Returns an array of <li> nodes, one per row,
+     pre-flattened so the parent <ul> can list them top-down without
+     wrapping each subtree in nested ul/li (which would multiply the
+     hairline borders into a busy ladder). */
+  function renderNode(node: DatasetTreeNode, depth: number, activePath: string | null): JSX.Element[] {
+    const out: JSX.Element[] = [];
+    // Directories first, alphabetically — gives the tree its FS-like
+    // ordering instead of "everything jumbled by token weight".
+    const dirs = node.children.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const files = node.files.slice().sort((a, b) => a.name.localeCompare(b.name));
+
+    for (const d of dirs) {
+      const isOpen = open.has(d.path);
+      const indent = `calc(var(--space-5) + ${depth * 12}px)`;
+      out.push(
+        <li key={`d:${d.path}`}>
+          <button
+            type="button"
+            aria-expanded={isOpen ? 'true' : 'false'}
+            mix={[
+              rowBase,
+              rowDir,
+              css({ paddingInlineStart: indent }),
+              on('click', () => toggle(d.path)),
+            ]}
+          >
+            <span aria-hidden="true" mix={marker}>{isOpen ? '▾' : '▸'}</span>
+            <span mix={nameCell}>{d.name}</span>
+            <span mix={sizeCell}>{fmtBytes(d.rollup?.size ?? 0)}</span>
+          </button>
+          {isOpen && renderNode(d, depth + 1, activePath)}
+        </li>,
+      );
+    }
+
+    for (const f of files) {
+      const indent = `calc(var(--space-5) + ${depth * 12}px)`;
+      const isActive = activePath === f.path;
+      out.push(
+        <li key={`f:${f.path}`}>
+          <a
+            href={`/files?p=${encodeURIComponent(f.path)}`}
+            mix={[
+              rowBase,
+              rowFile,
+              isActive ? rowActive : null,
+              css({ paddingInlineStart: indent }),
+            ]}
+          >
+            <span aria-hidden="true" mix={marker}>·</span>
+            <span mix={nameCell}>{f.name}</span>
+            <span mix={sizeCell}>{fmtBytes(f.size)}</span>
+          </a>
+        </li>,
+      );
+    }
+    return out;
+  }
+
+  // Seed: open every top-level dir on first render so the panel feels
+  // populated without a click. Done once in setup.
+  for (const c of handle.props.data.tree.children) open.add(c.path);
+
   return ({ data }: TreePanelProps) => {
-    const rows = flattenTopLevel(data.tree);
+    const activePath = activeFilePath();
+    /* Auto-open every ancestor of the active file so the highlight is
+       actually visible without manual expansion. We add to `open`
+       without triggering re-render (we're already inside one). */
+    if (activePath) {
+      const parts = activePath.split('/');
+      // path "a/b/c.ts" → ancestors ["a", "a/b"]
+      let acc = '';
+      for (let i = 0; i < parts.length - 1; i++) {
+        acc = acc ? `${acc}/${parts[i]}` : parts[i]!;
+        open.add(acc);
+      }
+    }
+    const allRows = renderNode(data.tree, 0, activePath);
+
     return (
       <aside aria-label="Project tree" mix={wrap}>
         <div mix={head}>
@@ -140,17 +260,7 @@ export function TreePanel(_handle: Handle<TreePanelProps>) {
             {data.stats.files} <span mix={css({ color: 'var(--fg-faint)', marginLeft: '4px' })}>files</span>
           </span>
         </div>
-        <ul mix={list}>
-          {rows.map((r, i) => (
-            <li key={i} mix={[row, r.kind === 'dir' ? rowDir : rowFile]}>
-              <span aria-hidden="true" mix={marker}>
-                {r.kind === 'dir' ? '▸' : '·'}
-              </span>
-              <span mix={nameCell}>{r.name}</span>
-              <span mix={sizeCell}>{fmtBytes(r.size)}</span>
-            </li>
-          ))}
-        </ul>
+        <ul mix={tree}>{allRows}</ul>
       </aside>
     );
   };

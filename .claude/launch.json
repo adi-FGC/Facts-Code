@@ -5,7 +5,7 @@
       "name": "FACTS UI (Remix 3 dev)",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@factstack/ui-remix", "dev"],
-      "port": 3000
+      "port": 3013
     },
     {
       "name": "All dev servers (Turbo)",
