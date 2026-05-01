@@ -41,6 +41,11 @@ interface AppProps {
  * Module-scoped data cache. The Remix runtime re-instantiates `App`
  * every render (cheap), so we hoist the dataset out and trigger a
  * re-render via `handle.update()` once it loads.
+ *
+ * The Re-analyze button dispatches a `factstack:dataset` CustomEvent
+ * with the freshly-loaded Dataset; the listener below replaces
+ * `cached` in place + notifies every subscriber so the whole tree
+ * re-renders without a page reload.
  */
 let cached: Dataset | null = null;
 let loadError: string | null = null;
@@ -59,6 +64,20 @@ function ensureLoadStarted() {
       loadError = err instanceof Error ? err.message : String(err);
       for (const fn of subscribers) fn();
     });
+}
+
+/* Re-analyze hook. The button calls `requestReanalyze()` itself and
+   dispatches the result via this event so we don't need a back-channel
+   import from the button into App. */
+if (typeof window !== 'undefined') {
+  window.addEventListener('factstack:dataset', (e: Event) => {
+    const detail = (e as CustomEvent<Dataset>).detail;
+    if (detail) {
+      cached = detail;
+      loadError = null;
+      for (const fn of subscribers) fn();
+    }
+  });
 }
 
 export function App(handle: Handle<AppProps>) {

@@ -9,6 +9,7 @@ import { css } from '@remix-run/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { NumberedNav } from '../ui/NumberedNav.tsx';
 import { ThemeToggle } from '../ui/ThemeToggle.tsx';
+import { ReanalyzeButton } from '../ui/ReanalyzeButton.tsx';
 
 interface HeaderProps {
   data: Dataset;
@@ -105,6 +106,7 @@ export function Header(_handle: Handle<HeaderProps>) {
           <span mix={projectRootResponsive} dir="rtl">{root}</span>
         </div>
         <div mix={rightCluster}>
+          <ReanalyzeButton />
           <ThemeToggle />
         </div>
       </header>
