@@ -185,7 +185,8 @@ export function Tests(_h: Handle<TestsProps>) {
       ? 0
       : Math.round((production.length - untested.length) / production.length * 100);
 
-    const stale = testWithTargets.filter((r) => !r.target).length;
+    const staleTests = testWithTargets.filter((r) => !r.target);
+    const stale = staleTests.length;
 
     if (tests.length === 0) {
       return (
@@ -269,6 +270,48 @@ export function Tests(_h: Handle<TestsProps>) {
               })}
             </RuledTable>
           </Section>
+
+          {staleTests.length > 0 && (
+            <Section
+              label="Stale tests"
+              title={`${staleTests.length} ${staleTests.length === 1 ? 'test has' : 'tests have'} no inferable subject`}
+            >
+              <p mix={css({
+                color: 'var(--fg-muted)',
+                maxWidth: '60ch',
+                marginBottom: 'var(--space-5)',
+                lineHeight: '1.6',
+              })}>
+                These test files don't import any in-project file. Either
+                the subject was deleted (stale test ⇒ delete or relocate),
+                the test is fixture-only (read-only data setup), or the
+                analyzer missed the edge. Open the file to confirm.
+              </p>
+              <RuledTable cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto">
+                <RuledRow header>
+                  <RuledCell header>Test</RuledCell>
+                  <RuledCell header>Folder</RuledCell>
+                  <RuledCell header align="right">Lines</RuledCell>
+                  <RuledCell header align="right">Status</RuledCell>
+                </RuledRow>
+                {staleTests.map(({ test }) => {
+                  const { dir, name } = splitDirAndName(test.path);
+                  return (
+                    <RuledRow key={test.path}>
+                      <RuledCell>
+                        <a href={`/files?p=${encodeURIComponent(test.path)}`} mix={fileLink}>{name}</a>
+                      </RuledCell>
+                      <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
+                      <RuledCell mono align="right">{fmt(test.loc)}</RuledCell>
+                      <RuledCell align="right">
+                        <StatusChip kind={test.status} />
+                      </RuledCell>
+                    </RuledRow>
+                  );
+                })}
+              </RuledTable>
+            </Section>
+          )}
 
           {untested.length > 0 && (
             <Section
