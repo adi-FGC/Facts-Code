@@ -28,3 +28,6 @@ examples/__screenshots__/*-diff.png
 # FACTS analysis artifacts
 .facts/
 .gstack/
+
+# TypeScript incremental build cache — per-machine, no value in git
+*.tsbuildinfo
