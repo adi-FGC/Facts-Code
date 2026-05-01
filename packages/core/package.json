@@ -19,7 +19,8 @@
     "@factstack/parsers": "workspace:*",
     "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
-    "@factstack/walker": "workspace:*"
+    "@factstack/walker": "workspace:*",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@factstack/fs-memory": "workspace:*",

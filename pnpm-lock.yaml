@@ -148,6 +148,9 @@ importers:
       '@factstack/walker':
         specifier: workspace:*
         version: link:../walker
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
     devDependencies:
       '@factstack/fs-memory':
         specifier: workspace:*

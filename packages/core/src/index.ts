@@ -63,6 +63,19 @@ export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
 export { computeReadingTime, sumReadingMinutes, type ReadingTimeInput } from './reading-time.js';
 import { computeReadingTime } from './reading-time.js';
+export {
+  formatLearningEvent,
+  parseLearningsJsonl,
+  queryLearnings,
+  selfCalibrateEvent,
+  proposalEvent,
+  LearningEventSchema,
+  LearningOutcomeSchema,
+  LEARNINGS_SCHEMA_VERSION,
+  type LearningEvent,
+  type LearningOutcome,
+  type LearningQuery,
+} from './learnings.js';
 import type { ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
