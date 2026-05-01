@@ -37,10 +37,13 @@ const wrap = css({
 const k = css({ color: 'var(--fg-subtle)' });
 const v = css({ color: 'var(--fg-muted)' });
 
+/* Audit fix #9: 1×12 hairline was too faint at low contrast against
+   the dark navy. 14px tall + var(--border) (slightly more present
+   than --hairline) reads as a real divider without becoming a wall. */
 const sep = css({
   width: '1px',
-  height: '12px',
-  background: 'var(--hairline)',
+  height: '14px',
+  background: 'var(--border)',
 });
 
 const danger = css({ color: 'var(--danger)' });

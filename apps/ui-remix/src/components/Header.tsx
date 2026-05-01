@@ -55,6 +55,9 @@ const brandSub = css({
   color: 'var(--fg-faint)',
 });
 
+/* Audit fix #8: chip is name-only at md and below; full path returns
+   at lg+ where there's room. Same hairline-divider treatment but
+   tighter. */
 const projectChip = css({
   display: 'inline-flex',
   alignItems: 'baseline',
@@ -63,7 +66,19 @@ const projectChip = css({
   paddingBlock: 'var(--space-1)',
   borderLeft: '1px solid var(--border)',
   minWidth: '0',
-  maxWidth: '38ch',
+  maxWidth: '32ch',
+});
+
+const projectRootResponsive = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-subtle)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  '@media (max-width: 1279px)': {
+    display: 'none',
+  },
 });
 
 const projectName = css({
@@ -73,15 +88,6 @@ const projectName = css({
   color: 'var(--fg)',
   letterSpacing: '-0.01em',
   whiteSpace: 'nowrap',
-});
-
-const projectRoot = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-11)',
-  color: 'var(--fg-subtle)',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
 });
 
 export function Header(_handle: Handle<HeaderProps>) {
@@ -96,7 +102,7 @@ export function Header(_handle: Handle<HeaderProps>) {
         <NumberedNav />
         <div mix={projectChip} title={root}>
           <span mix={projectName}>{data.project.name}</span>
-          <span mix={projectRoot} dir="rtl">{root}</span>
+          <span mix={projectRootResponsive} dir="rtl">{root}</span>
         </div>
         <div mix={rightCluster}>
           <ThemeToggle />

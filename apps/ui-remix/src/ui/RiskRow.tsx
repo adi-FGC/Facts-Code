@@ -35,9 +35,13 @@ const SEV_COLOR: Record<Severity, string> = {
   info:     'var(--fg-subtle)',
 };
 
+/* Audit fix #4: severity is encoded TWICE — colored bar on left + text
+   tag on right — which is redundant. Dropped the right tag; the bar
+   color + the section header above each group communicate severity
+   already. Two columns now: bar | message. */
 const wrap = css({
   display: 'grid',
-  gridTemplateColumns: '4px 1fr auto',
+  gridTemplateColumns: '4px 1fr',
   columnGap: 'var(--space-4)',
   paddingInline: 'var(--space-3)',
   marginInline: 'calc(var(--space-3) * -1)',
@@ -45,8 +49,6 @@ const wrap = css({
   borderBottom: '1px solid var(--hairline)',
   alignItems: 'baseline',
   transition: 'background var(--dur-quick) var(--ease-out-quart)',
-  /* Yellow hover wash so dense risk lists scan row-by-row even when
-     the page is full of severity bars. */
   '&:hover': {
     background: 'var(--highlight-faint)',
   },
@@ -93,17 +95,6 @@ const previewStyle = css({
   alignSelf: 'flex-start',
 });
 
-const sevTag = (color: string) => css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  letterSpacing: '0.14em',
-  textTransform: 'uppercase',
-  color,
-  fontWeight: '500',
-  whiteSpace: 'nowrap',
-  paddingTop: 'var(--space-1)',
-});
-
 export function RiskRow(_h: Handle<RiskRowProps>) {
   return ({ severity, rule, category, message, source, preview }: RiskRowProps) => {
     const c = SEV_COLOR[severity];
@@ -123,7 +114,6 @@ export function RiskRow(_h: Handle<RiskRowProps>) {
           </span>
           {preview && <code mix={previewStyle}>{preview}</code>}
         </div>
-        <div mix={sevTag(c)}>{severity}</div>
       </div>
     );
   };

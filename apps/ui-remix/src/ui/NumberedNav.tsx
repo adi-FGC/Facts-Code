@@ -78,13 +78,19 @@ const ruleActive = css({
   background: 'var(--accent)',
 });
 
+/* Porting indicator. Audit fix #2: a 4px dot sitting at the baseline,
+   accent-tinted at low opacity, reads as a status flag rather than a
+   typographic curio. The previous superscript ° was too small to
+   register at the nav's text size. */
 const portingMark = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  color: 'var(--fg-faint)',
-  marginLeft: 'var(--space-1)',
-  /* Vertical-align baseline so the ° sits like a footnote marker. */
-  verticalAlign: 'super',
+  display: 'inline-block',
+  width: '4px',
+  height: '4px',
+  borderRadius: '50%',
+  background: 'color-mix(in oklab, var(--accent) 55%, transparent)',
+  marginLeft: '6px',
+  alignSelf: 'center',
+  flex: 'none',
 });
 
 export function NumberedNav(_h: Handle<{}>) {
@@ -108,7 +114,7 @@ export function NumberedNav(_h: Handle<{}>) {
               <span mix={[number, isActive ? numberActive : null]}>{idx}</span>
               <span>{t.label}</span>
               {!t.ported && (
-                <span aria-label="porting" mix={portingMark}>°</span>
+                <span aria-label="porting" role="img" mix={portingMark} />
               )}
               {isActive && <span aria-hidden="true" mix={ruleActive} />}
             </a>

@@ -76,8 +76,10 @@ const headline = css({
 });
 
 const stackRow = css({
+  /* Audit fix #3: 3 cols (name · tokens · file count chip), not 4.
+     "X tokens / Y files" → "Y · X" mono cell. Less noise. */
   display: 'grid',
-  gridTemplateColumns: 'minmax(0, 1fr) auto auto',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
   alignItems: 'baseline',
   columnGap: 'var(--space-4)',
   paddingInline: 'var(--space-3)',
@@ -143,10 +145,14 @@ const capMark = css({
   letterSpacing: '0.04em',
 });
 
+/* Audit fix #5: head + sub were rendered same weight — hard to scan
+   the list. Head now sits at fs-14 weight 600; sub drops to fs-12
+   roman + muted color so the two reads are unambiguous. */
 const capText = css({
   fontSize: 'var(--fs-14)',
   color: 'var(--fg)',
   lineHeight: '1.5',
+  fontWeight: '600',
 });
 
 const capSub = css({
@@ -154,6 +160,7 @@ const capSub = css({
   fontSize: 'var(--fs-12)',
   color: 'var(--fg-muted)',
   marginTop: 'var(--space-1)',
+  fontWeight: '400',
 });
 
 const ledeText = css({
@@ -216,8 +223,11 @@ export function Overview(_h: Handle<OverviewProps>) {
                     <span aria-hidden="true" mix={langSwatch(l.iconColor)} />
                     {l.label}
                   </span>
-                  <span mix={stackMeta}>{fmt(l.tokens)} tokens</span>
-                  <span mix={stackMeta}>{l.files} {l.files === 1 ? 'file' : 'files'}</span>
+                  <span mix={stackMeta}>
+                    {l.files}{l.files === 1 ? ' file' : ' files'}
+                    <span mix={css({ color: 'var(--fg-faint)', marginInline: '6px' })}>·</span>
+                    {fmt(l.tokens)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -231,7 +241,7 @@ export function Overview(_h: Handle<OverviewProps>) {
                   <li key={i} mix={capItem}>
                     <span mix={capMark}>{String(i + 1).padStart(2, '0')}</span>
                     <span mix={capText}>
-                      <strong style="font-weight:600">{c.head}</strong>
+                      {c.head}
                       {c.sub && <span mix={capSub}>{c.sub}</span>}
                     </span>
                   </li>
@@ -248,7 +258,14 @@ export function Overview(_h: Handle<OverviewProps>) {
               label="Frameworks"
               aside={remainingFrameworks > 0 ? `+${remainingFrameworks} more` : undefined}
             >
-              {showFrameworks.join(', ')}
+              {/* Audit fix #6: vertical list, one framework per line.
+                  Comma-separated wraps awkwardly + "+N more" hangs
+                  detached in tight margin widths. */}
+              <ul mix={css({ listStyle: 'none', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '2px' })}>
+                {showFrameworks.map((f) => (
+                  <li key={f}>{f}</li>
+                ))}
+              </ul>
             </FootnoteChip>
           )}
           <FootnoteChip

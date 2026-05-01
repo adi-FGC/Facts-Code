@@ -50,22 +50,27 @@ function persist(t: Theme) {
   } catch { /* private mode — no-op */ }
 }
 
+/* Audit fix #7: bumped to fs-11 / 28px height / 0.12em tracking.
+   24px height was below WCAG 2.5.5 touch target guidance (44px is
+   ideal but we use editorial micro-controls; 28px is the floor with
+   adequate paddingInline). Tracking 0.16 → 0.12em improves
+   readability of 3-letter labels. */
 const wrap = css({
   display: 'inline-flex',
   alignItems: 'stretch',
   border: '1px solid var(--border)',
-  borderRadius: '0',          /* no pill — keep the editorial corner */
-  height: '24px',
+  borderRadius: '0',
+  height: '28px',
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  letterSpacing: '0.16em',
+  fontSize: 'var(--fs-11)',
+  letterSpacing: '0.12em',
   textTransform: 'uppercase',
 });
 
 const seg = css({
   display: 'inline-flex',
   alignItems: 'center',
-  paddingInline: 'var(--space-2)',
+  paddingInline: '10px',         /* up from --space-2 (8px) */
   background: 'transparent',
   border: 'none',
   borderRight: '1px solid var(--border)',
