@@ -13,3 +13,10 @@ export { detectFileBasedRoutes, detectSourceRoutes, type DetectedRoute } from '.
 export { parseJS, isParseable, walkAst, type ParsedFile } from './parse.js';
 export { extractSymbols, type ExtractedSymbol, type SymbolKind } from './symbols.js';
 export { extractOutline, type OutlineNode, type OutlineKind } from './outline.js';
+export {
+  extractEnvVars,
+  extractEnvVarsJS,
+  extractEnvVarsPython,
+  type EnvVarRead,
+  type EnvVarAccess,
+} from './config-schema.js';

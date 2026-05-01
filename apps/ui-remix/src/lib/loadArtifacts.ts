@@ -75,6 +75,32 @@ export interface Dataset {
   }>;
   risks: Array<{ severity: string; category: string; rule: string; file?: string; line?: number; message: string; preview?: string }>;
   history?: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }>;
+  /**
+   * v0.3.6 — env-var inventory. Optional for backward-compat with
+   * pre-v0.3.6 artifacts; the UI's Config tab renders an empty state
+   * when absent. The shape mirrors `@factstack/spec`'s Config schema.
+   */
+  config?: {
+    envVars: Array<{
+      name: string;
+      reads: Array<{
+        file: string;
+        line: number;
+        access: 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown';
+        defaultValue: string | null;
+      }>;
+      defaults: string[];
+      primaryAccess:
+        | 'process.env'
+        | 'import.meta.env'
+        | 'os.getenv'
+        | 'os.environ'
+        | 'destructure'
+        | 'unknown'
+        | null;
+    }>;
+    schemas: unknown[];
+  };
 }
 
 const INLINE_ID = 'factstack-data';

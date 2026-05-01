@@ -21,6 +21,8 @@ import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
+import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
+import { RuledTable, RuledRow, RuledCell } from '../ui/RuledColumn.tsx';
 
 interface ConfigProps {
   data: Dataset;
@@ -337,16 +339,116 @@ export function Config(handle: Handle<ConfigProps>) {
     void handle.update();
   }
 
-  return ({ data }: ConfigProps) => (
+  return ({ data }: ConfigProps) => {
+    const envVars = data.config?.envVars ?? [];
+    const totalReads = envVars.reduce((s, e) => s + e.reads.length, 0);
+    const withDefaults = envVars.filter((e) => e.defaults.length > 0).length;
+    return (
     <ContentWithMargin>
       <div mix={css({ gridColumn: '1' })}>
-        <div mix={kicker}>Config · local preferences</div>
-        <h1 mix={headline}>Knobs that stick.</h1>
+        <div mix={kicker}>
+          Config · {envVars.length} env {envVars.length === 1 ? 'var' : 'vars'}
+        </div>
+        <h1 mix={headline}>What this codebase needs from its environment.</h1>
         <p mix={lede}>
-          Everything on this page lives in your browser's localStorage.
-          Nothing is uploaded; nothing follows you across devices. Reset
-          at the bottom returns to defaults.
+          Every environment variable read by source code, with the read sites,
+          captured defaults, and access patterns. Below: local preferences
+          for this browser session.
         </p>
+
+        {envVars.length > 0 ? (
+          <>
+            <LabelNumberRow>
+              <LabelNumber label="Variables" value={envVars.length} />
+              <LabelNumber label="Read sites" value={totalReads} />
+              <LabelNumber label="With default" value={withDefaults} hint={`of ${envVars.length}`} />
+              <LabelNumber
+                label="Without default"
+                value={envVars.length - withDefaults}
+                hint="must be set or fall through to undefined"
+                last
+              />
+            </LabelNumberRow>
+
+            <Section label="Required env vars" title="Sorted by read-site count, most-used first">
+              {/* Hairline-table form: the editorial reading order is
+                  NAME (mono, headline) → COUNT (how many places it's
+                  read) → DEFAULT (literal if any) → ACCESS pattern.
+                  Click a row → first read site in /files detail. */}
+              <RuledTable cols="minmax(0, 1.2fr) auto auto auto auto">
+                <RuledRow header>
+                  <RuledCell header>Name</RuledCell>
+                  <RuledCell header align="right">Reads</RuledCell>
+                  <RuledCell header>Default</RuledCell>
+                  <RuledCell header>Access</RuledCell>
+                  <RuledCell header>First read</RuledCell>
+                </RuledRow>
+                {envVars.map((v) => {
+                  const firstRead = v.reads[0];
+                  const defaultDisplay =
+                    v.defaults.length === 0
+                      ? '—'
+                      : v.defaults.length === 1
+                      ? `"${v.defaults[0]}"`
+                      : `${v.defaults.length} variants`;
+                  return (
+                    <RuledRow key={v.name}>
+                      <RuledCell mono>
+                        <strong>{v.name}</strong>
+                      </RuledCell>
+                      <RuledCell mono align="right">{v.reads.length}</RuledCell>
+                      <RuledCell mono muted>{defaultDisplay}</RuledCell>
+                      <RuledCell mono muted>
+                        {v.primaryAccess ?? 'mixed'}
+                      </RuledCell>
+                      <RuledCell muted>
+                        {firstRead ? (
+                          <a
+                            href={`/files?p=${encodeURIComponent(firstRead.file)}`}
+                            mix={css({
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 'var(--fs-12)',
+                              color: 'var(--fg)',
+                              '&:hover': {
+                                color: 'var(--accent)',
+                                textDecoration: 'underline',
+                                textUnderlineOffset: '3px',
+                              },
+                            })}
+                          >
+                            {firstRead.file}:{firstRead.line}
+                          </a>
+                        ) : (
+                          '—'
+                        )}
+                      </RuledCell>
+                    </RuledRow>
+                  );
+                })}
+              </RuledTable>
+            </Section>
+          </>
+        ) : (
+          <Section
+            label="Required env vars"
+            title="No env-var reads detected in source"
+          >
+            <p mix={css({
+              color: 'var(--fg-muted)',
+              maxWidth: '60ch',
+              lineHeight: '1.6',
+            })}>
+              The analyzer didn't find any{' '}
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>process.env.X</span>,{' '}
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>import.meta.env.X</span>,{' '}
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>os.getenv("X")</span>, or{' '}
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>os.environ["X"]</span>{' '}
+              read sites. This project either takes no environment input,
+              or all configuration lives in non-source files (.env, secrets
+              manager, runtime injection).
+            </p>
+          </Section>
+        )}
 
         <Section label="Display" title="Theme, type size, density">
           <div mix={knobRow}>
@@ -538,9 +640,17 @@ export function Config(handle: Handle<ConfigProps>) {
           </span>
         </FootnoteChip>
         <FootnoteChip label="Bundle" aside="this build">
-          ~40 KB JS gzip · ~3 KB CSS gzip
+          ~45 KB JS gzip · ~3 KB CSS gzip
         </FootnoteChip>
+        {envVars.length > 0 && (
+          <FootnoteChip label="Env vars" aside="agent.json#config">
+            <span mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)' })}>
+              {envVars.length} found · {totalReads} read site{totalReads === 1 ? '' : 's'}
+            </span>
+          </FootnoteChip>
+        )}
       </MarginColumn>
     </ContentWithMargin>
-  );
+    );
+  };
 }

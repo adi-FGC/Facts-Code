@@ -180,6 +180,46 @@ export const StatsSchema = z.object({
   totalTokenCost: z.number().int().nonnegative(),
 });
 
+/* v0.3.6 — env-var + config-schema surface.
+ *
+ * `EnvVarReadSchema` is one read site. `EnvVarSchema` aggregates all
+ * reads of the same NAME (a single var read in 12 places becomes one
+ * EnvVar with 12 read sites + the union of distinct defaults seen).
+ * Backward-compat: agents that pre-date v0.3.6 simply lack `config`. */
+export const EnvVarAccessSchema = z.enum([
+  'process.env',
+  'import.meta.env',
+  'os.getenv',
+  'os.environ',
+  'destructure',
+  'unknown',
+]);
+
+export const EnvVarReadSchema = z.object({
+  file: z.string(),
+  line: z.number().int().nonnegative(),
+  access: EnvVarAccessSchema,
+  defaultValue: z.string().nullable(),
+});
+
+export const EnvVarSchema = z.object({
+  name: z.string(),
+  reads: z.array(EnvVarReadSchema),
+  /** Distinct defaults seen across read sites (deduped). */
+  defaults: z.array(z.string()),
+  /** Best-guess access pattern when one dominates; null if mixed. */
+  primaryAccess: EnvVarAccessSchema.nullable(),
+});
+export type EnvVar = z.infer<typeof EnvVarSchema>;
+export type EnvVarRead = z.infer<typeof EnvVarReadSchema>;
+
+export const ConfigSchema = z.object({
+  envVars: z.array(EnvVarSchema),
+  /** Reserved for v0.3.6.1: extracted Zod / Pydantic config shapes. */
+  schemas: z.array(z.unknown()).default([]),
+});
+export type Config = z.infer<typeof ConfigSchema>;
+
 export const AgentArtifactSchema = z.object({
   $schema: z.literal('https://factstack.dev/schema/agent.v1.json').default(
     'https://factstack.dev/schema/agent.v1.json',
@@ -194,5 +234,9 @@ export const AgentArtifactSchema = z.object({
   capabilities: z.array(z.string()),
   risks: z.array(RiskSchema),
   stats: StatsSchema,
+  /** v0.3.6 — env-var inventory. Optional for backward-compat with
+   *  pre-v0.3.6 artifacts; renderers fall back to "no config data" when
+   *  absent. */
+  config: ConfigSchema.optional(),
 });
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;

@@ -36,6 +36,7 @@ import {
 import {
   detectFileBasedRoutes,
   detectSourceRoutes,
+  extractEnvVars,
   extractImports,
   extractPythonImports,
   extractSymbols,
@@ -43,6 +44,7 @@ import {
   isPython,
   parseJS,
   type DetectedRoute,
+  type EnvVarRead,
   type ExtractedSymbol,
   type RawImport,
 } from '@factstack/extractors';
@@ -103,6 +105,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const detectedRoutes: DetectedRoute[] = [];
   const fileLicenses = new Map<string, string>();
   let projectLicense: string | null = null;
+  /* v0.3.6 — env-var read sites collected per file, aggregated below
+     into the top-level `config.envVars` table. */
+  const envVarReadsByFile = new Map<string, EnvVarRead[]>();
   let filesScanned = 0;
   let filesSkipped = 0;
   // Sources for the human-friendly one-liner, in priority order:
@@ -215,10 +220,16 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         const raws = extractImports(text, f.ext, parsed);
         if (raws.length) importsByFile.set(f.path, raws);
         symbols = extractSymbols(text, f.ext, parsed);
+        // v0.3.6 — env-var reads share the parsed AST (no double parse).
+        const envReads = extractEnvVars(text, f.ext, parsed);
+        if (envReads.length) envVarReadsByFile.set(f.path, envReads);
       }
     } else if (isPython(f.ext)) {
       const raws = extractPythonImports(text);
       if (raws.length) importsByFile.set(f.path, raws);
+      // Python uses regex-based env-var detection (no AST yet).
+      const envReads = extractEnvVars(text, f.ext, null);
+      if (envReads.length) envVarReadsByFile.set(f.path, envReads);
     }
 
     // Routes — file-path-based (Next/Remix/pages) + source-based
@@ -360,6 +371,12 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const totalLOC = outlines.reduce((s, o) => s + o.loc, 0);
   const totalGzip = outlines.reduce((s, o) => s + (o.bundleSize?.gzipped ?? 0), 0);
 
+  /* v0.3.6 — aggregate per-file env-var reads into a single name-keyed
+     table. Each EnvVar entry holds every read site + the union of seen
+     defaults + a "primary access pattern" when one dominates (≥75% of
+     reads). Mixed access ⇒ primaryAccess = null so the UI can flag it. */
+  const config = aggregateEnvVars(envVarReadsByFile);
+
   // Build agent artifact
   const agent: AgentArtifact = {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
@@ -384,6 +401,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       packageCount: countPackages(outlines),
       totalTokenCost: totalTokens,
     },
+    config,
   };
 
   // Build human artifact (dashboard).
@@ -876,4 +894,56 @@ function buildHumanTree(outlines: FileOutline[], rootName: string): HumanArtifac
   })(root);
 
   return root as unknown as HumanArtifact['tree'];
+}
+
+/* v0.3.6 — aggregate per-file env-var read sites into the name-keyed
+ * structure stored in `agent.config.envVars`. Each unique NAME becomes
+ * one EnvVar with:
+ *   - reads[]: every read site (file + line + access + default)
+ *   - defaults[]: distinct defaults seen across read sites
+ *   - primaryAccess: the dominant access pattern when ≥75% of reads
+ *     share it; otherwise null (mixed). The UI uses this to flag
+ *     "the same var is read via process.env in 3 places and
+ *     import.meta.env in 1" as a smell.
+ *
+ * Sorted by read count desc — most-used vars surface first. */
+function aggregateEnvVars(perFile: Map<string, EnvVarRead[]>): AgentArtifact['config'] {
+  const byName = new Map<string, Array<EnvVarRead & { file: string }>>();
+  for (const [file, reads] of perFile) {
+    for (const r of reads) {
+      const arr = byName.get(r.name) ?? [];
+      arr.push({ ...r, file });
+      byName.set(r.name, arr);
+    }
+  }
+
+  const envVars: NonNullable<AgentArtifact['config']>['envVars'] = [];
+  for (const [name, reads] of byName) {
+    // Stable sort: file path then line.
+    reads.sort((a, b) => (a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1));
+    const defaults = Array.from(
+      new Set(reads.map((r) => r.defaultValue).filter((v): v is string => typeof v === 'string')),
+    );
+    // Find the dominant access pattern.
+    const accessTally = new Map<string, number>();
+    for (const r of reads) accessTally.set(r.access, (accessTally.get(r.access) ?? 0) + 1);
+    type PrimaryAccess = NonNullable<AgentArtifact['config']>['envVars'][number]['primaryAccess'];
+    let primaryAccess: PrimaryAccess = null;
+    let maxCount = 0;
+    for (const [access, count] of accessTally) {
+      if (count > maxCount) {
+        maxCount = count;
+        primaryAccess = access as PrimaryAccess;
+      }
+    }
+    if (maxCount / reads.length < 0.75) primaryAccess = null;
+    envVars.push({
+      name,
+      reads: reads.map((r) => ({ file: r.file, line: r.line, access: r.access, defaultValue: r.defaultValue })),
+      defaults,
+      primaryAccess,
+    });
+  }
+  envVars.sort((a, b) => (b.reads.length - a.reads.length) || (a.name < b.name ? -1 : 1));
+  return { envVars, schemas: [] };
 }
