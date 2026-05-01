@@ -125,12 +125,12 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
     case 'graph':    return <GraphRoute />;
     case 'dag':      return <Dag />;
     case 'files':    return <Files />;
-    case 'library':  return <Library />;
-    case 'routes':   return <RoutesTab />;
+    case 'library':  return <Library data={data} />;
+    case 'routes':   return <RoutesTab data={data} />;
     case 'risks':    return <Risks data={data} />;
     case 'tests':    return <Tests />;
     case 'history':  return <History data={data} />;
-    case 'about':    return <About />;
+    case 'about':    return <About data={data} />;
     case 'config':   return <Config />;
   }
 }

@@ -59,6 +59,20 @@ export interface Dataset {
   tree: DatasetTreeNode;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
   entryPoints: Array<{ label: string; path: string; handlerFile: string; kind: string }>;
+  /**
+   * Detected routes from per-framework AST extraction. `framework` is
+   * the matched framework name (e.g. `remix`, `express`, `node-http`,
+   * `fastapi`); `method` is null for non-HTTP routes (Next.js pages,
+   * Remix file routes). The Dataset shape is permissive — different
+   * framework adapters may attach extra fields beyond these.
+   */
+  routes?: Array<{
+    framework: string;
+    method: string | null;
+    path: string;
+    handlerFile: string;
+    handlerSymbol: string | null;
+  }>;
   risks: Array<{ severity: string; category: string; rule: string; file?: string; line?: number; message: string; preview?: string }>;
   history?: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }>;
 }

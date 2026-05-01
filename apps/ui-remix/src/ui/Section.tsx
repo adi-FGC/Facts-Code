@@ -15,12 +15,12 @@ import { css } from '@remix-run/ui';
 
 interface SectionProps {
   /** Tracked uppercase mono label above the title. */
-  label?: string;
+  label?: string | undefined;
   /** Display-serif title. Pass empty/omit when the label is enough. */
-  title?: string;
+  title?: string | undefined;
   /** Override the title size — e.g. for the Overview hero. */
-  titleSize?: 'lg' | 'xl' | 'display';
-  children?: RemixNode;
+  titleSize?: 'lg' | 'xl' | 'display' | undefined;
+  children?: RemixNode | undefined;
 }
 
 const SIZE_MAP = {
