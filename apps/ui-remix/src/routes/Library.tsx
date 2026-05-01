@@ -1,14 +1,20 @@
 /**
  * Library — top-level package browser.
  *
- * Renders the project's first-level directory structure as a
- * hairline-ruled list with rollup stats: how many files, lines, and
- * tokens each package owns. Acts as the project's table of contents
- * before the v0.4.6 symbol-level browse ships.
+ * Renders the project's first-level directory structure as a single
+ * hairline-ruled table sorted by token weight. Each row carries a
+ * mono kind tag (APP / PKG / DOCS / TESTS / CFG / OTHER) so the
+ * grouping reads at a glance without needing a Section header per
+ * category — for projects where most categories have only 1-2 rows,
+ * the section ceremony was overhead, not signal.
  *
- * Symbol-level Library (Components / Hooks / Pages / Utilities / Server APIs)
- * is tracked in TASKS.md; this page populates the moment v0.3.5 symbol
- * graph + role classification land.
+ * The flat table reads top-down: biggest token surface first. That
+ * answers "what would I have to load into agent context?" before
+ * anything else.
+ *
+ * Symbol-level Library (Components / Hooks / Pages / Utilities /
+ * Server APIs) is tracked in TASKS.md; that page populates the
+ * moment v0.3.5 symbol graph + role classification land.
  */
 import type { Handle } from '@remix-run/ui';
 import { css } from '@remix-run/ui';
@@ -29,7 +35,6 @@ function fmt(n: number): string {
   return String(n);
 }
 
-/** Shallow-walk: count files (recursive) per top-level child. */
 function aggregate(node: DatasetTreeNode): { files: number; loc: number; tokens: number } {
   let files = node.files.length;
   let loc = node.files.reduce((s, f) => s + (f.loc || 0), 0);
@@ -43,21 +48,29 @@ function aggregate(node: DatasetTreeNode): { files: number; loc: number; tokens:
   return { files, loc, tokens };
 }
 
-/** Heuristic: is this top-level dir likely an "app" / "package" / "doc"?
- *  Used to slot rows into editorial sections. The hint reads small
- *  beneath the row name. */
-function classify(name: string): { kind: 'app' | 'package' | 'config' | 'docs' | 'tests' | 'other'; hint: string } {
-  if (name === 'apps' || name === 'app')         return { kind: 'app', hint: 'application code' };
-  if (name === 'packages' || name === 'libs')    return { kind: 'package', hint: 'shared libraries' };
-  if (name === 'plugins')                        return { kind: 'package', hint: 'extension plugins' };
-  if (name === 'examples' || name === 'example') return { kind: 'docs', hint: 'reference fixtures' };
+type Kind = 'app' | 'pkg' | 'docs' | 'tests' | 'cfg' | 'other';
+
+function classify(name: string): { kind: Kind; hint: string } {
+  if (name === 'apps' || name === 'app')         return { kind: 'app',   hint: 'application code' };
+  if (name === 'packages' || name === 'libs')    return { kind: 'pkg',   hint: 'shared libraries' };
+  if (name === 'plugins')                        return { kind: 'pkg',   hint: 'extension plugins' };
+  if (name === 'examples' || name === 'example') return { kind: 'docs',  hint: 'reference fixtures' };
   if (name === 'docs' || name === 'documentation') return { kind: 'docs', hint: 'documentation' };
   if (name === 'tests' || name === 'test' || name === 'spec' || name === '__tests__') return { kind: 'tests', hint: 'test suite' };
-  if (name.startsWith('.'))                      return { kind: 'config', hint: 'config / metadata' };
-  if (name === 'prototype' || name === 'legacy') return { kind: 'docs', hint: 'reference / legacy code' };
-  if (name === 'scripts' || name === 'tools')    return { kind: 'config', hint: 'build / tooling' };
+  if (name.startsWith('.'))                      return { kind: 'cfg',   hint: 'config / metadata' };
+  if (name === 'prototype' || name === 'legacy') return { kind: 'docs',  hint: 'reference / legacy code' };
+  if (name === 'scripts' || name === 'tools')    return { kind: 'cfg',   hint: 'build / tooling' };
   return { kind: 'other', hint: 'project files' };
 }
+
+const KIND_COLOR: Record<Kind, string> = {
+  app:   'var(--accent)',
+  pkg:   'var(--info)',
+  docs:  'var(--fg-muted)',
+  tests: 'var(--ok)',
+  cfg:   'var(--fg-subtle)',
+  other: 'var(--fg-faint)',
+};
 
 const kicker = css({
   fontFamily: 'var(--font-mono)',
@@ -91,6 +104,15 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
+const kindTag = (kind: Kind) => css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  fontWeight: '500',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: KIND_COLOR[kind],
+});
+
 const nameStyle = css({
   fontFamily: 'var(--font-display)',
   fontSize: 'var(--fs-14)',
@@ -115,27 +137,9 @@ export function Library(_h: Handle<LibraryProps>) {
         const cls = classify(c.name);
         return { name: c.name, ...cls, ...agg };
       })
-      // Drop empty groups and sort by tokens desc (tokens correlates with
-      // engineering surface better than file count or LOC).
       .filter((g) => g.files > 0)
+      // Sort by tokens desc — biggest agent-context cost surfaces first.
       .sort((a, b) => b.tokens - a.tokens);
-
-    const sectionOrder: Array<'app' | 'package' | 'config' | 'docs' | 'tests' | 'other'> = [
-      'app', 'package', 'docs', 'tests', 'config', 'other',
-    ];
-    const sectionLabels: Record<string, string> = {
-      app:     'Applications',
-      package: 'Packages',
-      docs:    'Documentation & references',
-      tests:   'Tests',
-      config:  'Config & tooling',
-      other:   'Other',
-    };
-    const grouped = new Map<string, typeof top>();
-    for (const t of top) {
-      if (!grouped.has(t.kind)) grouped.set(t.kind, []);
-      grouped.get(t.kind)!.push(t);
-    }
 
     const totalTokens = top.reduce((s, g) => s + g.tokens, 0);
     const totalFiles  = top.reduce((s, g) => s + g.files, 0);
@@ -144,13 +148,14 @@ export function Library(_h: Handle<LibraryProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Library · {top.length} {top.length === 1 ? 'package' : 'packages'}</div>
+          <div mix={kicker}>
+            Library · {top.length} {top.length === 1 ? 'package' : 'packages'}
+          </div>
           <h1 mix={headline}>The project's table of contents.</h1>
           <p mix={lede}>
-            Top-level directories grouped by role. Each row is one slice
-            of the codebase you can read independently. The bigger the
-            token figure, the bigger the surface area you'd ask an AI
-            agent to load.
+            Top-level packages sorted by token weight. The bigger the
+            figure, the bigger the surface you'd ask an AI agent to load.
+            The mono tag at the start of each row marks role at a glance.
           </p>
 
           <LabelNumberRow>
@@ -160,33 +165,34 @@ export function Library(_h: Handle<LibraryProps>) {
             <LabelNumber label="Tokens"   value={fmt(totalTokens)} unit="cl100k" last />
           </LabelNumberRow>
 
-          {sectionOrder.map((k) => {
-            const list = grouped.get(k);
-            if (!list?.length) return null;
-            return (
-              <Section key={k} label={k} title={sectionLabels[k]}>
-                <RuledTable cols="minmax(0, 1fr) auto auto auto">
-                  <RuledRow header>
-                    <RuledCell header>Name</RuledCell>
-                    <RuledCell header align="right">Files</RuledCell>
-                    <RuledCell header align="right">Lines</RuledCell>
-                    <RuledCell header align="right">Tokens</RuledCell>
-                  </RuledRow>
-                  {list.map((g) => (
-                    <RuledRow key={g.name}>
-                      <RuledCell>
-                        <span mix={nameStyle}>{g.name}</span>
-                        <span mix={hintStyle}>{g.hint}</span>
-                      </RuledCell>
-                      <RuledCell mono align="right">{fmt(g.files)}</RuledCell>
-                      <RuledCell mono align="right">{fmt(g.loc)}</RuledCell>
-                      <RuledCell mono align="right">{fmt(g.tokens)}</RuledCell>
-                    </RuledRow>
-                  ))}
-                </RuledTable>
-              </Section>
-            );
-          })}
+          {/* One flat table, sorted by tokens desc. Single Section
+              header replaces the previous 6 (one-per-category) — saves
+              ~300px of vertical chrome and reads top-down by weight. */}
+          <Section label="Packages" title="What it's made of">
+            <RuledTable cols="56px minmax(0, 1fr) auto auto auto">
+              <RuledRow header>
+                <RuledCell header>Kind</RuledCell>
+                <RuledCell header>Name</RuledCell>
+                <RuledCell header align="right">Files</RuledCell>
+                <RuledCell header align="right">Lines</RuledCell>
+                <RuledCell header align="right">Tokens</RuledCell>
+              </RuledRow>
+              {top.map((g) => (
+                <RuledRow key={g.name}>
+                  <RuledCell>
+                    <span mix={kindTag(g.kind)}>{g.kind}</span>
+                  </RuledCell>
+                  <RuledCell>
+                    <span mix={nameStyle}>{g.name}</span>
+                    <span mix={hintStyle}>{g.hint}</span>
+                  </RuledCell>
+                  <RuledCell mono align="right">{fmt(g.files)}</RuledCell>
+                  <RuledCell mono align="right">{fmt(g.loc)}</RuledCell>
+                  <RuledCell mono align="right">{fmt(g.tokens)}</RuledCell>
+                </RuledRow>
+              ))}
+            </RuledTable>
+          </Section>
         </div>
 
         <MarginColumn>

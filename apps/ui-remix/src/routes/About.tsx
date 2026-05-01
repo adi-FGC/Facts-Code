@@ -60,23 +60,13 @@ const proseP = css({
   marginBottom: 'var(--space-5)',
 });
 
+/* Plain hairline row — no leading ordinal column. Audit M4. */
 const tworow = css({
-  display: 'grid',
-  gridTemplateColumns: '24px 1fr',
-  gap: 'var(--space-3)',
-  alignItems: 'baseline',
+  display: 'block',
   paddingInline: 'var(--space-3)',
   marginInline: 'calc(var(--space-3) * -1)',
   paddingBlock: 'var(--space-3)',
   borderBottom: '1px solid var(--hairline)',
-});
-
-const tworowMark = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  color: 'var(--accent)',
-  fontWeight: '500',
-  letterSpacing: '0.04em',
 });
 
 const tworowName = css({
@@ -112,24 +102,26 @@ const link = css({
 });
 
 interface Surface {
-  num: string;
   head: string;
   desc: string;
 }
 
+/* Numbered "01 02 03" ordinals removed per audit M4 — NumberedNav is
+   the brand mark for that pattern; About content uses plain hairline-
+   divided rows so the brand signature stays scarce + impactful. */
 const SURFACES: Surface[] = [
-  { num: '01', head: 'CLI',         desc: 'factstack analyze · ui · watch · diff · query · export · doctor' },
-  { num: '02', head: 'MCP server',  desc: '6 tools (read_memory, query_graph, get_outline, list_risks, analyze, …) over stdio' },
-  { num: '03', head: 'agent.json',  desc: 'Path-addressable codebase map. AI agents reason against this without re-reading files.' },
-  { num: '04', head: 'human.json',  desc: "CXO-readable executive dashboard data — what feeds this UI." },
-  { num: '05', head: 'WebUI',       desc: 'This dashboard. Remix v3 (React-free), served from `factstack ui` or as a static export.' },
+  { head: 'CLI',         desc: 'factstack analyze · ui · watch · diff · query · export · doctor' },
+  { head: 'MCP server',  desc: '6 tools (read_memory, query_graph, get_outline, list_risks, analyze, …) over stdio' },
+  { head: 'agent.json',  desc: 'Path-addressable codebase map. AI agents reason against this without re-reading files.' },
+  { head: 'human.json',  desc: "CXO-readable executive dashboard data — what feeds this UI." },
+  { head: 'WebUI',       desc: 'This dashboard. Remix v3 (React-free), served from `factstack ui` or as a static export.' },
 ];
 
 const INTEGRATIONS: Surface[] = [
-  { num: '01', head: 'Local CLI',   desc: 'Run factstack analyze in any project directory. No globals, no daemons.' },
-  { num: '02', head: 'MCP client',  desc: 'Add factstack-mcp to your Claude/Cursor config; agents read .facts/MEMORY.md first.' },
-  { num: '03', head: 'CI step',     desc: 'pnpm dlx factstack analyze --json on every push; track risks + token cost over time.' },
-  { num: '04', head: 'Static export', desc: 'factstack export ships a single-file HTML + bundled data — share with any stakeholder.' },
+  { head: 'Local CLI',     desc: 'Run factstack analyze in any project directory. No globals, no daemons.' },
+  { head: 'MCP client',    desc: 'Add factstack-mcp to your Claude/Cursor config; agents read .facts/MEMORY.md first.' },
+  { head: 'CI step',       desc: 'pnpm dlx factstack analyze --json on every push; track risks + token cost over time.' },
+  { head: 'Static export', desc: 'factstack export ships a single-file HTML + bundled data — share with any stakeholder.' },
 ];
 
 export function About(_h: Handle<AboutProps>) {
@@ -177,12 +169,9 @@ export function About(_h: Handle<AboutProps>) {
           <Section label="Surfaces" title="What ships today">
             <ul mix={css({ listStyle: 'none', margin: '0', padding: '0' })}>
               {SURFACES.map((s) => (
-                <li key={s.num} mix={tworow}>
-                  <span mix={tworowMark}>{s.num}</span>
-                  <span mix={tworowName}>
-                    {s.head}
-                    <span mix={tworowDesc}>{s.desc}</span>
-                  </span>
+                <li key={s.head} mix={tworow}>
+                  <span mix={tworowName}>{s.head}</span>
+                  <span mix={tworowDesc}>{s.desc}</span>
                 </li>
               ))}
             </ul>
@@ -191,12 +180,9 @@ export function About(_h: Handle<AboutProps>) {
           <Section label="Integrate" title="How to use it">
             <ul mix={css({ listStyle: 'none', margin: '0', padding: '0' })}>
               {INTEGRATIONS.map((s) => (
-                <li key={s.num} mix={tworow}>
-                  <span mix={tworowMark}>{s.num}</span>
-                  <span mix={tworowName}>
-                    {s.head}
-                    <span mix={tworowDesc}>{s.desc}</span>
-                  </span>
+                <li key={s.head} mix={tworow}>
+                  <span mix={tworowName}>{s.head}</span>
+                  <span mix={tworowDesc}>{s.desc}</span>
                 </li>
               ))}
             </ul>

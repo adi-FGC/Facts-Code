@@ -63,21 +63,13 @@ const featureList = css({
   padding: '0',
 });
 
+/* Plain hairline row — ordinals removed per audit M4. The numbered
+   "01 02 03" treatment is reserved for NumberedNav (brand mark) +
+   Overview Capabilities (the editorial center of gravity). */
 const featureItem = css({
-  display: 'grid',
-  gridTemplateColumns: '24px 1fr',
-  gap: 'var(--space-3)',
-  alignItems: 'baseline',
+  display: 'block',
   paddingBlock: 'var(--space-3)',
   borderBottom: '1px solid var(--hairline)',
-});
-
-const featureMark = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  color: 'var(--accent)',
-  fontWeight: '500',
-  letterSpacing: '0.04em',
 });
 
 const featureText = css({
@@ -101,7 +93,6 @@ export function PortFromLegacy(_handle: Handle<PortFromLegacyProps>) {
               <ul mix={featureList}>
                 {features.map((f, i) => (
                   <li key={i} mix={featureItem}>
-                    <span mix={featureMark}>{String(i + 1).padStart(2, '0')}</span>
                     <span mix={featureText}>{f}</span>
                   </li>
                 ))}
