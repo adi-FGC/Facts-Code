@@ -1079,6 +1079,7 @@
         <button class="tab" id="tab-library"  role="tab" aria-selected="false" aria-controls="panel-library" data-tab="library">Library</button>
         <button class="tab" id="tab-routes"   role="tab" aria-selected="false" aria-controls="panel-routes"   data-tab="routes">Routes</button>
         <button class="tab" id="tab-risks"    role="tab" aria-selected="false" aria-controls="panel-risks"    data-tab="risks">Risks <span id="risks-count-chip" class="chip chip-muted ml-1">0</span></button>
+        <button class="tab" id="tab-tests"    role="tab" aria-selected="false" aria-controls="panel-tests"   data-tab="tests">Tests</button>
         <button class="tab" id="tab-history"  role="tab" aria-selected="false" aria-controls="panel-history"  data-tab="history">History</button>
         <button class="tab" id="tab-about"    role="tab" aria-selected="false" aria-controls="panel-about"   data-tab="about">About</button>
         <button class="tab" id="tab-config"   role="tab" aria-selected="false" aria-controls="panel-config"   data-tab="config" aria-label="Config">
@@ -1192,6 +1193,7 @@
           <div class="tab-panel hidden p-0"                                           role="tabpanel" aria-labelledby="tab-library" data-panel="library" id="panel-library"></div>
           <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto"      role="tabpanel" aria-labelledby="tab-routes"  data-panel="routes"  id="panel-routes"></div>
           <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto"      role="tabpanel" aria-labelledby="tab-risks"   data-panel="risks"   id="panel-risks"></div>
+          <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-5xl mx-auto"      role="tabpanel" aria-labelledby="tab-tests"   data-panel="tests"   id="panel-tests"></div>
           <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto"      role="tabpanel" aria-labelledby="tab-history" data-panel="history" id="panel-history"></div>
           <div class="tab-panel hidden p-5 sm:p-8 content-cap max-w-4xl mx-auto"      role="tabpanel" aria-labelledby="tab-config"  data-panel="config"  id="panel-config"></div>
           <div class="tab-panel hidden"                                                role="tabpanel" aria-labelledby="tab-about"   data-panel="about"   id="panel-about"></div>
@@ -3536,6 +3538,190 @@
         return li;
       }
 
+      // ============================ TESTS TAB ==============================
+      // Test coverage map derived deterministically from imports + path
+      // shape. No test runner involved — this is "is each source file
+      // imported by at least one test file?" coverage, which is the
+      // strongest signal a static analyzer can give.
+      //
+      // Sections:
+      //   1. Headline: % of source files with at least one test importer
+      //   2. Per-directory test density (covered / total)
+      //   3. Top untested files by token cost (highest-impact gaps)
+      //   4. Test inventory (the test files themselves, by tier)
+      function renderTests() {
+        const p = $('#panel-tests');
+        if (!p) return;
+        p.innerHTML = '';
+
+        const all = libraryFiles(DATA?.tree || { files: [], children: [] }, []);
+        const isTestPath = (path) => /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright)\//.test(path)
+          || /\.(test|spec)\.[a-z]+$/i.test(path);
+        const isSourceCode = (f) => {
+          const lid = languageId(f);
+          if (!lid) return false;
+          const code = ['typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust', 'java', 'kotlin', 'csharp', 'ruby', 'php', 'svelte', 'vue'];
+          return code.includes(lid);
+        };
+
+        const tests = all.filter((f) => isTestPath(f.path));
+        const sources = all.filter((f) => isSourceCode(f) && !isTestPath(f.path));
+
+        // Build coverage map: source path → set of test paths importing it.
+        // We use the edges array (resolved imports) for accurate matching.
+        const coverage = new Map(); // sourcePath → Set<testPath>
+        const edges = DATA?.edges || [];
+        const testPaths = new Set(tests.map((t) => t.path));
+        for (const e of edges) {
+          if (testPaths.has(e.from) && !testPaths.has(e.to)) {
+            if (!coverage.has(e.to)) coverage.set(e.to, new Set());
+            coverage.get(e.to).add(e.from);
+          }
+        }
+
+        const covered = sources.filter((f) => coverage.has(f.path));
+        const uncovered = sources.filter((f) => !coverage.has(f.path));
+        const pct = sources.length ? Math.round((covered.length / sources.length) * 100) : 0;
+        const tone = pct >= 60 ? 'ok' : pct >= 30 ? 'warn' : 'danger';
+
+        // ── Headline ──────────────────────────────────────────────────
+        const head = h('div', { class: 'mb-8' });
+        head.innerHTML = `
+          <div class="ed-label mb-2" style="font-size:0.625rem;letter-spacing:0.18em">TEST COVERAGE</div>
+          <h1 class="ed-head font-serif" style="font-size:clamp(1.75rem,3.2vw,2.5rem);line-height:1.1;margin-bottom:0.75rem">
+            ${tests.length === 0
+              ? `No tests detected.`
+              : `<span class="num" style="color:var(--${tone})">${pct}%</span> of source files have at least one test importing them.`}
+          </h1>
+          <p class="ed-prose text-base text-[var(--fg-muted)]" style="max-width:62ch">
+            ${tests.length === 0
+              ? `Add files matching <span class="mono text-sm">*.test.*</span>, <span class="mono text-sm">*.spec.*</span>, or under <span class="mono text-sm">__tests__/</span> / <span class="mono text-sm">tests/</span> / <span class="mono text-sm">cypress/</span> / <span class="mono text-sm">playwright/</span> to start tracking coverage.`
+              : `Coverage by import-graph reachability — every source file imported by at least one test file counts as covered. <strong>${covered.length}</strong> of <strong>${sources.length}</strong> source files have a test importer; <strong>${tests.length}</strong> test files in total.`}
+          </p>
+        `;
+        wrap_append(p, head);
+
+        if (sources.length === 0) {
+          wrap_append(p, h('div', { class: 'surface rounded-lg p-6 text-center text-[var(--fg-muted)]' },
+            'No source files in the project to measure coverage against.'));
+          return;
+        }
+
+        // ── Headline chips: tested / untested counts ──────────────────
+        const stripe = h('div', { class: 'flex gap-2 mb-8 flex-wrap' });
+        stripe.innerHTML = `
+          <div class="surface rounded-md px-4 py-3">
+            <div class="text-2xl font-semibold mono"><span style="color:var(--ok)">${covered.length}</span></div>
+            <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">covered</div>
+          </div>
+          <div class="surface rounded-md px-4 py-3">
+            <div class="text-2xl font-semibold mono"><span style="color:var(--${uncovered.length ? 'warn' : 'fg-muted'})">${uncovered.length}</span></div>
+            <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">untested</div>
+          </div>
+          <div class="surface rounded-md px-4 py-3">
+            <div class="text-2xl font-semibold mono"><span>${tests.length}</span></div>
+            <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">test files</div>
+          </div>
+          <div class="surface rounded-md px-4 py-3">
+            <div class="text-2xl font-semibold mono"><span>${sources.length}</span></div>
+            <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">source files</div>
+          </div>
+        `;
+        wrap_append(p, stripe);
+
+        // ── Per-directory test density ────────────────────────────────
+        // Group source files by their TOP-LEVEL directory and compute
+        // covered/total per directory. Sorted by uncovered count desc
+        // so the worst offenders surface first.
+        const dirStats = new Map();
+        for (const f of sources) {
+          const dir = (f.path.split('/').slice(0, -1)[0] || '.');
+          if (!dirStats.has(dir)) dirStats.set(dir, { dir, total: 0, covered: 0, tokens: 0 });
+          const s = dirStats.get(dir);
+          s.total++;
+          s.tokens += (f.tokens || 0);
+          if (coverage.has(f.path)) s.covered++;
+        }
+        const dirRows = [...dirStats.values()]
+          .map((s) => ({ ...s, uncovered: s.total - s.covered, pct: s.total ? Math.round((s.covered / s.total) * 100) : 0 }))
+          .sort((a, b) => b.uncovered - a.uncovered);
+
+        if (dirRows.length) {
+          wrap_append(p, h('h2', { class: 'text-xs uppercase tracking-wide text-[var(--fg-muted)] font-semibold mb-3' },
+            `Coverage by top-level folder (${dirRows.length})`));
+          const dirBox = h('div', { class: 'surface rounded-lg overflow-hidden mb-8' });
+          const dirInner = h('div', { class: 'divide-y divide-[var(--border)]' });
+          for (const r of dirRows) {
+            const row = h('div', { class: 'p-3 grid grid-cols-12 items-center gap-3' });
+            const t = r.pct >= 60 ? 'ok' : r.pct >= 30 ? 'warn' : 'danger';
+            row.innerHTML = `
+              <div class="col-span-3 mono text-sm truncate" title="${escapeHtml(r.dir)}">${escapeHtml(r.dir)}</div>
+              <div class="col-span-5">
+                <div class="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
+                  <div style="width:${r.pct}%; height:100%; background: var(--${t});"></div>
+                </div>
+              </div>
+              <div class="col-span-2 text-right text-[11px] text-[var(--fg-muted)] mono"><span class="num" style="color:var(--${t})">${r.pct}%</span></div>
+              <div class="col-span-2 text-right text-[11px] text-[var(--fg-subtle)]">${r.covered}/${r.total} files</div>
+            `;
+            dirInner.append(row);
+          }
+          dirBox.append(dirInner);
+          wrap_append(p, dirBox);
+        }
+
+        // ── Top untested files (highest impact) ───────────────────────
+        const topUncovered = [...uncovered].sort((a, b) => (b.tokens || 0) - (a.tokens || 0)).slice(0, 12);
+        if (topUncovered.length) {
+          wrap_append(p, h('h2', { class: 'text-xs uppercase tracking-wide text-[var(--fg-muted)] font-semibold mb-3' },
+            `Highest-impact untested files (${topUncovered.length})`));
+          const list = h('div', { class: 'surface rounded-lg overflow-hidden mb-8' });
+          const inner = h('div', { class: 'divide-y divide-[var(--border)]' });
+          for (const f of topUncovered) {
+            const langId = languageId(f);
+            const lang = langId ? LANGS_BY_ID.get(langId) : null;
+            const tag = lang?.tag || (typeof langId === 'string' ? langId.slice(0, 4).toUpperCase() : '?');
+            const row = h('button', { type: 'button', class: 'w-full text-left flex items-center gap-3 p-3 hover:bg-[var(--surface-2)] transition-colors' });
+            row.innerHTML = `
+              <span class="mono text-[10px] font-semibold w-7" style="color:${lang?.iconColor || 'var(--fg-muted)'}">${escapeHtml(tag)}</span>
+              <span class="text-sm flex-1 truncate mono" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
+              <span class="text-[10px] mono text-[var(--fg-subtle)] shrink-0">${fmtTok(f.tokens || 0)} tok</span>
+            `;
+            row.addEventListener('click', () => selectFile(f));
+            inner.append(row);
+          }
+          list.append(inner);
+          wrap_append(p, list);
+        }
+
+        // ── Test inventory by kind ────────────────────────────────────
+        if (tests.length) {
+          const buckets = { unit: [], integration: [], e2e: [], other: [] };
+          for (const t of tests) {
+            if (/(?:^|\/)(?:cypress|playwright|e2e)\//i.test(t.path)) buckets.e2e.push(t);
+            else if (/(?:^|\/)(?:__tests__|tests|test)\//i.test(t.path)) buckets.integration.push(t);
+            else if (/\.(test|spec)\.[a-z]+$/i.test(t.path)) buckets.unit.push(t);
+            else buckets.other.push(t);
+          }
+          wrap_append(p, h('h2', { class: 'text-xs uppercase tracking-wide text-[var(--fg-muted)] font-semibold mb-3' },
+            `Test inventory (${tests.length})`));
+          const grid = h('div', { class: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3' });
+          for (const [name, arr] of Object.entries(buckets)) {
+            if (!arr.length) continue;
+            const card = h('div', { class: 'surface rounded-md p-4' });
+            card.innerHTML = `
+              <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mb-1">${name}</div>
+              <div class="text-2xl font-semibold mono mb-1">${arr.length}</div>
+              <div class="text-[11px] text-[var(--fg-subtle)]">${arr.length === 1 ? 'file' : 'files'}</div>
+            `;
+            grid.append(card);
+          }
+          wrap_append(p, grid);
+        }
+      }
+      // Tiny helper to keep the renderTests body tidy.
+      function wrap_append(parent, child) { parent.append(child); }
+
       // History — editorial empty state. No sparklines (audit M2); one
       // sentence that explains what trend data WILL appear here after
       // multiple analyses.
@@ -3726,9 +3912,12 @@
         p.innerHTML = '';
         const f = SELECTED_FILE;
         if (!f) {
-          p.append(h('div', { class: 'max-w-4xl mx-auto content-cap' },
-            h('div', { class: 'surface rounded-lg p-6 text-center text-[var(--fg-muted)]' }, 'Select a file in the tree to see its outline.'),
-          ));
+          // Replace the empty "select a file" state with a folder
+          // breakdown — gives the user something USEFUL to look at
+          // before they pick a file. Lists the top-level directories,
+          // their file counts, dominant language, and inferred role
+          // mix. Click any row → drills into that directory.
+          p.append(renderFolderBreakdown());
           return;
         }
         const wrap = h('div', { class: 'max-w-4xl mx-auto content-cap' });
@@ -3746,6 +3935,149 @@
 
         // Reflect the active local tab + TODOs count on the local tab bar.
         syncLocalTabUI(f);
+      }
+
+      /**
+       * Folder-breakdown view shown when no file is selected. Lists
+       * each top-level directory with: file count, total tokens,
+       * dominant language, and the inferred role mix (Components /
+       * Pages / Utilities / etc) — derived from the same heuristics
+       * the Library tab uses. Click any directory to drill into it.
+       *
+       * Pure data, no LLM. Reads from DATA.tree (which the analyzer
+       * already builds) + the existing inferFileRole() classifier.
+       */
+      function renderFolderBreakdown() {
+        const wrap = h('div', { class: 'max-w-5xl mx-auto p-5 sm:p-6' });
+        const tree = DATA?.tree;
+        if (!tree || (!tree.children?.length && !tree.files?.length)) {
+          wrap.append(h('div', { class: 'surface rounded-lg p-8 text-center text-[var(--fg-muted)]' },
+            'No files in the tree. Run the analyzer first.'));
+          return wrap;
+        }
+
+        // Header
+        const head = h('div', { class: 'mb-6' });
+        head.innerHTML = `
+          <div class="ed-label mb-1" style="font-size:0.625rem;letter-spacing:0.18em">FOLDER BREAKDOWN</div>
+          <h1 class="text-xl font-semibold mb-1">What's in this project</h1>
+          <p class="text-sm text-[var(--fg-muted)]">Pick a folder to drill in, or click any file in the left tree for its outline.</p>
+        `;
+        wrap.append(head);
+
+        // Build per-folder summary. We walk top-level children
+        // (directories) and one level of files at the root.
+        const folders = (tree.children || []).map((dir) => {
+          const all = [];
+          (function collect(n) {
+            for (const f of (n.files || [])) all.push(f);
+            for (const c of (n.children || [])) collect(c);
+          })(dir);
+          // Per-language count
+          const langs = new Map();
+          for (const f of all) {
+            const id = languageId(f);
+            if (!id) continue;
+            langs.set(id, (langs.get(id) || 0) + 1);
+          }
+          const dominantLang = [...langs.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+          // Per-role count
+          const roles = new Map();
+          for (const f of all) {
+            const r = inferFileRole(f);
+            roles.set(r, (roles.get(r) || 0) + 1);
+          }
+          // Total tokens + LOC + size
+          let tokens = 0, loc = 0, size = 0;
+          for (const f of all) { tokens += (f.tokens || 0); loc += (f.loc || 0); size += (f.size || 0); }
+          return {
+            name: dir.name,
+            path: dir.path,
+            files: all.length,
+            tokens, loc, size,
+            dominantLang,
+            roles: [...roles.entries()].sort((a, b) => b[1] - a[1]),
+          };
+        }).sort((a, b) => b.tokens - a.tokens);
+
+        // Root-level files (not under any subdir) get their own row
+        const rootFiles = tree.files || [];
+
+        if (!folders.length && !rootFiles.length) {
+          wrap.append(h('div', { class: 'surface rounded-lg p-6 text-center text-[var(--fg-muted)]' },
+            'No subdirectories detected. Click a file in the tree to see its outline.'));
+          return wrap;
+        }
+
+        // Folders list — editorial, not a card grid
+        const list = h('div', { class: 'space-y-1' });
+        for (const fold of folders) {
+          const lang = LANGS_BY_ID.get(fold.dominantLang);
+          const langChip = lang
+            ? `<span class="mono text-[10px] font-semibold inline-flex items-center gap-1.5"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${lang.iconColor || 'var(--fg-muted)'}"></span>${escapeHtml(lang.label || lang.id)}</span>`
+            : '';
+          const topRoles = fold.roles.slice(0, 3).map(([r, n]) => `<span class="text-[11px] text-[var(--fg-muted)]">${escapeHtml(r)} <span class="mono text-[var(--fg-subtle)]">${n}</span></span>`).join('<span class="text-[var(--fg-subtle)] mx-1">·</span>');
+          const row = h('button', {
+            type: 'button',
+            class: 'w-full text-left p-4 rounded-lg hover:bg-[var(--surface-2)] transition-colors flex items-start gap-4 border border-transparent hover:border-[var(--border)]',
+            'aria-label': 'Open folder ' + fold.name,
+          });
+          row.innerHTML = `
+            <div class="shrink-0 mt-0.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-baseline gap-3 mb-1.5 flex-wrap">
+                <span class="font-semibold text-[15px] mono">${escapeHtml(fold.name)}</span>
+                <span class="text-xs text-[var(--fg-muted)]"><span class="num">${fold.files}</span> file${fold.files === 1 ? '' : 's'} · <span class="num mono">${fmtTok(fold.tokens)}</span> tokens · <span class="num">${fold.loc.toLocaleString()}</span> LOC</span>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                ${langChip}
+                ${langChip && topRoles ? '<span class="text-[var(--fg-subtle)]">·</span>' : ''}
+                ${topRoles}
+              </div>
+            </div>
+          `;
+          // Drill in by selecting the first file under this directory
+          // — the user gets straight to a meaningful focus point.
+          row.addEventListener('click', () => {
+            const drilldown = (n) => {
+              if (n.files && n.files.length) return n.files[0];
+              for (const c of (n.children || [])) { const f = drilldown(c); if (f) return f; }
+              return null;
+            };
+            const target = drilldown(DATA.tree.children?.find((c) => c.path === fold.path));
+            if (target) selectFile(target);
+          });
+          list.append(row);
+        }
+        wrap.append(list);
+
+        // Root-level loose files (if any) — separate section
+        if (rootFiles.length) {
+          wrap.append(h('h2', { class: 'text-xs uppercase tracking-wide text-[var(--fg-muted)] font-semibold mt-8 mb-2' },
+            'Root-level files (' + rootFiles.length + ')'));
+          const rootList = h('div', { class: 'surface rounded-lg overflow-hidden' });
+          const inner = h('div', { class: 'divide-y divide-[var(--border)]' });
+          for (const f of rootFiles) {
+            const langId = languageId(f);
+            const lang = langId ? LANGS_BY_ID.get(langId) : null;
+            const tag = lang?.tag || (typeof langId === 'string' && langId.length ? langId.slice(0, 4).toUpperCase() : '?');
+            const safeColor = (function () { const s = lang?.iconColor; if (!s || typeof s !== 'string') return 'var(--fg-muted)'; if (/^var\(--[\w-]+\)$/.test(s) || /^#[0-9a-f]{3,8}$/i.test(s) || /^(?:rgb|rgba|hsl|hsla|oklch|oklab)\([\d.,%\s\/-]+\)$/i.test(s)) return s; return 'var(--fg-muted)'; })();
+            const row = h('button', { type: 'button', class: 'w-full text-left flex items-center gap-2.5 p-3 hover:bg-[var(--surface-2)] transition-colors' });
+            row.innerHTML = `
+              <span class="mono text-[10px] font-semibold w-7" style="color:${safeColor}">${escapeHtml(tag)}</span>
+              <span class="text-sm flex-1 truncate mono">${escapeHtml(f.name)}</span>
+              <span class="text-[10px] mono text-[var(--fg-subtle)] shrink-0">${fmtTok(f.tokens || 0)} tok</span>
+            `;
+            row.addEventListener('click', () => selectFile(f));
+            inner.append(row);
+          }
+          rootList.append(inner);
+          wrap.append(rootList);
+        }
+
+        return wrap;
       }
 
       function syncLocalTabUI(f) {
@@ -4050,7 +4382,13 @@
           placeholder: 'Filter…',
           value: LIBRARY_SEARCH,
           'aria-label': 'Filter files',
-          class: 'w-full px-2 py-1 rounded text-sm bg-[var(--surface-2)] border border-[var(--border)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]',
+          // Inline style for the surface tokens because Tailwind's
+          // arbitrary-value parser sometimes drops `border-[var(...)]`
+          // when the value contains parentheses. Inline style is the
+          // robust fix and matches what the rest of the dashboard's
+          // form controls do.
+          class: 'w-full px-2.5 py-1.5 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]',
+          style: 'background: var(--surface-2); border: 1px solid var(--border); color: var(--fg);',
         });
         // Debounce search input — every keystroke fires `input`, but
         // re-rendering the entire library on every key would walk the
@@ -4316,8 +4654,14 @@
         if ((f.imports || []).length) {
           const groups = { local: [], workspace: [], external: [] };
           for (const imp of f.imports) {
-            const src = imp && imp.source;
+            // Accept both `source` (canonical) and `specifier` (legacy
+            // client-scan shape, kept for backward compat with older
+            // cached datasets).
+            const src = imp && (imp.source ?? imp.specifier);
             if (typeof src !== 'string' || !src) continue;
+            // Mutate so downstream rendering (which reads imp.source
+            // for the chip text) works even on legacy shapes.
+            if (!imp.source) imp.source = src;
             if (src.startsWith('.') || src.startsWith('/')) {
               groups.local.push(imp);
             } else if (imp.resolved && typeof imp.resolved === 'string') {
@@ -4664,6 +5008,7 @@
         renderLibrary();
         renderRoutes();
         renderRisks();
+        renderTests();
         renderHistory();
         renderConfig();
         renderAbout();
@@ -5350,21 +5695,26 @@
         } catch { return []; }
         const out = [];
         const body = ast?.program?.body || [];
+        // Field name matches the canonical viz shape (`humanToViz` in
+        // packages/emit/src/viz.ts). The Library tab's import-grouping
+        // and synthesizePurpose both read `imp.source`. Don't emit
+        // `specifier` here even though the AST callsite is `n.source` —
+        // the field name on the OUTPUT is what the renderer consumes.
         for (const n of body) {
           if (!n) continue;
           if (n.type === 'ImportDeclaration' && typeof n.source?.value === 'string') {
-            out.push({ specifier: n.source.value, kind: n.importKind === 'type' ? 'type-import' : 'import' });
+            out.push({ source: n.source.value, kind: n.importKind === 'type' ? 'type-import' : 'import' });
           } else if ((n.type === 'ExportNamedDeclaration' || n.type === 'ExportAllDeclaration') && typeof n.source?.value === 'string') {
-            out.push({ specifier: n.source.value, kind: n.exportKind === 'type' ? 'type-import' : 'import' });
+            out.push({ source: n.source.value, kind: n.exportKind === 'type' ? 'type-import' : 'import' });
           }
         }
         (function walk(n) {
           if (!n || typeof n !== 'object') return;
           if (n.type === 'CallExpression' && n.callee?.type === 'Import') {
-            const a = n.arguments?.[0]; if (a?.type === 'StringLiteral') out.push({ specifier: a.value, kind: 'dynamic-import' });
+            const a = n.arguments?.[0]; if (a?.type === 'StringLiteral') out.push({ source: a.value, kind: 'dynamic-import' });
           }
           if (n.type === 'CallExpression' && n.callee?.type === 'Identifier' && n.callee.name === 'require') {
-            const a = n.arguments?.[0]; if (a?.type === 'StringLiteral') out.push({ specifier: a.value, kind: 'import' });
+            const a = n.arguments?.[0]; if (a?.type === 'StringLiteral') out.push({ source: a.value, kind: 'import' });
           }
           for (const k of Object.keys(n)) {
             if (k === 'loc' || k === 'start' || k === 'end' || k === 'range') continue;
@@ -5373,9 +5723,9 @@
             else if (v && typeof v === 'object' && typeof v.type === 'string') walk(v);
           }
         })(ast);
-        // Dedupe
+        // Dedupe by source + kind
         const seen = new Set(); const dedup = [];
-        for (const x of out) { const k = x.specifier + '|' + x.kind; if (!seen.has(k)) { seen.add(k); dedup.push(x); } }
+        for (const x of out) { const k = x.source + '|' + x.kind; if (!seen.has(k)) { seen.add(k); dedup.push(x); } }
         return dedup;
       }
       const RESOLVE_EXTS = ['', '.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.json'];
@@ -5562,7 +5912,11 @@
         for (const f of (ctx?.allFiles || [])) {
           if (!Array.isArray(f.imports) || !f.imports.length) continue;
           for (const imp of f.imports) {
-            const to = resolveSpecP(imp.specifier, f.path, fileSet, workspaces);
+            // Accept both `source` (canonical) and `specifier` (legacy)
+            // so cached datasets from older builds keep resolving.
+            const spec = imp?.source ?? imp?.specifier;
+            if (typeof spec !== 'string' || !spec) continue;
+            const to = resolveSpecP(spec, f.path, fileSet, workspaces);
             if (!to || to === f.path) continue;
             const kind = imp.kind === 'dynamic-import' ? 'dynamic-import' : imp.kind === 'type-import' ? 'type-import' : 'import';
             const key = f.path + '|' + to + '|' + kind;
@@ -5571,6 +5925,86 @@
             edges.push({ from: f.path, to, kind });
           }
         }
+
+        // ── File-based route detection (client-side mirror of the
+        //    extractors/src/routes.ts file-shape rules). Catches
+        //    Next.js, Astro, Remix/React-Router pages and Vite-SPA
+        //    pages-router conventions just from path patterns.
+        //    Source-based detection (Express, FastAPI, etc.) requires
+        //    AST inspection which we do for imports but skip here for
+        //    deploy-size reasons — those still need the CLI for full
+        //    fidelity. Mirrors `detectFileBasedRoutes` from the
+        //    extractor package. ─────────────────────────────────
+        const routes = [];
+        const seenRoute = new Set();
+        const addRoute = (r) => {
+          const k = (r.method || 'GET') + '|' + r.path + '|' + r.handlerFile;
+          if (seenRoute.has(k)) return;
+          seenRoute.add(k);
+          routes.push(r);
+        };
+        const PASCAL_TO_KEBAB = (seg) => seg
+          .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+          .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+          .toLowerCase();
+        const TO_NEXT = (frag) => frag.split('/')
+          .filter((s) => !(s.startsWith('(') && s.endsWith(')')))
+          .map((s) => {
+            if (s.startsWith('[...') && s.endsWith(']')) return '*';
+            const m = /^\[(.+)\]$/.exec(s);
+            if (m && m[1]) return ':' + m[1];
+            return PASCAL_TO_KEBAB(s);
+          })
+          .join('/');
+        const TO_REMIX = (frag) => {
+          const stripped = frag === '_index' ? '' : frag.replace(/\._index$/, '');
+          return stripped.split('.').map((s) => {
+            if (s === '$') return '*';
+            if (s.startsWith('$')) return ':' + s.slice(1);
+            return PASCAL_TO_KEBAB(s);
+          }).join('/');
+        };
+        const isTestPath = (p) => /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(p)
+          || /\.(test|spec)\.[a-z]+$/.test(p);
+        for (const f of (ctx?.allFiles || [])) {
+          const fp = f.path;
+          if (isTestPath(fp)) continue;
+          // Astro src/pages/** (more specific than Next pages-router)
+          let m;
+          if ((m = /(?:^|\/)src\/pages\/(.+)\.(astro|ts|tsx|js|jsx|mjs|md|mdx)$/.exec(fp)) && m[1]) {
+            const isApi = /^api(\/|$)/.test(m[1]);
+            const route = m[1].replace(/(^|\/)index$/, '') || '';
+            addRoute({ framework: 'astro', method: isApi ? null : 'GET', path: '/' + TO_NEXT(route), handlerFile: fp, handlerSymbol: isApi ? null : 'default' });
+            continue;
+          }
+          // Next App Router route.ts
+          if ((m = /(?:^|\/)app\/(.*?)\/(?:route)\.(ts|tsx|js|jsx|mjs)$/.exec(fp)) && m[1] != null) {
+            addRoute({ framework: 'nextjs', method: null, path: '/' + TO_NEXT(m[1]), handlerFile: fp, handlerSymbol: null });
+            continue;
+          }
+          // Next App Router page.tsx
+          if ((m = /(?:^|\/)app\/(.*?)\/(?:page)\.(ts|tsx|js|jsx|mjs)$/.exec(fp)) && m[1] != null) {
+            addRoute({ framework: 'nextjs', method: 'GET', path: '/' + TO_NEXT(m[1]), handlerFile: fp, handlerSymbol: 'default' });
+            continue;
+          }
+          if (/(?:^|\/)app\/page\.(ts|tsx|js|jsx|mjs)$/.test(fp)) {
+            addRoute({ framework: 'nextjs', method: 'GET', path: '/', handlerFile: fp, handlerSymbol: 'default' });
+            continue;
+          }
+          // Pages router pages/** (Vite SPAs match this too — catches
+          // fr-school-ai's src/pages/Attendance.jsx style)
+          if ((m = /(?:^|\/)pages\/(.+)\.(ts|tsx|js|jsx|mjs)$/.exec(fp)) && m[1] && !m[1].startsWith('_')) {
+            const route = m[1].replace(/(^|\/)index$/, '') || '';
+            addRoute({ framework: 'react-router', method: 'GET', path: '/' + TO_NEXT(route), handlerFile: fp, handlerSymbol: 'default' });
+            continue;
+          }
+          // Remix v2 + React Router v7 routes/**
+          if ((m = /(?:^|\/)(?:app|src)\/routes\/(.+)\.(ts|tsx|jsx|js)$/.exec(fp)) && m[1]) {
+            addRoute({ framework: 'react-router', method: 'GET', path: '/' + TO_REMIX(m[1]), handlerFile: fp, handlerSymbol: 'default' });
+            continue;
+          }
+        }
+        routes.sort((a, b) => a.path.localeCompare(b.path));
 
         return {
           generatedAt: new Date().toISOString(),
@@ -5584,8 +6018,8 @@
             frameworks: [],
           },
           summary: {
-            oneLiner: `${rootNode.name} — ${totals.files} files, ${edges.length} import edges`,
-            description: `Scanned ${rootNode.name} via the File System Access API. Real AST extraction via @babel/parser (loaded from esm.sh) produced ${edges.length} resolved import edges across ${totals.files} files. Framework detection is limited to what the shipped CLI provides.`,
+            oneLiner: `${rootNode.name} — ${totals.files} files, ${edges.length} import edges, ${routes.length} routes`,
+            description: `Scanned ${rootNode.name} via the File System Access API. AST extraction via @babel/parser produced ${edges.length} import edges. File-shape route detection found ${routes.length} pages. Source-based detection (Express, FastAPI, etc.) needs the CLI.`,
             capabilities: [],
             health: { broken: 0, stale: 0, todos: totals.todos, secrets: 0 },
           },
@@ -5593,6 +6027,7 @@
           tree: rootNode,
           edges,
           entryPoints: [],
+          routes,
           risks: [],
         };
       }
