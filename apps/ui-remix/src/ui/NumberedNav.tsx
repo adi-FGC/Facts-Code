@@ -26,6 +26,12 @@ const wrap = css({
   alignItems: 'center',
   gap: 'var(--space-2)',     /* tightened from --space-3 (12 → 8px) */
   flex: '1',
+  /* Audit M5 fix: without min-width: 0, the flex child refuses to
+     shrink below its content width, which lets the project chip push
+     into the active tab and clip its label (visible as "06 ROUTE"
+     instead of "06 ROUTES" at 1280px). min-width:0 lets the nav
+     yield first; the scroll affordance handles the overflow. */
+  minWidth: '0',
   overflowX: 'auto',
   scrollbarWidth: 'none',     /* Firefox */
   /* WebKit: pseudo-element selector escape hatch for the css() runtime. */

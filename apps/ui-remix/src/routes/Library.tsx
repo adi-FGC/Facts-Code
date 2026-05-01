@@ -144,7 +144,7 @@ export function Library(_h: Handle<LibraryProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Library · {top.length} surfaces</div>
+          <div mix={kicker}>Library · {top.length} {top.length === 1 ? 'package' : 'packages'}</div>
           <h1 mix={headline}>The project's table of contents.</h1>
           <p mix={lede}>
             Top-level directories grouped by role. Each row is one slice
@@ -154,7 +154,7 @@ export function Library(_h: Handle<LibraryProps>) {
           </p>
 
           <LabelNumberRow>
-            <LabelNumber label="Surfaces" value={top.length} />
+            <LabelNumber label="Packages" value={top.length} />
             <LabelNumber label="Files"    value={fmt(totalFiles)} />
             <LabelNumber label="Lines"    value={fmt(totalLoc)} />
             <LabelNumber label="Tokens"   value={fmt(totalTokens)} unit="cl100k" last />

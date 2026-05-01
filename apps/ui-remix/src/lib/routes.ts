@@ -40,12 +40,12 @@ export const TABS: readonly TabMeta[] = [
   { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: false },
   { key: 'dag',      label: 'DAG',      href: tabPatterns.dag.href(),      ported: false },
   { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: false },
-  { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: false },
-  { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: false },
+  { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: true  },
+  { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: true  },
   { key: 'risks',    label: 'Risks',    href: tabPatterns.risks.href(),    ported: true  },
   { key: 'tests',    label: 'Tests',    href: tabPatterns.tests.href(),    ported: false },
   { key: 'history',  label: 'History',  href: tabPatterns.history.href(),  ported: true  },
-  { key: 'about',    label: 'About',    href: tabPatterns.about.href(),    ported: false },
+  { key: 'about',    label: 'About',    href: tabPatterns.about.href(),    ported: true  },
   { key: 'config',   label: 'Config',   href: tabPatterns.config.href(),   ported: false },
 ] as const;
 

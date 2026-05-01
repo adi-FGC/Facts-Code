@@ -173,7 +173,9 @@ export function RoutesTab(_h: Handle<RoutesProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Routes · {routes.length + eps.length} surfaces</div>
+          <div mix={kicker}>
+            Routes · {eps.length} {eps.length === 1 ? 'entry' : 'entries'} · {routes.length} {routes.length === 1 ? 'endpoint' : 'endpoints'}
+          </div>
           <h1 mix={headline}>What this thing does.</h1>
           <p mix={lede}>
             Every entry point a user or an AI agent can hit. CLI commands and
@@ -197,9 +199,10 @@ export function RoutesTab(_h: Handle<RoutesProps>) {
                       {entryKindLabel(ep.kind)}
                     </span>
                     <span mix={entryPath}>{ep.label || ep.path}</span>
-                    <span mix={entryMeta}>
-                      {ep.handlerFile || ep.kind}
-                    </span>
+                    {/* Audit H3 fix: drop the `|| ep.kind` fallback so the
+                        right column shows file path or nothing — never
+                        re-renders the kind tag already on the left. */}
+                    <span mix={entryMeta}>{ep.handlerFile || ''}</span>
                   </div>
                 ))}
               </div>
@@ -213,7 +216,10 @@ export function RoutesTab(_h: Handle<RoutesProps>) {
             const list = byFramework.get(fw)!.slice().sort((a, b) => (a.path || '').localeCompare(b.path || ''));
             return (
               <Section key={fw} label={`Framework · ${fw}`} title={fw === 'node-http' ? 'Node http' : fw}>
-                <RuledTable cols="60px 1fr 2fr">
+                {/* Audit H2 fix: 80px first column so "Method" header
+                    doesn't truncate to "ME…" under the uppercase 0.14em
+                    tracking the RuledCell header style applies. */}
+                <RuledTable cols="80px 1fr 2fr">
                   <RuledRow header>
                     <RuledCell header>Method</RuledCell>
                     <RuledCell header>Path</RuledCell>
