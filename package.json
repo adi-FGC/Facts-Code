@@ -14,7 +14,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test && pnpm test:proto",
-    "test:proto": "node prototype/scripts/smoke-scan.mjs && node prototype/scripts/smoke-scan-deep.mjs",
+    "test:proto": "node prototype/scripts/smoke-scan.mjs && node prototype/scripts/smoke-scan-deep.mjs && node prototype/scripts/smoke-scan-github.mjs",
     "test:cov": "turbo run test:cov",
     "lint": "oxlint --deny-warnings",
     "lint:fix": "oxlint --fix",

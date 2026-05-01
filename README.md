@@ -95,6 +95,70 @@ The server caches the analysis at boot. **Tools**: `analyze`, `query_graph` (ver
 
 ---
 
+## Open from GitHub (browser-only · no install)
+
+The static demo at [factstack-demo.netlify.app](https://factstack-demo.netlify.app) can analyze any public GitHub repo without a clone:
+
+1. Click **GitHub** in the toolbar.
+2. Paste `owner/repo`, `owner/repo@branch`, or any `https://github.com/...` URL.
+3. (Optional) Drop in a Personal Access Token to raise the rate limit from 60 → 5000/hr.
+4. The browser fetches the repo zip via `api.github.com/repos/{o}/{r}/zipball`, unpacks with JSZip, and runs the same scanner the local-folder flow uses.
+
+Deep links work too:
+
+```
+https://factstack-demo.netlify.app/?gh=vercel/next.js
+https://factstack-demo.netlify.app/?gh=vercel/next.js@canary
+```
+
+When a Supabase bucket is configured (see below), deep links replay cached analyses instantly — no GitHub API hit, no scan time. First visitor pays the cost; everyone after is free.
+
+### Supabase persistence (optional, deploy-time)
+
+To save GitHub-repo analyses so visitors share a cache instead of each re-scanning:
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com). Free tier is plenty — analyses are ~50 KB each.
+2. **Create a public storage bucket** named `factstack-analyses` (Storage → New bucket → toggle "Public bucket").
+3. **Add an RLS insert policy** so the anon role can write but not delete:
+   ```sql
+   create policy "anon insert"   on storage.objects for insert to anon
+     with check (bucket_id = 'factstack-analyses');
+   create policy "anon read"     on storage.objects for select to anon
+     using       (bucket_id = 'factstack-analyses');
+   create policy "anon overwrite latest" on storage.objects for update to anon
+     using       (bucket_id = 'factstack-analyses' and name like '%/latest.json')
+     with check  (bucket_id = 'factstack-analyses' and name like '%/latest.json');
+   ```
+4. **Inject your project URL + anon key** into `prototype/index.html`. Two options:
+   - **Manual** (pre-deploy): edit the `<script id="factstack-supa-config">` block to add `data-url` and `data-anon-key` attributes:
+     ```html
+     <script id="factstack-supa-config"
+             data-url="https://YOUR_PROJECT.supabase.co"
+             data-anon-key="eyJhbGciOi...">
+     ```
+   - **Build-time** (Netlify): use a `[build]` `command` that substitutes from env vars before publishing:
+     ```toml
+     # netlify.toml
+     [build]
+       command = "sed -i \"s|data-url=\\\"\\\"|data-url=\\\"$SUPABASE_URL\\\"|; s|data-anon-key=\\\"\\\"|data-anon-key=\\\"$SUPABASE_ANON_KEY\\\"|\" prototype/index.html"
+       publish = "prototype"
+     ```
+     Set `SUPABASE_URL` + `SUPABASE_ANON_KEY` in Netlify's environment settings.
+
+The anon key is **publishable by design** — Supabase's RLS controls write access. No secrets land in the browser.
+
+Storage layout:
+```
+factstack-analyses/
+  vercel/next.js/
+    2026-04-30T12-34-56-789Z.json    ← immutable snapshot
+    latest.json                       ← upserted pointer
+  vercel/next.js@canary/
+    ...
+```
+
+---
+
 ## Specs
 
 Read these in order:
