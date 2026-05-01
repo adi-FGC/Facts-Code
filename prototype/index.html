@@ -5104,12 +5104,57 @@
       }
 
       // ============================ TABS ==================================
+      // ─── Tab routing ────────────────────────────────────────────────
+      // Each global tab maps to a URL hash so deep links + back/forward
+      // work as users expect. The `?gh=...` query param (set by the
+      // GitHub source flow) is orthogonal and lives in the search
+      // string — combinations like `?gh=tj/co#tab=routes` are valid.
+      //
+      // Why hash, not path: the prototype is a single static file. Path
+      // routing would require Netlify rewrites for every tab and would
+      // collide with the SPA fallback rule. Hash gives us identical
+      // semantics with zero infra.
+      const VALID_TABS = new Set(['overview','graph','dag','files','library','routes','risks','tests','history','about','config']);
+      function tabFromHash() {
+        const m = location.hash.match(/^#tab=([a-z-]+)/i);
+        if (!m) return null;
+        const v = m[1].toLowerCase();
+        return VALID_TABS.has(v) ? v : null;
+      }
+      let _suppressHashSync = false;
+      function syncTabToHash(name) {
+        // Use pushState so back/forward navigates between tabs the user
+        // actually visited. Skip when the hash already matches (e.g.
+        // initial render reading the hash, or popstate-driven changes).
+        const want = '#tab=' + name;
+        if (location.hash === want) return;
+        try { history.pushState(history.state || null, '', want); } catch (_) { /* file:// guard */ }
+      }
+
       function activateTab(name) {
+        if (!VALID_TABS.has(name)) name = 'overview';
         $$('nav[aria-label="Primary navigation"] [role="tab"]').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
         $$('.tab-panel').forEach((p) => p.classList.toggle('hidden', p.dataset.panel !== name));
         const head = $('#rhs-content h1');
         if (head) { head.setAttribute('tabindex', '-1'); head.focus({ preventScroll: true }); }
+        if (!_suppressHashSync) syncTabToHash(name);
       }
+
+      // Back/forward — read hash, activate without pushing a new entry.
+      window.addEventListener('popstate', () => {
+        const t = tabFromHash() || 'overview';
+        _suppressHashSync = true;
+        try { smoothSwap(() => activateTab(t)); } finally { _suppressHashSync = false; }
+      });
+      // Direct hash edits (e.g. user pastes `…#tab=routes` into the URL
+      // bar) fire hashchange but not popstate.
+      window.addEventListener('hashchange', () => {
+        const t = tabFromHash() || 'overview';
+        const current = document.querySelector('nav[aria-label="Primary navigation"] [role="tab"][aria-selected="true"]')?.dataset.tab;
+        if (t === current) return;
+        _suppressHashSync = true;
+        try { smoothSwap(() => activateTab(t)); } finally { _suppressHashSync = false; }
+      });
 
       // ============================ EVENT DELEGATION ======================
       // Single document-level click handler that survives re-renders, never
@@ -6725,6 +6770,16 @@
       // ============================ BOOT ==================================
       await loadDefault();
       renderAll();
+      // Activate the tab named in the URL hash (if any). Suppress hash
+      // sync on this initial activation so we don't push a redundant
+      // history entry — the user's address bar already has the value.
+      {
+        const initial = tabFromHash();
+        if (initial && initial !== 'overview') {
+          _suppressHashSync = true;
+          try { activateTab(initial); } finally { _suppressHashSync = false; }
+        }
+      }
     </script>
   </body>
 </html>
