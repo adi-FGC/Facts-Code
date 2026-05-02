@@ -11,3 +11,8 @@ export * from './human.js';
 export * from './fs.js';
 export * from './mcp.js';
 export * from './diff.js';
+export {
+  agentJsonSchema,
+  humanJsonSchema,
+  jsonSchemaByKind,
+} from './schema-export.js';

@@ -69,6 +69,7 @@ import {
   McpResourceCatalog,
   QUERY_VERBS,
   QueryGraphInputSchema,
+  jsonSchemaByKind,
   type AgentArtifact,
   type HumanArtifact,
 } from '@factstack/spec';
@@ -175,6 +176,18 @@ server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
   if (uri === `${FACTS_MCP_URI_SCHEME}://risks`) {
     return jsonResource(uri, agent.risks);
   }
+  /* v0.3.10 — schema introspection. Return the JSON Schema for the
+     requested artifact kind so connecting agents can learn the shape
+     without reading megabytes of agent.json. */
+  const schemaPrefix = `${FACTS_MCP_URI_SCHEME}://schema/`;
+  if (uri.startsWith(schemaPrefix)) {
+    const kind = uri.slice(schemaPrefix.length);
+    const schema = jsonSchemaByKind(kind);
+    if (schema === null) {
+      throw new Error(`Unknown schema kind: ${kind} (try 'agent' or 'human')`);
+    }
+    return jsonResource(uri, schema);
+  }
   // Parametric file resource. Normalize backslashes (Windows paths the
   // client may have constructed with `\`) and strip the `./` prefix —
   // mirrors the CLI's `/api/file` endpoint so both surfaces handle the
@@ -215,6 +228,12 @@ server.setRequestHandler(
         uriTemplate: `${FACTS_MCP_URI_SCHEME}://file/{path}`,
         name: 'File outline',
         description: 'Per-file FileOutline (declarations, imports, status, LOC, tokens). Substitute {path} with a project-relative path.',
+        mimeType: 'application/json',
+      },
+      {
+        uriTemplate: `${FACTS_MCP_URI_SCHEME}://schema/{kind}`,
+        name: 'JSON Schema for FACTS artifacts',
+        description: 'JSON Schema (draft-07) for the named FACTS artifact. {kind} is "agent" or "human". Use this to validate decoded responses or to generate types in any language without reading the full artifact.',
         mimeType: 'application/json',
       },
     ],
