@@ -245,6 +245,17 @@ export function Overview(_h: Handle<OverviewProps>) {
             Overview
             <span mix={css({ color: 'var(--fg-faint)' })}>·</span>
             <span mix={css({ color: 'var(--fg-subtle)' })}>{fmt(stats.files)} files</span>
+            {/* v0.3.11 H6: project + tool attribution. A first-time
+                visitor landing on a shared dashboard URL needs to know
+                "what am I looking at?" — the project name + "FACTS"
+                tool name in the kicker answers it without another
+                click. Pushed to the right with margin-left: auto so
+                the visit-count text stays where the eye expects. */}
+            <span mix={css({ flex: '1' })} />
+            <span mix={css({ color: 'var(--fg-faint)' })}>·</span>
+            <span mix={css({ color: 'var(--fg-subtle)' })}>
+              FACTS analyzing <span mix={css({ color: 'var(--fg-muted)', fontWeight: '500' })}>{project.name}</span>
+            </span>
           </div>
           <h1 mix={headline}>{summary.oneLiner}</h1>
           <p mix={ledeText}>

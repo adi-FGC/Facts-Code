@@ -41,6 +41,27 @@ function activeFilePath(): string | null {
   return p && p.length > 0 ? p : null;
 }
 
+/* v0.3.11 H4: walk a directory subtree and sum the per-file
+   readingMinutes. Returns 0 when no descendants carry the field
+   (older artifacts) so the renderer can omit the label cleanly. */
+function rollupReadingMinutes(node: DatasetTreeNode): number {
+  let total = 0;
+  for (const f of node.files) {
+    if (typeof f.readingMinutes === 'number') total += f.readingMinutes;
+  }
+  for (const c of node.children) total += rollupReadingMinutes(c);
+  return total;
+}
+
+/** Pretty-format a reading-time number for the tree:
+ *    < 60 min → "~12 min"
+ *    ≥ 60 min → "~2.5 h" */
+function fmtReadingTime(min: number): string {
+  if (min < 1) return '';
+  if (min < 60) return `~${Math.round(min)} min`;
+  return `~${(min / 60).toFixed(1)} h`;
+}
+
 const wrap = css({
   overflowY: 'auto',
   paddingTop: 'var(--space-4)',
@@ -187,11 +208,22 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
     for (const d of dirs) {
       const isOpen = open.has(d.path);
       const indent = `calc(var(--space-5) + ${depth * 12}px)`;
+      /* v0.3.11 H4: roll up reading-time across the subtree so the
+         folder row answers "is this a 5-min skim or a 5-hour read?"
+         at a glance. Rendered as a native title tooltip so the row's
+         visual rhythm stays clean. */
+      const readingMinutes = rollupReadingMinutes(d);
+      const titleParts: string[] = [];
+      const sizeStr = fmtBytes(d.rollup?.size ?? 0);
+      titleParts.push(`${sizeStr} on disk`);
+      if (readingMinutes >= 1) titleParts.push(`${fmtReadingTime(readingMinutes)} read`);
+      titleParts.push(`${d.rollup?.files ?? 0} files`);
       out.push(
         <li key={`d:${d.path}`}>
           <button
             type="button"
             aria-expanded={isOpen ? 'true' : 'false'}
+            title={titleParts.join(' · ')}
             mix={[
               rowBase,
               rowDir,
@@ -201,7 +233,7 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
           >
             <span aria-hidden="true" mix={marker}>{isOpen ? '▾' : '▸'}</span>
             <span mix={nameCell}>{d.name}</span>
-            <span mix={sizeCell}>{fmtBytes(d.rollup?.size ?? 0)}</span>
+            <span mix={sizeCell}>{sizeStr}</span>
           </button>
           {isOpen && renderNode(d, depth + 1, activePath)}
         </li>,

@@ -245,7 +245,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
       name: 'analyze',
-      description: 'Run a full FACTS analysis of the configured project. Writes .facts/ artifacts and refreshes the server cache.',
+      description: 'Run a full FACTS analysis of the configured project. Writes .facts/ artifacts and refreshes the server cache. Response includes a `version` block: `facts` (artifact schema version), `schemas` (per-format wire-format names + versions), `producer` (this MCP server\'s identity). Agents SHOULD reject mismatched versions loudly per spec §11.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -396,7 +396,26 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   if (name === 'analyze') {
     const stats = await enqueueAnalyze();
-    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats }) }] };
+    /* v0.3.11 AI5: include version metadata so a connecting agent can
+       version-check the artifact + the wire formats it'll consume.
+       Three layers documented:
+         - facts:  the spec's FACTS_SCHEMA_VERSION (artifact shape)
+         - schemas: the per-format schema names + versions
+         - producer: this MCP server's identity for cache + log keying
+       Forward-compat: an agent that doesn't recognize a layer should
+       fall back to JSON via `format: "json"` on each tool call. */
+    const versionInfo = {
+      facts: '0.1.0',
+      schemas: {
+        agent: 'agent-v1',     // agent.json + agent.pack
+        human: 'human.v1',     // human.json
+        memory: 'factstack-memory.v1',
+        learnings: 'factstack-learnings.v1',
+        pack: { agent: 'agent-v1', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v1', learnings: 'learnings-v1', queryGraph: 'query-graph-v1' },
+      },
+      producer: 'factstack-mcp/0.3.11',
+    };
+    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats, version: versionInfo }) }] };
   }
 
   if (name === 'query_graph') {

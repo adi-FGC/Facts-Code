@@ -17,7 +17,7 @@
  * moment v0.3.5 symbol graph + role classification land.
  */
 import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import { css, on } from '@remix-run/ui';
 import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -136,17 +136,103 @@ const hintStyle = css({
   marginTop: '2px',
 });
 
-export function Library(_h: Handle<LibraryProps>) {
+/* v0.3.11 H2: sort toggle for the Library table.
+   - WEIGHT: tokens desc (current default; what AI cost-aware
+     readers want)
+   - KIND:   semantic grouping (apps → packages → tests → docs →
+     cfg → other), then by name; what humans want when reading
+     top-down
+   - NAME:   pure alphabetical; what someone looking for a specific
+     name wants
+   The toggle uses the same segmented-control language as ThemeToggle
+   so the UI grammar carries. */
+type SortMode = 'weight' | 'kind' | 'name';
+
+const KIND_ORDER: Record<Kind, number> = {
+  app: 0, pkg: 1, tests: 2, docs: 3, cfg: 4, other: 5,
+};
+
+const sortBar = css({
+  display: 'inline-flex',
+  alignItems: 'stretch',
+  border: '1px solid var(--border)',
+  height: '28px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginLeft: 'auto',
+});
+
+const sortSeg = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  paddingInline: '12px',
+  background: 'transparent',
+  border: 'none',
+  borderRight: '1px solid var(--border)',
+  color: 'var(--fg-muted)',
+  cursor: 'pointer',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  '&:last-child': { borderRight: 'none' },
+  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+});
+
+const sortSegActive = css({
+  color: 'var(--accent)',
+  background: 'var(--accent-soft)',
+});
+
+const sortRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  marginBottom: 'var(--space-3)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-subtle)',
+});
+
+const SORT_LABELS: Array<{ key: SortMode; label: string }> = [
+  { key: 'weight', label: 'Weight' },
+  { key: 'kind',   label: 'Kind' },
+  { key: 'name',   label: 'Name' },
+];
+
+export function Library(handle: Handle<LibraryProps>) {
+  let sortMode: SortMode = 'weight';
+  function setSort(mode: SortMode) {
+    if (mode === sortMode) return;
+    sortMode = mode;
+    void handle.update();
+  }
+
   return ({ data }: LibraryProps) => {
-    const top = data.tree.children
+    const rows = data.tree.children
       .map((c) => {
         const agg = aggregate(c);
         const cls = classify(c.name);
         return { name: c.name, ...cls, ...agg };
       })
-      .filter((g) => g.files > 0)
-      // Sort by tokens desc — biggest agent-context cost surfaces first.
-      .sort((a, b) => b.tokens - a.tokens);
+      .filter((g) => g.files > 0);
+
+    /* Apply the active sort. Each comparator is total + stable so
+       the table doesn't shuffle between renders. */
+    const top = rows.slice();
+    if (sortMode === 'weight') {
+      top.sort((a, b) => b.tokens - a.tokens);
+    } else if (sortMode === 'name') {
+      top.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      top.sort((a, b) => {
+        const k = KIND_ORDER[a.kind] - KIND_ORDER[b.kind];
+        return k !== 0 ? k : a.name.localeCompare(b.name);
+      });
+    }
 
     const totalTokens = top.reduce((s, g) => s + g.tokens, 0);
     const totalFiles  = top.reduce((s, g) => s + g.files, 0);
@@ -160,9 +246,9 @@ export function Library(_h: Handle<LibraryProps>) {
           </div>
           <h1 mix={headline}>The project's table of contents.</h1>
           <p mix={lede}>
-            Top-level packages sorted by token weight. The bigger the
-            figure, the bigger the surface you'd ask an AI agent to load.
-            The mono tag at the start of each row marks role at a glance.
+            Top-level packages — sortable by weight (token cost),
+            kind (apps → packages → tests → docs), or name. The mono
+            tag at the start of each row marks role at a glance.
           </p>
 
           <LabelNumberRow>
@@ -172,9 +258,36 @@ export function Library(_h: Handle<LibraryProps>) {
             <LabelNumber label="Tokens"   value={fmt(totalTokens)} unit="cl100k" last />
           </LabelNumberRow>
 
-          {/* One flat table, sorted by tokens desc. Single Section
-              header replaces the previous 6 (one-per-category) — saves
-              ~300px of vertical chrome and reads top-down by weight. */}
+          {/* v0.3.11 H2: sort-mode segmented control. Lives outside
+              Section so the right-aligned bar can flex against a left
+              "Sort by" label without disturbing Section's heading. */}
+          <div mix={sortRow}>
+            <span>Sort by</span>
+            <div mix={sortBar} role="radiogroup" aria-label="Sort packages by">
+              {SORT_LABELS.map((s) => {
+                const active = s.key === sortMode;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={active ? 'true' : 'false'}
+                    mix={[
+                      sortSeg,
+                      active ? sortSegActive : null,
+                      on('click', () => setSort(s.key)),
+                    ]}
+                  >
+                    {s.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* One flat table; the sort-toggle above picks the order.
+              Default WEIGHT (tokens desc) is the AI-cost lens; KIND
+              groups semantically; NAME is alphabetical. */}
           <Section label="Packages" title="What it's made of">
             {/* Audit follow-up: 56px → 88px for the KIND column. At
                 fs-10 with 0.14em letter-spacing, "DOCS" / "OTHER" + the
