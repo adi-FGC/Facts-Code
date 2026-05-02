@@ -4,32 +4,38 @@
  *
  * After `vite build`, dist/index.html still contains the placeholder
  *   <script id="factstack-data" type="application/json">__INLINE_FACTSTACK_JSON__</script>
+ *
  * Reading from `/data/factstack.json` works in dev (Vite proxies to
  * `factstack ui` on :4848) but a pure static deploy (Netlify, VS Code
  * webview, exported HTML) has no such endpoint. So we substitute the
  * placeholder with real JSON at build time.
  *
- * Source of truth: legacy/prototype/data/factstack.json. That file is
- * a stable demo dataset of FACTS analyzing itself, baked when commits
- * land. The new app reuses it until we wire `factstack export` to emit
- * a fresh blob into the Remix app's dist/.
+ * v0.3.11: source priority changed.
+ *   1. `--src <path>` — explicit override (legacy behavior preserved)
+ *   2. `<repoRoot>/.facts/agent.json` + `<repoRoot>/.facts/human.json`
+ *      → adapted via `humanToViz()` from @factstack/emit so the
+ *      dashboard renders YOUR project, not the pinned fixture
+ *   3. `<repoRoot>/legacy/prototype/data/factstack.json` — last-resort
+ *      fallback so a fresh-clone build still produces a renderable
+ *      static site
  *
- * Why a separate script instead of a Vite plugin: keeps Vite's build
- * cacheable and idempotent. The substitution is a single file edit
- * post-build, easy to reason about, easy to remove when CLI export
- * generates dist/data/factstack.json directly.
+ * `humanToViz()` is the same canonical adapter the CLI's
+ * `factstack ui` server uses to serve `/data/factstack.json`. Sharing
+ * it here means dev mode (CLI proxy) and static-deploy mode (this
+ * script) produce identical wire output.
  *
  * Usage:
- *   node scripts/inject-data.mjs                 # uses default source
- *   node scripts/inject-data.mjs --src path.json # custom source
+ *   node scripts/inject-data.mjs                 # auto-detect (.facts → fixture)
+ *   node scripts/inject-data.mjs --src path.json # explicit override
+ *   node scripts/inject-data.mjs --root ../..    # custom repo root
  */
-import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
+import { existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(__dirname, '..');
-const REPO_ROOT = resolve(APP_DIR, '..', '..');
+const DEFAULT_REPO_ROOT = resolve(APP_DIR, '..', '..');
 
 const PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
 
@@ -38,25 +44,52 @@ function arg(name, fallback) {
   return i > 0 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 }
 
-const srcPath = arg('--src', resolve(REPO_ROOT, 'legacy', 'prototype', 'data', 'factstack.json'));
+const REPO_ROOT = resolve(arg('--root', DEFAULT_REPO_ROOT));
+const explicitSrc = arg('--src', null);
 const distHtml = resolve(APP_DIR, 'dist', 'index.html');
 
-let raw;
-try {
-  raw = readFileSync(srcPath, 'utf8');
-} catch (e) {
-  console.error(`[inject-data] could not read dataset at ${srcPath}`);
-  console.error('  did you run `vite build` first? do you have legacy/prototype/data/factstack.json?');
-  console.error('  Underlying error:', e?.message || e);
-  process.exit(1);
-}
-
+/* Resolve the dataset source. Priority order documented above. */
 let dataset;
-try {
-  dataset = JSON.parse(raw);
-} catch (e) {
-  console.error(`[inject-data] dataset at ${srcPath} is not valid JSON:`, e?.message);
-  process.exit(1);
+let sourceLabel;
+
+if (explicitSrc) {
+  const srcPath = resolve(explicitSrc);
+  sourceLabel = srcPath;
+  dataset = JSON.parse(readFileSync(srcPath, 'utf8'));
+} else {
+  const factsAgent = join(REPO_ROOT, '.facts', 'agent.json');
+  const factsHuman = join(REPO_ROOT, '.facts', 'human.json');
+  if (existsSync(factsAgent) && existsSync(factsHuman)) {
+    sourceLabel = `.facts/{agent,human}.json (adapted)`;
+    /* Dynamic-import humanToViz — the canonical adapter the CLI's
+       `factstack ui` server already uses for /data/factstack.json.
+       Sharing it here means static-deploy + CLI dev produce
+       byte-identical wire output. */
+    const { humanToViz } = await import('@factstack/emit');
+    const agent = JSON.parse(readFileSync(factsAgent, 'utf8'));
+    const human = JSON.parse(readFileSync(factsHuman, 'utf8'));
+    dataset = humanToViz(agent, human);
+    /* Snapshots: load the history series from .facts/snapshots/ if
+       present so the History tab renders. Each snapshot file is
+       date-stamped + holds {at, stats, risks, broken, stale, ...}.
+       VizArtifact has an optional history field that the CLI's UI
+       endpoint also populates this way. */
+    const history = loadSnapshots(join(REPO_ROOT, '.facts', 'snapshots'));
+    if (history.length > 0) dataset.history = history;
+  } else {
+    /* Last-resort fallback for fresh clones with no `.facts/` yet. */
+    const fallback = join(REPO_ROOT, 'legacy', 'prototype', 'data', 'factstack.json');
+    if (!existsSync(fallback)) {
+      console.error(`[inject-data] no dataset source found.`);
+      console.error(`  Tried: ${factsAgent}`);
+      console.error(`         ${factsHuman}`);
+      console.error(`         ${fallback}`);
+      console.error(`  Run \`factstack analyze .\` from the repo root to populate .facts/.`);
+      process.exit(1);
+    }
+    sourceLabel = fallback + ' (fallback fixture)';
+    dataset = JSON.parse(readFileSync(fallback, 'utf8'));
+  }
 }
 
 let html;
@@ -69,8 +102,6 @@ try {
 }
 
 if (!html.includes(PLACEHOLDER)) {
-  // Idempotency: if the placeholder is already gone, the build is
-  // already baked. Don't fail; just exit cleanly so re-runs are safe.
   console.log(`[inject-data] placeholder already replaced — skipping (build already baked).`);
   process.exit(0);
 }
@@ -81,6 +112,33 @@ writeFileSync(distHtml, next, 'utf8');
 
 const sizeKb = (Buffer.byteLength(replacement) / 1024).toFixed(1);
 console.log(`[inject-data] baked ${sizeKb} KB of dataset into dist/index.html`);
-console.log(`  source : ${srcPath}`);
+console.log(`  source : ${sourceLabel}`);
 console.log(`  project: ${dataset?.project?.name ?? '(unknown)'}`);
 console.log(`  files  : ${dataset?.stats?.files ?? '?'}`);
+
+/* ─────────────────────────────────────────────────────────────────
+ * Snapshot loader — feeds the History tab's sparkline.
+ * ─────────────────────────────────────────────────────────────── */
+function loadSnapshots(snapDir) {
+  if (!existsSync(snapDir)) return [];
+  try {
+    const files = readdirSync(snapDir).filter((n) => n.endsWith('.json')).sort();
+    const out = [];
+    for (const name of files) {
+      try {
+        const body = JSON.parse(readFileSync(join(snapDir, name), 'utf8'));
+        out.push({
+          at: body.at,
+          loc: body.stats?.loc ?? 0,
+          tokens: body.stats?.totalTokenCost ?? 0,
+          files: body.stats?.fileCount ?? 0,
+          risks: body.risks ?? 0,
+          todos: body.todos ?? 0,
+        });
+      } catch { /* skip malformed snapshot files */ }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}

@@ -36,6 +36,10 @@ export interface VizFile {
   todoEntries: Array<{ kind: string; line: number; text: string }>;
   status: 'ok' | 'broken' | 'stale' | 'parse_error';
   mtime: number;
+  /** v0.3.8 — read-through time estimate; absent when analyzer didn't compute it. */
+  readingMinutes?: number;
+  /** v0.3.8 — top-3 git contributors; absent when no git history available. */
+  topContributors?: Array<{ email: string; name: string; commits: number; lastTouchedMs: number }>;
 }
 
 export interface VizTreeNode {
@@ -85,13 +89,40 @@ export interface VizArtifact {
    * can render the empty state without an `if (routes)` guard.
    */
   routes: Array<{ framework: string; method: string | null; path: string; handlerFile: string; handlerSymbol: string | null }>;
-  risks: Array<{ severity: string; category: string; rule: string; file?: string; line?: number; message: string; preview?: string }>;
+  risks: Array<{
+    severity: string;
+    category: string;
+    rule: string;
+    file?: string;
+    line?: number;
+    message: string;
+    /** v0.3.8 — original technical message before the CXO rewrite, when present. */
+    messageTechnical?: string;
+    preview?: string;
+  }>;
   /** Populated by `factstack ui`/`factstack export` from .facts/snapshots/. */
   history?: VizSnapshot[];
   /** Strongly-connected components in the import graph — one array per cycle,
    *  listing the files that form the loop. Empty when no cycles. Carried
    *  through so the UI can mark back-edges and surface the cycle list. */
   cycles: string[][];
+  /** v0.3.6 — env-var inventory. Optional for backward-compat with
+   *  artifacts that pre-date the env-var extractor. */
+  config?: {
+    envVars: Array<{
+      name: string;
+      reads: Array<{
+        file: string;
+        line: number;
+        access: 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown';
+        defaultValue: string | null;
+      }>;
+      defaults: string[];
+      primaryAccess:
+        | 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown' | null;
+    }>;
+    schemas: unknown[];
+  };
 }
 
 /** Language-brand colors mirror the ones used by the prototype scan.mjs. */
@@ -267,8 +298,14 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
       ...(r.file ? { file: r.file } : {}),
       ...(r.line ? { line: r.line } : {}),
       message: r.message,
+      /* v0.3.8 — pass through messageTechnical when present so the
+         dashboard's <details> disclosure can render the original
+         rule-text underneath the CXO-readable summary. */
+      ...(r.messageTechnical ? { messageTechnical: r.messageTechnical } : {}),
       ...(r.preview ? { preview: r.preview } : {}),
     })),
+    /* v0.3.6 — env-var inventory, when the analyzer produced one. */
+    ...(agent.config ? { config: agent.config } : {}),
   };
 }
 
@@ -306,6 +343,11 @@ function toVizTree(
         todoEntries: todosByPath.get(child.path) ?? [],
         status: (child.status === 'parse_error' ? 'parse_error' : child.status) as VizFile['status'],
         mtime: meta?.lastModifiedMs ?? 0,
+        /* v0.3.8 — pass through reading time + top contributors when
+           the analyzer produced them. The Files detail view + the
+           tree-row tooltip both consume these fields. */
+        ...(typeof meta?.readingMinutes === 'number' ? { readingMinutes: meta.readingMinutes } : {}),
+        ...(meta?.topContributors && meta.topContributors.length > 0 ? { topContributors: meta.topContributors } : {}),
       });
     }
   }
