@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema } from '@factstack/spec';
+import { encodeAgentPack } from './pack.js';
 
 /**
  * Write analysis artifacts to `.facts/` in the target project directory.
@@ -48,6 +49,9 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
   agentPath: string;
   humanPath: string;
   jsonlPath: string | null;
+  /** v0.3.10: PACK-format artifact for AI agents. ~50-80% byte
+   *  reduction vs agent.json on tabular data. */
+  packPath: string;
   snapshotPath: string | null;
   memoryPath: string | null;
   bytesWritten: number;
@@ -62,15 +66,24 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
   const agentPath = path.join(dir, 'agent.json');
   const humanPath = path.join(dir, 'human.json');
   const jsonlPath = (opts.streamable ?? true) ? path.join(dir, 'agent.jsonl') : null;
+  const packPath = path.join(dir, 'agent.pack');
 
   const agentBody = JSON.stringify(opts.agent, null, 2);
   const humanBody = JSON.stringify(opts.human, null, 2);
+  /* v0.3.10 — also encode the agent artifact as FactsPack. The pack
+     is the AI-agent surface; agent.json continues to ship for one
+     deprecation cycle (per the v0.3.10 PRD migration plan) so existing
+     readers don't break. The two files are derived from the SAME
+     in-memory artifact — no two-source-of-truth drift possible. */
+  const packBody = encodeAgentPack(opts.agent);
 
   let bytes = 0;
   await fs.writeFile(agentPath, agentBody);
   bytes += Buffer.byteLength(agentBody);
   await fs.writeFile(humanPath, humanBody);
   bytes += Buffer.byteLength(humanBody);
+  await fs.writeFile(packPath, packBody);
+  bytes += Buffer.byteLength(packBody);
 
   if (jsonlPath) {
     // One file per line for streamable consumption by LLMs on tight windows.
@@ -144,7 +157,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     await ensureGitignoreEntry(opts.root);
   }
 
-  return { agentPath, humanPath, jsonlPath, snapshotPath, memoryPath, bytesWritten: bytes };
+  return { agentPath, humanPath, jsonlPath, packPath, snapshotPath, memoryPath, bytesWritten: bytes };
 }
 
 /**

@@ -170,6 +170,9 @@ importers:
       '@factstack/core':
         specifier: workspace:*
         version: link:../core
+      '@factstack/factspack':
+        specifier: workspace:*
+        version: link:../factspack
       '@factstack/spec':
         specifier: workspace:*
         version: link:../spec

@@ -3,3 +3,4 @@ export { writeArtifacts, readSnapshots } from './write.js';
 export type { WriteOptions } from './write.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
+export { encodeAgentPack } from './pack.js';

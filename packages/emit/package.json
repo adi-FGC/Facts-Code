@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@factstack/core": "workspace:*",
+    "@factstack/factspack": "workspace:*",
     "@factstack/spec": "workspace:*"
   },
   "devDependencies": {
