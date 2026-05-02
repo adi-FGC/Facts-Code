@@ -16,6 +16,7 @@
   "dependencies": {
     "@factstack/extractors": "workspace:*",
     "@factstack/graph": "workspace:*",
+    "@factstack/intent": "workspace:*",
     "@factstack/parsers": "workspace:*",
     "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",

@@ -83,6 +83,7 @@ export {
   type SinceReport,
   type SinceFileSummary,
 } from './since.js';
+import { inferIntent } from '@factstack/intent';
 import type { ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
@@ -545,6 +546,15 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        lying about future capability. Populated when a real glossary
        generator ships (v0.5). */
   };
+
+  /* v0.3.10 — deterministic intent generator. Composes signals from
+     frameworks + monorepo shape + sub-apps under apps/ + routes into
+     one CXO-readable sentence. Returns null when no signal is strong
+     enough — caller (the dashboard) falls through to oneLiner. */
+  const intent = inferIntent(agent, human);
+  if (intent !== null) {
+    human.summary.intent = intent;
+  }
 
   return {
     agent,

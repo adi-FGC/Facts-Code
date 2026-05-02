@@ -139,6 +139,9 @@ importers:
       '@factstack/graph':
         specifier: workspace:*
         version: link:../graph
+      '@factstack/intent':
+        specifier: workspace:*
+        version: link:../intent
       '@factstack/parsers':
         specifier: workspace:*
         version: link:../parsers
@@ -255,6 +258,22 @@ importers:
       '@factstack/extractors':
         specifier: workspace:*
         version: link:../extractors
+      '@factstack/spec':
+        specifier: workspace:*
+        version: link:../spec
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@20.19.39)(lightningcss@1.32.0))
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@20.19.39)(lightningcss@1.32.0)
+
+  packages/intent:
+    dependencies:
       '@factstack/spec':
         specifier: workspace:*
         version: link:../spec
