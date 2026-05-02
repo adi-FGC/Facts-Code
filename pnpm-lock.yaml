@@ -81,6 +81,9 @@ importers:
       '@factstack/extractors':
         specifier: workspace:*
         version: link:../../packages/extractors
+      '@factstack/factspack':
+        specifier: workspace:*
+        version: link:../../packages/factspack
       '@factstack/fs-node':
         specifier: workspace:*
         version: link:../../packages/fs-node

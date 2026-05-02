@@ -19,6 +19,7 @@
     "@factstack/core": "workspace:*",
     "@factstack/emit": "workspace:*",
     "@factstack/extractors": "workspace:*",
+    "@factstack/factspack": "workspace:*",
     "@factstack/fs-node": "workspace:*",
     "@factstack/spec": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.0"

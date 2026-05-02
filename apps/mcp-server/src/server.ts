@@ -53,6 +53,14 @@ import {
   since as buildSinceReport,
   type LearningEvent,
 } from '@factstack/core';
+import {
+  queryGraphToPack,
+  listRisksToPack,
+  getOutlineToPack,
+  getConfigToPack,
+  queryLearningsToPack,
+  packSnapshotId,
+} from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import { extractOutline } from '@factstack/extractors';
@@ -228,7 +236,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: 'query_graph',
-      description: 'Query the dependency graph. Verbs: callers (files importing X), imports (files imported BY X), cycles, orphans.',
+      description: 'Query the dependency graph. Verbs: callers (files importing X), imports (files imported BY X), cycles, orphans. Returns FactsPack format by default (line-oriented, ~80% cheaper than JSON; see docs/FACTSPACK_PROMPT.md for the 8-line decoder preamble). Pass format:"json" to fall back to the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -237,26 +245,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           filter: { type: 'string' },
           limit: { type: 'number', default: 200 },
           depth: { type: 'number', default: 1 },
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
         },
       },
     },
     {
       name: 'get_outline',
-      description: 'Return the symbol outline (declarations) for a single file, computed live from the source.',
+      description: 'Return the symbol outline (declarations) for a single file, computed live from the source. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         required: ['path'],
-        properties: { path: { type: 'string' } },
+        properties: {
+          path: { type: 'string' },
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
+        },
       },
     },
     {
       name: 'list_risks',
-      description: 'List scanner findings, optionally filtered by severity or category.',
+      description: 'List scanner findings, optionally filtered by severity or category. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         properties: {
           severity: { type: 'string', enum: ['info', 'low', 'medium', 'high', 'critical'] },
           category: { type: 'string', enum: ['secret', 'license', 'supply-chain', 'parse-error', 'broken-import', 'stale', 'large-file', 'cycle'] },
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
         },
       },
     },
@@ -311,7 +324,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // session pick up calibration context without re-reading every
       // line.
       name: 'query_learnings',
-      description: 'Filter .facts/learnings.jsonl by since/until/agent/outcome/action/tag. Returns most-recent-first, capped at 5000 events. Use for "what has this codebase\'s agents been right about?" calibration questions.',
+      description: 'Filter .facts/learnings.jsonl by since/until/agent/outcome/action/tag. Returns most-recent-first, capped at 5000 events. Use for "what has this codebase\'s agents been right about?" calibration questions. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -322,6 +335,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           action: { type: 'string' },
           tag: { type: 'string' },
           limit: { type: 'number', default: 200, maximum: 5000 },
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
         },
       },
     },
@@ -330,11 +344,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // Config tab renders — every var name, read sites, captured
       // defaults, primary access pattern.
       name: 'get_config',
-      description: 'List every environment variable read by the codebase, with read sites + captured defaults. Sorted by read count desc. Empty when no env reads are detected.',
-      inputSchema: { type: 'object', properties: {} },
+      description: 'List every environment variable read by the codebase, with read sites + captured defaults. Sorted by read count desc. Empty when no env reads are detected. Returns FactsPack by default (one row per read site); pass format:"json" for the legacy JSON shape (one entry per name, with reads[] nested).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
+        },
+      },
     },
   ],
 }));
+
+/**
+ * v0.3.10 — pull the `format` arg off a tool call. Default `'pack'`
+ * for the five tools that adopted PACK; the remaining tools (analyze,
+ * read_memory, since, log_learning) ignore this entirely and return
+ * their own shapes.
+ *
+ * Returns 'json' when the caller explicitly asks for it; otherwise
+ * 'pack'. Anything other than those two values falls back to 'pack'
+ * silently — the JSON Schema enum on the tool input is the load-
+ * bearing validator.
+ */
+function pickFormat(args: Record<string, unknown>): 'pack' | 'json' {
+  return args.format === 'json' ? 'json' : 'pack';
+}
 
 // Handle tool calls.
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
@@ -373,16 +407,24 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       limit: parsed.limit,
       depth: parsed.depth,
     });
+    if (pickFormat(args) === 'pack') {
+      return { content: [{ type: 'text', text: queryGraphToPack(result, packSnapshotId(cached!.agent)) }] };
+    }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
   if (name === 'get_outline') {
     if (!cached) await ensureAnalyzed();
     const relPath = String(args.path ?? '');
+    const fmt = pickFormat(args);
     // Prefer pre-extracted declarations from the cached artifact; fall
     // back to a live extractor call for parity with the CLI endpoint.
     const outline = cached!.agent.files.find((f) => f.path === relPath);
     if (outline && outline.declarations.length) {
+      if (fmt === 'pack') {
+        const text = getOutlineToPack(relPath, outline.declarations as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent));
+        return { content: [{ type: 'text', text }] };
+      }
       return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: outline.declarations }) }] };
     }
     const abs = path.resolve(root, relPath);
@@ -391,6 +433,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const source = readFileSync(abs, 'utf8');
       const ext = path.extname(relPath).toLowerCase();
       const live = extractOutline(source, ext);
+      if (fmt === 'pack') {
+        /* Live outline returns OutlineNode[]; cast to ExtractedSymbol[]
+           shape — both share { name, kind, startLine, endLine,
+           exported, children? } so the converter handles both. */
+        const text = getOutlineToPack(relPath, live as unknown as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent));
+        return { content: [{ type: 'text', text }] };
+      }
       return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: live }) }] };
     } catch (err) {
       throw new Error(`Failed to extract outline for ${relPath}: ${err instanceof Error ? err.message : String(err)}`);
@@ -404,6 +453,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     let risks = cached!.agent.risks;
     if (sev) risks = risks.filter((r) => r.severity === sev);
     if (cat) risks = risks.filter((r) => r.category === cat);
+    if (pickFormat(args) === 'pack') {
+      return { content: [{ type: 'text', text: listRisksToPack(risks, packSnapshotId(cached!.agent)) }] };
+    }
     return { content: [{ type: 'text', text: JSON.stringify({ count: risks.length, risks }) }] };
   }
 
@@ -465,6 +517,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       ...(typeof args.tag === 'string' ? { tag: args.tag } : {}),
       ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
     });
+    if (pickFormat(args) === 'pack') {
+      const sid = cached ? packSnapshotId(cached.agent) : new Date().toISOString();
+      return { content: [{ type: 'text', text: queryLearningsToPack(result, sid) }] };
+    }
     return { content: [{ type: 'text', text: JSON.stringify({ count: result.length, events: result }) }] };
   }
 
@@ -472,6 +528,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (name === 'get_config') {
     if (!cached) await ensureAnalyzed();
     const config = cached!.agent.config ?? { envVars: [], schemas: [] };
+    if (pickFormat(args) === 'pack') {
+      return { content: [{ type: 'text', text: getConfigToPack(config.envVars, packSnapshotId(cached!.agent)) }] };
+    }
     return { content: [{ type: 'text', text: JSON.stringify(config) }] };
   }
 
