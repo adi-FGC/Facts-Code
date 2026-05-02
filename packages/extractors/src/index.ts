@@ -20,3 +20,9 @@ export {
   type EnvVarRead,
   type EnvVarAccess,
 } from './config-schema.js';
+export {
+  extractSymbolRefs,
+  countRefsByName,
+  type RawRef,
+  type RefKind,
+} from './symbols-refs.js';
