@@ -61,6 +61,61 @@ const kickerDot = css({
   display: 'inline-block',
 });
 
+/* v0.3.10 — Overview health badge. A single hairline-bordered row
+   above the LabelNumberRow that answers "is anything broken?" before
+   the user reads anything else. Clicks through to /risks so the most-
+   common Overview-visit reason resolves in one click.
+   Three states: ok / warn / danger. Each carries a colored leading
+   bar (matches StatusChip's grammar) + mono label + arrow tail. */
+const healthBadge = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  paddingBlock: 'var(--space-3)',
+  paddingInline: 'var(--space-4)',
+  marginBottom: 'var(--space-6)',
+  border: '1px solid var(--hairline)',
+  background: 'var(--bg)',
+  textDecoration: 'none',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  letterSpacing: '0.04em',
+  color: 'var(--fg-muted)',
+  transition: 'border-color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  '&:hover': {
+    borderColor: 'var(--border)',
+    background: 'var(--highlight-faint)',
+  },
+});
+
+const healthBadgeOk = css({ '--badge-color': 'var(--ok)' });
+const healthBadgeWarn = css({ '--badge-color': 'var(--warn)' });
+const healthBadgeDanger = css({ '--badge-color': 'var(--danger)' });
+
+const healthBadgeBar = css({
+  display: 'inline-block',
+  width: '4px',
+  alignSelf: 'stretch',
+  background: 'var(--badge-color, var(--fg-muted))',
+  marginBlock: '-2px',
+});
+
+const healthBadgeText = css({
+  flex: '1',
+  color: 'var(--fg)',
+});
+
+const healthBadgeStrong = css({
+  color: 'var(--badge-color, var(--fg))',
+  fontWeight: '500',
+});
+
+const healthBadgeArrow = css({
+  color: 'var(--badge-color, var(--fg-faint))',
+  fontFamily: 'var(--font-display)',
+  fontSize: 'var(--fs-13)',
+});
+
 const headline = css({
   fontFamily: 'var(--font-display)',
   fontSize: 'var(--fs-display)',
@@ -200,6 +255,45 @@ export function Overview(_h: Handle<OverviewProps>) {
             <strong style="font-weight:600;color:var(--fg)">{fmt(stats.tokens)}-token</strong>
             {' '}context window. Every metric below links to its source.
           </p>
+
+          {/* v0.3.10 — health badge. Click → /risks. State derives
+              from severity counts; ok when no critical/high/secrets,
+              warn when stale/todos > 0, danger when any
+              critical/secret/broken finding exists. */}
+          {(() => {
+            const risks = data.risks;
+            const counts = risks.reduce<Record<string, number>>((acc, r) => {
+              acc[r.severity] = (acc[r.severity] ?? 0) + 1;
+              return acc;
+            }, {});
+            const critical = counts.critical ?? 0;
+            const high = counts.high ?? 0;
+            const secrets = summary.health.secrets;
+            const broken = summary.health.broken;
+            const stale = summary.health.stale;
+            const todos = summary.health.todos;
+            const isDanger = critical > 0 || secrets > 0 || broken > 0;
+            const isWarn = !isDanger && (high > 0 || stale > 0);
+            const tone = isDanger ? healthBadgeDanger : isWarn ? healthBadgeWarn : healthBadgeOk;
+            const label = isDanger
+              ? `${critical + secrets + broken} critical · review now`
+              : isWarn
+              ? `${risks.length} ${risks.length === 1 ? 'finding' : 'findings'} · ${stale} stale · ${todos} TODOs · review when convenient`
+              : `0 findings · scanned clean`;
+            const verb = isDanger ? 'Act on Risks' : isWarn ? 'Open Risks' : 'View Risks';
+            return (
+              <a href="/risks" mix={[healthBadge, tone]} aria-label={`Health: ${label}`}>
+                <span aria-hidden="true" mix={healthBadgeBar} />
+                <span mix={healthBadgeText}>
+                  <span mix={healthBadgeStrong}>{label.split('·')[0]?.trim()}</span>
+                  <span mix={css({ color: 'var(--fg-faint)' })}> · {label.split('·').slice(1).join('·').trim()}</span>
+                </span>
+                <span mix={healthBadgeArrow}>
+                  {verb} →
+                </span>
+              </a>
+            );
+          })()}
 
           {/* Headline figures — LabelNumberRow */}
           <LabelNumberRow>
