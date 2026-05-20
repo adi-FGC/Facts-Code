@@ -29,5 +29,9 @@ examples/__screenshots__/*-diff.png
 .facts/
 .gstack/
 
+# Agent / editor tooling — skill definitions installed into the project
+# dir by the design-skill plugins. Per-machine, not FACTS source.
+.agents/
+
 # TypeScript incremental build cache — per-machine, no value in git
 *.tsbuildinfo
