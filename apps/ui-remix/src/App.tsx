@@ -25,7 +25,6 @@ import { Overview } from './routes/Overview.tsx';
 import { Risks } from './routes/Risks.tsx';
 import { History } from './routes/History.tsx';
 import { GraphRoute } from './routes/GraphRoute.tsx';
-import { Dag } from './routes/Dag.tsx';
 import { Files } from './routes/Files.tsx';
 import { Library } from './routes/Library.tsx';
 import { RoutesTab } from './routes/RoutesTab.tsx';
@@ -33,6 +32,7 @@ import { Tests } from './routes/Tests.tsx';
 import { About } from './routes/About.tsx';
 import { Config } from './routes/Config.tsx';
 import { CommandPalette } from './ui/CommandPalette.tsx';
+import { OpenModal } from './components/OpenModal.tsx';
 
 interface AppProps {
   /** Empty — App takes no props. Declared so the JSX type checks. */
@@ -148,6 +148,10 @@ function Shell(_h: Handle<{ data: Dataset }>) {
             attaches its own document-level ⌘K listener so it doesn't
             need wiring into Header. */}
         <CommandPalette data={data} />
+        {/* OpenModal: always mounted, invisible until ⌘O or a header
+            button dispatches `factstack:open`. Owns its own state and
+            cleanup; no wiring needed beyond mounting. */}
+        <OpenModal />
       </>
     );
   };
@@ -159,7 +163,6 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   switch (tab) {
     case 'overview': return <Overview data={data} />;
     case 'graph':    return <GraphRoute data={data} />;
-    case 'dag':      return <Dag data={data} />;
     case 'files':    return <Files data={data} />;
     case 'library':  return <Library data={data} />;
     case 'routes':   return <RoutesTab data={data} />;

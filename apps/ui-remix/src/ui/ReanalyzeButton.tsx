@@ -6,15 +6,15 @@
  *   - 'idle'     → editorial mono pill, ready to fire
  *   - 'running'  → label flips to "Analyzing…" + 2px progress hairline
  *                  pulses underneath; the request is in flight
- *   - 'static'   → permanent "Read-only" caption when the deploy can't
- *                  re-analyze (no /api endpoint, no CLI behind it).
- *                  Detected via 405/404 on the first attempt and the
- *                  initial path check; the button stays visible so the
- *                  reader knows the affordance exists, just disabled.
+ *   - 'static'   → render NOTHING. The deploy can't re-analyze through
+ *                  /api/reanalyze, but the OpenButton next to us covers
+ *                  the same intent (re-scan a project) without a server.
+ *                  Surfacing a disabled "Read-only" pill was honest but
+ *                  visually noisy and the user can't actually do anything
+ *                  with it. Hiding is the better UX.
  *
- * Why a button at all in static mode? The user can still rebuild the
- * dataset with `factstack analyze` locally and re-export — surfacing
- * the affordance + read-only caption tells them what produces it.
+ * Static deploys still get the Open button + the in-browser scanner,
+ * so the affordance exists — just routed through a different path.
  */
 import type { Handle } from '@remix-run/ui';
 import { css, on } from '@remix-run/ui';
@@ -68,10 +68,6 @@ const dot = css({
 const dotRunning = css({
   background: 'var(--accent)',
   animation: 'reanalyze-pulse 1s var(--ease-out-quart) infinite',
-});
-
-const dotStatic = css({
-  background: 'var(--fg-faint)',
 });
 
 const dotError = css({
@@ -167,20 +163,21 @@ export function ReanalyzeButton(handle: Handle) {
   }
 
   return () => {
-    const isDisabled = state === 'running' || state === 'static';
+    /* Static deploys get nothing here — see the module preamble. The
+       OpenButton sits next to us and covers the "load fresh data"
+       intent, so a disabled pill would be visual noise without a verb
+       to attach to it. */
+    if (state === 'static') return null;
+    const isDisabled = state === 'running';
     const dotMix =
       state === 'running' ? [dot, dotRunning] :
-      state === 'static'  ? [dot, dotStatic] :
       state === 'error'   ? [dot, dotError]  : [dot];
     const label =
       state === 'running' ? 'Analyzing' :
-      state === 'static'  ? 'Read-only' :
       state === 'error'   ? `Error · retry` :
                             'Re-analyze';
     const title =
-      state === 'static'
-        ? 'Static deploy — re-run `factstack analyze` locally and re-export'
-        : state === 'error'
+      state === 'error'
         ? `Last error: ${lastError}`
         : 'Run the analyzer again';
 

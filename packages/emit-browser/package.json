@@ -1,0 +1,25 @@
+{
+  "name": "@factstack/emit-browser",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Browser-side artifact emitter: writeBrowserArtifacts() materializes .facts/{agent.json, human.json, agent.pack, agent.jsonl, snapshots/} into a FileSystemDirectoryHandle (FSA) the user picks, plus browserGzip() via CompressionStream so the bundle-size estimator works without node:zlib. Mirrors @factstack/emit's surface where the work is the same; diverges only at the I/O + compression boundary.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "echo 'no tests yet' && exit 0",
+    "lint": "echo 'no lint yet' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@factstack/spec": "workspace:*",
+    "@factstack/emit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

@@ -117,14 +117,21 @@ const healthBadgeArrow = css({
 });
 
 const headline = css({
-  fontFamily: 'var(--font-display)',
+  /* Switched from --font-display (Fraunces serif) to --font-body
+     (Mona Sans) per direct user feedback — the serif at display size
+     was reading as old-broadsheet headline rather than dashboard hero
+     when the oneLiner was a long compound sentence. Sans gives the
+     same op-typography feel at the wider tracking we use here without
+     the "newspaper" register. */
+  fontFamily: 'var(--font-body)',
   fontSize: 'var(--fs-display)',
   fontWeight: '600',
-  letterSpacing: '-0.025em',
-  lineHeight: '1.04',
+  /* Tightened tracking compensates for sans's wider intrinsic spacing
+     at display size — same optical density as the old serif setting. */
+  letterSpacing: '-0.03em',
+  lineHeight: '1.08',
   color: 'var(--fg)',
   marginBottom: 'var(--space-6)',
-  fontVariationSettings: '"opsz" 144',
   /* Hanging punctuation for a quote-like opening when the oneLiner
      starts with a quotation mark. */
   hangingPunctuation: 'first',

@@ -106,6 +106,15 @@ importers:
 
   apps/ui-remix:
     dependencies:
+      '@factstack/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@factstack/emit-browser':
+        specifier: workspace:*
+        version: link:../../packages/emit-browser
+      '@factstack/fs-browser':
+        specifier: workspace:*
+        version: link:../../packages/fs-browser
       '@factstack/spec':
         specifier: workspace:*
         version: link:../../packages/spec
@@ -202,6 +211,19 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@20.19.39)(lightningcss@1.32.0)
 
+  packages/emit-browser:
+    dependencies:
+      '@factstack/emit':
+        specifier: workspace:*
+        version: link:../emit
+      '@factstack/spec':
+        specifier: workspace:*
+        version: link:../spec
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   packages/extractors:
     dependencies:
       '@babel/parser':
@@ -235,6 +257,19 @@ importers:
       vitest:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@20.19.39)(lightningcss@1.32.0)
+
+  packages/fs-browser:
+    dependencies:
+      '@factstack/fs-memory':
+        specifier: workspace:*
+        version: link:../fs-memory
+      '@factstack/spec':
+        specifier: workspace:*
+        version: link:../spec
+    devDependencies:
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
 
   packages/fs-memory:
     dependencies:

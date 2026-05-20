@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    /* Browser-only package — pull in DOM lib so File System Access
+       API types resolve. The analyzer + fs-memory are isomorphic
+       and don't need this; fs-browser specifically lives in the
+       browser-only tier. */
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src/**/*"]
+}

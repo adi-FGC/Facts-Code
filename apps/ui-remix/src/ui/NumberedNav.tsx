@@ -33,6 +33,13 @@ const wrap = css({
      yield first; the scroll affordance handles the overflow. */
   minWidth: '0',
   overflowX: 'auto',
+  /* CSS spec quirk: setting overflow-x: auto while overflow-y is its
+     default (visible) causes the browser to compute overflow-y to auto
+     — surfacing a sliver of vertical scrollbar when the active tab's
+     `bottom: -1px` underline rule pushes the box's painted bounds past
+     the container by ~1px. Pinning overflow-y to hidden suppresses it
+     without losing the horizontal scroll affordance. */
+  overflowY: 'hidden',
   scrollbarWidth: 'none',     /* Firefox */
   /* WebKit: pseudo-element selector escape hatch for the css() runtime. */
   '&::-webkit-scrollbar': { display: 'none', width: '0', height: '0' },
@@ -50,10 +57,18 @@ const link = css({
   textDecoration: 'none',
   color: 'var(--fg-muted)',
   fontFamily: 'var(--font-body)',
-  fontSize: 'var(--fs-12)',
+  /* Reduced from --fs-12 + uppercase to --fs-11 + sentence case.
+     Uppercase made the nav read as "broadsheet section index" — the
+     editorial typographic register, but loud at 11 tabs. Sentence
+     case lets the labels read as labels and pairs better with the
+     03 / 04 / 05 numerals (which already supply the "section index"
+     metaphor). Letter-spacing drops in tandem: uppercase needs ~0.03em
+     to stay legible; sentence case at the same tracking looks
+     accidentally spaced out. */
+  fontSize: 'var(--fs-11)',
   fontWeight: '500',
-  letterSpacing: '0.03em',             /* tighter than 0.04em */
-  textTransform: 'uppercase',
+  letterSpacing: '0',
+  textTransform: 'none',
   whiteSpace: 'nowrap',
   minHeight: '40px',
   transition: 'color var(--dur-quick) var(--ease-out-quart)',

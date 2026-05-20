@@ -14,6 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@factstack/core": "workspace:*",
+    "@factstack/emit-browser": "workspace:*",
+    "@factstack/fs-browser": "workspace:*",
     "@factstack/spec": "workspace:*",
     "@factstack/ui-theme": "workspace:*",
     "remix": "3.0.0-beta.0"

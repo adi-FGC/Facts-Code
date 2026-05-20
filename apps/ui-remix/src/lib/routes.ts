@@ -9,8 +9,11 @@ import { RoutePattern } from 'remix/route-pattern';
 
 export const tabPatterns = {
   overview: new RoutePattern('/'),
+  /* /graph absorbed /dag in v0.4 — three view modes (heatmap, diagram,
+   * layers) live behind one tab now. The /dag route still resolves to
+   * the Graph tab via the `dagAlias` matcher in `activeTab` so old
+   * deep links don't 404. */
   graph:    new RoutePattern('/graph'),
-  dag:      new RoutePattern('/dag'),
   files:    new RoutePattern('/files'),
   library:  new RoutePattern('/library'),
   routes:   new RoutePattern('/routes'),
@@ -38,7 +41,6 @@ export interface TabMeta {
 export const TABS: readonly TabMeta[] = [
   { key: 'overview', label: 'Overview', href: tabPatterns.overview.href(), ported: true  },
   { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: true  },
-  { key: 'dag',      label: 'DAG',      href: tabPatterns.dag.href(),      ported: true  },
   { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: true  },
   { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: true  },
   { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: true  },
@@ -57,6 +59,9 @@ export const TABS: readonly TabMeta[] = [
 export function activeTab(pathname: string): TabKey {
   // Strip trailing slash (except for root)
   const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  /* /dag was the layered DAG tab in v0.3 — merged into /graph in v0.4.
+     Old links + bookmarks resolve to the Graph tab so they don't 404. */
+  if (p === '/dag') return 'graph';
   for (const t of TABS) {
     if (t.href === p) return t.key;
   }

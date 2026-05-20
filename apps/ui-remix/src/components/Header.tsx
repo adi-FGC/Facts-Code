@@ -10,6 +10,8 @@ import type { Dataset } from '../lib/loadArtifacts.ts';
 import { NumberedNav } from '../ui/NumberedNav.tsx';
 import { ThemeToggle } from '../ui/ThemeToggle.tsx';
 import { ReanalyzeButton } from '../ui/ReanalyzeButton.tsx';
+import { OpenButton } from '../ui/OpenButton.tsx';
+import { SourceChip } from '../ui/SourceChip.tsx';
 
 interface HeaderProps {
   data: Dataset;
@@ -48,48 +50,11 @@ const brandMark = css({
   fontVariationSettings: '"opsz" 20',
 });
 
-const brandSub = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  letterSpacing: '0.16em',
-  textTransform: 'uppercase',
-  color: 'var(--fg-faint)',
-});
-
-/* Audit fix #8: chip is name-only at md and below; full path returns
-   at lg+ where there's room. Same hairline-divider treatment but
-   tighter. */
-const projectChip = css({
-  display: 'inline-flex',
-  alignItems: 'baseline',
-  gap: 'var(--space-3)',
-  paddingInline: 'var(--space-3)',
-  paddingBlock: 'var(--space-1)',
-  borderLeft: '1px solid var(--border)',
-  minWidth: '0',
-  maxWidth: '32ch',
-});
-
-const projectRootResponsive = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-11)',
-  color: 'var(--fg-subtle)',
-  whiteSpace: 'nowrap',
-  overflow: 'hidden',
-  textOverflow: 'ellipsis',
-  '@media (max-width: 1279px)': {
-    display: 'none',
-  },
-});
-
-const projectName = css({
-  fontFamily: 'var(--font-display)',
-  fontWeight: '600',
-  fontSize: 'var(--fs-14)',
-  color: 'var(--fg)',
-  letterSpacing: '-0.01em',
-  whiteSpace: 'nowrap',
-});
+/* The project chip got promoted to a real component (SourceChip) when
+ * recents landed — it now reflects the actual scan source (local
+ * folder, GitHub repo, or fall-through project name) and acts as a
+ * second click target for the picker. The CSS that lived here moved
+ * with the component. */
 
 export function Header(_handle: Handle<HeaderProps>) {
   return ({ data }: HeaderProps) => {
@@ -98,14 +63,16 @@ export function Header(_handle: Handle<HeaderProps>) {
       <header class="glass" role="banner" mix={wrap}>
         <div mix={brand}>
           <span mix={brandMark}>FACTS</span>
-          <span mix={brandSub}>v0.1 · Remix UI</span>
         </div>
         <NumberedNav />
-        <div mix={projectChip} title={root}>
-          <span mix={projectName}>{data.project.name}</span>
-          <span mix={projectRootResponsive} dir="rtl">{root}</span>
-        </div>
+        <SourceChip projectName={data.project.name} projectRoot={root} />
         <div mix={rightCluster}>
+          {/* Open is the entry point for in-browser scans (local dirs +
+              GitHub URLs). Sits left of Re-analyze because it's the
+              "load a different project" affordance, while Re-analyze is
+              the "refresh THIS project" affordance — different verbs,
+              ordered by reach. */}
+          <OpenButton />
           <ReanalyzeButton />
           <ThemeToggle />
         </div>
