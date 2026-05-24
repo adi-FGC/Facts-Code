@@ -82,9 +82,22 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
  *                (every route → its own chunk) would help across the
  *                board but is a separate refactor; keeping consistent
  *                "all routes in main" for now. Raw bumped 240 → 250 KB.
+ *   2026-05-02 — main JS gz 59 → 64 KB after the new /flow tab landed:
+ *                lib/flowAnalysis.ts (tier classifier + Sugiyama-style
+ *                path enumeration), SwimlanesDiagram.tsx (SVG lanes +
+ *                arc-routed arrows), EntityList.tsx, FlowText.tsx
+ *                (clipboard-copyable swimlanes.io-style breakdown),
+ *                routes/Flow.tsx orchestrator. The architecture-flow
+ *                view is a top-level feature worth its weight.
+ *                NOTE: at ~64 KB gz we're approaching the inflection
+ *                point where route-level chunk splitting (every route
+ *                → its own lazy chunk) pays off cleanly — would cut
+ *                Main JS to ~30-35 KB at the cost of one round-trip on
+ *                first navigation per tab. Tracked as a separate
+ *                refactor; not blocking on this commit. Raw 250→280 KB.
  */
-const CAP_MAIN_JS_RAW = 250 * 1024;
-const CAP_MAIN_JS_GZ = 59 * 1024;
+const CAP_MAIN_JS_RAW = 280 * 1024;
+const CAP_MAIN_JS_GZ = 64 * 1024;
 const CAP_WORKER_JS_RAW = 600 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;

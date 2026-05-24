@@ -25,6 +25,7 @@ import { Overview } from './routes/Overview.tsx';
 import { Risks } from './routes/Risks.tsx';
 import { History } from './routes/History.tsx';
 import { GraphRoute } from './routes/GraphRoute.tsx';
+import { Flow } from './routes/Flow.tsx';
 import { Files } from './routes/Files.tsx';
 import { Library } from './routes/Library.tsx';
 import { RoutesTab } from './routes/RoutesTab.tsx';
@@ -163,6 +164,7 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   switch (tab) {
     case 'overview': return <Overview data={data} />;
     case 'graph':    return <GraphRoute data={data} />;
+    case 'flow':     return <Flow data={data} />;
     case 'files':    return <Files data={data} />;
     case 'library':  return <Library data={data} />;
     case 'routes':   return <RoutesTab data={data} />;

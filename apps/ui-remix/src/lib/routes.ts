@@ -14,6 +14,11 @@ export const tabPatterns = {
    * the Graph tab via the `dagAlias` matcher in `activeTab` so old
    * deep links don't 404. */
   graph:    new RoutePattern('/graph'),
+  /* /flow added in v0.5 — architectural data-flow + entity relationships.
+   * Sits between graph and files because the narrative is: see the
+   * structure (graph), see what flows through it (flow), then drill
+   * into individual files. */
+  flow:     new RoutePattern('/flow'),
   files:    new RoutePattern('/files'),
   library:  new RoutePattern('/library'),
   routes:   new RoutePattern('/routes'),
@@ -41,6 +46,7 @@ export interface TabMeta {
 export const TABS: readonly TabMeta[] = [
   { key: 'overview', label: 'Overview', href: tabPatterns.overview.href(), ported: true  },
   { key: 'graph',    label: 'Graph',    href: tabPatterns.graph.href(),    ported: true  },
+  { key: 'flow',     label: 'Flow',     href: tabPatterns.flow.href(),     ported: true  },
   { key: 'files',    label: 'Files',    href: tabPatterns.files.href(),    ported: true  },
   { key: 'library',  label: 'Library',  href: tabPatterns.library.href(),  ported: true  },
   { key: 'routes',   label: 'Routes',   href: tabPatterns.routes.href(),   ported: true  },
