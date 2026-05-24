@@ -37,10 +37,12 @@ import {
 import {
   detectFileBasedRoutes,
   detectSourceRoutes,
+  extractAstroFrontmatter,
   extractEnvVars,
   extractImports,
   extractPythonImports,
   extractSymbols,
+  isAstro,
   isParseable,
   isPython,
   parseJS,
@@ -242,6 +244,10 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     // AST-based extraction — parse each JS/TS file ONCE, then pass the
     // shared AST to every consumer (imports, symbols, future call graph).
     // Python still uses the regex extractor (tree-sitter is v0.3 scope).
+    // .astro files are pre-processed: we slice the `---`-fenced
+    // frontmatter (TypeScript) and feed it through the same JS/TS
+    // pipeline. Template-body imports are negligible — every component
+    // import lives in the frontmatter — so the import-graph stays correct.
     let symbols: ExtractedSymbol[] = [];
     if (lang && isParseable(f.ext)) {
       const parsed = parseJS(text, f.ext);
@@ -253,6 +259,45 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         const envReads = extractEnvVars(text, f.ext, parsed);
         if (envReads.length) envVarReadsByFile.set(f.path, envReads);
       }
+    } else if (isAstro(f.ext)) {
+      /* v0.4.6 — Astro frontmatter extraction. Slice the `---` block
+         and parse it as TypeScript through the existing pipeline. The
+         synthesized ext='.ts' steers the extractors past their
+         isParseable() early-exit. Calibrated on RallyPro (86 .astro
+         files contributing 0 → ~hundreds of edges with this branch).
+
+         Line-number translation: Babel reports lines relative to the
+         frontmatter slice (1-based). Original-file lines are
+         `fm.lineOffset + babelLine`. We adjust env-var + symbol +
+         import line numbers post-extraction so the UI's file:line
+         deep-links land on the user's actual line — not "line 3 of
+         the frontmatter slice". */
+      const fm = extractAstroFrontmatter(text);
+      if (fm) {
+        const parsed = parseJS(fm.source, '.ts');
+        if (parsed) {
+          const raws = extractImports(fm.source, '.ts', parsed);
+          for (const r of raws) {
+            if (typeof r.line === 'number') r.line += fm.lineOffset;
+          }
+          if (raws.length) importsByFile.set(f.path, raws);
+          symbols = extractSymbols(fm.source, '.ts', parsed).map((s) => ({
+            ...s,
+            startLine: s.startLine + fm.lineOffset,
+            endLine: s.endLine + fm.lineOffset,
+            ...(s.children ? { children: s.children.map((c) => ({
+              ...c,
+              startLine: c.startLine + fm.lineOffset,
+              endLine: c.endLine + fm.lineOffset,
+            })) } : {}),
+          }));
+          const envReads = extractEnvVars(fm.source, '.ts', parsed).map((r) => ({
+            ...r,
+            line: r.line + fm.lineOffset,
+          }));
+          if (envReads.length) envVarReadsByFile.set(f.path, envReads);
+        }
+      }
     } else if (isPython(f.ext)) {
       const raws = extractPythonImports(text);
       if (raws.length) importsByFile.set(f.path, raws);
@@ -263,8 +308,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
     // Routes — file-path-based (Next/Remix/pages) + source-based
     // (Express-style, FastAPI, Flask, Django). Both passes contribute.
+    // Source-based route detection also runs on Astro because some
+    // patterns (like `export const prerender = false`) live in the
+    // frontmatter and signal route behavior.
     detectedRoutes.push(...detectFileBasedRoutes(f.path));
-    if (lang && (isParseable(f.ext) || isPython(f.ext))) {
+    if (lang && (isParseable(f.ext) || isPython(f.ext) || isAstro(f.ext))) {
       detectedRoutes.push(...detectSourceRoutes(f.path, text));
     }
 

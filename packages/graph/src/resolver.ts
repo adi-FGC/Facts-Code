@@ -39,9 +39,20 @@ const CANDIDATE_EXTS = [
   '.ts', '.tsx', '.mts', '.cts',
   '.js', '.jsx', '.mjs', '.cjs',
   '.json',
+  /* v0.4.6 — framework component formats. Astro/Vue/Svelte all use
+     relative imports of their own file type (`import Foo from './Foo.astro'`)
+     AND extensionless imports that should fall through to a .astro/.vue/
+     .svelte sibling. Without these, the Astro frontmatter extractor
+     produces specifiers but the graph still misses the edges. */
+  '.astro', '.vue', '.svelte',
 ];
 
-const INDEX_BASES = ['index.ts', 'index.tsx', 'index.js', 'index.jsx', 'index.mjs'];
+const INDEX_BASES = [
+  'index.ts', 'index.tsx', 'index.js', 'index.jsx', 'index.mjs',
+  /* Match the CANDIDATE_EXTS expansion — some Astro/Vue projects ship
+     barrel files as index.astro etc. Rare but cheap to support. */
+  'index.astro', 'index.vue', 'index.svelte',
+];
 
 /** True if the specifier is a relative path. */
 export function isRelative(spec: string): boolean {

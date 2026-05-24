@@ -42,6 +42,7 @@ import { css } from '@remix-run/ui';
 import {
   TIER_LABEL,
   TIER_ORDER,
+  VIRTUAL_BOOT_ID,
   type FlowResult,
   type Tier,
   type TierEdge,
@@ -151,8 +152,13 @@ function sampleLaneFiles(tier: Tier, result: FlowResult, limit = 3): string[] {
 }
 
 /** Trim a path to its basename + immediate parent for the sample
- *  display. Full path lives in the SVG <title>. */
+ *  display. Full path lives in the SVG <title>.
+ *
+ *  Special case: the synthetic boot node renders as italic "framework
+ *  boot" so it reads as virtual rather than a real file the user can
+ *  open. */
 function shortPath(path: string): string {
+  if (path === VIRTUAL_BOOT_ID) return 'framework boot';
   const parts = path.split('/');
   if (parts.length <= 2) return path;
   return parts.slice(-2).join('/');

@@ -6,7 +6,8 @@
  *   - Respects .gitignore + .dockerignore + .cursorignore + .aiignore + .factsignore
  *     (stacked hierarchically; deeper files can override with `!` patterns).
  *   - Always excludes: node_modules, dist, build, .next, .turbo, .cache,
- *     __pycache__, .venv, .git, vendor, target, coverage, .pnpm-store.
+ *     __pycache__, .venv, .git, vendor, target, coverage, .pnpm-store,
+ *     .playwright-mcp, playwright-report, test-results.
  *   - Symlink loop detection via visited set of resolved paths.
  *   - Binary sniff: first 8 KB; skip if a null byte appears.
  *   - File size cap: default 1 MB, configurable.
@@ -27,6 +28,12 @@ const ALWAYS_EXCLUDE = new Set([
   'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
   '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
   '.pnpm-store', '.vscode', '.idea',
+  /* Test/automation runtime output — surfaced as analyzer noise in
+     v0.4 calibration against RallyPro: 80+ YAML trace files from
+     .playwright-mcp/ polluted the "other" tier without contributing
+     any signal. Same category as .turbo and .cache: produced by
+     tooling, not authored. */
+  '.playwright-mcp', 'playwright-report', 'test-results',
 ]);
 
 /**
