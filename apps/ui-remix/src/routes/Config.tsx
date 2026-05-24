@@ -15,8 +15,8 @@
  * MCP pairing) is signposted but not wired — they earn implementation
  * when their feature ships, not before.
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

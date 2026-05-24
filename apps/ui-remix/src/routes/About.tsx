@@ -5,8 +5,8 @@
  * so the page is itself an example of evidence-first design (the
  * same dashboard pattern applied to the tool's own self-disclosure).
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

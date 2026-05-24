@@ -33,8 +33,8 @@
  *   shortcut ⌘O (added below) hits 'local' by default.
  */
 
-import type { Handle } from '@remix-run/ui';
-import { css, on, ref } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on, ref } from 'remix/ui';
 import { parseRepoSpec, type GitHubFetchSpec } from '@factstack/fs-browser';
 /* Bridge is type-only at the top of the module so the main bundle pays
  * nothing for it. The actual runtime symbols (publishDataset, runLocalScan,

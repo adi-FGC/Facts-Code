@@ -17,8 +17,8 @@
  * deepest UX (title isn't reactive on hover-with-shift), but it's the
  * editorial voice the rest of the system uses.
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on } from 'remix/ui';
 
 const wrap = css({
   display: 'inline-flex',

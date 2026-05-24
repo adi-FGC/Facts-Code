@@ -15,8 +15,8 @@
  *   layer assignment lives in lib/graphAnalysis; this view focuses
  *   on presentation.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { DatasetFile } from '../../lib/loadArtifacts.ts';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';
 

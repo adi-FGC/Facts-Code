@@ -4,8 +4,8 @@
  * Reads as a printer's colophon: just the meta. Health on the right
  * where the eye lands last. No icons, no chips with backgrounds.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 
 interface StatusBarProps {

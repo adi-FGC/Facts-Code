@@ -1,13 +1,17 @@
 /**
  * Boot the Remix v3 client runtime.
  *
- * Uses `@remix-run/ui`'s `createRoot` — the SPA-friendly mount point that
+ * Uses `remix/ui`'s `createRoot` — the SPA-friendly mount point that
  * doesn't require a server-driven Frame tree. Same shape as React's
- * `createRoot`, different VDOM underneath.
+ * `createRoot`, different VDOM underneath. (The `remix/ui` subpath
+ * lives in the umbrella `remix` package; it currently re-exports
+ * `@remix-run/ui` but importing through the umbrella is the canonical
+ * forward path — the standalone `@remix-run/ui` is folding into the
+ * umbrella source upstream.)
  *
  * No React here. No ReactDOM. The build is React-free top to bottom.
  */
-import { createRoot } from '@remix-run/ui';
+import { createRoot } from 'remix/ui';
 import { App } from './App.tsx';
 
 // Design system — must load before app render so first paint is styled.

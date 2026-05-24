@@ -18,8 +18,8 @@
  * Tooltip rotates with state: shows the next mode the click will
  * advance to, e.g. "Light · click for Dark".
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import { applyTheme, nextTheme, persistTheme, readStoredTheme, type Theme } from '../lib/theme.ts';
 
 const wrap = css({

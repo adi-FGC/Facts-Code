@@ -12,8 +12,8 @@
  *   │ +9 more                 ← optional aside
  *   ────────────────────────  ← bottom hairline
  */
-import type { Handle, RemixNode } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle, RemixNode } from 'remix/ui';
+import { css } from 'remix/ui';
 
 interface FootnoteChipProps {
   label: string;

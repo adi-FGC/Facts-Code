@@ -20,8 +20,8 @@
  *
  * < 1280px: margin column collapses, chips stack into the body flow.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { Section } from '../ui/Section.tsx';
 import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';

@@ -25,8 +25,8 @@
  * Hidden under 1280px because the header is too dense at md/sm; the
  * OpenButton in the right cluster covers the same intent there.
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import {
   getCurrentSourceId,
   listRecents,

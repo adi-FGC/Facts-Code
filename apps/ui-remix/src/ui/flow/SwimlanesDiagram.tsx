@@ -37,8 +37,8 @@
  * Hand-rolled keeps the editorial language consistent (thin strokes,
  * no gradients, no transitions on the lane positions themselves).
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import {
   TIER_LABEL,
   TIER_ORDER,

@@ -30,8 +30,8 @@
  * the bundle cost (~30 KB) for what's ~120 lines of editorial SVG.
  * Hand-rolled keeps the design language consistent.
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on, ref } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on, ref } from 'remix/ui';
 import type { SequenceMessage, SequenceResult } from '../../lib/sequenceFlow.ts';
 
 interface SequenceDiagramProps {

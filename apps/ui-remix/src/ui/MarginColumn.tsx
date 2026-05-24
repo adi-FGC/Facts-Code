@@ -9,8 +9,8 @@
  * The connecting hairline rules are drawn from `<FootnoteChip>`, not
  * here — this primitive just defines the lane.
  */
-import type { Handle, RemixNode } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle, RemixNode } from 'remix/ui';
+import { css } from 'remix/ui';
 
 interface ContentWithMarginProps {
   children: RemixNode;

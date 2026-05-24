@@ -10,8 +10,8 @@
  * `<CyclesPanel cycles={cycles} />` without conditional wrapping. Less
  * code at the call site, same visual outcome.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import { Section } from '../Section.tsx';
 
 interface CyclesPanelProps {

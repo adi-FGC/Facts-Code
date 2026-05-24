@@ -8,8 +8,8 @@
  * left, NOT a colored fill or rounded badge. Reads like a margin mark
  * on a copy-edited document.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 
 type Severity = 'critical' | 'high' | 'medium' | 'low' | 'info';
 

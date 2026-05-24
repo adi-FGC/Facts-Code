@@ -8,8 +8,8 @@
  * The "Total" column is the sum, sorted descending — gives a single
  * "centrality" score the reader can scan without doing the addition.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { HubEntry } from '../../lib/graphAnalysis.ts';
 import { Section } from '../Section.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';

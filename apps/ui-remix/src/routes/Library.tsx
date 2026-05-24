@@ -16,8 +16,8 @@
  * Server APIs) is tracked in TASKS.md; that page populates the
  * moment v0.3.5 symbol graph + role classification land.
  */
-import type { Handle } from '@remix-run/ui';
-import { css, on } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

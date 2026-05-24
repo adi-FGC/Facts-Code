@@ -4,8 +4,8 @@
  * The header is the only piece of chrome that gets `.glass`. Per
  * design_spec.md §2: glass for chrome, paper for content.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { NumberedNav } from '../ui/NumberedNav.tsx';
 import { ThemeToggle } from '../ui/ThemeToggle.tsx';

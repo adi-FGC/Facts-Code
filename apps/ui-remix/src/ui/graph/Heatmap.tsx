@@ -21,8 +21,8 @@
  *   No data-fetching, no analysis math — keeps the component thin and
  *   the math centrally testable.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { HeatmapResult } from '../../lib/graphAnalysis.ts';
 
 interface HeatmapProps {

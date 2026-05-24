@@ -19,8 +19,8 @@
  * second mode showing type → type relationships (User has fields of
  * type Address, Email; Address extends Locatable; etc).
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { EntitySummary } from '../../lib/flowAnalysis.ts';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';
 

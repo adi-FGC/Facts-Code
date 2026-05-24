@@ -9,8 +9,8 @@
  * tell you anything about *cross-cutting* dependencies, which is
  * what this table is for.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 import type { Coupling } from '../../lib/graphAnalysis.ts';
 import { Section } from '../Section.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';

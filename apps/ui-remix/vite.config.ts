@@ -19,11 +19,15 @@ import { defineConfig } from 'vite';
 export default defineConfig(({ mode }) => ({
   esbuild: {
     // Tells esbuild to compile JSX with the automatic runtime sourced
-    // from @remix-run/ui (re-exported as remix/ui via the `remix`
-    // package). Same flag-set React uses for its automatic runtime,
-    // pointed at a different VDOM.
+    // from `remix/ui` — the canonical umbrella subpath. In beta.0/.1/.2
+    // this re-exports the standalone `@remix-run/ui` package, but the
+    // upstream trajectory folds the source into the umbrella's
+    // packages/ui/, after which the standalone goes away. Importing
+    // through `remix/ui` survives that migration.
+    // Same flag-set React uses for its automatic runtime, pointed at
+    // a different VDOM.
     jsx: 'automatic',
-    jsxImportSource: '@remix-run/ui',
+    jsxImportSource: 'remix/ui',
   },
   define: {
     // Build-time toggle without string-literal branching in components.

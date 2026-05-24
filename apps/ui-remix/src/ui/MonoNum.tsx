@@ -11,8 +11,8 @@
  * MUST go through MonoNum. Catches drift toward styled-prose-stat
  * AI patterns.
  */
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/ui';
+import { css } from 'remix/ui';
 
 interface MonoNumProps {
   children: string | number;
