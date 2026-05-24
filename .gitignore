@@ -33,5 +33,12 @@ examples/__screenshots__/*-diff.png
 # dir by the design-skill plugins. Per-machine, not FACTS source.
 .agents/
 
+# Netlify CLI per-app link state — appears under any nested workspace
+# that runs `netlify deploy --filter <pkg>`. The root `.netlify/state.json`
+# IS tracked (links the repo to the factstack-demo site); only the
+# per-package shadow copies need ignoring.
+apps/*/.netlify/
+packages/*/.netlify/
+
 # TypeScript incremental build cache — per-machine, no value in git
 *.tsbuildinfo
