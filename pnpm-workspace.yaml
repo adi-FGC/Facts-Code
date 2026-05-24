@@ -4,7 +4,11 @@ packages:
   - "plugins/*"
   - "examples/*"
   - "prototype"
+
 allowBuilds:
   esbuild: true
 # better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
 # Keep this allowBuilds block if you ever add a native module; pnpm 10 gates build scripts by default.
+
+# Supply-chain defense for exotic git-resolved subdeps lives in
+# .pnpmfile.cjs at the repo root. See that file for the rationale.
