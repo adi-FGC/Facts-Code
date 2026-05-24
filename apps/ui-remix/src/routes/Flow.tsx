@@ -295,7 +295,11 @@ export function Flow(handle: Handle<FlowProps>) {
 
     return (
       <ContentWithMargin>
-        <div mix={css({ gridColumn: '1' })}>
+        {/* `minWidth: 0` — see the parallel comment in GraphRoute.tsx.
+            The SequenceDiagram + SwimlanesDiagram can both produce
+            very wide SVGs; without this the grid's `1fr` column
+            would grow to fit them and push <body> past 100vw. */}
+        <div mix={css({ gridColumn: '1', minWidth: '0' })}>
           <div mix={kicker}>
             Flow · {activeTiers.length} tier{activeTiers.length === 1 ? '' : 's'} · {fmt(crossEdges)} cross-tier edge{crossEdges === 1 ? '' : 's'}
           </div>

@@ -303,7 +303,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
 
     return (
       <ContentWithMargin>
-        <div mix={css({ gridColumn: '1' })}>
+        {/* `minWidth: 0` is the crucial bit: CSS grid `1fr` columns
+            default to `minmax(auto, 1fr)`, so a wide child (like the
+            Sugiyama SVG when "show all nodes" is on) would otherwise
+            grow the column past the viewport and trigger horizontal
+            scroll on <body>. The 0 floor lets the grid honor its
+            fractional share, and the SugiyamaDag wrap's own
+            `overflow: auto` then becomes the scroll surface. */}
+        <div mix={css({ gridColumn: '1', minWidth: '0' })}>
           <div mix={kicker}>
             Graph · {fmt(folderCount)} {folderCount === 1 ? 'module' : 'modules'} · {fmt(maxLayer + 1)} layer{maxLayer === 0 ? '' : 's'}
           </div>

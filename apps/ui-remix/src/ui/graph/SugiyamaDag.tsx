@@ -109,11 +109,23 @@ const wrap = css({
   marginTop: 'var(--space-4)',
   border: '1px solid var(--hairline)',
   background: 'var(--surface, var(--bg))',
-  overflow: 'hidden',
-  /* The SVG itself handles wheel + pointer events; we hide overflow
-     so the zoomed/panned diagram stays inside the figure box. The
-     fixed maxHeight constrains tall diagrams + lets the wheel-zoom
-     UX feel anchored. */
+  /* `overflow: auto` makes this box the scroll container for the SVG.
+     Two consequences:
+       1. When the SVG is wider/taller than the wrap, scrollbars appear
+          HERE (not on <body>). Was a real bug on big projects: the
+          SVG's natural width was pushing the grid column past 100vw,
+          which made the *whole page* scroll horizontally. With auto,
+          the box becomes a BFC + gets min-width:0 semantics so it
+          shrinks to its grid column.
+       2. Pan-via-drag (handled inside the SVG) and scroll-via-scrollbar
+          coexist. They're orthogonal: pan translates the SVG's inner
+          transform group; scroll moves the viewport into the SVG.
+          Users get both gestures without conflict — same trick
+          MapTiler / Figma viewports use.
+     `maxWidth: 100%` belt-and-suspenders against any future grid
+     misconfiguration that would try to give us a wider column. */
+  overflow: 'auto',
+  maxWidth: '100%',
   maxHeight: '70vh',
   /* Reserve space for the SVG via min-height — without this the
      entrance animation's translate causes the figure to "grow" by a

@@ -81,7 +81,12 @@ const wrap = css({
   marginTop: 'var(--space-4)',
   border: '1px solid var(--hairline)',
   background: 'var(--surface, var(--bg))',
+  /* See SugiyamaDag.tsx for the full rationale. Short version: the
+     parent grid column gets `minWidth: 0` in Flow.tsx so it can shrink
+     to its fr-share; this wrap then owns the horizontal scroll for
+     wide swimlane diagrams. maxWidth: 100% is belt-and-suspenders. */
   overflow: 'auto',
+  maxWidth: '100%',
   maxHeight: '70vh',
 });
 

@@ -44,7 +44,12 @@ const wrap = css({
   marginTop: 'var(--space-4)',
   border: '1px solid var(--hairline)',
   background: 'var(--surface, var(--bg))',
+  /* Sequence SVGs with many lifelines get very wide (each lifeline =
+     a column). The parent grid column has minWidth:0 so this wrap is
+     the actual scroll surface. maxWidth: 100% defends against any
+     ancestor that would otherwise let us grow. */
   overflow: 'auto',
+  maxWidth: '100%',
   maxHeight: '70vh',
 });
 
