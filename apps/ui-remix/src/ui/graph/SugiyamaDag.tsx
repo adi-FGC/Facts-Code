@@ -711,7 +711,14 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
       );
     }
 
-    const showLabels = showLabelsProp ?? layout.nodes.size <= 60;
+    /* Always show labels by default. The old `?? layout.nodes.size <= 60`
+       auto-hide was defensive when the diagram couldn't grow horizontally —
+       at 286 nodes inside a fixed viewport the labels would have crowded.
+       Since the wrap now has overflow:auto (see commit 7b078ec) the SVG
+       can stretch as wide as it needs and each ~140px-wide node has
+       plenty of room for the 16-char truncated basename. Caller can
+       still pass showLabels={false} to opt out (e.g. minimap mode). */
+    const showLabels = showLabelsProp ?? true;
     const cols = Math.max(1, layout.maxLayerWidth);
     const rows = Math.max(1, layout.layerCount);
     const padding = 24;
@@ -840,7 +847,14 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                         x={x + nodeWidth / 2}
                         y={y + nodeHeight / 2 + 3}
                         text-anchor="middle"
-                        fill="var(--fg-muted)"
+                        /* fg-muted reads too faint at 10px against the
+                           paper bg when there are hundreds of labels;
+                           bumping to fg (full foreground) gives the
+                           labels actual presence in the diagram. The
+                           hover-edge-highlight CSS still dims them in
+                           context, so the brighter resting state is
+                           safe. */
+                        fill="var(--fg)"
                         style="pointer-events:none"
                       >
                         {label.length > 18 ? label.slice(0, 16) + '…' : label}
