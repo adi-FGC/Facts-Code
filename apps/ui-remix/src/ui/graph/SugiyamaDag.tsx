@@ -45,7 +45,7 @@
  */
 import type { Handle } from '@remix-run/ui';
 import { css, on, ref } from '@remix-run/ui';
-import type { SugiyamaLayout } from '../../lib/graphAnalysis.ts';
+import type { SugiyamaLayout, SugiyamaNode } from '../../lib/graphAnalysis.ts';
 
 interface SugiyamaDagProps {
   layout: SugiyamaLayout;
@@ -184,6 +184,9 @@ const nodeGroup = css({
   '&:hover > text': {
     fill: 'var(--accent)',
   },
+  /* No native CSS for "show me when alt is held" — surfaced via the
+     UI affordance copy in DagControls' tooltip ("Alt+drag a node to
+     reposition") instead. */
   /* Entrance choreography — see ensureSugiyamaKeyframes(). */
   animation: 'sugiyama-node-rise 260ms var(--ease-out-quart) both',
   animationDelay: 'calc(min(var(--L, 0), 8) * 28ms)',
@@ -295,18 +298,33 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
   let groupEl: SVGGElement | null = null;
   let transform: Transform = { ...IDENTITY };
 
-  /* Drag state — tracked outside the transform so we can distinguish
-     a drag-pan from a click on a node. Pointer-down sets `dragging`
-     to a coordinate; pointer-move fires only when `dragging` is set. */
-  let drag: { x: number; y: number; movedFar: boolean } | null = null;
+  /* Drag state. Two flavors share the same lifecycle:
+       kind='pan'  → translate the whole transform group (canvas pan)
+       kind='node' → translate a single node via per-id offset map
+     The kind is decided at pointerdown by the target hit-test. */
+  let drag:
+    | { kind: 'pan'; x: number; y: number; movedFar: boolean }
+    | { kind: 'node'; nodeId: string; x: number; y: number; movedFar: boolean; baseDx: number; baseDy: number }
+    | null = null;
+  /* Per-node x/y offsets in SVG-local pixels (NOT screen pixels — the
+     offsets must scale with zoom). null map entries are equivalent to
+     {dx:0, dy:0}; we only track moved nodes. Survives across renders
+     in the closure so a re-render with the same layout keeps positions. */
+  const nodeOffsets = new Map<string, { dx: number; dy: number }>();
   /* Pinch state for touch — 2-finger gestures track the initial
      distance between fingers + the transform at the start of the
      gesture. Mid-gesture wheel events get ignored. */
   let pinch: { dist: number; cx: number; cy: number; start: Transform } | null = null;
 
   function pushTransformChange() {
+    /* "Modified" = zoomed, panned, OR has any dragged node. The Reset
+       button enables on any of those — pressing it returns to the
+       layout-computed identity. */
     handle.props.onTransformChange?.(
-      transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0,
+      transform.scale !== 1 ||
+      transform.tx !== 0 ||
+      transform.ty !== 0 ||
+      nodeOffsets.size > 0,
     );
   }
 
@@ -316,19 +334,31 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
   }
 
   function reset() {
-    if (transform.scale === 1 && transform.tx === 0 && transform.ty === 0) return;
+    const hadTransform = transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0;
+    const hadOffsets = nodeOffsets.size > 0;
+    if (!hadTransform && !hadOffsets) return;
+
     transform = { ...IDENTITY };
-    /* Animate the reset so it doesn't snap. Inline `style.transition`
-       enables the tween for one frame; we clear it after the
-       transition window so subsequent wheel/pan events track 1:1
-       again (transitions on rapid input feel laggy). */
+    nodeOffsets.clear();
+
+    /* Animate the canvas reset so it doesn't snap. Inline
+       `style.transition` enables the tween for one frame; we clear it
+       after the transition window so subsequent wheel/pan events
+       track 1:1 again (transitions on rapid input feel laggy). */
     if (groupEl) {
-      groupEl.style.transition = 'transform 240ms var(--ease-out-quart)';
-      applyTransform(groupEl, transform);
-      window.setTimeout(() => {
-        if (groupEl) groupEl.style.transition = '';
-      }, 280);
+      if (hadTransform) {
+        groupEl.style.transition = 'transform 240ms var(--ease-out-quart)';
+        applyTransform(groupEl, transform);
+        window.setTimeout(() => {
+          if (groupEl) groupEl.style.transition = '';
+        }, 280);
+      } else {
+        applyTransform(groupEl, transform);
+      }
     }
+    /* Node-offset reset needs a re-render to repaint the nodes at
+       their layout-computed positions. handle.update() schedules it. */
+    if (hadOffsets) void handle.update();
     pushTransformChange();
   }
 
@@ -343,7 +373,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     handle.props.resetSink({
       reset,
       isIdentity: () =>
-        transform.scale === 1 && transform.tx === 0 && transform.ty === 0,
+        transform.scale === 1 &&
+        transform.tx === 0 &&
+        transform.ty === 0 &&
+        nodeOffsets.size === 0,
     });
     exposedOnce = true;
   }
@@ -380,16 +413,43 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
 
   function onPointerDown(e: PointerEvent) {
     /* Only left-button + non-touch (touch handled below). Don't start a
-       drag on right-click (context menu). The target check skips the
-       SVG <a> nodes — clicking those should navigate, not start a pan. */
+       drag on right-click (context menu). */
     if (e.button !== 0) return;
     if (e.pointerType === 'touch') return;
+
     const target = e.target as Element | null;
-    if (target && target.closest('a')) return;
-    drag = { x: e.clientX, y: e.clientY, movedFar: false };
+    const nodeAnchor = target?.closest('a[data-node-id]') as Element | null;
+
+    if (nodeAnchor) {
+      /* Node drag — modifier-gated to keep click-to-navigate the
+         dominant gesture. Hold Alt (Option) to grab a node.
+
+         Without a modifier, plain click → navigate to /files. With
+         Alt down, the same click starts a drag and suppresses the
+         navigation (preventDefault on the originating click is
+         delivered by the <a>'s click handler — we just don't have
+         to fight for the gesture). */
+      if (!e.altKey) return;
+      e.preventDefault();
+      const nodeId = nodeAnchor.getAttribute('data-node-id') ?? '';
+      const cur = nodeOffsets.get(nodeId);
+      drag = {
+        kind: 'node',
+        nodeId,
+        x: e.clientX,
+        y: e.clientY,
+        movedFar: false,
+        baseDx: cur?.dx ?? 0,
+        baseDy: cur?.dy ?? 0,
+      };
+      if (svgEl) svgEl.style.cursor = 'grabbing';
+      svgEl?.setPointerCapture(e.pointerId);
+      return;
+    }
+
+    /* Canvas pan — clicked the background (not a node). */
+    drag = { kind: 'pan', x: e.clientX, y: e.clientY, movedFar: false };
     if (svgEl) svgEl.style.cursor = 'grabbing';
-    /* Capture the pointer so we keep getting events even if the cursor
-       leaves the SVG mid-drag. */
     svgEl?.setPointerCapture(e.pointerId);
   }
 
@@ -401,16 +461,87 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
       drag.movedFar = true;
     }
     if (!drag.movedFar) return;
-    transform = { ...transform, tx: transform.tx + dx, ty: transform.ty + dy };
-    drag.x = e.clientX;
-    drag.y = e.clientY;
-    commit();
+
+    if (drag.kind === 'pan') {
+      transform = { ...transform, tx: transform.tx + dx, ty: transform.ty + dy };
+      drag.x = e.clientX;
+      drag.y = e.clientY;
+      commit();
+      return;
+    }
+
+    /* Node drag — accumulate movement into the node's offset map.
+       SVG-local coords scale with zoom, so divide screen delta by
+       the current zoom to keep the node tracking the cursor 1:1. */
+    const totalScreenDx = e.clientX - (drag.x - (e.clientX - drag.x));
+    void totalScreenDx; /* fold below; commented for clarity */
+    const newDx = drag.baseDx + (e.clientX - drag.x + (drag.baseDx - drag.baseDx)) / transform.scale;
+    const newDy = drag.baseDy + (e.clientY - drag.y + (drag.baseDy - drag.baseDy)) / transform.scale;
+    /* The two lines above compute "base offset + (current movement
+       since pointerdown, in SVG-local pixels)". The double-negatives
+       are intentional placeholders so the formula reads as "base +
+       delta"; effectively newDx = baseDx + (e.clientX - dragStartX) /
+       scale. We don't update drag.x — we keep it pinned to the start
+       so the formula stays based on the START of the drag, not the
+       last frame. Same for drag.y. */
+    nodeOffsets.set(drag.nodeId, { dx: newDx, dy: newDy });
+    /* Mutate the SVG attributes directly for 60fps tracking — going
+       through handle.update() would VDOM-rerender every node on every
+       pointermove. Find the anchor by data-node-id, then nudge its
+       <g>'s transform attribute. The next "real" re-render will pick
+       up the offsets from nodeOffsets and they'll persist. */
+    applyNodeOffsetLive(drag.nodeId);
+    pushTransformChange();
+  }
+
+  /* Live-update an in-flight node drag without a VDOM re-render. We
+     write transform on the <a> element directly; the next render
+     pass replaces it with style-attribute coordinates from
+     nodeOffsets. The handoff is seamless because the final transform
+     and the final rendered position are identical. */
+  function applyNodeOffsetLive(nodeId: string) {
+    if (!svgEl) return;
+    const off = nodeOffsets.get(nodeId);
+    if (!off) return;
+    /* CSS.escape handles paths with quotes/slashes safely. */
+    const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+      ? CSS.escape(nodeId)
+      : nodeId.replace(/(["\\])/g, '\\$1');
+    const el = svgEl.querySelector(`a[data-node-id="${esc}"]`) as SVGGElement | null;
+    if (!el) return;
+    el.setAttribute('transform', `translate(${off.dx} ${off.dy})`);
+    /* Also nudge any incident edges so they re-route live. The edge
+       paths were generated once per render; we can't recompute them
+       without a re-render. Compromise: live-redraw is node-only;
+       edges snap to new positions on the next re-render (which fires
+       on pointerup via handle.update()). User sees: node drags
+       smoothly, edges follow on release. */
   }
 
   function onPointerUp(e: PointerEvent) {
     if (drag) {
       svgEl?.releasePointerCapture(e.pointerId);
-      drag = null;
+      /* Capture the discriminated branch BEFORE we null `drag`. The
+         `drag.kind === 'node'` narrowing only works inside this if,
+         not after we nuke the local. */
+      if (drag.kind === 'node') {
+        const draggedId = drag.nodeId;
+        drag = null;
+        /* Clear the live `transform` attribute from the dragged
+           anchor so the next render's rect-coordinate positioning
+           doesn't double the offset. */
+        if (svgEl) {
+          const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+            ? CSS.escape(draggedId)
+            : draggedId.replace(/(["\\])/g, '\\$1');
+          const el = svgEl.querySelector(`a[data-node-id="${esc}"]`) as SVGGElement | null;
+          if (el) el.removeAttribute('transform');
+        }
+        /* Re-render so edges re-route through the new node offset. */
+        void handle.update();
+      } else {
+        drag = null;
+      }
     }
     if (svgEl) svgEl.style.cursor = 'grab';
   }
@@ -575,11 +706,17 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     const svgWidth = padding * 2 + cols * (nodeWidth + laneGap) - laneGap;
     const svgHeight = padding * 2 + rows * (nodeHeight + layerGap) - layerGap;
 
-    const nodeX = (n: { order: number }): number => padding + n.order * (nodeWidth + laneGap);
-    const nodeY = (n: { layer: number }): number => padding + n.layer * (nodeHeight + layerGap);
+    /* Position helpers — read node offsets from the closure-scoped
+       nodeOffsets map. A dragged node lives at (layoutX + dx, layoutY + dy);
+       edges reroute automatically because edgePath calls these helpers
+       per endpoint. */
+    const layoutX = (n: { order: number }): number => padding + n.order * (nodeWidth + laneGap);
+    const layoutY = (n: { layer: number }): number => padding + n.layer * (nodeHeight + layerGap);
+    const nodeX = (n: SugiyamaNode): number => layoutX(n) + (nodeOffsets.get(n.id)?.dx ?? 0);
+    const nodeY = (n: SugiyamaNode): number => layoutY(n) + (nodeOffsets.get(n.id)?.dy ?? 0);
     const nodeArr = Array.from(layout.nodes.values());
 
-    function edgePath(from: typeof nodeArr[number], to: typeof nodeArr[number]): string {
+    function edgePath(from: SugiyamaNode, to: SugiyamaNode): string {
       const x1 = nodeX(from) + nodeWidth / 2;
       const y1 = nodeY(from) + nodeHeight;
       const x2 = nodeX(to) + nodeWidth / 2;
@@ -596,6 +733,9 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
             {layout.nodes.size}
             {totalNodeCount != null && totalNodeCount !== layout.nodes.size && ` of ${totalNodeCount}`}
             {' '}nodes · {layout.edges.length} edges
+            {nodeOffsets.size > 0 && (
+              <span style="color: var(--accent); margin-left: 8px">· {nodeOffsets.size} moved</span>
+            )}
           </span>
         </div>
         <svg
@@ -657,6 +797,14 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                 const x = nodeX(n);
                 const y = nodeY(n);
                 const label = nodeLabel(n.id);
+                /* The live-drag pointermove handler stamps transform=""
+                   on this anchor via setAttribute. We clear that
+                   stamp in onPointerUp before the re-render fires —
+                   see the `wasNodeDrag` block — so the rect's x/y
+                   carry the final position without a doubled offset.
+                   We can't pass transform="" in JSX here because
+                   Remix's <a> type is HTMLAnchorElement (which lacks
+                   the SVG transform attribute). */
                 return (
                   <a
                     key={n.id}
@@ -665,14 +813,14 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                     style={`--L: ${n.layer}`}
                     data-node-id={n.id}
                   >
-                    <title>{n.id} · degree {n.degree}</title>
+                    <title>{n.id} · degree {n.degree}{nodeOffsets.has(n.id) ? ' · moved' : ''}</title>
                     <rect
                       x={x}
                       y={y}
                       width={nodeWidth}
                       height={nodeHeight}
                       fill="var(--bg)"
-                      stroke="var(--border)"
+                      stroke={nodeOffsets.has(n.id) ? 'var(--accent)' : 'var(--border)'}
                       stroke-width="1"
                     />
                     {showLabels && (

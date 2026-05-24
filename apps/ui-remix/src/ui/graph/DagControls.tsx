@@ -195,11 +195,16 @@ export function DagControls(_h: Handle<DagControlsProps>) {
           {showAll ? `Top ${nodeCap}` : `Show all ${totalNodes}`}
         </button>
 
-        {/* Reset zoom — only enabled when the SVG transform is non-identity */}
+        {/* Reset — clears zoom + pan + dragged-node positions to the
+            layout default. Enabled whenever any of those drift from
+            identity. The tooltip surfaces the Alt+drag affordance for
+            discoverability — there's no visual cue at rest. */}
         <button
           type="button"
           disabled={!zoomedOrPanned}
-          title={zoomedOrPanned ? 'Reset zoom and pan to default' : 'Zoom is at default'}
+          title={zoomedOrPanned
+            ? 'Reset zoom, pan, and dragged-node positions'
+            : 'View is at default · Hold Alt and drag a node to reposition it · Drag the background to pan · Ctrl/⌘ + wheel to zoom'}
           mix={[standalone, on('click', onResetZoom)]}
         >
           <span aria-hidden="true" mix={dimGlyph}>⊙</span>
