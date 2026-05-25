@@ -1,18 +1,31 @@
+/**
+ * Node-tier artifact-write shim.
+ *
+ * Thin wrapper around `writeArtifactsTo` (the isomorphic
+ * orchestrator) + Node-specific extras:
+ *
+ *   - Construct a `NodeFileWriter` for the project's `.facts/` dir
+ *   - Invoke `writeArtifactsTo` with the runtime + options
+ *   - Optionally append `.facts/` to the project's `.gitignore`
+ *     (Node-only — browser callers manage their own gitignore policy)
+ *   - Re-expand the returned names into absolute paths so existing
+ *     CLI summary code that prints `agentPath` etc. keeps working
+ *
+ * This file used to be 213 lines of orchestration. The orchestration
+ * moved to `orchestrator.ts`; this file is now the Node-specific
+ * outer ring. See `CONTEXT.md` for the deepening story.
+ *
+ * The `readSnapshots` function stays here (Node-only, reads the
+ * snapshot sidecar back). That reader is its own thing — a separate
+ * deepening opportunity (mirror `FileWriter` with a `FileReader`)
+ * that's tracked but not in this commit.
+ */
+
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
-import { AgentArtifactSchema, HumanArtifactSchema } from '@factstack/spec';
-import { encodeAgentPack } from './pack.js';
-
-/**
- * Write analysis artifacts to `.facts/` in the target project directory.
- *
- * Both artifacts are validated against their Zod schemas before write so
- * we never ship a malformed agent.json to an LLM downstream.
- *
- * Ensures `.facts/` is added to `.gitignore` on first run so artifacts
- * don't leak into commits.
- */
+import { writeArtifactsTo } from './orchestrator.js';
+import { NodeFileWriter } from './node-writer.js';
 
 export interface WriteOptions {
   /** Project root — the directory that contains `.facts/`. */
@@ -21,149 +34,86 @@ export interface WriteOptions {
   human: HumanArtifact;
   /** Also emit the streamable `agent.jsonl` companion. Default true. */
   streamable?: boolean;
-  /** Auto-add `.facts/` to root .gitignore if missing. Default true. */
+  /** Auto-add `.facts/` to root .gitignore if missing. Default true.
+   *  Node-only — browser shim doesn't touch any gitignore. */
   addGitignoreEntry?: boolean;
   /**
-   * Write a small snapshot (`.facts/snapshots/<ISO>/summary.json`) that
-   * stores the 6 headline metrics + timestamp. Used by the History tab
-   * to draw trend lines. Off by default so `ui`/`export` don't accrete
-   * noise; the `analyze` command turns it on.
+   * Write a small snapshot (`.facts/snapshots/<ISO>.json`) that
+   * stores the 6 headline metrics + timestamp. Used by the History
+   * tab to draw trend lines. Off by default so `ui`/`export` don't
+   * accrete noise; the `analyze` command turns it on.
    */
   writeSnapshot?: boolean;
-  /**
-   * Maximum number of snapshots to retain in `.facts/snapshots/`. Older
-   * ones are deleted oldest-first. Default 50; pass 0 to disable retention
-   * (keep every snapshot — safe but unbounded growth in watch mode).
-   */
+  /** Cap snapshot retention; oldest pruned. Default 50; 0 disables. */
   snapshotRetention?: number;
   /**
    * Optional MEMORY.md body. When provided, written to `.facts/MEMORY.md`
    * for AI agents to read FIRST. Caller is responsible for generating
-   * via `@factstack/core`'s `buildMemory(agent, human)`. We accept a
-   * pre-built string so this serializer stays source-agnostic.
+   * via `@factstack/core`'s `buildMemory(agent, human)`.
    */
   memoryBody?: string;
 }
 
+/**
+ * Node-tier writer entry point. Preserved surface from pre-deepening
+ * — every CLI call site is unchanged.
+ */
 export async function writeArtifacts(opts: WriteOptions): Promise<{
   agentPath: string;
   humanPath: string;
   jsonlPath: string | null;
-  /** v0.3.10: PACK-format artifact for AI agents. ~50-80% byte
-   *  reduction vs agent.json on tabular data. */
   packPath: string;
   snapshotPath: string | null;
   memoryPath: string | null;
   bytesWritten: number;
 }> {
-  // Validate up front; throws a useful error if the shape drifted.
-  AgentArtifactSchema.parse(opts.agent);
-  HumanArtifactSchema.parse(opts.human);
+  const writer = new NodeFileWriter(opts.root);
+  /* Conditional-spread because exactOptionalPropertyTypes rejects
+     `{ key: undefined }` — the orchestrator's options must either
+     have the key set to a real value or not have the key at all. */
+  const result = await writeArtifactsTo(writer, opts.agent, opts.human, {
+    ...(opts.streamable !== undefined && { streamable: opts.streamable }),
+    ...(opts.writeSnapshot !== undefined && { writeSnapshot: opts.writeSnapshot }),
+    ...(opts.snapshotRetention !== undefined && { snapshotRetention: opts.snapshotRetention }),
+    ...(opts.memoryBody !== undefined && { memoryBody: opts.memoryBody }),
+  });
 
-  const dir = path.join(opts.root, '.facts');
-  await fs.mkdir(dir, { recursive: true });
-
-  const agentPath = path.join(dir, 'agent.json');
-  const humanPath = path.join(dir, 'human.json');
-  const jsonlPath = (opts.streamable ?? true) ? path.join(dir, 'agent.jsonl') : null;
-  const packPath = path.join(dir, 'agent.pack');
-
-  const agentBody = JSON.stringify(opts.agent, null, 2);
-  const humanBody = JSON.stringify(opts.human, null, 2);
-  /* v0.3.10 — also encode the agent artifact as FactsPack. The pack
-     is the AI-agent surface; agent.json continues to ship for one
-     deprecation cycle (per the v0.3.10 PRD migration plan) so existing
-     readers don't break. The two files are derived from the SAME
-     in-memory artifact — no two-source-of-truth drift possible. */
-  const packBody = encodeAgentPack(opts.agent);
-
-  let bytes = 0;
-  await fs.writeFile(agentPath, agentBody);
-  bytes += Buffer.byteLength(agentBody);
-  await fs.writeFile(humanPath, humanBody);
-  bytes += Buffer.byteLength(humanBody);
-  await fs.writeFile(packPath, packBody);
-  bytes += Buffer.byteLength(packBody);
-
-  if (jsonlPath) {
-    // One file per line for streamable consumption by LLMs on tight windows.
-    const lines = opts.agent.files.map((f) => JSON.stringify(f)).join('\n') + '\n';
-    await fs.writeFile(jsonlPath, lines);
-    bytes += Buffer.byteLength(lines);
-  }
-
-  // MEMORY.md — the v0.3.1 brief that agents read FIRST. Written when
-  // caller provides `memoryBody` (CLI does this every analyze).
-  let memoryPath: string | null = null;
-  if (typeof opts.memoryBody === 'string' && opts.memoryBody.length > 0) {
-    memoryPath = path.join(dir, 'MEMORY.md');
-    await fs.writeFile(memoryPath, opts.memoryBody);
-    bytes += Buffer.byteLength(opts.memoryBody);
-  }
-
-  let snapshotPath: string | null = null;
-  if (opts.writeSnapshot ?? false) {
-    const snapDir = path.join(dir, 'snapshots');
-    await fs.mkdir(snapDir, { recursive: true });
-    // Millisecond-resolution ISO + exclusive-create retry: two analyses
-    // triggered in the same millisecond (rare, but `/api/reanalyze` on a
-    // fast loopback can do it) get unique filenames instead of a silent
-    // overwrite. Format: 2026-04-22T14-23-07-123Z.json — lexi-sort = chrono.
-    const body = JSON.stringify({
-      at: opts.human.generatedAt,
-      stats: opts.agent.stats,
-      risks: opts.agent.risks.length,
-      broken: opts.human.summary.health.broken,
-      stale: opts.human.summary.health.stale,
-      todos: opts.human.summary.health.todos,
-      secrets: opts.human.summary.health.secrets,
-    }, null, 2);
-    const baseStamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 23);
-    for (let suffix = 0; suffix < 1000; suffix++) {
-      const name = suffix === 0 ? `${baseStamp}Z.json` : `${baseStamp}Z-${suffix}.json`;
-      const candidate = path.join(snapDir, name);
-      try {
-        await fs.writeFile(candidate, body, { flag: 'wx' });
-        snapshotPath = candidate;
-        break;
-      } catch (err) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'EEXIST') throw err;
-        // else: collision — bump suffix and retry.
-      }
-    }
-    if (snapshotPath) bytes += Buffer.byteLength(body);
-
-    // Retention: keep the N most recent snapshots so `factstack watch`
-    // doesn't accumulate hundreds of files in `.facts/snapshots/`.
-    // Default 50; configurable via `WriteOptions.snapshotRetention`.
-    // Lexical sort = chrono sort because filenames are ISO timestamps.
-    // 0 disables retention (keep everything).
-    const keep = opts.snapshotRetention ?? 50;
-    if (keep > 0) {
-      try {
-        const all = (await fs.readdir(snapDir))
-          .filter((n) => n.endsWith('.json'))
-          .sort();
-        if (all.length > keep) {
-          const drop = all.slice(0, all.length - keep);
-          await Promise.all(drop.map((n) => fs.unlink(path.join(snapDir, n)).catch(() => undefined)));
-        }
-      } catch { /* readdir failures are non-fatal — snapshots still written */ }
-    }
-  }
-
+  /* Node-only extra: auto-add `.facts/` to .gitignore so artifacts
+     don't leak into commits. Lives here (not in the orchestrator)
+     because the browser side never touches any gitignore — the user
+     picks the destination directory themselves and owns its content. */
   if (opts.addGitignoreEntry ?? true) {
     await ensureGitignoreEntry(opts.root);
   }
 
-  return { agentPath, humanPath, jsonlPath, packPath, snapshotPath, memoryPath, bytesWritten: bytes };
+  /* Re-expand names to absolute paths for backward compat with
+     existing CLI summary output (`✓ .facts/agent.json` etc.). The
+     orchestrator returns just names; the shim resolves them through
+     the writer's known root. */
+  const root = writer.artifactRoot;
+  return {
+    agentPath: path.join(root, result.agentName),
+    humanPath: path.join(root, result.humanName),
+    jsonlPath: result.jsonlName ? path.join(root, result.jsonlName) : null,
+    packPath: path.join(root, result.packName),
+    memoryPath: result.memoryName ? path.join(root, result.memoryName) : null,
+    snapshotPath: result.snapshotName
+      ? path.join(root, 'snapshots', result.snapshotName)
+      : null,
+    bytesWritten: result.bytesWritten,
+  };
 }
 
 /**
- * Read the snapshot sidecar (`.facts/snapshots/*.json`) into memory so
- * the History tab can plot a sparkline. Returns empty array if absent
- * or on read errors (History shows its empty state).
+ * Read the snapshot sidecar (`.facts/snapshots/*.json`) into memory
+ * so the History tab can plot a sparkline. Returns empty array if
+ * absent or on read errors (History shows its empty state).
+ *
+ * Note: Node-only. The browser-side equivalent is `readBrowserSnapshots`
+ * in `@factstack/emit-browser`. Both reads are CURRENTLY duplicated
+ * (different filesystem layers, same loop shape). A future `FileReader`
+ * interface would let us deepen this the same way `FileWriter` did
+ * for the write path — tracked in CONTEXT.md.
  */
 export async function readSnapshots(root: string): Promise<Array<{
   at: string;
@@ -201,6 +151,14 @@ export async function readSnapshots(root: string): Promise<Array<{
   return out;
 }
 
+/**
+ * Idempotent .gitignore append for `.facts/`. The regex anchor on
+ * `^\.facts\/?\s*$` matches both `.facts/` and `.facts` so we don't
+ * duplicate when either form is already present.
+ *
+ * Node-only — kept here (not in the orchestrator) per CONTEXT.md's
+ * "adapter-specific extras stay on the adapter side" principle.
+ */
 async function ensureGitignoreEntry(root: string): Promise<void> {
   const giPath = path.join(root, '.gitignore');
   let existing = '';

@@ -1,17 +1,22 @@
 import { describe, expect, it, beforeEach, afterEach } from 'vitest';
 import { writeArtifacts, readSnapshots } from '../src/write.js';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
-import { mkdtempSync, rmSync, readFileSync, existsSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 /**
- * Tests for `writeArtifacts` + `readSnapshots`. Validates:
- *   - artifacts written to .facts/ with correct shape
- *   - .gitignore auto-add on first run
- *   - snapshot retention cap
- *   - millisecond-resolution filenames + collision retry
- *   - JSONL streamable companion
+ * Tests for the Node-tier writeArtifacts shim. After the orchestrator
+ * deepening (CONTEXT.md "Write tier"), this file covers ONLY the
+ * Node-specific outer ring:
+ *
+ *   - .gitignore append (Node-only — browser writers don't manage gitignore)
+ *   - readSnapshots (Node-only function reading sidecars back from disk)
+ *
+ * The 16 tests for write semantics (file presence, JSONL toggle, schema
+ * validation, snapshot retention, MEMORY.md handling) moved to
+ * `orchestrator.test.ts` where they run against the in-memory
+ * MemoryFileWriter — no temp dirs, microseconds per test.
  */
 
 let tmp: string;
@@ -38,6 +43,7 @@ function makeAgent(): AgentArtifact {
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
   } as AgentArtifact;
 }
+
 function makeHuman(): HumanArtifact {
   return {
     $schema: 'https://factstack.dev/schema/human.v1.json',
@@ -53,35 +59,7 @@ function makeHuman(): HumanArtifact {
   } as HumanArtifact;
 }
 
-describe('writeArtifacts — basic write', () => {
-  it('writes agent.json + human.json + agent.jsonl', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
-    expect(existsSync(r.agentPath)).toBe(true);
-    expect(existsSync(r.humanPath)).toBe(true);
-    expect(existsSync(r.jsonlPath!)).toBe(true);
-    expect(r.bytesWritten).toBeGreaterThan(0);
-  });
-
-  it('skips JSONL when streamable: false', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), streamable: false });
-    expect(r.jsonlPath).toBeNull();
-  });
-
-  it('produces parseable JSON', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
-    expect(() => JSON.parse(readFileSync(r.agentPath, 'utf8'))).not.toThrow();
-    expect(() => JSON.parse(readFileSync(r.humanPath, 'utf8'))).not.toThrow();
-  });
-
-  it('validates agent against the schema (rejects malformed)', async () => {
-    const bad = makeAgent();
-    // Invalid: stats.loc must be non-negative integer
-    (bad as any).stats.loc = -1;
-    await expect(writeArtifacts({ root: tmp, agent: bad, human: makeHuman() })).rejects.toThrow();
-  });
-});
-
-describe('writeArtifacts — .gitignore management', () => {
+describe('writeArtifacts — .gitignore management (Node shim)', () => {
   it('creates .gitignore + adds .facts/ entry on first run', async () => {
     await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
     const gi = readFileSync(join(tmp, '.gitignore'), 'utf8');
@@ -102,106 +80,7 @@ describe('writeArtifacts — .gitignore management', () => {
   });
 });
 
-describe('writeArtifacts — snapshots', () => {
-  it('does not write snapshots by default', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
-    expect(r.snapshotPath).toBeNull();
-  });
-
-  it('writes a snapshot when writeSnapshot: true', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
-    expect(r.snapshotPath).not.toBeNull();
-    expect(existsSync(r.snapshotPath!)).toBe(true);
-  });
-
-  it('retains only the N most recent snapshots (default 50)', async () => {
-    // Hand-write 55 snapshots, then write one more — should leave 50.
-    const snapDir = join(tmp, '.facts', 'snapshots');
-    const { mkdirSync, writeFileSync } = await import('node:fs');
-    mkdirSync(snapDir, { recursive: true });
-    for (let i = 0; i < 55; i++) {
-      const t = new Date(Date.now() - (55 - i) * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 23);
-      writeFileSync(join(snapDir, `${t}Z.json`), '{}');
-    }
-    expect(readdirSync(snapDir).length).toBe(55);
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
-    const after = readdirSync(snapDir).filter((n) => n.endsWith('.json'));
-    expect(after.length).toBe(50);
-  });
-
-  it('configurable retention via snapshotRetention', async () => {
-    const snapDir = join(tmp, '.facts', 'snapshots');
-    const { mkdirSync, writeFileSync } = await import('node:fs');
-    mkdirSync(snapDir, { recursive: true });
-    for (let i = 0; i < 8; i++) {
-      const t = new Date(Date.now() - (8 - i) * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 23);
-      writeFileSync(join(snapDir, `${t}Z.json`), '{}');
-    }
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true, snapshotRetention: 5 });
-    const after = readdirSync(snapDir).filter((n) => n.endsWith('.json'));
-    expect(after.length).toBe(5);
-  });
-
-  it('snapshotRetention: 0 disables retention', async () => {
-    const snapDir = join(tmp, '.facts', 'snapshots');
-    const { mkdirSync, writeFileSync } = await import('node:fs');
-    mkdirSync(snapDir, { recursive: true });
-    for (let i = 0; i < 60; i++) {
-      const t = new Date(Date.now() - (60 - i) * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 23);
-      writeFileSync(join(snapDir, `${t}Z.json`), '{}');
-    }
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true, snapshotRetention: 0 });
-    const after = readdirSync(snapDir).filter((n) => n.endsWith('.json'));
-    expect(after.length).toBe(61); // 60 prior + 1 new, none dropped
-  });
-});
-
-describe('writeArtifacts — MEMORY.md persistence (v0.3.1)', () => {
-  it('does not write MEMORY.md when memoryBody is omitted', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
-    expect(r.memoryPath).toBeNull();
-    expect(existsSync(join(tmp, '.facts', 'MEMORY.md'))).toBe(false);
-  });
-
-  it('does not write MEMORY.md when memoryBody is the empty string', async () => {
-    // Defensive: empty string is meaningful — caller chose to render
-    // nothing. Treat it the same as omission.
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: '' });
-    expect(r.memoryPath).toBeNull();
-    expect(existsSync(join(tmp, '.facts', 'MEMORY.md'))).toBe(false);
-  });
-
-  it('writes MEMORY.md when memoryBody is provided', async () => {
-    const body = '# test\n\n> hello\n';
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: body });
-    expect(r.memoryPath).not.toBeNull();
-    expect(existsSync(r.memoryPath!)).toBe(true);
-    expect(readFileSync(r.memoryPath!, 'utf8')).toBe(body);
-  });
-
-  it('writes MEMORY.md to .facts/MEMORY.md (canonical path)', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: '# x\n' });
-    expect(r.memoryPath).toBe(join(tmp, '.facts', 'MEMORY.md'));
-  });
-
-  it('overwrites an existing MEMORY.md atomically (not appended)', async () => {
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: 'old content\n' });
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: 'new content\n' });
-    const finalText = readFileSync(join(tmp, '.facts', 'MEMORY.md'), 'utf8');
-    expect(finalText).toBe('new content\n');
-    expect(finalText).not.toContain('old content');
-  });
-
-  it('counts the MEMORY.md bytes in bytesWritten', async () => {
-    const body = 'x'.repeat(123);
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), memoryBody: body });
-    // Agent + human (validated JSON) + jsonl + memory body. The minimum
-    // floor is the body length itself.
-    expect(r.bytesWritten).toBeGreaterThanOrEqual(123);
-  });
-});
-
-describe('readSnapshots', () => {
+describe('readSnapshots (Node-only sidecar reader)', () => {
   it('returns empty for a project with no snapshots', async () => {
     const snaps = await readSnapshots(tmp);
     expect(snaps).toEqual([]);
@@ -228,5 +107,25 @@ describe('readSnapshots', () => {
     writeFileSync(join(snapDir, '2026-01-01T00-00-00-000Z.json'), '{ invalid json');
     const snaps = await readSnapshots(tmp);
     expect(snaps).toEqual([]);
+  });
+});
+
+describe('writeArtifacts — return-shape parity (Node shim)', () => {
+  /* These 2 tests live in the Node shim because they exercise the
+     name→path expansion that the shim adds on top of the orchestrator's
+     name-only result. Equivalent assertions in orchestrator.test.ts
+     check only the names. */
+  it('returns absolute paths under <root>/.facts/', async () => {
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman() });
+    expect(r.agentPath).toBe(join(tmp, '.facts', 'agent.json'));
+    expect(r.humanPath).toBe(join(tmp, '.facts', 'human.json'));
+    expect(r.packPath).toBe(join(tmp, '.facts', 'agent.pack'));
+  });
+
+  it('includes the snapshot under snapshots/ when written', async () => {
+    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
+    expect(r.snapshotPath).not.toBeNull();
+    expect(r.snapshotPath!).toMatch(/[/\\]snapshots[/\\]/);
+    expect(existsSync(r.snapshotPath!)).toBe(true);
   });
 });

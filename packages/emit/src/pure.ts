@@ -20,3 +20,8 @@
 export { encodeAgentPack } from './pack.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
+export { writeArtifactsTo } from './orchestrator.js';
+export type {
+  WriteArtifactsToOptions,
+  WriteArtifactsResult,
+} from './orchestrator.js';
