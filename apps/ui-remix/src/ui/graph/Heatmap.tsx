@@ -29,6 +29,8 @@ interface HeatmapProps {
   data: HeatmapResult;
 }
 
+const HEATMAP_HINT = 'Rows import columns; darker = more.';
+
 /* ─────────── styles ─────────── */
 
 const wrap = css({
@@ -142,7 +144,7 @@ export function Heatmap(_h: Handle<HeatmapProps>) {
       n === 0 ? 0 : Math.log10(n + 1) / logMax;
 
     return (
-      <div mix={wrap}>
+      <div mix={wrap} title={HEATMAP_HINT}>
         <div mix={[matrix, css({ gridTemplateColumns: `160px repeat(${folders.length}, minmax(44px, 1fr))` })]}>
           <div mix={corner} />
           {folders.map((f) => (

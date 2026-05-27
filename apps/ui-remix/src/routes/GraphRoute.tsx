@@ -160,6 +160,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
   let granularity: Granularity = 'files';
   let showAll = false;
   let zoomedOrPanned = false;
+  
+  /* Neo-DAG style mode: classic or neo */
+  let styleMode: 'classic' | 'neo' = 'neo';
+  if (typeof localStorage !== 'undefined') {
+    const s = localStorage.getItem('factstack:graph-style-mode');
+    if (s === 'classic' || s === 'neo') styleMode = s;
+  }
+
   /* Imperative reset handle that the SugiyamaDag exposes to us via
      the resetSink prop. We call this from the DagControls Reset
      button. Set on first SugiyamaDag mount; survives across renders. */
@@ -178,6 +186,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
        layout-change too, but flipping the local flag here syncs the
        Reset button's enabled state. */
     zoomedOrPanned = false;
+    void handle.update();
+  }
+  function setStyleMode(next: 'classic' | 'neo') {
+    if (next === styleMode) return;
+    styleMode = next;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('factstack:graph-style-mode', next);
+    }
     void handle.update();
   }
   function setShowAll(next: boolean) {
@@ -358,12 +374,15 @@ export function GraphRoute(handle: Handle<GraphProps>) {
                 totalNodes={nodes.length}
                 zoomedOrPanned={zoomedOrPanned}
                 onResetZoom={triggerReset}
+                styleMode={styleMode}
+                onStyleModeChange={setStyleMode}
               />
               <SugiyamaDag
                 layout={sugiyamaLayout}
                 totalNodeCount={nodes.length}
                 resetSink={captureResetApi}
                 onTransformChange={setZoomedOrPanned}
+                styleMode={styleMode}
               />
             </Section>
           )}

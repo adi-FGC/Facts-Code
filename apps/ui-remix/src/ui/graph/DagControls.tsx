@@ -42,6 +42,9 @@ interface DagControlsProps {
 
   zoomedOrPanned: boolean;
   onResetZoom: () => void;
+
+  styleMode: 'classic' | 'neo';
+  onStyleModeChange: (next: 'classic' | 'neo') => void;
 }
 
 /* ─────────── styles ─────────── */
@@ -147,6 +150,8 @@ export function DagControls(_h: Handle<DagControlsProps>) {
       totalNodes,
       zoomedOrPanned,
       onResetZoom,
+      styleMode,
+      onStyleModeChange,
     } = props;
 
     /* "Show all" makes no sense when totalNodes ≤ nodeCap — disable
@@ -155,6 +160,26 @@ export function DagControls(_h: Handle<DagControlsProps>) {
 
     return (
       <div mix={wrap} role="toolbar" aria-label="Diagram controls">
+        {/* Style selection: Classic | Neo */}
+        <div mix={group}>
+          <button
+            type="button"
+            aria-pressed={styleMode === 'classic' ? 'true' : 'false'}
+            title="Monochrome, hairline borders, no arrowheads"
+            mix={[segment, styleMode === 'classic' ? segmentActive : null, on('click', () => {
+              if (styleMode !== 'classic') onStyleModeChange('classic');
+            })]}
+          >Classic</button>
+          <button
+            type="button"
+            aria-pressed={styleMode === 'neo' ? 'true' : 'false'}
+            title="Dynamic color-coded imports/exports, arrowheads, and horizontal guide lines"
+            mix={[segment, styleMode === 'neo' ? segmentActive : null, on('click', () => {
+              if (styleMode !== 'neo') onStyleModeChange('neo');
+            })]}
+          >Neo-DAG</button>
+        </div>
+
         {/* Granularity: Files | Symbols */}
         <div mix={group}>
           <button

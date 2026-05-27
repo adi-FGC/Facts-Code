@@ -78,7 +78,10 @@ interface SugiyamaDagProps {
   /** Notify parent when zoom/pan state changes (for the Reset button's
    *  enabled state). */
   onTransformChange?: (zoomedOrPanned: boolean) => void;
+  /** Styling mode toggle */
+  styleMode?: 'classic' | 'neo';
 }
+
 
 /* ─────────── motion (entrance choreography) ─────────── */
 
@@ -151,23 +154,45 @@ const svg = css({
   touchAction: 'none',
   transition: 'opacity var(--dur-quick) var(--ease-out-quart)',
 
+  /* Neo-DAG color variables and overrides */
+  '--neo-import': 'oklch(78% 0.16 142)',
+  '--neo-export': 'oklch(74% 0.15 238)',
+  '--neo-guide': 'var(--border-thin, var(--border))',
+
+  /* Light theme overrides */
+  ':global([data-theme="light"]) &': {
+    '--neo-import': 'oklch(62% 0.15 142)',
+    '--neo-export': 'oklch(58% 0.16 238)',
+  },
+
   /* Hover edge-highlight: when the SVG root has [data-hover-id], all
      paths dim to a faint trace. The mouseover delegation also marks
      incident paths with data-incident=""; the more-specific selector
-     below brightens those. The split (CSS for dim, JS-marker for
-     incident) is necessary because CSS attribute selectors can't
-     reference dynamic values — we can't write `path[data-from=$id]`
-     where $id changes per hover. The JS just adds/removes one
-     attribute per incident edge, which is fast on the ≤60-node
-     diagrams we render by default. */
+     below brightens those. */
   '&[data-hover-id] path': {
     transition: 'stroke var(--dur-quick) var(--ease-out-quart), stroke-opacity var(--dur-quick) var(--ease-out-quart), stroke-width var(--dur-quick) var(--ease-out-quart)',
     strokeOpacity: '0.10',
   },
-  '&[data-hover-id] path[data-incident]': {
+  /* For Classic mode incident edge hover: stroke is var(--accent) */
+  '&:not([data-style-mode="neo"])[data-hover-id] path[data-incident]': {
     stroke: 'var(--accent)',
     strokeOpacity: '1',
     strokeWidth: '1.5',
+  },
+  /* For Neo mode incident edge hover: keep its color but bump thickness and opacity */
+  '&[data-style-mode="neo"][data-hover-id] path[data-incident]': {
+    strokeOpacity: '1',
+    strokeWidth: '2.5',
+  },
+
+  /* Node Hover Highlight & Dimming: when hovering, dim all nodes by default... */
+  '&[data-hover-id] a[data-node-id]': {
+    opacity: '0.25',
+    transition: 'opacity var(--dur-quick) var(--ease-out-quart)',
+  },
+  /* ...except the hovered node and its direct connections! */
+  '&[data-hover-id] a[data-node-id][data-incident]': {
+    opacity: '1',
   },
 });
 
@@ -187,13 +212,23 @@ const transformGroup = css({
 const nodeGroup = css({
   cursor: 'pointer',
   '> rect': {
-    transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
+    transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart), transform var(--dur-quick) var(--ease-out-quart)',
   },
-  '&:hover > rect': {
+  /* Classic Hover */
+  'svg:not([data-style-mode="neo"]) &:hover > rect': {
     fill: 'var(--accent-soft)',
     stroke: 'var(--accent)',
   },
-  '&:hover > text': {
+  'svg:not([data-style-mode="neo"]) &:hover > text': {
+    fill: 'var(--accent)',
+  },
+  /* Neo-DAG Hover */
+  'svg[data-style-mode="neo"] &:hover > rect': {
+    fill: 'var(--accent-soft)',
+    stroke: 'var(--accent)',
+    transform: 'scale(1.02)',
+  },
+  'svg[data-style-mode="neo"] &:hover > text': {
     fill: 'var(--accent)',
   },
   /* No native CSS for "show me when alt is held" — surfaced via the
@@ -205,6 +240,7 @@ const nodeGroup = css({
   transformBox: 'fill-box',
   transformOrigin: 'center',
 });
+
 
 const edgeLayer = css({
   animation: 'sugiyama-edge-draw 320ms var(--ease-out-quart) both',
@@ -610,6 +646,9 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     for (const el of svgEl.querySelectorAll('path[data-incident]')) {
       el.removeAttribute('data-incident');
     }
+    for (const el of svgEl.querySelectorAll('a[data-incident]')) {
+      el.removeAttribute('data-incident');
+    }
     if (!id) return;
     /* Escape quotes/backslashes for the attribute selector. File paths
        can include odd characters in worst-case repos. CSS.escape is
@@ -617,10 +656,30 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
       ? CSS.escape(id)
       : id.replace(/(["\\])/g, '\\$1');
-    for (const el of svgEl.querySelectorAll(
+
+    // Add data-incident="hovered" to the hovered node itself
+    const hoveredNode = svgEl.querySelector(`a[data-node-id="${esc}"]`);
+    if (hoveredNode) hoveredNode.setAttribute('data-incident', 'hovered');
+
+    const incidentEdges = svgEl.querySelectorAll(
       `path[data-from="${esc}"], path[data-to="${esc}"]`,
-    )) {
+    );
+    for (const el of incidentEdges) {
       el.setAttribute('data-incident', '');
+
+      // Mark the connected nodes at the other end of these edges
+      const fromId = el.getAttribute('data-from');
+      const toId = el.getAttribute('data-to');
+      const otherId = fromId === id ? toId : fromId;
+      if (otherId) {
+        const otherEsc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+          ? CSS.escape(otherId)
+          : otherId.replace(/(["\\])/g, '\\$1');
+        const otherNode = svgEl.querySelector(`a[data-node-id="${otherEsc}"]`);
+        if (otherNode) {
+          otherNode.setAttribute('data-incident', 'connected');
+        }
+      }
     }
   }
 
@@ -687,6 +746,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     layerGap = 60,
     laneGap = 14,
     showLabels: showLabelsProp,
+    styleMode = 'neo',
   }: SugiyamaDagProps) => {
     exposeIfNeeded();
     /* Layout-change reset: zoom and pan don't make sense across
@@ -758,6 +818,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
           </span>
         </div>
         <svg
+          data-style-mode={styleMode}
           mix={[
             svg,
             ref<SVGSVGElement>(attachNativeListeners),
@@ -772,6 +833,34 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
           role="img"
           aria-label={`Layered dependency diagram with ${layout.nodes.size} nodes across ${layout.layerCount} layers`}
         >
+          {/* Inject marker definitions for Neo-DAG arrows */}
+          {styleMode === 'neo' && (
+            <defs>
+              <marker
+                id="arrow-in"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--neo-import)" />
+              </marker>
+              <marker
+                id="arrow-out"
+                viewBox="0 0 10 10"
+                refX="8"
+                refY="5"
+                markerWidth="5"
+                markerHeight="5"
+                orient="auto-start-reverse"
+              >
+                <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--neo-export)" />
+              </marker>
+            </defs>
+          )}
+
           {/* Transform group — pan + zoom mutate its `transform`
               attribute directly via the SVG ref. Bypasses the VDOM so
               60fps wheel/touch events don't trigger re-renders of the
@@ -786,6 +875,50 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
               }),
             ]}
           >
+            {/* Architectural dashed guide lines and layer labels for Neo mode */}
+            {styleMode === 'neo' && (
+              <g aria-hidden="true">
+                {Array.from({ length: layout.layerCount }).map((_, L) => {
+                  const baselineY = padding + L * (nodeHeight + layerGap) + nodeHeight / 2;
+                  
+                  // Label naming depending on the layer
+                  let label = `L${L}`;
+                  if (L === 0) label = 'L0 · Entry';
+                  else if (L === 1) label = 'L1 · Routes';
+                  else if (L === 2) label = 'L2 · Core Logic';
+                  else if (L === 3) label = 'L3 · Infra Client';
+                  else label = `L${L} · Layer`;
+
+                  return (
+                    <g key={L}>
+                      <line
+                        x1={padding}
+                        y1={baselineY}
+                        x2={svgWidth - padding}
+                        y2={baselineY}
+                        stroke="var(--neo-guide)"
+                        stroke-dasharray="4 4"
+                        stroke-opacity="0.4"
+                        stroke-width="1"
+                      />
+                      <text
+                        x={padding}
+                        y={baselineY - 8}
+                        fill="var(--fg-faint, var(--text-subtle))"
+                        font-family="var(--font-mono)"
+                        font-size="9px"
+                        font-weight="600"
+                        letter-spacing="0.05em"
+                        style="pointer-events: none; text-transform: uppercase;"
+                      >
+                        {label}
+                      </text>
+                    </g>
+                  );
+                })}
+              </g>
+            )}
+
             {/* Edges first so nodes paint on top. The data-from /
                 data-to attributes drive the hover-edge-highlight CSS. */}
             <g aria-hidden="true" mix={[edgeLayer, edgeHighlightStyle]}>
@@ -793,14 +926,30 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                 const from = layout.nodes.get(e.from);
                 const to = layout.nodes.get(e.to);
                 if (!from || !to) return null;
+
+                const isNeo = styleMode === 'neo';
+                const isExport = from.layer === 0;
+
+                const strokeColor = isNeo
+                  ? (isExport ? 'var(--neo-export)' : 'var(--neo-import)')
+                  : 'var(--border-strong, var(--border))';
+
+                const strokeWidth = isNeo ? '1.5' : '1';
+                const strokeOpacity = isNeo ? '0.75' : (e.long ? '0.32' : '0.55');
+
+                const markerEnd = isNeo
+                  ? (isExport ? 'url(#arrow-out)' : 'url(#arrow-in)')
+                  : undefined;
+
                 return (
                   <path
                     key={i}
                     d={edgePath(from, to)}
                     fill="none"
-                    stroke="var(--border-strong, var(--border))"
-                    stroke-width="1"
-                    stroke-opacity={e.long ? '0.32' : '0.55'}
+                    stroke={strokeColor}
+                    stroke-width={strokeWidth}
+                    stroke-opacity={strokeOpacity}
+                    marker-end={markerEnd}
                     data-from={e.from}
                     data-to={e.to}
                   />
@@ -838,6 +987,8 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                       y={y}
                       width={nodeWidth}
                       height={nodeHeight}
+                      rx={styleMode === 'neo' ? 4 : 0}
+                      ry={styleMode === 'neo' ? 4 : 0}
                       fill="var(--bg)"
                       stroke={nodeOffsets.has(n.id) ? 'var(--accent)' : 'var(--border)'}
                       stroke-width="1"
