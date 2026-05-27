@@ -65,10 +65,11 @@ async function seedSnapshots(w: MemoryFileWriter, count: number): Promise<void> 
 }
 
 describe('writeArtifactsTo — basic write', () => {
-  it('writes agent.json + human.json + agent.jsonl', async () => {
+  it('writes the default artifact set', async () => {
     const r = await writeArtifactsTo(writer, makeAgent(), makeHuman());
     expect(writer.has('agent.json')).toBe(true);
     expect(writer.has('human.json')).toBe(true);
+    expect(writer.has('agent.pack')).toBe(true);
     expect(writer.has('agent.jsonl')).toBe(true);
     expect(r.bytesWritten).toBeGreaterThan(0);
   });
@@ -155,12 +156,8 @@ describe('writeArtifactsTo — MEMORY.md', () => {
     const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { memoryBody: body });
     expect(r.memoryName).toBe('MEMORY.md');
     expect(writer.get('MEMORY.md')).toBe(body);
-  });
-
-  it('writes MEMORY.md to the canonical relative path', async () => {
     // The orchestrator never knows about `.facts/` — that prefix is
     // adapter-internal. So we assert on the bare name.
-    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { memoryBody: '# x\n' });
     expect(r.memoryName).toBe('MEMORY.md');
   });
 
@@ -175,8 +172,6 @@ describe('writeArtifactsTo — MEMORY.md', () => {
   it('counts the MEMORY.md bytes in bytesWritten', async () => {
     const body = 'x'.repeat(123);
     const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { memoryBody: body });
-    // Agent + human (validated JSON) + jsonl + memory body. The minimum
-    // floor is the body length itself.
-    expect(r.bytesWritten).toBeGreaterThanOrEqual(123);
+    expect(r.bytesWritten).toBe(writer.totalBytes());
   });
 });

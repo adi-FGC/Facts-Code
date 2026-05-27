@@ -13,9 +13,9 @@ import { join } from 'node:path';
  *   - .gitignore append (Node-only — browser writers don't manage gitignore)
  *   - readSnapshots (Node-only function reading sidecars back from disk)
  *
- * The 16 tests for write semantics (file presence, JSONL toggle, schema
- * validation, snapshot retention, MEMORY.md handling) moved to
- * `orchestrator.test.ts` where they run against the in-memory
+ * The write-semantics tests (file presence, JSONL toggle, schema
+ * validation, snapshot retention, MEMORY.md handling, PACK emission)
+ * live in `orchestrator.test.ts` where they run against the in-memory
  * MemoryFileWriter — no temp dirs, microseconds per test.
  */
 
