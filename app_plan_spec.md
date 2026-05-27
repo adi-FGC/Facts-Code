@@ -1,4 +1,4 @@
-# FACTS — AI Coding Tracker Stack
+# FACTS — Fun AI Coding Tools
 
 **CXO-Grade Static Code Analyzer — Product & Engineering Plan (v0.1.0-alpha)**
 

@@ -1,6 +1,6 @@
 # FactsPack (`.pack`) — Specification
 
-> Canonical spec for the FactsPack wire format used by the Fast AI Coding
+> Canonical spec for the FactsPack wire format used by the Fun AI Coding
 > Tools (FACTs) OS. Status: design-locked, implementation scheduled in
 > **`docs/PLAN.md → Up next #1`**. Schema version: `1`. Last revised: 2026-04-24.
 

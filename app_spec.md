@@ -8,7 +8,7 @@ This document answers **"what does FACTS do?"** `design_spec.md` answers "what d
 
 ## 1. Mission
 
-FACTS (File Analysis & Context Tracking Stack) produces two artifacts from one analysis pass of any code project:
+FACTS (Fun AI Coding Tools) produces two artifacts from one analysis pass of any code project:
 
 1. An **AI-agent-optimized codebase map** (`agent.json` / `agent.jsonl` / `index.db`) so coding agents can reason about the repo without re-reading every file.
 2. A **CXO-readable executive dashboard** (`human.json` + WebUI) so CTOs, CPOs, investors, and other non-coding stakeholders can understand what a codebase does, what it's made of, and where its risks sit — without a developer walking them through it.

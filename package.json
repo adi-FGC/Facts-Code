@@ -2,7 +2,7 @@
   "name": "factstack",
   "version": "0.1.0",
   "private": true,
-  "description": "FACTS — AI Coding Tracker Stack. A cross-platform static code analyzer emitting AI-agent-readable and CXO-readable artifacts from one analysis pass.",
+  "description": "FACTS — Fun AI Coding Tools. A cross-platform static code analyzer emitting AI-agent-readable and CXO-readable artifacts from one analysis pass.",
   "license": "UNLICENSED",
   "type": "module",
   "engines": {

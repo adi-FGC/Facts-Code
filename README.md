@@ -1,4 +1,4 @@
-# FACTS — File Analysis & Context Tracking Stack
+# FACTS — Fun AI Coding Tools
 
 > One analysis pass → two artifacts (an AI-agent-readable codebase map and a CXO-readable executive dashboard) plus a live MCP surface for AI coding agents.
 

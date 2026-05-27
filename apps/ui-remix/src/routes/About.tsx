@@ -134,7 +134,7 @@ export function About(_h: Handle<AboutProps>) {
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>About · v0.1 · Remix UI</div>
-          <h1 mix={headline}>FACTS — File Analysis &amp; Context Tracking Stack.</h1>
+          <h1 mix={headline}>FACTS — Fun AI Coding Tools.</h1>
           <p mix={lede}>
             One analysis pass produces two artifacts: a path-addressable
             codebase map for AI agents, and a CXO-readable dashboard for

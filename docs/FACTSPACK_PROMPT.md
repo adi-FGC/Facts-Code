@@ -150,7 +150,7 @@ these on top of an earlier snapshot.
 
 ## What is FACTs?
 
-PACK was created for **FACTs (Fast AI Coding Tools)** — a static-analysis +
+PACK was created for **FACTs (Fun AI Coding Tools)** — a static-analysis +
 indexing system that lets a developer or an AI agent understand any
 codebase. The `facts` CLI scans a repo, builds a SQLite index, and serves
 that index to AI agents over MCP/HTTP using PACK as the wire format for
