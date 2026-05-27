@@ -1,0 +1,989 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Roadmap — FACTS</title>
+  <meta name="description" content="Post-ship roadmap with persistent-checkbox todos. Path A (security tier deepening) before Path B (VS Code extension). Last updated 2026-05-26." />
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    /* ─────────── design tokens (mirror docs/handoff.html) ─────────── */
+    :root {
+      --bg:           #0B0D10;
+      --surface-1:    #14171C;
+      --surface-2:    #1B1F25;
+      --hairline:     rgba(230, 232, 234, 0.08);
+      --border:       rgba(230, 232, 234, 0.14);
+      --fg:           #E6E8EA;
+      --fg-muted:     rgba(230, 232, 234, 0.72);
+      --fg-faint:     rgba(230, 232, 234, 0.44);
+      --accent:       #7CC4FF;
+      --accent-soft:  rgba(124, 196, 255, 0.10);
+      --ok:           #6EE7A1;
+      --warn:         #FFC857;
+      --danger:       #FF8585;
+      --code-bg:      rgba(230, 232, 234, 0.04);
+      --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      --fs-10: 0.6875rem; --fs-11: 0.75rem; --fs-12: 0.8125rem;
+      --fs-13: 0.875rem;  --fs-14: 0.9375rem; --fs-16: 1rem;
+      --fs-20: 1.25rem;   --fs-24: 1.5rem;   --fs-32: 2rem;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #FAFAF8; --surface-1: #FFFFFF; --surface-2: #F2F2EE;
+        --hairline: rgba(11, 13, 16, 0.08); --border: rgba(11, 13, 16, 0.14);
+        --fg: #1A1D21; --fg-muted: rgba(26, 29, 33, 0.72); --fg-faint: rgba(26, 29, 33, 0.44);
+        --accent: #1A6FBF; --accent-soft: rgba(26, 111, 191, 0.08);
+        --code-bg: rgba(11, 13, 16, 0.04);
+      }
+    }
+
+    /* ─────────── reset + base ─────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: var(--font-body); font-size: var(--fs-14);
+      line-height: 1.6; font-feature-settings: 'cv11', 'ss01', 'ss03';
+      text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* ─────────── layout: sidebar TOC + content (shared shell) ─────────── */
+    .shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+    @media (min-width: 1024px) { .shell { grid-template-columns: 280px minmax(0, 1fr); } }
+
+    .toc {
+      position: sticky; top: 0; align-self: start;
+      max-height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--hairline);
+      padding: var(--space-5) var(--space-4);
+      background: color-mix(in oklab, var(--bg) 92%, var(--accent) 0%);
+    }
+    @media (max-width: 1023px) {
+      .toc { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--hairline); }
+    }
+    .toc__brand {
+      display: flex; align-items: baseline; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .toc__title {
+      font-family: var(--font-body); font-size: var(--fs-16);
+      font-weight: 600; letter-spacing: -0.01em;
+      color: var(--fg); margin: 0 0 var(--space-5) 0;
+    }
+    .toc__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+    .toc__list--nested { padding-left: var(--space-4); margin: var(--space-1) 0 var(--space-2) 0; }
+    .toc a {
+      display: block; padding: 4px var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.02em;
+      color: var(--fg-muted); text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart), background 120ms var(--ease-out-quart);
+    }
+    .toc a:hover { color: var(--fg); background: var(--accent-soft); }
+    .toc a.is-active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+    .toc__progress {
+      margin-top: var(--space-5); padding-top: var(--space-4);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      color: var(--fg-faint); letter-spacing: 0.08em;
+    }
+    .toc__progress-bar {
+      height: 2px; background: var(--hairline); position: relative;
+      margin-top: var(--space-2);
+    }
+    .toc__progress-fill {
+      position: absolute; inset: 0 auto 0 0;
+      background: var(--accent); width: 0%;
+      transition: width 220ms var(--ease-out-quart);
+    }
+
+    .content { padding: var(--space-7) clamp(var(--space-5), 5vw, var(--space-8)); max-width: 80ch; }
+
+    /* ─────────── typography (shared) ─────────── */
+    h1, h2, h3, h4 {
+      font-family: var(--font-body); font-weight: 600;
+      letter-spacing: -0.015em; line-height: 1.25;
+      color: var(--fg); scroll-margin-top: var(--space-5);
+    }
+    h1 { font-size: clamp(var(--fs-24), 4vw, var(--fs-32)); margin: 0 0 var(--space-3) 0; }
+    h2 {
+      font-size: var(--fs-20); margin: var(--space-7) 0 var(--space-3) 0;
+      padding-bottom: var(--space-2); border-bottom: 1px solid var(--hairline);
+    }
+    h3 { font-size: var(--fs-16); margin: var(--space-5) 0 var(--space-2) 0; color: var(--fg); }
+    h4 {
+      font-size: var(--fs-14); margin: var(--space-4) 0 var(--space-2) 0;
+      color: var(--fg-muted); font-family: var(--font-mono);
+      font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    p { margin: 0 0 var(--space-4) 0; color: var(--fg-muted); }
+    p strong, li strong { color: var(--fg); font-weight: 600; }
+
+    .kicker {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .lede {
+      font-size: var(--fs-16); line-height: 1.55;
+      color: var(--fg-muted); margin-bottom: var(--space-6); max-width: 64ch;
+    }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms var(--ease-out-quart); }
+    a:hover { border-bottom-color: var(--accent); }
+
+    code {
+      font-family: var(--font-mono); font-size: 0.9em;
+      background: var(--code-bg); color: var(--fg);
+      padding: 1px 5px; border-radius: 3px;
+    }
+
+    .meta {
+      display: flex; flex-wrap: wrap; gap: var(--space-3);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: var(--space-6);
+    }
+    .meta span { display: inline-flex; gap: var(--space-2); }
+    .meta strong { color: var(--fg-muted); font-weight: 500; }
+
+    .callout {
+      padding: var(--space-4); margin: 0 0 var(--space-5) 0;
+      border-left: 2px solid var(--accent);
+      border-top: 1px dashed var(--hairline);
+      border-right: 1px dashed var(--hairline);
+      border-bottom: 1px dashed var(--hairline);
+      background: color-mix(in oklab, var(--accent) 4%, transparent);
+      font-size: var(--fs-13); color: var(--fg-muted);
+    }
+    .callout--warn { border-left-color: var(--warn); background: color-mix(in oklab, var(--warn) 4%, transparent); }
+    .callout--ok   { border-left-color: var(--ok);   background: color-mix(in oklab, var(--ok)   4%, transparent); }
+    .callout__label {
+      display: inline-block; font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-1);
+    }
+    .callout--warn .callout__label { color: var(--warn); }
+    .callout--ok   .callout__label { color: var(--ok); }
+
+    /* ─────────── roadmap-specific: todos + status pills ─────────── */
+
+    .phase-meta {
+      display: flex; flex-wrap: wrap; gap: var(--space-4);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+      margin: var(--space-2) 0 var(--space-4) 0;
+    }
+    .phase-meta strong { color: var(--fg-muted); font-weight: 500; }
+
+    .todo-list {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--hairline);
+      margin: 0 0 var(--space-5) 0;
+    }
+    .todo {
+      display: grid;
+      grid-template-columns: 24px minmax(0, 1fr);
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--hairline);
+      align-items: start;
+      transition: background 120ms var(--ease-out-quart);
+    }
+    .todo:last-child { border-bottom: none; }
+    .todo:hover { background: var(--accent-soft); }
+    .todo[data-done="true"] { background: color-mix(in oklab, var(--ok) 3%, transparent); }
+    .todo[data-done="true"] .todo__title { text-decoration: line-through; color: var(--fg-faint); }
+    .todo[data-done="true"] .todo__body  { opacity: 0.55; }
+
+    .todo__check {
+      width: 16px; height: 16px;
+      margin-top: 4px;
+      cursor: pointer;
+      accent-color: var(--accent);
+    }
+    .todo__main { display: flex; flex-direction: column; gap: var(--space-2); }
+    .todo__title {
+      font-family: var(--font-mono); font-size: var(--fs-12);
+      color: var(--fg); letter-spacing: 0.01em; font-weight: 500;
+      cursor: pointer;
+    }
+    .todo__body {
+      font-family: var(--font-body); font-size: var(--fs-13);
+      color: var(--fg-muted); line-height: 1.55;
+    }
+    .todo__tags {
+      display: flex; flex-wrap: wrap; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--fg-faint);
+    }
+    .todo__tag {
+      padding: 1px 6px; border: 1px solid var(--hairline);
+      color: var(--fg-muted);
+    }
+    .todo__tag--effort-s { color: var(--ok);     border-color: var(--ok); }
+    .todo__tag--effort-m { color: var(--accent); border-color: var(--accent); }
+    .todo__tag--effort-l { color: var(--warn);   border-color: var(--warn); }
+    .todo__tag--priority { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .todo__tag--blocked  { color: var(--fg-faint); }
+    .todo__deps {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      color: var(--fg-faint); margin-top: 2px;
+    }
+
+    .phase-status {
+      display: inline-flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      padding: 2px 8px; margin-left: var(--space-2);
+      border: 1px solid var(--hairline);
+      color: var(--fg-muted);
+      vertical-align: middle;
+    }
+    .phase-status--now    { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .phase-status--next   { color: var(--warn);   border-color: var(--warn); }
+    .phase-status--later  { color: var(--fg-faint); }
+
+    .decision-card {
+      padding: var(--space-5);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      background: color-mix(in oklab, var(--accent) 6%, transparent);
+      margin: 0 0 var(--space-6) 0;
+      font-size: var(--fs-14);
+    }
+    .decision-card__label {
+      display: inline-block; font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .decision-card__headline {
+      font-family: var(--font-body); font-size: var(--fs-20); font-weight: 600;
+      color: var(--fg); margin-bottom: var(--space-3); letter-spacing: -0.01em;
+    }
+    .decision-card__body {
+      color: var(--fg-muted); line-height: 1.6;
+    }
+
+    .reset-btn {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      border: 1px solid var(--border); background: transparent;
+      color: var(--fg-faint); padding: 4px 10px;
+      cursor: pointer;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart);
+    }
+    .reset-btn:hover { color: var(--danger); border-color: var(--danger); }
+
+    .footer {
+      margin-top: var(--space-8); padding-top: var(--space-5);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="toc" aria-label="Table of contents">
+      <div class="toc__brand">FACTS · roadmap</div>
+      <p class="toc__title">Post-ship plan</p>
+      <ul class="toc__list">
+        <li><a href="#decision">Decision: A → B</a></li>
+        <li><a href="#phase-1">1 · Post-ship verify</a></li>
+        <li><a href="#phase-2a">2A · Security deepening <span style="color:var(--accent)">·now</span></a></li>
+        <li><a href="#phase-2b">2B · VS Code extension</a></li>
+        <li><a href="#phase-3">3 · Outstanding cleanup</a></li>
+        <li><a href="#phase-4">4 · Cross-cutting hygiene</a></li>
+        <li><a href="#phase-5">5 · Longer term</a></li>
+        <li><a href="#open">Open questions</a></li>
+      </ul>
+      <div class="toc__progress">
+        <div>Progress · <span id="progress-text">0 / 0</span></div>
+        <div class="toc__progress-bar"><div class="toc__progress-fill" id="progress-fill"></div></div>
+        <div style="margin-top: 12px">
+          <button class="reset-btn" id="reset-btn" type="button">Reset state</button>
+        </div>
+      </div>
+    </nav>
+
+    <main class="content">
+      <p class="kicker">Local-only roadmap · open from <code>docs/roadmap.html</code></p>
+      <h1>Post-ship roadmap</h1>
+      <p class="lede">
+        Tracked work after the security-tier deployment. Path A (artifact-level CVE + credentials) first, Path B (VS Code extension) second. Check boxes persist in localStorage — anyone on the team opens this file and sees the current state.
+      </p>
+      <div class="meta">
+        <span><strong>Decided</strong> 2026-05-26</span>
+        <span><strong>Sequence</strong> A → B</span>
+        <span><strong>Companion</strong> <a href="./handoff.html">handoff.html</a></span>
+        <span><strong>Companion</strong> <a href="./design-handoff.html">design-handoff.html</a></span>
+        <span><strong>Status</strong> live working doc</span>
+      </div>
+
+      <!-- Decision -->
+      <h2 id="decision">Decision: Path A before Path B</h2>
+      <div class="decision-card">
+        <div class="decision-card__label">Committed · Phase 2A shipped 2026-05-27</div>
+        <div class="decision-card__headline">Deepen the security tier into the artifact pipeline before shipping the VS Code extension.</div>
+        <div class="decision-card__body">
+          <p>
+            The Credentials + Vulnerabilities UI just landed but the artifact itself doesn't carry CVE or dependency data — that means <code>factstack analyze --json</code> can't gate CI on it, and the MCP server can't serve it to agents. Closing that asymmetry first makes every subsequent surface (CLI, MCP, future VS Code, future Chrome ext) inherit the security tier for free.
+          </p>
+          <p>
+            <strong>Path B (VS Code extension) follows once the artifact carries the full security shape.</strong> Reach matters; but reach over an incomplete platform compounds the asymmetry. Sequence: A finishes (~3-4 days), then B starts (~1 week).
+          </p>
+          <p style="margin-top: var(--space-3); padding-top: var(--space-3); border-top: 1px dashed var(--hairline); color: var(--ok);">
+            <strong>✓ Phase 2A complete (2026-05-27).</strong>
+            Schema extended (<code>dependencyManifests[]</code>, <code>vulnerabilities[]</code>);
+            dependency scanner detects 21 manifests in this repo's analyze pass;
+            <code>factstack scan-vulns</code> queries OSV.dev and persists findings (currently 2 real high-severity GHSAs in our own deps);
+            UI's Vulnerabilities page reads artifact-first with freshness indicator;
+            MCP server exposes <code>list_vulnerabilities</code> + <code>list_credentials</code>;
+            Credentials page links to provider rotation docs.
+            Bundle: 75.41 KB / 80 KB cap. Tests: 170 passing (96 scanner + 47 emit + 9 emit-browser + 18 ui-remix).
+            <strong>Path B can start.</strong>
+          </p>
+        </div>
+      </div>
+
+      <!-- Phase 1 -->
+      <h2 id="phase-1">1 · Post-ship verify <span class="phase-status phase-status--now">today</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> &lt; 1 hour <strong>Blocks</strong> Phase 2A start</p>
+      <p>"Did the deploy actually work" checks before any new code lands.</p>
+
+      <div class="todo-list" data-phase="1">
+        <label class="todo" data-todo-id="p1-canary">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Canary the live demo at <code>factstack-demo.netlify.app</code></span>
+            <span class="todo__body">Open /credentials and /vulnerabilities. Paste a real <code>package.json</code> into Vulnerabilities, click Scan, confirm the OSV.dev call succeeds (CORS, auth, results render).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">10 min</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p1-mac-test">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Verify the macOS save fix on a real Mac</span>
+            <span class="todo__body">Open the live demo on macOS Chrome + Safari. Pick a project folder, scan, save. Verify the readback verification surfaces actionable errors when triggered (iCloud Drive folder is the canonical reproducer).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">15 min</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p1-artifact-freshness">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Re-bake the inline dataset before deploy</span>
+            <span class="todo__body">Run <code>factstack analyze .</code> at the repo root so the new <code>Credentials.tsx</code> + <code>Vulnerabilities.tsx</code> + <code>osvScanner.ts</code> files appear in the dashboard's file count. Rebuild ui-remix to bake the fresh dataset into <code>index.html</code>.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">5 min</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p1-grant-flow">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Browser-test the env-check Grant flow</span>
+            <span class="todo__body">Specifically the Chrome 122+ on macOS case where <code>requestPermission</code> returns <code>'granted'</code> but writes still no-op — the FsaFileWriter readback should surface a clear error. Verify the trust panel auto-expands on the failing row.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">10 min</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p1-commit-coherent">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Stage the uncommitted work in coherent commits + push</span>
+            <span class="todo__body">Five distinct piles in the working tree (security tier · macOS fix · trust panel · graph improvements · "Fun AI Coding Tools" rename). Each gets its own revertable commit; sample sequence is in the previous session's deploy verdict.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">15 min</span></span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Phase 2A -->
+      <h2 id="phase-2a">2A · Security tier deepening <span class="phase-status phase-status--now">next</span></h2>
+      <p class="phase-meta">
+        <strong>Effort</strong> 3–4 days
+        <strong>Goal</strong> artifact carries CVE + dependency data; MCP serves it
+        <strong>Blocks</strong> Phase 2B
+      </p>
+      <p>
+        The Vulnerabilities page is UI-only with a live OSV.dev fetch — the artifact itself doesn't know about CVEs. Deepen that: parse manifests at analyze time, persist deps into the artifact, optionally query OSV at analyze time, expose via MCP. The page reads from the artifact first and falls back to live query only when the data is stale.
+      </p>
+
+      <h3>2A.1 — Dependency manifest scanner</h3>
+      <div class="todo-list" data-phase="2a-scanner">
+        <label class="todo" data-todo-id="p2a-scanner-file">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">New scanner <code>packages/scanners/src/dependencies.ts</code></span>
+            <span class="todo__body">Walk parsed manifests, extract <code>{ ecosystem, name, version, source: { file, line } }</code> per dependency. Cover npm, PyPI, Cargo, Go, Maven, RubyGems. Mirror the existing <code>secrets.ts</code> shape — pure function over <code>(file, text)</code>, no I/O.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">half day</span><span class="todo__tag todo__tag--priority">priority</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-schema">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Schema extension: <code>agent.dependencyManifests[]</code></span>
+            <span class="todo__body">Add to <code>packages/spec/src/agent.ts</code> with <code>.default([])</code> so existing artifacts validate without modification. Per-manifest entry: <code>{ path, ecosystem, name?, version?, dependencies: Record&lt;name, version&gt;, devDependencies?: Record&lt;name, version&gt; }</code>.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span><span class="todo__tag todo__tag--priority">priority</span></span>
+            <span class="todo__deps">depends on p2a-scanner-file</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-wire-core">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Wire the scanner into <code>@factstack/core</code> analyzer dispatch</span>
+            <span class="todo__body">Add to the scanner pipeline alongside secrets, licenses, frameworks. Populate <code>agent.dependencyManifests</code> on every analyze pass. Pure isomorphic — no <code>node:*</code>, works in CLI and browser worker.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+            <span class="todo__deps">depends on p2a-scanner-file, p2a-schema</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-scanner-tests">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Unit tests for the scanner</span>
+            <span class="todo__body">Cover: npm with mixed dep + devDep; PyPI with optional version pins; <code>workspace:*</code> and <code>file:</code> protocols (should skip cleanly, not crash); empty manifests; malformed JSON (should return <code>[]</code>, not throw).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+            <span class="todo__deps">depends on p2a-scanner-file</span>
+          </div>
+        </label>
+      </div>
+
+      <h3>2A.2 — Vulnerability scanning at analyze time</h3>
+      <div class="todo-list" data-phase="2a-vulns">
+        <label class="todo" data-todo-id="p2a-cli-cmd">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">CLI subcommand <code>factstack scan-vulns</code></span>
+            <span class="todo__body">Reads <code>.facts/agent.json</code>, queries OSV.dev for every <code>dependencyManifests[].dependencies</code>, persists <code>vulnerabilities[]</code> back into the artifact. Opt-in (requires network), separate from <code>analyze</code>. Same OSV client as the UI — extract to <code>@factstack/scanners/vulnerabilities</code> for sharing.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">half day</span></span>
+            <span class="todo__deps">depends on p2a-schema</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-vuln-schema">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Add <code>vulnerabilities[]</code> to the agent schema</span>
+            <span class="todo__body">Per-finding: <code>{ id, summary, severity, ecosystem, package, installedVersion, fixedVersion?, advisoryUrl, lastChecked }</code>. Mirror the OSV shape but distilled. Default <code>[]</code> for backward compat. Lives alongside <code>risks[]</code> but separate so consumers can filter.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span></span>
+            <span class="todo__deps">depends on p2a-cli-cmd</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-extract-osv">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Extract OSV client to <code>@factstack/scanners/vulnerabilities</code></span>
+            <span class="todo__body">The UI's <code>apps/ui-remix/src/lib/osvScanner.ts</code> is currently UI-tier-only. Lift the batch query + caching + parsing into a shared package so the CLI subcommand reuses it. UI imports it via the shared package, deletes the local copy. Net: less duplication, more code paths sharing the same fetch logic.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">half day</span></span>
+            <span class="todo__deps">depends on p2a-cli-cmd</span>
+          </div>
+        </label>
+      </div>
+
+      <h3>2A.3 — UI + MCP integration</h3>
+      <div class="todo-list" data-phase="2a-integration">
+        <label class="todo" data-todo-id="p2a-ui-artifact-first">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Vulnerabilities page reads from artifact first</span>
+            <span class="todo__body">When <code>data.vulnerabilities</code> is populated, show those results immediately on load — no paste, no fetch. Fall back to the existing paste-driven live OSV query when the artifact is empty or <code>lastChecked</code> is older than the TTL. Adds a "freshness" indicator (e.g., "Scanned 3 hours ago via factstack scan-vulns").</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+            <span class="todo__deps">depends on p2a-vuln-schema</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-credentials-page-deepen">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Credentials page exposes rotation guidance</span>
+            <span class="todo__body">Per-finding: link to the credential's provider rotation docs (AWS IAM, GitHub Settings &gt; Tokens, OpenAI API Keys, etc.). Page already has the rule-reference card — extend each rule with a "Rotate at:" link. Pure UI, no schema work.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-mcp-tool-vulns">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">MCP tool <code>list_vulnerabilities</code></span>
+            <span class="todo__body">New tool in <code>apps/mcp-server/</code>. Reads <code>agent.vulnerabilities</code>, filters by severity / ecosystem / package on request. Defaults to FactsPack response format per the existing pattern. Agents querying FACTS can now ask "which packages have unpatched criticals?" and get an answer.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+            <span class="todo__deps">depends on p2a-vuln-schema</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-mcp-tool-creds">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">MCP tool <code>list_credentials</code></span>
+            <span class="todo__body">Filtered view of <code>agent.risks</code> where <code>category === 'secret'</code>. Same FactsPack-default pattern. Critical for agents auditing a project's secret hygiene.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span></span>
+          </div>
+        </label>
+      </div>
+
+      <h3>2A.4 — Closing the loop</h3>
+      <div class="todo-list" data-phase="2a-close">
+        <label class="todo" data-todo-id="p2a-rebake">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Re-analyze FACTS → bake new artifact into demo</span>
+            <span class="todo__body">Run <code>factstack analyze . && factstack scan-vulns .</code> so the inline dataset has real dependency + vulnerability data. Rebuild ui-remix, redeploy. The deployed demo now shows FACTS's own deps as the scan target.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">15 min</span></span>
+            <span class="todo__deps">depends on everything in 2A.1–2A.3</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-docs">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Update <code>CONTEXT.md</code> with the security-tier vocabulary</span>
+            <span class="todo__body">New section: "Security tier (2026-05-27)". Document <code>dependencyManifests[]</code>, <code>vulnerabilities[]</code>, the OSV client extraction, the CLI subcommand. Mirror the writing style of the existing "Write tier" section.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">30 min</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2a-handoff-update">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Update <code>docs/handoff.html</code> with the new security tier</span>
+            <span class="todo__body">New row in the packages table for the scanner. New section in "Recent significant changes" documenting the artifact extension. The handoff doc IS the navigable summary — keep it fresh.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">15 min</span></span>
+          </div>
+        </label>
+      </div>
+
+      <div class="callout">
+        <div class="callout__label">Phase 2A definition of done</div>
+        <p style="margin: 0;">
+          <code>factstack analyze .</code> produces an artifact with <code>dependencyManifests[]</code> populated.
+          <code>factstack scan-vulns .</code> queries OSV.dev and persists <code>vulnerabilities[]</code> into the artifact.
+          The Vulnerabilities page in the UI reads from the artifact first.
+          MCP server exposes <code>list_vulnerabilities</code> and <code>list_credentials</code> tools.
+          The deployed demo shows real CVE data for FACTS's own dependencies.
+        </p>
+      </div>
+
+      <!-- Phase 2B -->
+      <h2 id="phase-2b">2B · VS Code extension <span class="phase-status phase-status--next">after 2A</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> ~1 week <strong>Goal</strong> v0.3 milestone: FACTS without leaving the editor</p>
+      <p>
+        <code>apps/vscode-ext/</code> is already stubbed. The plan: host the existing UI bundle as a webview, write a thin <code>FactsFS</code> adapter that proxies to VS Code's <code>workspace</code> API, ship as a <code>.vsix</code>.
+      </p>
+
+      <div class="todo-list" data-phase="2b">
+        <label class="todo" data-todo-id="p2b-webview-host">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Wire <code>apps/vscode-ext/</code> to host the UI bundle as a webview</span>
+            <span class="todo__body">Use <code>WebviewPanel.webview.html</code> to serve <code>apps/ui-remix/dist/index.html</code>. The trick: rewrite asset paths to use <code>asWebviewUri()</code> so VS Code's webview can load them (CSP gatekeeping).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2b-vscode-fs">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">New <code>FactsFS</code> adapter using VS Code's <code>workspace.fs</code> API</span>
+            <span class="todo__body">Mirror the <code>NodeFS</code> + <code>FsaBrowserFS</code> + <code>MemoryFS</code> shape. VS Code's <code>workspace.fs.readFile/readDirectory/stat</code> map 1:1 to our interface. Lives at <code>packages/fs-vscode/</code> as a new workspace package.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2b-rpc-bridge">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">JSON-RPC bridge for re-analyze + file-open events</span>
+            <span class="todo__body">Webview ↔ extension host messaging via <code>postMessage</code>. Three verbs: <code>analyze(rootPath)</code>, <code>openFile(path, line?)</code>, <code>requestData()</code>. Re-analyze runs in the extension host (Node), pushes the dataset to the webview via <code>postMessage</code>.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+            <span class="todo__deps">depends on p2b-webview-host, p2b-vscode-fs</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2b-status-bar">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Status-bar item + command palette entries</span>
+            <span class="todo__body">"FACTS: Analyze workspace" command. Status-bar item shows last-analyzed timestamp + risk count. Click opens the dashboard webview.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">half day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p2b-vsix-pack">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Package as <code>.vsix</code> + Marketplace publish</span>
+            <span class="todo__body"><code>vsce package</code> + <code>vsce publish</code>. Requires a Marketplace publisher account + PAT. First-publish needs the icon + README + screenshots — the existing brand assets cover most of it.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">half day</span></span>
+            <span class="todo__deps">depends on everything in Phase 2B</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Phase 3 -->
+      <h2 id="phase-3">3 · Outstanding cleanup <span class="phase-status phase-status--next">parallel-track with 2A</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> 1–2 days total <strong>Can run in parallel</strong> doesn't block 2A or 2B</p>
+
+      <div class="todo-list" data-phase="3">
+        <label class="todo" data-todo-id="p3-route-splitting">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Route-level chunk splitting</span>
+            <span class="todo__body">Main JS just hit 74.51 KB / 80 KB cap. The next feature busts it. Splitting per-route via Vite dynamic imports drops Main JS to ~30 KB and unlocks the next year of features. Tradeoff: flash on first navigation per tab — mitigate with route-shell skeletons.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span><span class="todo__tag todo__tag--priority">priority</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p3-tsconfig-aliases">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Resolve tsconfig path aliases (task #15)</span>
+            <span class="todo__body">134 unresolved <code>@lib/*</code> imports in the RallyPro fixture mean the graph view for any project using path aliases is misleading. Small fix in the import resolver (read <code>tsconfig.json</code>'s <code>paths</code>, build a lookup, prefer over node_modules resolution).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">half day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p3-filereader">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title"><code>FileReader</code> interface deepening</span>
+            <span class="todo__body">The pattern that worked for <code>FileWriter</code> applies cleanly: <code>FileReader</code> interface in <code>@factstack/spec</code> (<code>readText</code>, <code>listKeys</code>), <code>readSnapshotsFrom(reader)</code> orchestrator in <code>@factstack/emit/pure</code>, two adapters. Eliminates the last duplicated chunk between <code>emit/</code> and <code>emit-browser/</code>.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">half day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p3-live-fsa">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Live FSA integration for <code>/vulnerabilities</code> (skip the paste)</span>
+            <span class="todo__body">When the user has scanned a project in-browser, the directory handle is in OpenModal's closure. Pipe it to the Vulnerabilities page so it reads <code>package.json</code> directly. Removes a UX step + makes the demo actually demoable without a manual paste.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+            <span class="todo__deps">may be obviated by 2A if artifact carries deps</span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Phase 4 -->
+      <h2 id="phase-4">4 · Cross-cutting hygiene <span class="phase-status phase-status--later">background</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> hours each <strong>Quality-of-life infra</strong> defer until 2A done</p>
+
+      <div class="todo-list" data-phase="4">
+        <label class="todo" data-todo-id="p4-ci-bundle">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">CI bundle-size enforcement</span>
+            <span class="todo__body">The cap script runs locally; a PR that busts it slips through if nobody runs <code>pnpm build</code> before merge. Add to <code>.github/workflows/ci.yml</code> as a required check. Output diffs the cap delta inline in the PR.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p4-playwright">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Playwright matrix for security-sensitive paths</span>
+            <span class="todo__body">Cover: the FsaFileWriter macOS defenses (mockable with stubbed FSA), the OSV.dev integration on the live demo (real browser fetch), the env-check Grant flow. Run with reduced-motion on AND off so the View Transition fallback path is exercised.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">half day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p4-rule-sync">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Pre-commit hook to sync the secret-rule reference</span>
+            <span class="todo__body">The 8 secret rules are duplicated between <code>packages/scanners/src/secrets.ts</code> and <code>apps/ui-remix/src/routes/Credentials.tsx</code>. A small build-time generator reads the scanner + emits the constant. Eliminates drift.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p4-more-rules">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">More secret-detection rules</span>
+            <span class="todo__body">Current 8 cover the obvious bigs. Missing: Azure storage keys, GCP service accounts, JWTs, npm tokens, Cloudflare API tokens, Twilio auth tokens, SendGrid keys, Algolia keys. Each one is a few lines + entropy threshold.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">half day</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p4-overview-badge">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Hook secrets count into Overview health badge</span>
+            <span class="todo__body"><code>data.summary.health.secrets</code> is populated but doesn't drive the badge state. Promote to critical when &gt; 0, link the badge directly to <code>/credentials</code>. Same pattern the existing health badge uses for risks.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">1 hour</span></span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Phase 5 -->
+      <h2 id="phase-5">5 · Longer term (v0.4+) <span class="phase-status phase-status--later">later</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> weeks <strong>Strategic surfaces</strong> after the platform is deeper</p>
+
+      <div class="todo-list" data-phase="5">
+        <label class="todo" data-todo-id="p5-chrome-ext">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Chrome extension (v0.4)</span>
+            <span class="todo__body">Browser/WASM-only analyzer. Tree-sitter WASM already works in the worker, so the analyzer tier is portable. The trick: extension service workers have a different module loading story than the SPA — needs a separate Vite config target.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-l">1–2 weeks</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p5-cloud-sync">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Cloud sync + team-scoped analyses (v0.5)</span>
+            <span class="todo__body">Share <code>.facts/</code> across a team via a cloud backend. Auth (Clerk or similar), sync (Supabase or comparable), permissions model. Webapp surface (<code>apps/webapp/</code> stub).</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-l">2–3 weeks</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p5-mcp-skills">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">MCP app with skills (v0.6)</span>
+            <span class="todo__body">Package the MCP tools as Claude/Cursor/Codex skills. Each skill bundles a tool surface + an example workflow. Easier discoverability than raw MCP for users not yet wired into the protocol.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 week</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p5-custom-rules">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Custom rule sets per-project</span>
+            <span class="todo__body">Let users add secret patterns, override severity, or disable specific rules via <code>.facts/config.json</code>. Maintains the "evidence-first" principle — every active rule is listed in the Credentials page reference card.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">3 days</span></span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="p5-docs-site">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Public docs site</span>
+            <span class="todo__body">The handoff + design-handoff + this roadmap are local-only. A public docs site (subdomain or <code>/docs/</code> slug) makes them shareable. Could host on the same Netlify deploy with a separate Vite build target.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">2 days</span></span>
+          </div>
+        </label>
+      </div>
+
+      <!-- Open questions -->
+      <h2 id="open">Open questions</h2>
+      <p>Decisions you'll need to make as Phase 2A progresses. None of these are blockers today but each will land naturally during the work.</p>
+
+      <div class="todo-list" data-phase="open">
+        <label class="todo" data-todo-id="q-osv-cost">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">OSV.dev rate limit posture for the analyze pipeline</span>
+            <span class="todo__body">OSV is generous (no auth required) but if every CI build queries it, we should consider a self-hosted mirror or batched daily snapshot. Open: would we mirror, or just trust the rate limits?</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="q-fun-rename">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">"Fun AI Coding Tools" rename — keep or revert?</span>
+            <span class="todo__body">10 files have a coordinated tagline change from a parallel session. Open: does this branding ship to production, or revert before merging the security tier? Currently uncommitted.</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="q-vsix-publisher">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">VS Code Marketplace publisher account</span>
+            <span class="todo__body">Phase 2B needs a publisher identity. Open: register under personal name, organization, or a new "factstack" publisher? Affects long-term ownership + future Marketplace listings.</span>
+          </div>
+        </label>
+
+        <label class="todo" data-todo-id="q-scratch-files">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Scratch HTML files at repo root</span>
+            <span class="todo__body"><code>design.html</code> + <code>facts_dag.html</code> are untracked at the root, plus <code>.playwright-mcp/</code> from tool runs. Open: gitignore + keep, commit + version, or delete? Currently invisible to deploy but noisy in <code>git status</code>.</span>
+          </div>
+        </label>
+      </div>
+
+      <div class="callout callout--ok">
+        <div class="callout__label">Sequencing summary</div>
+        <p style="margin: 0;">
+          <strong>Today:</strong> Phase 1 (post-ship verify).
+          <strong>Next 3–4 days:</strong> Phase 2A (security tier deepening) + selected Phase 3 items in parallel where independent.
+          <strong>Next week:</strong> Phase 2B (VS Code extension).
+          <strong>Background:</strong> Phase 4 hygiene as drift becomes painful.
+          <strong>Strategic:</strong> Phase 5 surfaces once the platform carries the security tier end-to-end.
+        </p>
+      </div>
+
+      <p class="footer">
+        Living roadmap · maintained at <code>docs/roadmap.html</code>. Not deployed — open via <code>file://</code> or <code>npx serve docs</code>. Checkbox state persists in <code>localStorage</code> under <code>factstack:roadmap:v1</code>. Companions: <a href="./handoff.html">handoff.html</a>, <a href="./design-handoff.html">design-handoff.html</a>.
+      </p>
+    </main>
+  </div>
+
+  <script>
+    /* Persistent checkboxes + progress tracker + active-section highlight.
+     * Same observer pattern as the sibling docs; adds a localStorage layer
+     * for the todo state so the roadmap survives reloads.
+     *
+     * DEFAULTS strategy:
+     *   - The doc ships with sensible "already done" state for completed
+     *     work (Phase 2A: all 11 todos shipped 2026-05-27; Phase 1's
+     *     artifact-freshness done during 2A.4).
+     *   - For any id IN localStorage, the stored value wins (preserves
+     *     each reader's local edits).
+     *   - For any id NOT in localStorage, fall back to DEFAULTS[id].
+     *   - Reset clears localStorage and re-applies DEFAULTS — so "reset"
+     *     means "back to the shipped state," not "all unchecked."
+     */
+    (function () {
+      var STORAGE_KEY = 'factstack:roadmap:v1';
+
+      /* Pre-shipped completion state. Update this when work lands —
+         the doc itself becomes the changelog. */
+      var DEFAULTS = {
+        /* Phase 1 — done as part of 2A.4 closure. The others (canary,
+           mac-test, grant-flow, commit-coherent) still pending — left
+           unchecked. */
+        'p1-artifact-freshness': true,
+        /* Phase 2A — all 11 todos shipped 2026-05-27. End-to-end pipeline
+           working: scanner detects 21 manifests, OSV query found 2 real
+           high-severity CVEs in our own deps, MCP serves them. */
+        'p2a-scanner-file': true,
+        'p2a-schema': true,
+        'p2a-wire-core': true,
+        'p2a-scanner-tests': true,
+        'p2a-cli-cmd': true,
+        'p2a-vuln-schema': true,
+        'p2a-extract-osv': true,
+        'p2a-ui-artifact-first': true,
+        'p2a-credentials-page-deepen': true,
+        'p2a-mcp-tool-vulns': true,
+        'p2a-mcp-tool-creds': true,
+        'p2a-rebake': true,
+        'p2a-docs': true,
+        /* p2a-handoff-update intentionally NOT pre-checked — the
+           handoff doc still needs the new security tier section added. */
+      };
+
+      function readState() {
+        try {
+          var raw = localStorage.getItem(STORAGE_KEY);
+          return raw ? JSON.parse(raw) : {};
+        } catch (e) { return {}; }
+      }
+      function writeState(state) {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+      }
+      /** Merge: localStorage entries always win; DEFAULTS fills in
+       *  missing ids. Returns a fresh object so callers can mutate
+       *  without affecting DEFAULTS. */
+      function effectiveState() {
+        var stored = readState();
+        var out = {};
+        for (var k in DEFAULTS) out[k] = DEFAULTS[k];
+        for (var k2 in stored) out[k2] = stored[k2];
+        return out;
+      }
+
+      var state = effectiveState();
+      var todos = document.querySelectorAll('.todo[data-todo-id]');
+      var progressFill = document.getElementById('progress-fill');
+      var progressText = document.getElementById('progress-text');
+
+      function updateProgress() {
+        var total = todos.length;
+        var done = 0;
+        todos.forEach(function (el) { if (el.dataset.done === 'true') done++; });
+        var pct = total === 0 ? 0 : Math.round((done / total) * 100);
+        if (progressFill) progressFill.style.width = pct + '%';
+        if (progressText) progressText.textContent = done + ' / ' + total + ' · ' + pct + '%';
+      }
+
+      todos.forEach(function (el) {
+        var id = el.dataset.todoId;
+        var checkbox = el.querySelector('.todo__check');
+        if (!checkbox) return;
+        var done = !!state[id];
+        checkbox.checked = done;
+        el.dataset.done = String(done);
+        checkbox.addEventListener('change', function () {
+          var nextDone = checkbox.checked;
+          /* Persist the user's explicit toggle to localStorage. We
+             always write — even when nextDone matches DEFAULTS — so
+             reset (which clears localStorage) reliably reverts to
+             defaults. If we only-wrote-when-different-from-default,
+             a user un-checking a default-done item would have to
+             flip twice to make the change stick. */
+          var stored = readState();
+          stored[id] = nextDone;
+          writeState(stored);
+          state[id] = nextDone;
+          el.dataset.done = String(nextDone);
+          updateProgress();
+        });
+      });
+
+      updateProgress();
+
+      var resetBtn = document.getElementById('reset-btn');
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+          if (!confirm('Reset to shipped state? This clears your local edits but keeps the doc\'s baked-in "Phase 2A complete" state.')) return;
+          try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+          /* Re-derive state from DEFAULTS (no localStorage entries) so
+             the shipped completion state remains visible after reset. */
+          state = effectiveState();
+          todos.forEach(function (el) {
+            var id = el.dataset.todoId;
+            var cb = el.querySelector('.todo__check');
+            var done = !!state[id];
+            if (cb) cb.checked = done;
+            el.dataset.done = String(done);
+          });
+          updateProgress();
+        });
+      }
+
+      /* Active-section highlight in the TOC sidebar. */
+      var headings = document.querySelectorAll('main h2[id]');
+      var links = {};
+      document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) {
+        links[a.getAttribute('href').slice(1)] = a;
+      });
+      if ('IntersectionObserver' in window && headings.length > 0) {
+        var current = null;
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            var id = entry.target.id;
+            if (current === id) return;
+            if (current && links[current]) links[current].classList.remove('is-active');
+            if (links[id]) links[id].classList.add('is-active');
+            current = id;
+          });
+        }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+        headings.forEach(function (h) { observer.observe(h); });
+      }
+    })();
+  </script>
+</body>
+</html>

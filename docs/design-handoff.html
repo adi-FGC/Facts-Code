@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Design &amp; animations handoff — FACTS</title>
+  <meta name="description" content="Living design + animations handoff. Covers the liquid-glass aesthetic, color tokens, typography, motion language, animation catalog, and anti-patterns. Written for whoever is shaping the next UI surface or polishing an existing one." />
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    /* ─────────── design tokens (mirrors the dashboard's tokens.css) ─────────── */
+    :root {
+      --bg:           #0B0D10;
+      --surface-1:    #14171C;
+      --surface-2:    #1B1F25;
+      --hairline:     rgba(230, 232, 234, 0.08);
+      --border:       rgba(230, 232, 234, 0.14);
+      --fg:           #E6E8EA;
+      --fg-muted:     rgba(230, 232, 234, 0.72);
+      --fg-faint:     rgba(230, 232, 234, 0.44);
+      --accent:       #7CC4FF;
+      --accent-soft:  rgba(124, 196, 255, 0.10);
+      --ok:           #6EE7A1;
+      --warn:         #FFC857;
+      --danger:       #FF8585;
+      --code-bg:      rgba(230, 232, 234, 0.04);
+      --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      --fs-10: 0.6875rem;
+      --fs-11: 0.75rem;
+      --fs-12: 0.8125rem;
+      --fs-13: 0.875rem;
+      --fs-14: 0.9375rem;
+      --fs-16: 1rem;
+      --fs-20: 1.25rem;
+      --fs-24: 1.5rem;
+      --fs-32: 2rem;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+      --ease-enter:     cubic-bezier(0.2, 0, 0, 1);
+      --ease-exit:      cubic-bezier(0.4, 0, 1, 1);
+      --ease-overshoot: cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:        #FAFAF8;
+        --surface-1: #FFFFFF;
+        --surface-2: #F2F2EE;
+        --hairline:  rgba(11, 13, 16, 0.08);
+        --border:    rgba(11, 13, 16, 0.14);
+        --fg:        #1A1D21;
+        --fg-muted:  rgba(26, 29, 33, 0.72);
+        --fg-faint:  rgba(26, 29, 33, 0.44);
+        --accent:    #1A6FBF;
+        --accent-soft: rgba(26, 111, 191, 0.08);
+        --code-bg:   rgba(11, 13, 16, 0.04);
+      }
+    }
+
+    /* ─────────── reset + base (shared with /handoff) ─────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-14);
+      line-height: 1.6;
+      font-feature-settings: 'cv11', 'ss01', 'ss03';
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ─────────── layout: sidebar TOC + content (mirrors /handoff) ─────────── */
+    .shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+    @media (min-width: 1024px) { .shell { grid-template-columns: 280px minmax(0, 1fr); } }
+
+    .toc {
+      position: sticky; top: 0; align-self: start;
+      max-height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--hairline);
+      padding: var(--space-5) var(--space-4);
+      background: color-mix(in oklab, var(--bg) 92%, var(--accent) 0%);
+    }
+    @media (max-width: 1023px) {
+      .toc { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--hairline); }
+    }
+    .toc__brand {
+      display: flex; align-items: baseline; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .toc__title {
+      font-family: var(--font-body); font-size: var(--fs-16);
+      font-weight: 600; letter-spacing: -0.01em;
+      color: var(--fg); margin: 0 0 var(--space-5) 0;
+    }
+    .toc__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+    .toc__list--nested { padding-left: var(--space-4); margin: var(--space-1) 0 var(--space-2) 0; }
+    .toc a {
+      display: block; padding: 4px var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.02em;
+      color: var(--fg-muted); text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart), background 120ms var(--ease-out-quart);
+    }
+    .toc a:hover { color: var(--fg); background: var(--accent-soft); }
+    .toc a.is-active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+
+    .content { padding: var(--space-7) clamp(var(--space-5), 5vw, var(--space-8)); max-width: 80ch; }
+
+    /* ─────────── typography (shared) ─────────── */
+    h1, h2, h3, h4 {
+      font-family: var(--font-body); font-weight: 600;
+      letter-spacing: -0.015em; line-height: 1.25;
+      color: var(--fg); scroll-margin-top: var(--space-5);
+    }
+    h1 { font-size: clamp(var(--fs-24), 4vw, var(--fs-32)); margin: 0 0 var(--space-3) 0; }
+    h2 { font-size: var(--fs-20); margin: var(--space-7) 0 var(--space-3) 0; padding-bottom: var(--space-2); border-bottom: 1px solid var(--hairline); }
+    h3 { font-size: var(--fs-16); margin: var(--space-5) 0 var(--space-2) 0; color: var(--fg); }
+    h4 {
+      font-size: var(--fs-14); margin: var(--space-4) 0 var(--space-2) 0;
+      color: var(--fg-muted); font-family: var(--font-mono);
+      font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase;
+    }
+    p { margin: 0 0 var(--space-4) 0; color: var(--fg-muted); }
+    p strong, li strong { color: var(--fg); font-weight: 600; }
+
+    .kicker {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .lede {
+      font-size: var(--fs-16); line-height: 1.55;
+      color: var(--fg-muted); margin-bottom: var(--space-6); max-width: 64ch;
+    }
+
+    ul, ol { color: var(--fg-muted); padding-left: var(--space-5); margin: 0 0 var(--space-4) 0; }
+    li { margin-bottom: var(--space-2); }
+    li > ul, li > ol { margin: var(--space-2) 0 0 0; }
+
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms var(--ease-out-quart); }
+    a:hover { border-bottom-color: var(--accent); }
+
+    code {
+      font-family: var(--font-mono); font-size: 0.9em;
+      background: var(--code-bg); color: var(--fg);
+      padding: 1px 5px; border-radius: 3px;
+    }
+    pre {
+      background: var(--surface-1); border: 1px solid var(--hairline);
+      border-left: 2px solid var(--accent);
+      padding: var(--space-4); overflow-x: auto;
+      font-size: var(--fs-12); line-height: 1.55;
+      color: var(--fg-muted); margin: 0 0 var(--space-4) 0;
+    }
+    pre code { background: transparent; padding: 0; }
+
+    table {
+      border-collapse: collapse; width: 100%;
+      margin: 0 0 var(--space-5) 0; font-size: var(--fs-13);
+    }
+    th, td {
+      text-align: left; padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--hairline); vertical-align: top;
+    }
+    th {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--fg-faint); font-weight: 500;
+    }
+    td { color: var(--fg-muted); }
+    td:first-child { color: var(--fg); font-family: var(--font-mono); font-size: var(--fs-12); }
+
+    .callout {
+      padding: var(--space-4); margin: 0 0 var(--space-5) 0;
+      border-left: 2px solid var(--accent);
+      border-top: 1px dashed var(--hairline);
+      border-right: 1px dashed var(--hairline);
+      border-bottom: 1px dashed var(--hairline);
+      background: color-mix(in oklab, var(--accent) 4%, transparent);
+      font-size: var(--fs-13); color: var(--fg-muted);
+    }
+    .callout--warn { border-left-color: var(--warn); background: color-mix(in oklab, var(--warn) 4%, transparent); }
+    .callout--danger { border-left-color: var(--danger); background: color-mix(in oklab, var(--danger) 4%, transparent); }
+    .callout__label {
+      display: inline-block; font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-1);
+    }
+    .callout--warn .callout__label { color: var(--warn); }
+    .callout--danger .callout__label { color: var(--danger); }
+
+    .meta {
+      display: flex; flex-wrap: wrap; gap: var(--space-3);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: var(--space-6);
+    }
+    .meta span { display: inline-flex; gap: var(--space-2); }
+    .meta strong { color: var(--fg-muted); font-weight: 500; }
+
+    /* ─────────── design-handoff-specific: swatches + type samples ─────────── */
+    .swatches {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: var(--space-3);
+      margin: 0 0 var(--space-5) 0;
+    }
+    .swatch {
+      border: 1px solid var(--hairline);
+      padding: var(--space-3);
+      display: flex; flex-direction: column; gap: var(--space-1);
+    }
+    .swatch__chip {
+      width: 100%; height: 56px;
+      border: 1px solid var(--hairline);
+    }
+    .swatch__name {
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg); letter-spacing: 0.02em;
+    }
+    .swatch__value {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      color: var(--fg-faint);
+    }
+
+    .type-sample { margin: 0 0 var(--space-3) 0; }
+    .type-sample__row {
+      display: grid; grid-template-columns: 70px 1fr;
+      align-items: baseline; gap: var(--space-4);
+      padding: var(--space-2) 0; border-bottom: 1px solid var(--hairline);
+    }
+    .type-sample__row:last-child { border-bottom: none; }
+    .type-sample__tag {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      color: var(--fg-faint); letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .type-sample__display { color: var(--fg); }
+
+    .scale {
+      display: flex; align-items: flex-end; gap: var(--space-3);
+      margin: 0 0 var(--space-5) 0; padding: var(--space-4);
+      background: var(--surface-1); border: 1px solid var(--hairline);
+      flex-wrap: wrap;
+    }
+    .scale__step {
+      display: flex; flex-direction: column; align-items: center;
+      font-family: var(--font-mono); font-size: var(--fs-10); color: var(--fg-faint);
+      gap: var(--space-1);
+    }
+    .scale__bar { background: var(--accent); width: 12px; }
+
+    .curve-card {
+      display: grid; grid-template-columns: 1fr 2fr;
+      gap: var(--space-4); align-items: center;
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--hairline);
+      margin-bottom: var(--space-3);
+    }
+    .curve-card__name { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--fg); }
+    .curve-card__value { font-family: var(--font-mono); font-size: var(--fs-10); color: var(--fg-faint); margin-top: 2px; }
+    .curve-card__svg { width: 100%; height: 80px; }
+    .curve-card__svg path { fill: none; stroke: var(--accent); stroke-width: 2; }
+    .curve-card__svg rect { fill: none; stroke: var(--hairline); stroke-width: 1; }
+
+    .dontdo {
+      display: grid; grid-template-columns: 1fr; gap: var(--space-3);
+      margin: 0 0 var(--space-5) 0;
+    }
+    @media (min-width: 700px) { .dontdo { grid-template-columns: 1fr 1fr; } }
+    .dontdo__cell {
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--hairline);
+      font-size: var(--fs-13); color: var(--fg-muted);
+    }
+    .dontdo__cell--do    { border-left: 2px solid var(--ok); }
+    .dontdo__cell--dont  { border-left: 2px solid var(--danger); }
+    .dontdo__label {
+      display: inline-block; font-family: var(--font-mono);
+      font-size: var(--fs-10); letter-spacing: 0.16em; text-transform: uppercase;
+      margin-bottom: var(--space-2);
+    }
+    .dontdo__cell--do .dontdo__label   { color: var(--ok); }
+    .dontdo__cell--dont .dontdo__label { color: var(--danger); }
+
+    .footer {
+      margin-top: var(--space-8); padding-top: var(--space-5);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="toc" aria-label="Table of contents">
+      <div class="toc__brand">FACTS · design</div>
+      <p class="toc__title">Design &amp; animations spec</p>
+      <ul class="toc__list">
+        <li><a href="#principles">1 · Design principles</a></li>
+        <li><a href="#liquid-glass">2 · Liquid-glass aesthetic</a></li>
+        <li><a href="#responsive">3 · Responsive system</a></li>
+        <li><a href="#typography">4 · Typography</a></li>
+        <li><a href="#color">5 · Color system</a>
+          <ul class="toc__list toc__list--nested">
+            <li><a href="#color-tokens">5.1 Tokens</a></li>
+            <li><a href="#color-dark">5.2 Dark vs light</a></li>
+            <li><a href="#color-semantic">5.3 Semantic colors</a></li>
+          </ul>
+        </li>
+        <li><a href="#spacing">6 · Spacing &amp; rhythm</a></li>
+        <li><a href="#layout">7 · Layout patterns</a></li>
+        <li><a href="#components">8 · Component patterns</a></li>
+        <li><a href="#motion">9 · Motion principles</a></li>
+        <li><a href="#easings">10 · Curves &amp; durations</a></li>
+        <li><a href="#vt-api">11 · View Transition catalog</a></li>
+        <li><a href="#inline-motion">12 · Inline motion</a></li>
+        <li><a href="#reduced-motion">13 · Reduced motion</a></li>
+        <li><a href="#perf">14 · Performance budgets</a></li>
+        <li><a href="#antipatterns">15 · Anti-patterns</a></li>
+        <li><a href="#checklist">16 · New-component checklist</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <p class="kicker">Local-only doc · open from <code>docs/design-handoff.html</code></p>
+      <h1>FACTS — design &amp; animations</h1>
+      <p class="lede">
+        How FACTS looks, feels, and moves. The visual language, motion vocabulary, and the engineering judgment baked into both. Written for whoever is shaping the next surface or polishing an existing one.
+      </p>
+      <div class="meta">
+        <span><strong>Spec sources</strong> <code>design_spec.md</code>, <code>animations_spec.md</code></span>
+        <span><strong>Tokens</strong> <code>packages/ui-theme/src/tokens.css</code></span>
+        <span><strong>Companion</strong> <a href="./handoff.html">handoff.html</a></span>
+        <span><strong>Status</strong> not deployed — open locally</span>
+      </div>
+
+      <!-- 1. Principles -->
+      <h2 id="principles">1 · Design principles</h2>
+      <ol>
+        <li><strong>Evidence-first</strong> — every chip, badge, and claim is clickable and resolves to its source. No unfalsifiable "health: good."</li>
+        <li><strong>Progressive depth</strong> — the CXO lands on one screen that tells the story; the developer drills as deep as they need. The UI reveals complexity only on demand.</li>
+        <li><strong>Quiet by default</strong> — no marketing gradients, no dense dashboards on first paint. Space and typography carry the weight before color does.</li>
+        <li><strong>Dark is first-class</strong> — not "dark mode as an afterthought." The dark palette was designed from the graph canvas outwards, not color-inverted from light.</li>
+        <li><strong>Liquid-glass aesthetic</strong> — modern, translucent surfaces that feel contemporary on 2026-era hardware without sliding into skeuomorphism. <a href="#liquid-glass">§2</a>.</li>
+        <li><strong>Fluid across scales</strong> — 340 px on a budget Android to 8K on a creative-director's reference monitor, the layout always makes sense.</li>
+      </ol>
+
+      <!-- 2. Liquid glass -->
+      <h2 id="liquid-glass">2 · Liquid-glass aesthetic</h2>
+      <p>
+        Translucent <strong>chrome surfaces</strong> only — top nav, LHS panel, RHS local-tab bar, mobile drawer, tooltips, ⌘K palette, context menus. The "liquid glass" is what frames content; the content itself stays solid.
+      </p>
+      <pre><code>backdrop-filter: blur(18px);
+background: rgba(var(--surface-rgb), 0.48);  /* dark */
+background: rgba(var(--surface-rgb), 0.62);  /* light */
+box-shadow:
+  inset 0 0 0 1px rgba(255, 255, 255, 0.14),   /* glass meniscus */
+  0 6px 16px rgba(0, 0, 0, 0.18);              /* lift shadow */
+contain: paint;                                 /* perf hygiene */</code></pre>
+      <p>
+        On hover, a 300 ms linear-gradient sweeps across the surface — a specular highlight that signals interactivity without resorting to color change. See <a href="#inline-motion">§12</a>.
+      </p>
+      <div class="callout">
+        <div class="callout__label">Where glass is NOT applied</div>
+        <p style="margin: 0;">
+          Content areas, code previews, the graph canvas, anywhere legibility matters more than aesthetic. <strong>Glass is chrome, not content.</strong>
+        </p>
+      </div>
+      <p>
+        <strong>Fallback:</strong> <code>@supports not (backdrop-filter: blur(1px))</code> → solid translucent background, no blur. No layout shift; no reduced function.
+      </p>
+      <p>
+        <strong>Performance:</strong> <code>contain: paint</code> on all glass surfaces. Mobile (&lt; 900 px) drops blur to solid on devices flagged via UA hints or <code>prefers-reduced-transparency</code>.
+      </p>
+
+      <!-- 3. Responsive -->
+      <h2 id="responsive">3 · Responsive system — 340 px to 8K</h2>
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Range</th><th>LHS behavior</th><th>Content</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>xs</td><td>340–389 px</td><td>Hidden drawer, 82 vw</td><td>Single column, stacked</td></tr>
+          <tr><td>sm</td><td>390–639 px</td><td>Hidden drawer, 82 vw</td><td>Single column</td></tr>
+          <tr><td>md</td><td>640–899 px</td><td>Hidden drawer, 75 vw</td><td>Single column</td></tr>
+          <tr><td>lg</td><td>900–1279 px</td><td>Inline, <code>28dvw</code> default, resizable</td><td>Primary + slide-outs</td></tr>
+          <tr><td>xl</td><td>1280–1919 px</td><td>Inline, <code>22dvw</code> default</td><td>Full shell</td></tr>
+          <tr><td>2xl</td><td>1920–2559 px</td><td>Inline, <code>20dvw</code> default</td><td>Extra right rail</td></tr>
+          <tr><td>3xl (4K)</td><td>2560–3839 px</td><td>Inline, <code>18dvw</code> default</td><td>Wider graph; code preview splits</td></tr>
+          <tr><td>4xl (5K–8K)</td><td>≥ 3840 px</td><td>Inline, <code>15dvw</code>, <strong>cap 600 px</strong></td><td><strong>Content cap 1400 px</strong>; rest is breathing room</td></tr>
+        </tbody>
+      </table>
+      <h4>Principles</h4>
+      <ul>
+        <li><code>clamp()</code> all widths — no stepped transitions.</li>
+        <li><strong>Container queries</strong> for component-level responsiveness. A tree node renders the same in the LHS (narrow) or in a ⌘K result row (medium).</li>
+        <li><strong>Never stretch edge-to-edge</strong> on 4K/8K. Line lengths stay readable; extra width becomes breathing room.</li>
+        <li>Viewport units: <code>dvw</code>, <code>dvh</code>, <code>svh</code> where they shine (true dynamic viewports on mobile); Lightning CSS polyfills older Safari / tablet split-view cases.</li>
+      </ul>
+
+      <!-- 4. Typography -->
+      <h2 id="typography">4 · Typography</h2>
+      <h4>Stack</h4>
+      <p>
+        <strong>UI:</strong> Inter (variable), fallback Geist, fallback <code>system-ui</code>.<br />
+        <strong>Monospace:</strong> JetBrains Mono (variable) — code previews, graph labels, token counts, bundle sizes.
+      </p>
+
+      <h4>Scale samples</h4>
+      <div class="type-sample">
+        <div class="type-sample__row"><span class="type-sample__tag">32px</span><span class="type-sample__display" style="font-size: 32px; font-weight: 600; letter-spacing: -0.02em;">Display headline</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">24px</span><span class="type-sample__display" style="font-size: 24px; font-weight: 600;">Section title</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">20px</span><span class="type-sample__display" style="font-size: 20px; font-weight: 600;">Subsection</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">16px</span><span class="type-sample__display" style="font-size: 16px;">Body lede</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">14px</span><span class="type-sample__display" style="font-size: 14px;">Body default</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">13px</span><span class="type-sample__display" style="font-size: 13px;">Body small</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">12px</span><span class="type-sample__display" style="font-size: 12px; font-family: var(--font-mono);">monospace UI</span></div>
+        <div class="type-sample__row"><span class="type-sample__tag">10px</span><span class="type-sample__display" style="font-size: 10px; font-family: var(--font-mono); letter-spacing: 0.18em; text-transform: uppercase;">KICKER</span></div>
+      </div>
+
+      <h4>Font-size slider</h4>
+      <ul>
+        <li>Settings panel + keyboard shortcut <code>⌘;</code>.</li>
+        <li>Range: <strong>0.85× to 1.35×</strong> multiplier on root <code>font-size</code>.</li>
+        <li>Discrete snap points: <code>Compact (0.9×)</code> / <code>Default (1.0×)</code> / <code>Large (1.15×)</code> / <code>Extra Large (1.3×)</code>.</li>
+        <li>Free drag between snaps; persisted to <code>localStorage</code> + <code>.facts/config.json</code>.</li>
+        <li>UI re-layouts via container queries so nothing clips.</li>
+      </ul>
+
+      <h4>Line length &amp; rhythm</h4>
+      <ul>
+        <li>Body content column caps at <code>65ch</code>.</li>
+        <li>Code previews cap at <code>100ch</code>.</li>
+        <li>4 pt baseline grid; vertical rhythm in multiples of 4 (4 / 8 / 12 / 16 / 24 / 32 / 48 / 64).</li>
+      </ul>
+
+      <!-- 5. Color -->
+      <h2 id="color">5 · Color system</h2>
+
+      <h3 id="color-tokens">5.1 Tokens</h3>
+      <p>
+        All colors live as CSS custom properties in <code>packages/ui-theme/src/tokens.css</code>. <strong>No hard-coded hex anywhere else.</strong> The dashboard's tokens are mirrored in this doc's <code>:root</code> block so the swatches below are real.
+      </p>
+      <div class="swatches">
+        <div class="swatch"><div class="swatch__chip" style="background: var(--bg);"></div><div class="swatch__name">--bg</div><div class="swatch__value">page background</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--surface-1);"></div><div class="swatch__name">--surface-1</div><div class="swatch__value">card / pre / panel</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--surface-2);"></div><div class="swatch__name">--surface-2</div><div class="swatch__value">elevated</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--fg);"></div><div class="swatch__name">--fg</div><div class="swatch__value">primary text</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--fg-muted);"></div><div class="swatch__name">--fg-muted</div><div class="swatch__value">body / muted</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--fg-faint);"></div><div class="swatch__name">--fg-faint</div><div class="swatch__value">caption / faint</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--accent);"></div><div class="swatch__name">--accent</div><div class="swatch__value">brand</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--ok);"></div><div class="swatch__name">--ok</div><div class="swatch__value">success</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--warn);"></div><div class="swatch__name">--warn</div><div class="swatch__value">advisory</div></div>
+        <div class="swatch"><div class="swatch__chip" style="background: var(--danger);"></div><div class="swatch__name">--danger</div><div class="swatch__value">error</div></div>
+      </div>
+
+      <h3 id="color-dark">5.2 Light vs dark — not inverted</h3>
+      <p>
+        Dark is tuned independently, not color-inverted from light:
+      </p>
+      <ul>
+        <li><code>--bg</code> dark: <code>#0B0D10</code> (near-black with a cool tint).</li>
+        <li><code>--surface-1</code> dark: <code>#14171C</code>.</li>
+        <li><code>--fg</code> dark: <code>#E6E8EA</code> (softened off-white to reduce fatigue).</li>
+        <li>Accent stays the brand hue in both modes but desaturated ~15% in dark.</li>
+        <li>WCAG AA minimum on text against any surface; AAA on body text.</li>
+      </ul>
+
+      <h3 id="color-semantic">5.3 Semantic colors</h3>
+      <ul>
+        <li><code>--ok</code> — successful save, healthy check, granted permission.</li>
+        <li><code>--warn</code> — optional/advisory state (e.g., persistent storage not granted but app still works).</li>
+        <li><code>--danger</code> — failing check, error banner, destructive action.</li>
+        <li><code>--info</code> — neutral informational. Used sparingly; the accent often serves the same role.</li>
+      </ul>
+
+      <!-- 6. Spacing -->
+      <h2 id="spacing">6 · Spacing &amp; rhythm</h2>
+      <p>4 pt baseline grid. Every gap, padding, and margin is a multiple of 4:</p>
+      <div class="scale">
+        <div class="scale__step"><div class="scale__bar" style="height: 4px;"></div>4</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 8px;"></div>8</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 12px;"></div>12</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 16px;"></div>16</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 24px;"></div>24</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 32px;"></div>32</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 48px;"></div>48</div>
+        <div class="scale__step"><div class="scale__bar" style="height: 64px;"></div>64</div>
+      </div>
+      <p>
+        Exposed as tokens <code>--space-1</code> through <code>--space-8</code>. Use them; do not hand-write pixel values for spacing.
+      </p>
+
+      <!-- 7. Layout -->
+      <h2 id="layout">7 · Layout patterns</h2>
+      <ul>
+        <li><strong>Grid + 1fr columns</strong> with <code>min-width: 0</code> on the body cell. The <code>min-width: 0</code> is load-bearing — without it, a wide SVG inside makes the grid track grow past the viewport, causing the page to scroll horizontally instead of the figure box.</li>
+        <li><strong>Containers own their scroll axes</strong>. Wide artifacts (DAG, sequence diagram, code preview) use <code>overflow: auto</code> + <code>max-width: 100%</code> so the page never has to scroll horizontally.</li>
+        <li><strong>Sticky chrome, scrollable content.</strong> Top nav, LHS tree, and the modal scrim are sticky/fixed; everything inside scrolls independently.</li>
+        <li><strong>Asymmetric layouts</strong>. Don't center everything — left-aligned bodies with the lede 64ch wide and the meta block left-flush read as designed, not templated.</li>
+      </ul>
+
+      <!-- 8. Components -->
+      <h2 id="components">8 · Component patterns</h2>
+      <ul>
+        <li><strong>Hairlines, not heavy borders.</strong> <code>1px solid var(--hairline)</code> at ~8% opacity. The shape comes from typography + spacing, not chrome.</li>
+        <li><strong>Accent left rules</strong> on callouts (2 px solid accent + dashed hairline on the other three sides). Editorial, not card-like.</li>
+        <li><strong>Cards only when grouping is real.</strong> Don't wrap every block in a card. Whitespace + a hairline does more work for less noise.</li>
+        <li><strong>Never nest cards.</strong> If you find yourself doing it, hierarchy is wrong.</li>
+        <li><strong>Tabs underline, don't pill.</strong> Active state is a 2 px accent rule under the label, no background fill.</li>
+        <li><strong>Mono for chrome, body for content.</strong> Tab labels, status pills, kickers, code = mono. Lede, body text, headlines = sans.</li>
+        <li><strong>Icons only when load-bearing.</strong> The default is no icon. Add one when it carries info the label can't (e.g., status dot).</li>
+      </ul>
+
+      <!-- 9. Motion principles -->
+      <h2 id="motion">9 · Motion principles</h2>
+      <ol>
+        <li><strong>Motion serves comprehension</strong>, not decoration. A file-select transition keeps the tree node visually linked to the RHS preview — object permanence across the navigation, what builds trust for non-developer viewers.</li>
+        <li><strong>Default durations</strong>: ≤ 300 ms for common actions; <strong>500 ms ceiling</strong> for signature moments.</li>
+        <li><code>prefers-reduced-motion: reduce</code> <strong>disables all non-essential motion</strong> — instant state swaps. No <code>startViewTransition</code> calls. No specular sweeps. No blur animations. Verified in CI.</li>
+        <li><strong>Never block input for more than one frame.</strong></li>
+        <li>Named transitions are <strong>per-element, unique per DOM</strong>, and cleaned up on unmount.</li>
+      </ol>
+
+      <!-- 10. Curves -->
+      <h2 id="easings">10 · Curves &amp; durations</h2>
+
+      <div class="curve-card">
+        <div>
+          <div class="curve-card__name">Enter</div>
+          <div class="curve-card__value">cubic-bezier(0.2, 0, 0, 1)</div>
+        </div>
+        <svg class="curve-card__svg" viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="199" height="79" />
+          <path d="M 0 80 C 40 80 0 0 200 0" />
+        </svg>
+      </div>
+
+      <div class="curve-card">
+        <div>
+          <div class="curve-card__name">Exit</div>
+          <div class="curve-card__value">cubic-bezier(0.4, 0, 1, 1)</div>
+        </div>
+        <svg class="curve-card__svg" viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="199" height="79" />
+          <path d="M 0 80 C 80 80 200 80 200 0" />
+        </svg>
+      </div>
+
+      <div class="curve-card">
+        <div>
+          <div class="curve-card__name">Overshoot</div>
+          <div class="curve-card__value">cubic-bezier(0.34, 1.56, 0.64, 1)</div>
+        </div>
+        <svg class="curve-card__svg" viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="199" height="79" />
+          <path d="M 0 80 C 68 80 128 -45 200 0" />
+        </svg>
+      </div>
+
+      <div class="curve-card">
+        <div>
+          <div class="curve-card__name">Out-Quart (UI default)</div>
+          <div class="curve-card__value">cubic-bezier(0.25, 1, 0.5, 1)</div>
+        </div>
+        <svg class="curve-card__svg" viewBox="0 0 200 80" preserveAspectRatio="none" aria-hidden="true">
+          <rect x="0.5" y="0.5" width="199" height="79" />
+          <path d="M 0 80 C 50 0 100 0 200 0" />
+        </svg>
+      </div>
+
+      <h4>Duration tokens</h4>
+      <table>
+        <thead><tr><th>Token</th><th>Duration</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>--dur-quick</td><td>120 ms</td><td>Hover state, focus, color/opacity tweaks</td></tr>
+          <tr><td>--dur-1</td><td>180 ms</td><td>Tab underline slide, small reveals</td></tr>
+          <tr><td>--dur-2</td><td>220 ms</td><td>Modal panel in, view-transition root</td></tr>
+          <tr><td>--dur-3</td><td>280 ms</td><td>Graph node click → side-peek</td></tr>
+          <tr><td>--dur-4</td><td>360 ms</td><td>Theme swap circular reveal</td></tr>
+          <tr><td>--dur-5</td><td>420 ms</td><td>Tree ↔ Graph view-mode morph</td></tr>
+          <tr><td>--dur-signature</td><td>500 ms ceiling</td><td>Hard cap — anything longer slows the UI</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 11. View Transition catalog -->
+      <h2 id="vt-api">11 · View Transition catalog</h2>
+      <p>
+        Every route-level or major-state transition goes through <code>document.startViewTransition()</code> via the shared helper in <code>apps/ui-remix/app/lib/view-transition.ts</code>.
+      </p>
+      <table>
+        <thead>
+          <tr><th>#</th><th>Trigger</th><th>What transitions</th><th>Duration</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>LHS tree → file select</td><td>RHS morph-in; node keeps <code>view-transition-name: file-{hash}</code></td><td>220 ms</td></tr>
+          <tr><td>2</td><td>Graph node click</td><td>Graph shrinks to side-peek; file outline slides in</td><td>280 ms</td></tr>
+          <tr><td>3</td><td>Tree ↔ Graph toggle</td><td>Nodes morph in place between hierarchical and force-directed positions</td><td>420 ms</td></tr>
+          <tr><td>4</td><td>Global tab switch</td><td>Underline slides between tabs; content crossfades</td><td>180 ms</td></tr>
+          <tr><td>5</td><td>Outline region expand</td><td>Shared-element morph between collapsed and expanded cards</td><td>200 ms</td></tr>
+          <tr><td>6</td><td>Theme swap</td><td>Circular reveal from toggle click origin; graph re-paints AFTER reveal</td><td>360 ms</td></tr>
+          <tr><td>7</td><td>Route nav (Remix <code>viewTransition</code>)</td><td>Crossfade + hero morph where applicable</td><td>220 ms</td></tr>
+          <tr><td>8</td><td>Mobile LHS drawer</td><td>Slide + scrim fade (crossfade on scrim)</td><td>380 ms</td></tr>
+          <tr><td>9</td><td>Re-analyze completes</td><td>Status bar pulses; changed tree rows flash subtly</td><td>450 ms</td></tr>
+          <tr><td>10</td><td>⌘K palette open/close</td><td>Glass panel scales + fades from search-button origin</td><td>240 ms</td></tr>
+        </tbody>
+      </table>
+      <p>
+        <strong>Suspense-aware:</strong> Remix v3's streaming + <code>viewTransition</code> can land a transition on a loading skeleton, then re-animate to real content (jarring). The <code>waitForSuspense()</code> wrapper defers the transition until the next paint after suspense resolves. Used by Files tab, Graph tab, History tab.
+      </p>
+      <p>
+        <strong>Fallback:</strong> <code>"startViewTransition" in document</code> feature-detect. On unsupported browsers (older Safari, Firefox &lt; 129): navigations are instant — no layout shift, no broken visuals. The Playwright test matrix exercises both paths.
+      </p>
+
+      <!-- 12. Inline motion -->
+      <h2 id="inline-motion">12 · Inline motion catalog</h2>
+
+      <h4>Hover &amp; focus</h4>
+      <ul>
+        <li><strong>Specular sweep on glass</strong> — 300 ms linear-gradient translate across the surface. Signals interactivity without color change. Glass only.</li>
+        <li><strong>Color shift</strong> — <code>color 120 ms var(--ease-out-quart)</code>. Used on row hover (muted → fg) and link hover.</li>
+        <li><strong>Lean-in</strong> — 3 px <code>padding-left</code> shift on row hover. Tiny, but signals interactivity at the row level. Used in recents list, file tree, env-check rows.</li>
+        <li><strong>Focus rings</strong> — <code>:focus-visible</code> with <code>2 px solid var(--accent)</code> outline + <code>-2 px</code> outline-offset. Visible on keyboard nav, suppressed on mouse click.</li>
+      </ul>
+
+      <h4>Page-load stagger</h4>
+      <ul>
+        <li>Recents list rows enter staggered, 30 ms apart, capped at 8 rows (rows 9+ enter together so a 12-row list doesn't have a 360 ms tail).</li>
+        <li>OpenModal overlay fades in over 140 ms; panel slides up 6 px over 220 ms with <code>both</code> fill so the final state survives the keyframe end.</li>
+      </ul>
+
+      <h4>Status feedback</h4>
+      <ul>
+        <li>Save success: green dot + savedNote, no animation beyond the panel fade. The signal is the dot, not motion.</li>
+        <li>Re-analyze complete: status bar pulses (450 ms), changed tree rows flash with a subtle background fade.</li>
+      </ul>
+
+      <!-- 13. Reduced motion -->
+      <h2 id="reduced-motion">13 · Reduced motion handling</h2>
+      <pre><code>@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}</code></pre>
+      <p>
+        Plus: no <code>startViewTransition</code> calls — feature-detect <code>matchMedia('(prefers-reduced-motion: reduce)').matches</code> and fall through to the synchronous commit path. No specular sweeps. No blur animations.
+      </p>
+      <p>
+        Verified in CI: the Playwright matrix runs with reduced-motion on/off to make sure both paths produce the same final visual state.
+      </p>
+
+      <!-- 14. Perf -->
+      <h2 id="perf">14 · Performance budgets</h2>
+      <ul>
+        <li><strong>First paint</strong>: Main JS ≤ 72 KB gz (current cap; bump requires a justification comment in <code>check-bundle-size.mjs</code>).</li>
+        <li><strong>Lazy JS</strong>: ≤ 200 KB gz (worker + dynamic imports — paid only when the user clicks Open).</li>
+        <li><strong>CSS</strong>: ≤ 8 KB gz total.</li>
+        <li><strong>Frame budget</strong>: 16 ms (60 fps). Glass blurs use <code>contain: paint</code>. Hover animations are transform/opacity only (compositor-only, no layout).</li>
+        <li><strong>Animation properties</strong>: transform + opacity only. Never animate width/height/top/left/padding/margin — they trigger layout.</li>
+      </ul>
+
+      <!-- 15. Anti-patterns -->
+      <h2 id="antipatterns">15 · Anti-patterns ("AI slop" detector)</h2>
+      <p>If the UI starts looking like generic 2024-era AI output, you're probably doing one of these:</p>
+
+      <div class="dontdo">
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Cyan-on-dark + purple-to-blue gradients.</strong> The default AI palette. Replace with the tuned-for-dark accent.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Single accent hue, desaturated ~15% in dark, neutrals tinted toward brand.
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Glassmorphism on content.</strong> Glass is chrome only.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Solid surfaces for content; reserve blur for nav, modals, tooltips, palette.
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Hero metric layout</strong> — big number, small label, supporting stats, gradient accent. Done to death.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Treat stats as evidence: clickable, resolves to source. Quiet typography, no decoration.
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Cards inside cards inside cards.</strong> Visual noise.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Flatten. Whitespace + hairlines beat nested chrome.
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Bounce or elastic easing on UI.</strong> Reads as tacky.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Out-quart / out-expo curves. Real objects decelerate smoothly.
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Gray text on colored backgrounds.</strong> Washed out.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Tint the muted text toward the background hue (color-mix with bg).
+        </div>
+
+        <div class="dontdo__cell dontdo__cell--dont">
+          <span class="dontdo__label">Don't</span>
+          <strong>Rounded rectangles with generic drop shadows.</strong> Could be any AI output.
+        </div>
+        <div class="dontdo__cell dontdo__cell--do">
+          <span class="dontdo__label">Do</span>
+          Hairline borders + editorial accent rules. Memorable shape comes from restraint.
+        </div>
+      </div>
+
+      <div class="callout callout--warn">
+        <div class="callout__label">The AI Slop Test</div>
+        <p style="margin: 0;">
+          If someone said "AI made this," would they believe it immediately? If yes, that's the problem. A distinctive interface makes someone ask "how was this made?" — not "which AI made this?"
+        </p>
+      </div>
+
+      <!-- 16. Checklist -->
+      <h2 id="checklist">16 · New-component checklist</h2>
+      <p>When you're shaping a new surface, walk this list before declaring done:</p>
+      <ol>
+        <li><strong>Tokens only.</strong> No hex, no px outside the 4 pt grid, no inline font sizes outside the scale.</li>
+        <li><strong>Dark + light both check out.</strong> Toggle and look. WCAG AA on text.</li>
+        <li><strong>340 px and 1920 px both work.</strong> Container queries, not media queries, where possible.</li>
+        <li><strong>Keyboard nav lands somewhere visible.</strong> Tab through it. <code>:focus-visible</code> must show a 2 px accent ring.</li>
+        <li><strong>Reduced motion produces a sensible final state.</strong> Set <code>prefers-reduced-motion: reduce</code> in DevTools and verify.</li>
+        <li><strong>No nested cards. No gradient text. No rounded-rect-with-shadow drop-in.</strong> Re-read <a href="#antipatterns">§15</a>.</li>
+        <li><strong>Glass only on chrome.</strong> If you're tempted to put it on content, you want a hairline instead.</li>
+        <li><strong>Hover state exists and is purposeful.</strong> Specular sweep on glass, color shift elsewhere, no decoration-only animations.</li>
+        <li><strong>Bundle size measured.</strong> Run <code>pnpm -F @factstack/ui-remix build</code> — caps must hold.</li>
+        <li><strong>Evidence-first.</strong> Every claim resolves to source. Health badges click through. Status pills explain themselves.</li>
+      </ol>
+
+      <p class="footer">
+        Living design handoff · maintained at <code>docs/design-handoff.html</code> in the repo. Not deployed — open via <code>file://</code> or any local static server (e.g., <code>npx serve docs</code>). Companion: <a href="./handoff.html">handoff.html</a>.
+      </p>
+    </main>
+  </div>
+
+  <script>
+    /* Active-section highlight — same observer pattern as /handoff. */
+    (function () {
+      var headings = document.querySelectorAll('main h2[id], main h3[id]');
+      var links = {};
+      document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) {
+        links[a.getAttribute('href').slice(1)] = a;
+      });
+      if (!('IntersectionObserver' in window) || headings.length === 0) return;
+      var current = null;
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var id = entry.target.id;
+          if (current === id) return;
+          if (current && links[current]) links[current].classList.remove('is-active');
+          if (links[id]) links[id].classList.add('is-active');
+          current = id;
+        });
+      }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+      headings.forEach(function (h) { observer.observe(h); });
+    })();
+  </script>
+</body>
+</html>

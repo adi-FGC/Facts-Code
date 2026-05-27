@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Codebase handoff — FACTS</title>
+  <meta name="description" content="Living handoff document explaining FACTS's intent, architecture, packages, and recent significant changes. Written for incoming AI agents and human contributors picking up the work." />
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    /* ─────────── design tokens ─────────── */
+    :root {
+      --bg:           #0B0D10;
+      --surface-1:    #14171C;
+      --surface-2:    #1B1F25;
+      --hairline:     rgba(230, 232, 234, 0.08);
+      --border:       rgba(230, 232, 234, 0.14);
+      --fg:           #E6E8EA;
+      --fg-muted:     rgba(230, 232, 234, 0.72);
+      --fg-faint:     rgba(230, 232, 234, 0.44);
+      --accent:       #7CC4FF;
+      --accent-soft:  rgba(124, 196, 255, 0.10);
+      --ok:           #6EE7A1;
+      --warn:         #FFC857;
+      --danger:       #FF8585;
+      --code-bg:      rgba(230, 232, 234, 0.04);
+      --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      --fs-10: 0.6875rem;
+      --fs-11: 0.75rem;
+      --fs-12: 0.8125rem;
+      --fs-13: 0.875rem;
+      --fs-14: 0.9375rem;
+      --fs-16: 1rem;
+      --fs-20: 1.25rem;
+      --fs-24: 1.5rem;
+      --fs-32: 2rem;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:        #FAFAF8;
+        --surface-1: #FFFFFF;
+        --surface-2: #F2F2EE;
+        --hairline:  rgba(11, 13, 16, 0.08);
+        --border:    rgba(11, 13, 16, 0.14);
+        --fg:        #1A1D21;
+        --fg-muted:  rgba(26, 29, 33, 0.72);
+        --fg-faint:  rgba(26, 29, 33, 0.44);
+        --accent:    #1A6FBF;
+        --accent-soft: rgba(26, 111, 191, 0.08);
+        --code-bg:   rgba(11, 13, 16, 0.04);
+      }
+    }
+
+    /* ─────────── reset + base ─────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-14);
+      line-height: 1.6;
+      font-feature-settings: 'cv11', 'ss01', 'ss03';
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    /* ─────────── layout: sidebar TOC + content ─────────── */
+    .shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      min-height: 100vh;
+    }
+    @media (min-width: 1024px) {
+      .shell {
+        grid-template-columns: 280px minmax(0, 1fr);
+      }
+    }
+
+    .toc {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      max-height: 100vh;
+      overflow-y: auto;
+      border-right: 1px solid var(--hairline);
+      padding: var(--space-5) var(--space-4);
+      background: color-mix(in oklab, var(--bg) 92%, var(--accent) 0%);
+    }
+    @media (max-width: 1023px) {
+      .toc {
+        position: static;
+        max-height: none;
+        border-right: none;
+        border-bottom: 1px solid var(--hairline);
+      }
+    }
+
+    .toc__brand {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--fs-10);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--space-2);
+    }
+    .toc__title {
+      font-family: var(--font-body);
+      font-size: var(--fs-16);
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      color: var(--fg);
+      margin: 0 0 var(--space-5) 0;
+    }
+    .toc__list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .toc__list--nested {
+      padding-left: var(--space-4);
+      margin: var(--space-1) 0 var(--space-2) 0;
+    }
+    .toc a {
+      display: block;
+      padding: 4px var(--space-2);
+      font-family: var(--font-mono);
+      font-size: var(--fs-11);
+      letter-spacing: 0.02em;
+      color: var(--fg-muted);
+      text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart), background 120ms var(--ease-out-quart);
+    }
+    .toc a:hover {
+      color: var(--fg);
+      background: var(--accent-soft);
+    }
+    .toc a.is-active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .content {
+      padding: var(--space-7) clamp(var(--space-5), 5vw, var(--space-8));
+      max-width: 76ch;
+    }
+
+    /* ─────────── typography ─────────── */
+    h1, h2, h3, h4 {
+      font-family: var(--font-body);
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      line-height: 1.25;
+      color: var(--fg);
+      scroll-margin-top: var(--space-5);
+    }
+    h1 {
+      font-size: clamp(var(--fs-24), 4vw, var(--fs-32));
+      margin: 0 0 var(--space-3) 0;
+    }
+    h2 {
+      font-size: var(--fs-20);
+      margin: var(--space-7) 0 var(--space-3) 0;
+      padding-bottom: var(--space-2);
+      border-bottom: 1px solid var(--hairline);
+    }
+    h3 {
+      font-size: var(--fs-16);
+      margin: var(--space-5) 0 var(--space-2) 0;
+      color: var(--fg);
+    }
+    h4 {
+      font-size: var(--fs-14);
+      margin: var(--space-4) 0 var(--space-2) 0;
+      color: var(--fg-muted);
+      font-family: var(--font-mono);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    p { margin: 0 0 var(--space-4) 0; color: var(--fg-muted); }
+    p strong, li strong { color: var(--fg); font-weight: 600; }
+
+    .kicker {
+      font-family: var(--font-mono);
+      font-size: var(--fs-10);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--space-2);
+    }
+    .lede {
+      font-size: var(--fs-16);
+      line-height: 1.55;
+      color: var(--fg-muted);
+      margin-bottom: var(--space-6);
+      max-width: 64ch;
+    }
+
+    ul, ol { color: var(--fg-muted); padding-left: var(--space-5); margin: 0 0 var(--space-4) 0; }
+    li { margin-bottom: var(--space-2); }
+    li > ul, li > ol { margin: var(--space-2) 0 0 0; }
+
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms var(--ease-out-quart); }
+    a:hover { border-bottom-color: var(--accent); }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.9em;
+      background: var(--code-bg);
+      color: var(--fg);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+    pre {
+      background: var(--surface-1);
+      border: 1px solid var(--hairline);
+      border-left: 2px solid var(--accent);
+      padding: var(--space-4);
+      overflow-x: auto;
+      font-size: var(--fs-12);
+      line-height: 1.55;
+      color: var(--fg-muted);
+      margin: 0 0 var(--space-4) 0;
+    }
+    pre code { background: transparent; padding: 0; }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 0 0 var(--space-5) 0;
+      font-size: var(--fs-13);
+    }
+    th, td {
+      text-align: left;
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--hairline);
+      vertical-align: top;
+    }
+    th {
+      font-family: var(--font-mono);
+      font-size: var(--fs-10);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--fg-faint);
+      font-weight: 500;
+    }
+    td { color: var(--fg-muted); }
+    td:first-child { color: var(--fg); font-family: var(--font-mono); font-size: var(--fs-12); }
+
+    .callout {
+      padding: var(--space-4);
+      margin: 0 0 var(--space-5) 0;
+      border-left: 2px solid var(--accent);
+      border-top: 1px dashed var(--hairline);
+      border-right: 1px dashed var(--hairline);
+      border-bottom: 1px dashed var(--hairline);
+      background: color-mix(in oklab, var(--accent) 4%, transparent);
+      font-size: var(--fs-13);
+      color: var(--fg-muted);
+    }
+    .callout--warn { border-left-color: var(--warn); background: color-mix(in oklab, var(--warn) 4%, transparent); }
+    .callout__label {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: var(--fs-10);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--space-1);
+    }
+    .callout--warn .callout__label { color: var(--warn); }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      font-family: var(--font-mono);
+      font-size: var(--fs-11);
+      color: var(--fg-faint);
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: var(--space-6);
+    }
+    .meta span { display: inline-flex; gap: var(--space-2); }
+    .meta strong { color: var(--fg-muted); font-weight: 500; }
+
+    .footer {
+      margin-top: var(--space-8);
+      padding-top: var(--space-5);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono);
+      font-size: var(--fs-11);
+      color: var(--fg-faint);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="toc" aria-label="Table of contents">
+      <div class="toc__brand">FACTS · handoff</div>
+      <p class="toc__title">Codebase intent &amp; functionality</p>
+      <ul class="toc__list">
+        <li><a href="#mission">1 · Mission</a></li>
+        <li><a href="#audiences">2 · Audiences</a></li>
+        <li><a href="#surfaces">3 · Shipped surfaces</a></li>
+        <li><a href="#architecture">4 · Architecture</a>
+          <ul class="toc__list toc__list--nested">
+            <li><a href="#tier-model">4.1 Tier model</a></li>
+            <li><a href="#read-tier">4.2 Read tier</a></li>
+            <li><a href="#write-tier">4.3 Write tier</a></li>
+          </ul>
+        </li>
+        <li><a href="#packages">5 · Packages reference</a></li>
+        <li><a href="#apps">6 · Apps reference</a></li>
+        <li><a href="#flows">7 · Key flows</a>
+          <ul class="toc__list toc__list--nested">
+            <li><a href="#flow-cli">7.1 CLI analyze</a></li>
+            <li><a href="#flow-browser">7.2 Browser scan</a></li>
+            <li><a href="#flow-mcp">7.3 MCP query</a></li>
+          </ul>
+        </li>
+        <li><a href="#ui-surfaces">8 · UI surfaces</a></li>
+        <li><a href="#trust-panel">9 · Trust panel</a></li>
+        <li><a href="#recent">10 · Recent changes</a></li>
+        <li><a href="#testing">11 · Testing</a></li>
+        <li><a href="#build-deploy">12 · Build &amp; deploy</a></li>
+        <li><a href="#tooling">13 · Tooling</a></li>
+        <li><a href="#outstanding">14 · Outstanding work</a></li>
+        <li><a href="#where-next">15 · Where to look next</a></li>
+      </ul>
+    </nav>
+
+    <main class="content">
+      <p class="kicker">Local-only doc · open from <code>docs/handoff.html</code></p>
+      <h1>FACTS — codebase handoff</h1>
+      <p class="lede">
+        What this codebase does, why it exists, how it's organized, and where to look first when you pick it up. Written for the AI agent or human contributor inheriting the next chunk of work.
+      </p>
+      <div class="meta">
+        <span><strong>Repo</strong> <code>factstack/</code></span>
+        <span><strong>Branch</strong> <code>apps-remix3</code></span>
+        <span><strong>Live demo</strong> <a href="https://factstack-demo.netlify.app">factstack-demo.netlify.app</a></span>
+        <span><strong>Companion doc</strong> <a href="./design-handoff.html">design-handoff.html</a></span>
+        <span><strong>Status</strong> not deployed — open locally</span>
+      </div>
+
+      <!-- 1. Mission -->
+      <h2 id="mission">1 · Mission</h2>
+      <p>
+        <strong>FACTS</strong> produces <em>two artifacts from one analysis pass</em> of any code project:
+      </p>
+      <ol>
+        <li>An <strong>AI-agent-optimized codebase map</strong> (<code>agent.json</code>, <code>agent.jsonl</code>, <code>agent.pack</code>) so coding agents reason about the repo without re-reading every file.</li>
+        <li>A <strong>CXO-readable executive dashboard</strong> (<code>human.json</code> + WebUI) so CTOs, CPOs, investors, and other non-coding stakeholders understand what a codebase does, what it's made of, and where its risks sit — without a developer walking them through it.</li>
+      </ol>
+      <p>One analysis. Two audiences. Same truth.</p>
+      <p>
+        Read the canonical spec at <code>app_spec.md</code> at the repo root for acceptance criteria; this doc is the navigable summary.
+      </p>
+
+      <!-- 2. Audiences -->
+      <h2 id="audiences">2 · Audiences</h2>
+      <table>
+        <thead>
+          <tr><th>Primary</th><th>Needs</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>AI coding agents</td><td>Dense, path-addressable, versioned codebase map. <code>agent.pack</code> is the compact format optimized for context windows.</td></tr>
+          <tr><td>Developers</td><td>Rich outline + graph + ability to integrate FACTS into their toolchain (CLI, MCP server, VS Code extension on the roadmap).</td></tr>
+          <tr><td>CXOs / investors</td><td>Trustworthy overview of an unfamiliar codebase in &lt; 2 minutes. <code>human.json</code> + the dashboard is the deliverable here.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Explicit non-audiences for v0.1: end-users of the analyzed app, product managers without technical context, legal teams doing IP review (coverage planned in v0.3+ via supply-chain + license scanning).
+      </p>
+
+      <!-- 3. Surfaces -->
+      <h2 id="surfaces">3 · Shipped surfaces</h2>
+      <table>
+        <thead>
+          <tr><th>Surface</th><th>Status</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Node/Deno CLI</td><td>shipped</td><td>Primary entry point. <code>factstack</code>, <code>factstack analyze</code>, <code>factstack ui</code>, <code>factstack export</code>.</td></tr>
+          <tr><td>Local Remix 3 UI</td><td>shipped</td><td>Launched by the CLI's <code>ui</code> command or standalone via Netlify.</td></tr>
+          <tr><td>Static HTML export</td><td>shipped</td><td>For offline sharing + VS Code webview host.</td></tr>
+          <tr><td>MCP server</td><td>shipped</td><td>5 tools default to FactsPack; <code>facts://schema/{kind}</code> resource. <a href="#flow-mcp">§7.3</a>.</td></tr>
+          <tr><td>Browser scanner</td><td>shipped</td><td>FsaBrowserFS + worker analyzer. Scans local dirs via File System Access API. <a href="#flow-browser">§7.2</a>.</td></tr>
+          <tr><td>npm global package</td><td>v0.2</td><td>Stub present.</td></tr>
+          <tr><td>VS Code + Antigravity ext</td><td>v0.3</td><td>Stub present, hosts the UI as a webview.</td></tr>
+          <tr><td>Chrome extension</td><td>v0.4</td><td>Browser/WASM-only analyzer.</td></tr>
+          <tr><td>Web app + cloud sync</td><td>v0.5</td><td>Stub present.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 4. Architecture -->
+      <h2 id="architecture">4 · Architecture</h2>
+
+      <h3 id="tier-model">4.1 Tier model</h3>
+      <p>
+        Per <code>app_spec.md</code> constraint <strong>C1</strong>, the analyzer is split into tiers ordered by which Node features they're allowed to use. The constraint is enforced by ESLint boundaries + the package layout:
+      </p>
+      <ol>
+        <li><strong><code>spec</code></strong> — Zod schemas + abstract interfaces (<code>FactsFS</code>, <code>FileWriter</code>). No I/O of its own. Everything below depends on it; nothing else lives at this tier.</li>
+        <li><strong><code>fs-*</code> adapters</strong> — <code>fs-node</code>, <code>fs-memory</code>, <code>fs-browser</code>. Each implements <code>FactsFS</code>. Isomorphic constraint: none can import <code>node:*</code> except <code>fs-node</code>.</li>
+        <li><strong><code>walker</code>, <code>parsers</code>, <code>extractors</code>, <code>graph</code>, <code>scanners</code>, <code>intent</code>, <code>core</code></strong> — the isomorphic analyzer tier. Pure (input → output). No I/O, no <code>node:*</code>.</li>
+        <li><strong><code>emit/pure</code></strong> — isomorphic serialization (<code>encodeAgentPack</code>, <code>humanToViz</code>, <code>writeArtifactsTo</code> orchestrator).</li>
+        <li><strong><code>emit</code></strong> (Node-side I/O), <strong><code>emit-browser</code></strong> (FSA-side I/O) — adapters that wrap the orchestrator and provide platform-specific wiring (gitignore for Node, FSA permission upgrade for browser).</li>
+        <li><strong><code>apps/*</code></strong> — CLI, MCP server, UI. Compose the analyzer with their respective adapters.</li>
+      </ol>
+
+      <h3 id="read-tier">4.2 Read tier — <code>FactsFS</code></h3>
+      <p>
+        Pure interface for "where files are read from." Defined in <code>packages/spec/src/fs.ts</code>. Methods: <code>readFile</code>, <code>readText</code>, <code>readDir</code>, <code>stat</code>, <code>readlink</code>, <code>normalize</code>, <code>join</code>. Implemented by <code>NodeFS</code>, <code>MemoryFS</code>, <code>FsaBrowserFS</code>.
+      </p>
+      <p>
+        The walker takes a <code>FactsFS</code> and produces walked files; downstream extractors never know which adapter they're running on. The isomorphic guarantee means the same analyzer ships everywhere — CLI, web worker, Chrome extension future.
+      </p>
+
+      <h3 id="write-tier">4.3 Write tier — <code>FileWriter</code> + orchestrator</h3>
+      <p>
+        <em>Introduced in commit <code>d697226</code>, May 2026.</em> The write tier was forked into two top-level functions (<code>writeArtifacts</code> in <code>emit/</code>, <code>writeBrowserArtifacts</code> in <code>emit-browser/</code>) that duplicated ~200 LOC of orchestration. The deepening introduced a shared orchestrator + adapter interface, mirroring the read-tier <code>FactsFS</code> pattern.
+      </p>
+      <p>Read <code>CONTEXT.md</code> at the repo root for the canonical vocabulary; the short version:</p>
+      <table>
+        <tbody>
+          <tr>
+            <td><code>FileWriter</code></td>
+            <td>Pure interface for "where artifacts land." <code>writeText(path, body)</code>, <code>listKeys(dir)</code>, <code>removeEntry(dir, name)</code>. Lives in <code>packages/spec/src/file-writer.ts</code>.</td>
+          </tr>
+          <tr>
+            <td><code>writeArtifactsTo</code></td>
+            <td>The orchestrator. <code>writeArtifactsTo(writer, agent, human, options?)</code>. Pure — validates with Zod, computes the file plan, delegates I/O to the writer. Lives in <code>packages/emit/src/orchestrator.ts</code>.</td>
+          </tr>
+          <tr>
+            <td><code>NodeFileWriter</code></td>
+            <td><code>FileWriter</code> backed by <code>node:fs/promises</code>. Auto-mkdirp on writeText, scoped to <code>&lt;root&gt;/.facts/</code>. Lives in <code>packages/emit/src/node-writer.ts</code>.</td>
+          </tr>
+          <tr>
+            <td><code>FsaFileWriter</code></td>
+            <td><code>FileWriter</code> backed by the File System Access API. Lives in <code>packages/emit-browser/src/fsa-writer.ts</code>. Carries a three-step macOS write-defense layer documented in <a href="#recent">§10</a>.</td>
+          </tr>
+          <tr>
+            <td><code>writeArtifacts</code> (Node shim)</td>
+            <td>Thin top-level export from <code>@factstack/emit</code>. Constructs <code>NodeFileWriter</code>, calls the orchestrator, then runs <code>ensureGitignoreEntry('.facts/')</code>. ~20 LOC.</td>
+          </tr>
+          <tr>
+            <td><code>writeBrowserArtifacts</code> (browser shim)</td>
+            <td>Thin top-level export from <code>@factstack/emit-browser</code>. Constructs <code>FsaFileWriter</code>, calls the orchestrator. Backward-compatible surface for the in-browser scan flow.</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout">
+        <div class="callout__label">Architectural principle</div>
+        <p style="margin: 0;">
+          <strong>One adapter ⇒ hypothetical seam. Two adapters ⇒ real seam.</strong> Two <code>FactsFS</code> adapters (Node + memory) justified the read-tier seam. Two <code>FileWriter</code> adapters (Node + FSA) justified the write-tier seam. Adding a third costs ~50 LOC per adapter — no change to the orchestrator.
+        </p>
+      </div>
+
+      <!-- 5. Packages -->
+      <h2 id="packages">5 · Packages reference</h2>
+      <table>
+        <thead>
+          <tr><th>Package</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>@factstack/spec</td><td>Zod schemas (agent + human artifacts), the two pure interfaces (<code>FactsFS</code>, <code>FileWriter</code>), shared types. Foundation tier.</td></tr>
+          <tr><td>@factstack/fs-node</td><td><code>FactsFS</code> via <code>node:fs/promises</code>. Used by CLI.</td></tr>
+          <tr><td>@factstack/fs-memory</td><td>In-memory <code>FactsFS</code>. Used by tests + fixtures.</td></tr>
+          <tr><td>@factstack/fs-browser</td><td><code>FactsFS</code> via FSA <code>FileSystemDirectoryHandle</code>, plus a GitHub adapter that fetches via Trees API + <code>raw.githubusercontent.com</code>.</td></tr>
+          <tr><td>@factstack/walker</td><td>gitignore-aware project walker. Stacks <code>.gitignore</code>, <code>.dockerignore</code>, <code>.cursorignore</code>, <code>.aiignore</code>, <code>.factsignore</code> hierarchically. Always-excludes <code>node_modules</code>, <code>dist</code>, <code>build</code>, etc.</td></tr>
+          <tr><td>@factstack/parsers</td><td>Tree-sitter WASM wrappers. TypeScript, TSX, JS, JSX, Python, JSON, YAML, TOML, Markdown. No native compilation — works on fresh Mac/Windows without C/Rust toolchain.</td></tr>
+          <tr><td>@factstack/extractors</td><td>Per-language extractor → <code>FileOutline</code>. Symbols, imports, exports, routes, components, tests, TODOs, complexity. Astro support added recently (frontmatter slice → parseJS).</td></tr>
+          <tr><td>@factstack/scanners</td><td>Secrets (regex + entropy), licenses (SPDX), frameworks, TODOs/FIXMEs, git history, <strong>v0.6: dependency manifests + OSV.dev CVE client</strong>. Findings redact raw secret values.</td></tr>
+          <tr><td>@factstack/graph</td><td>Dependency graph (files/modules/packages → edges = imports). Cycles flagged. Monorepo-aware (pnpm, turbo, Nx, Lerna).</td></tr>
+          <tr><td>@factstack/intent</td><td>Deterministic intent generator. v0.3.10 addition: derives <code>summary.intent</code> from manifest + structure + extracted capabilities, no LLM call required.</td></tr>
+          <tr><td>@factstack/core</td><td>Orchestrates walker → parsers → extractors → graph → scanners → intent. Produces the in-memory artifact pair (agent + human). Isomorphic.</td></tr>
+          <tr><td>@factstack/emit</td><td>Node-side serialization: <code>writeArtifacts</code> shim, <code>readSnapshots</code>, gitignore append, plus the isomorphic <code>writeArtifactsTo</code> orchestrator (re-exported from <code>./pure</code>).</td></tr>
+          <tr><td>@factstack/emit-browser</td><td>Browser-side serialization: <code>writeBrowserArtifacts</code> shim, <code>FsaFileWriter</code>, <code>readBrowserSnapshots</code>, plus a <code>CompressionStream</code>-based <code>browserGzip()</code> for bundle-size estimation.</td></tr>
+          <tr><td>@factstack/factspack</td><td><code>FactsPack</code> encoder. Compact format for AI context windows — 89% byte reduction vs <code>agent.json</code> on real data.</td></tr>
+          <tr><td>@factstack/ui-theme</td><td>Design tokens as CSS custom properties (<code>tokens.css</code>) + shared Frame primitive. Single source of truth for color, type, spacing.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 6. Apps -->
+      <h2 id="apps">6 · Apps reference</h2>
+      <table>
+        <thead>
+          <tr><th>App</th><th>Role</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>apps/cli</td><td>The <code>factstack</code> CLI. Subcommands: <code>analyze</code>, <code>ui</code>, <code>export</code>. Owns the dev-server that powers re-analyze + watch.</td></tr>
+          <tr><td>apps/ui-remix</td><td>Primary WebUI. Remix v3 (React-free VDOM via <code>remix/ui</code>). Vite SPA. Static HTML for Netlify + VS Code webview. <strong>This is where the doc you're reading lives</strong>: <code>apps/ui-remix/public/handoff/index.html</code>.</td></tr>
+          <tr><td>apps/mcp-server</td><td>MCP (Model Context Protocol) server. 5 tools default to FactsPack response format. <code>facts://schema/{kind}</code> resource exposes JSON Schema introspection.</td></tr>
+          <tr><td>apps/vscode-ext</td><td>v0.3 stub. Will host the UI as a webview.</td></tr>
+          <tr><td>apps/chrome-ext</td><td>v0.4 stub. Browser/WASM-only analyzer.</td></tr>
+          <tr><td>apps/webapp</td><td>v0.5 stub. Cloud sync + MCP integration.</td></tr>
+        </tbody>
+      </table>
+
+      <!-- 7. Key flows -->
+      <h2 id="flows">7 · Key flows</h2>
+
+      <h3 id="flow-cli">7.1 CLI analyze</h3>
+      <pre><code>$ factstack analyze /path/to/project
+walker(NodeFS) → parsers → extractors → graph → scanners → intent → core
+  → in-memory { agent: AgentArtifact, human: HumanArtifact }
+  → writeArtifacts({ root, agent, human, writeSnapshot: true })
+    → NodeFileWriter
+    → writeArtifactsTo(writer, agent, human, { writeSnapshot: true })
+    → ensureGitignoreEntry('.facts/')</code></pre>
+      <p>The CLI is the canonical end-to-end path. Every tier is exercised. <code>factstack ui</code> additionally launches the local server (<code>:4848</code>) that powers the Remix UI's live re-analyze.</p>
+
+      <h3 id="flow-browser">7.2 Browser scan</h3>
+      <p>
+        The Remix UI can scan a local directory entirely in the browser — no upload, no server. The flow:
+      </p>
+      <ol>
+        <li>User clicks "Open" → <code>showDirectoryPicker({ mode: 'read' })</code> → user grants read access.</li>
+        <li><code>scanner.worker.ts</code> (Web Worker) receives the directory handle, wraps it in <code>FsaBrowserFS</code>, runs the same isomorphic walker + parsers + extractors as the CLI.</li>
+        <li>Worker posts <code>{ agent, human }</code> back to main thread; <code>scannerBridge.publishDataset</code> hot-swaps the dashboard.</li>
+        <li>User clicks "Save" → <code>ensureWritePermission</code> upgrades the handle to <code>readwrite</code> → <code>writeBrowserArtifacts</code> → <code>FsaFileWriter</code> → <code>writeArtifactsTo</code> → files land in <code>&lt;picked&gt;/.facts/</code>.</li>
+      </ol>
+      <p>
+        Same orchestrator runs in both the CLI and the browser. The browser path adds a permission-upgrade dance + the macOS write-defense layer detailed in <a href="#recent">§10</a>.
+      </p>
+
+      <h3 id="flow-mcp">7.3 MCP query</h3>
+      <p>
+        <code>apps/mcp-server</code> reads from <code>.facts/</code> and exposes 5 tools to AI agents over MCP. Tools default to <code>FactsPack</code> response format for context efficiency (89% smaller than the equivalent <code>agent.json</code> slice). The <code>facts://schema/{kind}</code> resource exposes JSON Schemas so an agent can introspect the artifact shape before querying.
+      </p>
+
+      <!-- 8. UI surfaces -->
+      <h2 id="ui-surfaces">8 · UI surfaces</h2>
+      <p>The Remix UI is organized as tabs, each a route file in <code>apps/ui-remix/src/routes/</code>:</p>
+      <table>
+        <thead>
+          <tr><th>Route</th><th>Content</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>/</td><td>Overview — one-screen summary. Health badge, top-line stats, intent, capabilities, risk preview, activity sparkline.</td></tr>
+          <tr><td>/graph</td><td>Sugiyama DAG of the dependency graph. Drag nodes. Granularity toggle (Files vs Symbols). Heatmap, cycles panel, layer summary, hubs/couplings tables.</td></tr>
+          <tr><td>/flow</td><td>Architecture flow view. Swimlanes (tier classifier), entities list, sequence diagram, flow text (swimlanes.io DSL clipboard export). Four sub-views.</td></tr>
+          <tr><td>/files</td><td>Tree + file outline + preview pane. Click any file → outline of its symbols.</td></tr>
+          <tr><td>/risks</td><td>Risk list with file/line evidence. Click-through to source.</td></tr>
+          <tr><td>/search</td><td>Symbol + file search.</td></tr>
+          <tr><td>/history</td><td>Snapshot diff. Sparklines for LOC, tokens, file count, risks, todos.</td></tr>
+          <tr><td>/about</td><td>About + version info.</td></tr>
+        </tbody>
+      </table>
+      <p>
+        Two companion docs live <em>outside</em> the deployed app at <code>docs/handoff.html</code> (this document) and <code>docs/design-handoff.html</code> — open locally via <code>file://</code> or any local static server. They're explicitly excluded from the Netlify deploy.
+      </p>
+
+      <!-- 9. Trust panel -->
+      <h2 id="trust-panel">9 · Trust panel (OpenModal)</h2>
+      <p>
+        Recent feature in <code>apps/ui-remix/src/components/OpenModal.tsx</code>. The Open dialog surfaces a privacy disclaimer, a collapsible environment-check panel, and (after save) an inline file list + "Reveal in OS picker" affordance.
+      </p>
+      <ul>
+        <li><strong>Disclaimer</strong> — plain-language reminder that everything stays on the device unless the user clicks Save. A refresh clears the in-memory analysis.</li>
+        <li><strong>Permissions panel</strong> — collapsible. "All green" pill when every check passes; auto-expanded with red row + Grant button when any check fails. Checks: File System Access support, persistent storage, per-handle read perm, per-handle write perm.</li>
+        <li><strong>View .facts files</strong> — inline list of files in <code>.facts/</code> with sizes after save succeeds, plus a "Reveal in OS picker" button that calls <code>showDirectoryPicker({ startIn: factsHandle })</code> — the closest a sandboxed browser can get to "open in Finder".</li>
+      </ul>
+      <p>
+        Probe logic extracted to <code>apps/ui-remix/src/lib/envChecks.ts</code> so it's testable in isolation. 18 unit tests cover every branch of <code>computeEnvChecks</code>.
+      </p>
+
+      <!-- 10. Recent significant changes -->
+      <h2 id="recent">10 · Recent significant changes</h2>
+
+      <h4>Write-tier deepening (commit <code>d697226</code>)</h4>
+      <p>
+        Eliminated ~200 LOC of duplicated orchestration between <code>writeArtifacts</code> and <code>writeBrowserArtifacts</code>. Introduced the <code>FileWriter</code> interface in <code>spec/</code>, the <code>writeArtifactsTo</code> orchestrator in <code>emit/pure</code>, and adapter classes in each tier. 15 of the 16 write-semantics tests moved to in-memory testing against <code>MemoryFileWriter</code> (9 ms vs 78 ms — 8.7× speedup).
+      </p>
+
+      <h4>macOS save-files fix</h4>
+      <p>
+        Users reported "save shows success but no files appear" on Macs. Root cause: three independent silent-failure modes in the File System Access path. <code>FsaFileWriter.writeText</code> now executes a three-step defense ritual:
+      </p>
+      <ol>
+        <li><strong>Write as <code>Uint8Array</code></strong>, never raw string — WebKit pre-17 and some FSA polyfills silently produced 0-byte files on string input.</li>
+        <li><strong>Explicit <code>truncate(byteLength)</code> after write</strong> — defends against a real WebKit bug where <code>close()</code> resolved before the buffer flushed.</li>
+        <li><strong>Post-write readback verification</strong> — re-open via <code>getFileHandle</code>, compare <code>file.size</code> against expected. Mismatch throws an actionable error naming iCloud Drive, Documents/Downloads sandbox protection, and silently-denied write permission as the likely culprits.</li>
+      </ol>
+      <p>
+        Adapter-specific extras stay on the adapter side per the architectural principle in <a href="#write-tier">§4.3</a>. The orchestrator and <code>NodeFileWriter</code> are untouched. Five regression-guard tests in <code>packages/emit-browser/test/fsa-writer.test.ts</code> cover every defense.
+      </p>
+
+      <h4>UI trust surface</h4>
+      <p>See <a href="#trust-panel">§9</a> for the full description. Added in May 2026 alongside the macOS fix.</p>
+
+      <h4>Remix v3 modernization</h4>
+      <p>
+        Bumped <code>remix@3.0.0-beta.0</code> → <code>3.0.0-beta.2</code>. Switched all 45 source files from the standalone <code>@remix-run/ui</code> import to the canonical <code>remix/ui</code> subpath (the legacy standalone is on the way out). Migrated to the new <code>RoutePattern.parse()</code> + <code>createHref()</code> API from <code>remix/route-pattern/href</code>.
+      </p>
+
+      <h4>Astro support + Flow tab calibration</h4>
+      <p>
+        Added an Astro frontmatter extractor (slices the <code>---</code>-fenced block, parses as TypeScript via <code>parseJS</code>). Calibrated the Flow tab's tier classifier with Option B confidence-scored signals (filename suffix &gt; directory segment &gt; generic extension).
+      </p>
+
+      <h4>FactsPack bundle</h4>
+      <p>
+        v0.3.10 audit-driven bundle: <code>FactsPack</code> encoder, schema resource (<code>facts://schema/{kind}</code>), intent generator (<code>packages/intent/</code>), positive risks evidence, Overview health badge with one-click drill-through to <code>/risks</code>.
+      </p>
+
+      <h4>v0.6 — Security tier deepening (2026-05-27)</h4>
+      <p>
+        The Credentials + Vulnerabilities UI pages from v0.6.0 ran UI-only against live OSV.dev — the artifact carried no CVE data, so the MCP server couldn't serve it to agents and <code>factstack analyze --json</code> couldn't gate CI on it. The v0.6.1 deepening closes that gap end-to-end:
+      </p>
+      <ul>
+        <li><strong>Schema</strong>: <code>agent.dependencyManifests[]</code> and <code>agent.vulnerabilities[]</code> added to <code>packages/spec/src/agent.ts</code> with <code>.default([])</code> for backward compat. Per-finding shape includes severity, ecosystem, installed/fixed versions, advisory URL, manifest provenance, last-checked timestamp.</li>
+        <li><strong>Dependency scanner</strong> (<code>packages/scanners/src/dependencies.ts</code>): detects 7 manifest types (package.json/pyproject.toml/Cargo.toml/go.mod/pom.xml/Gemfile/requirements.txt) in O(1) basename match. npm fully parsed (merges deps + devDeps + peer + optional); other ecosystems detected with empty deps (parser stubs, schema-ready). 18 unit tests cover the contract.</li>
+        <li><strong>OSV client</strong> (<code>packages/scanners/src/vulnerabilities.ts</code>): shared two-stage protocol (batch IDs → per-vuln detail). Pluggable <code>CacheStore</code> — UI passes <code>localStorageCache</code>, CLI passes <code>noopCache</code>, tests pass an in-memory shim.</li>
+        <li><strong>CLI</strong>: <code>factstack scan-vulns [target]</code> reads the artifact, flattens deps, queries OSV in batch, persists <code>vulnerabilities[]</code> via <code>writeArtifacts</code>. Opt-in (network required) so <code>analyze</code> stays C1-pure.</li>
+        <li><strong>UI</strong>: Vulnerabilities page reads <code>data.vulnerabilities</code> first with a freshness chip; paste-driven OSV scan stays available below for one-off checks. Credentials page rule-reference now links to provider rotation docs per rule.</li>
+        <li><strong>MCP</strong>: <code>list_credentials</code> + <code>list_vulnerabilities</code> tools in <code>apps/mcp-server/src/server.ts</code> with severity/ecosystem/package filters and a <code>hint</code> field when <code>scan-vulns</code> hasn't been run.</li>
+      </ul>
+      <p>
+        End-to-end demo: <code>factstack analyze . &amp;&amp; factstack scan-vulns .</code> against this repo produces 21 manifests + 2 real high-severity GHSA findings on <code>@modelcontextprotocol/sdk@1.0.0</code>. Both findings show on <a href="https://factstack-demo.netlify.app/vulnerabilities">factstack-demo.netlify.app/vulnerabilities</a>.
+      </p>
+
+      <!-- 11. Testing -->
+      <h2 id="testing">11 · Testing surface</h2>
+      <pre><code>@factstack/emit          47 tests  (viz, node-writer, pack, orchestrator, write)
+@factstack/emit-browser   9 tests  (FsaFileWriter + writeBrowserArtifacts, 5 macOS guards)
+@factstack/ui-remix      18 tests  (envChecks — all branches)
+                         ───
+                         74 total, all green</code></pre>
+      <p>
+        Test runners: <strong>vitest</strong> at workspace root (<code>v4.1.7</code>). Each package has its own <code>test/</code> directory. The orchestrator tests use an in-memory <code>MemoryFileWriter</code> — microseconds per test, no temp dirs.
+      </p>
+      <p>
+        Browser-side tests stub the FSA surface with a <code>MemoryFsaDirectory</code> shim that tracks per-file <code>WritableOp</code> sequences (write/truncate/close) so the macOS guard tests can assert on operation order without a real browser. <code>computeEnvChecks</code> tests use <code>vi.stubGlobal</code> for <code>window</code> + <code>navigator</code> — no jsdom required.
+      </p>
+
+      <!-- 12. Build & deploy -->
+      <h2 id="build-deploy">12 · Build &amp; deploy</h2>
+      <pre><code>pnpm install                                  # workspace install
+pnpm -F @factstack/ui-remix build             # SPA + bundle-size check
+pnpm -F @factstack/emit test                  # tests
+pnpm -F @factstack/cli exec tsx src/cli.ts \
+       analyze "D:/path/to/project"            # re-analyze the project
+
+# Deploy
+netlify deploy --filter @factstack/ui-remix \
+       --dir=apps/ui-remix/dist --no-build --prod</code></pre>
+      <p>
+        The Netlify deploy serves <code>apps/ui-remix/dist/</code> at <a href="https://factstack-demo.netlify.app">factstack-demo.netlify.app</a>. Static-file precedence means the <code>/handoff/</code> and <code>/design-handoff/</code> routes hit the docs first; everything else falls through to the SPA's catch-all at <code>/index.html</code>.
+      </p>
+      <p>
+        Bundle size enforcement lives in <code>apps/ui-remix/scripts/check-bundle-size.mjs</code>. Three caps: Main JS (72 KB gz), Lazy JS (200 KB gz), CSS (8 KB gz). Bumps require a justification comment in the script's history block.
+      </p>
+
+      <!-- 13. Tooling -->
+      <h2 id="tooling">13 · Tooling</h2>
+      <ul>
+        <li><strong>pnpm</strong> (workspace) + <strong>turbo</strong> (task runner) at root.</li>
+        <li><strong>vitest</strong> for unit tests.</li>
+        <li><strong>vite</strong> for the UI bundler.</li>
+        <li><strong>oxlint</strong> + <strong>oxfmt</strong> + <strong>prettier</strong> (md only) for code quality.</li>
+        <li><strong>tree-sitter</strong> WASM for parsers (no native compilation, works on any OS).</li>
+        <li><strong>Netlify</strong> for hosted demo.</li>
+        <li><strong>.pnpmfile.cjs</strong> hook strips exotic subdeps (defends against the <code>uWebSockets.js</code> github-tarball install bug).</li>
+      </ul>
+
+      <!-- 14. Outstanding -->
+      <h2 id="outstanding">14 · Outstanding work</h2>
+      <ul>
+        <li><strong>tsconfig path aliases</strong> not resolved (134 unresolved <code>@lib/*</code> imports in the RallyPro analysis fixture). Tracked as task #15.</li>
+        <li><strong>Route-level chunk splitting</strong> — at 69 KB gz the main bundle is past the inflection point. Splitting every route into its own lazy chunk would cut Main JS to ~30 KB.</li>
+        <li><strong>FileReader interface deepening</strong> — <code>readSnapshots</code> is still duplicated across <code>emit/</code> and <code>emit-browser/</code>. The pattern that worked for <code>FileWriter</code> would collapse it.</li>
+      </ul>
+
+      <!-- 15. Where next -->
+      <h2 id="where-next">15 · Where to look next</h2>
+      <p>If you're picking this up cold, read in this order:</p>
+      <ol>
+        <li><code>app_spec.md</code> — canonical product spec, acceptance criteria for every v0.1 feature.</li>
+        <li><code>CONTEXT.md</code> — domain glossary, especially the tier model + read/write tier vocabulary.</li>
+        <li><code>README.md</code> — install + run instructions.</li>
+        <li><code>apps/ui-remix/REBUILD_PLAN.md</code> + <code>TASKS.md</code> — UI roadmap with porting notes.</li>
+        <li><code>packages/emit/src/orchestrator.ts</code> — the cleanest example of an isomorphic pure module in the codebase.</li>
+        <li><code>packages/emit-browser/src/fsa-writer.ts</code> — read alongside the test file for a quick tour of the macOS defense ritual.</li>
+        <li><a href="./design-handoff.html">design-handoff.html</a> — companion doc covering the design system + animation language.</li>
+      </ol>
+
+      <p class="footer">
+        Living handoff · maintained at <code>docs/handoff.html</code> in the repo. Not deployed — open via <code>file://</code> or any local static server (e.g., <code>npx serve docs</code>). Companion: <a href="./design-handoff.html">design-handoff.html</a>.
+      </p>
+    </main>
+  </div>
+
+  <script>
+    /* Active-section highlight via IntersectionObserver — anchors the
+     * sidebar to wherever the reader is in the doc. Threshold + rootMargin
+     * tuned so the active row flips when a section header crosses ~30%
+     * down the viewport (above is "scrolled past"; below is "not yet").
+     * Reduced-motion path: no observer, no animation — the smooth-scroll
+     * media query already covers nav clicks. */
+    (function () {
+      var headings = document.querySelectorAll('main h2[id], main h3[id]');
+      var links = {};
+      document.querySelectorAll('.toc a[href^="#"]').forEach(function (a) {
+        links[a.getAttribute('href').slice(1)] = a;
+      });
+      if (!('IntersectionObserver' in window) || headings.length === 0) return;
+      var current = null;
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var id = entry.target.id;
+          if (current === id) return;
+          if (current && links[current]) links[current].classList.remove('is-active');
+          if (links[id]) links[id].classList.add('is-active');
+          current = id;
+        });
+      }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+      headings.forEach(function (h) { observer.observe(h); });
+    })();
+  </script>
+</body>
+</html>
