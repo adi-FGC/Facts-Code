@@ -54,6 +54,7 @@ import {
   setCurrentSourceId,
   type Recent,
 } from '../lib/recents.ts';
+import { computeEnvChecks, type EnvCheck } from '../lib/envChecks.ts';
 
 type Mode = 'local' | 'github';
 /* Phases:
@@ -354,6 +355,217 @@ const savedNote = css({
   gap: 'var(--space-2)',
 });
 
+/* Second-line hint under the green save confirmation. macOS Finder
+   hides dot-prefixed directories by default — even when the write
+   succeeded, the user can't see `.facts/` unless they press ⌘⇧.
+   (Cmd-Shift-Period). Windows Explorer and many Linux file managers
+   behave the same way, so the hint is universally useful. Smaller +
+   muted so it reads as a footnote, not a competing statement. */
+const savedHint = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+  paddingLeft: 'calc(1ch + var(--space-2))', // align under the green dot's text
+  marginTop: 'calc(var(--space-2) * -1 + 2px)',
+  lineHeight: '1.5',
+});
+
+/* ─────────── privacy disclaimer ─────────── */
+
+/* Plain-language reminder that everything runs locally. Editorial
+   inset-rule style (2px accent on the left, dashed hairline border)
+   makes it read as "advisory note" rather than "warning". Visible in
+   both Local and GitHub modes — the privacy story is the same. */
+const disclaimer = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+  lineHeight: '1.55',
+  padding: 'var(--space-3)',
+  borderLeft: '2px solid var(--accent)',
+  borderTop: '1px dashed var(--hairline)',
+  borderRight: '1px dashed var(--hairline)',
+  borderBottom: '1px dashed var(--hairline)',
+  background: 'color-mix(in oklab, var(--accent) 4%, transparent)',
+});
+
+const disclaimerStrong = css({
+  color: 'var(--fg-muted)',
+});
+
+/* ─────────── environment / permissions panel ─────────── */
+
+/* Outer container — bordered to match recentsList visual language. */
+const envPanel = css({
+  border: '1px solid var(--hairline)',
+});
+
+/* Clickable header row. Acts as a toggle button. Layout is dot + label
+   on the left, status pill + chevron on the right. */
+const envHeader = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-3)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: 'var(--space-2)',
+  background: 'transparent',
+  border: 'none',
+  width: '100%',
+  cursor: 'pointer',
+  color: 'var(--fg-muted)',
+  font: 'inherit',
+  textAlign: 'left',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  letterSpacing: '0.02em',
+  '&:hover': { background: 'var(--highlight-faint)' },
+  '&:focus-visible': {
+    outline: '2px solid var(--accent)',
+    outlineOffset: '-2px',
+  },
+});
+
+const envHeaderLeft = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'var(--space-2)',
+});
+
+const envHeaderRight = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
+/* Status dot — 8x8, colored per status. Three variants below. */
+const dot = css({
+  display: 'inline-block',
+  width: '8px',
+  height: '8px',
+  borderRadius: '50%',
+  flexShrink: '0',
+});
+const dotOk = css({ background: 'var(--ok)' });
+const dotFail = css({ background: 'var(--danger)' });
+const dotWarn = css({ background: 'var(--accent)' });
+
+const envChevron = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-faint)',
+  transition: 'transform var(--dur-quick) var(--ease-out-quart)',
+});
+const envChevronOpen = css({
+  transform: 'rotate(90deg)',
+});
+
+const envBody = css({
+  borderTop: '1px solid var(--hairline)',
+  display: 'flex',
+  flexDirection: 'column',
+});
+
+const envRow = css({
+  display: 'grid',
+  gridTemplateColumns: '8px minmax(0, 1fr) auto',
+  alignItems: 'center',
+  gap: 'var(--space-3)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: 'var(--space-2)',
+  borderBottom: '1px solid var(--hairline)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-muted)',
+  '&:last-child': { borderBottom: 'none' },
+});
+
+const envRowLabel = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '2px',
+  minWidth: '0',
+});
+
+const envRowDetail = css({
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+  lineHeight: '1.4',
+});
+
+const envGrantBtn = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  border: '1px solid var(--accent)',
+  background: 'transparent',
+  color: 'var(--accent)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: '4px',
+  cursor: 'pointer',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  '&:hover:not(:disabled)': { background: 'var(--accent-soft)' },
+  '&:disabled': { opacity: '0.45', cursor: 'not-allowed' },
+});
+
+/* ─────────── view-files panel (post-save) ─────────── */
+
+const viewFilesPanel = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 'var(--space-2)',
+  marginTop: 'var(--space-2)',
+});
+
+const filesList = css({
+  border: '1px solid var(--hairline)',
+  maxHeight: '160px',
+  overflowY: 'auto',
+});
+
+const fileRow = css({
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  alignItems: 'baseline',
+  gap: 'var(--space-3)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: '6px',
+  borderBottom: '1px solid var(--hairline)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  '&:last-child': { borderBottom: 'none' },
+});
+
+const fileName = css({
+  color: 'var(--fg)',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+});
+
+const fileSize = css({
+  color: 'var(--fg-faint)',
+  fontVariantNumeric: 'tabular-nums',
+});
+
+const viewFilesNote = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+  lineHeight: '1.55',
+});
+
+const viewFilesActions = css({
+  display: 'flex',
+  gap: 'var(--space-2)',
+  marginTop: 'var(--space-2)',
+});
+
 /* ─────────── recents list ─────────── */
 
 const recentsWrap = css({
@@ -520,6 +732,128 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   let recents: Recent[] = [];
   let recentsLoaded = false;
 
+  /* ─────────── environment / permissions state ─────────── */
+
+  /* Lazy: null = not yet computed. Recomputed on show(), after pickLocal
+     succeeds (handle now exists), after triggerSave (write perm may have
+     flipped), and after any per-row Grant button fires. */
+  let envChecks: EnvCheck[] | null = null;
+  /* User-driven expand/collapse. Auto-set to true when any check fails so
+     the user sees the actionable detail without an extra click; stays
+     wherever the user left it otherwise. */
+  let envExpanded = false;
+  /* Prevents stale envChecks from a slow async computation overwriting
+     a fresher one — we keep a generation counter and only commit the
+     result if the gen we started with is still current. */
+  let envGen = 0;
+
+  /* ─────────── view-files panel state (post-save) ─────────── */
+
+  let viewFilesOpen = false;
+  let viewFilesList: Array<{ name: string; size: number }> | null = null;
+  let viewFilesLoading = false;
+
+  /* Refresh the environment checks. Cheap — just a few sync browser API
+     probes plus at most two queryPermission calls. Re-runs eagerly on
+     every state change that might affect the answer. */
+  async function refreshEnvChecks() {
+    const myGen = ++envGen;
+    const next = await computeEnvChecks(lastSourceHandle);
+    if (myGen !== envGen) return;
+    envChecks = next;
+    /* Auto-expand the moment a problem appears. If the user explicitly
+       collapsed it earlier and everything's still fine, leave it
+       collapsed — we only force-expand on failure. */
+    if (next.some((c) => c.status === 'fail')) envExpanded = true;
+    void handle.update();
+  }
+
+  /* Invoke a per-row Grant action. Each action is its own async function
+     supplied by computeEnvChecks(); after it runs we re-probe everything
+     so the row's status flips on success. */
+  async function runGrant(action: () => Promise<void>) {
+    try {
+      await action();
+    } catch {
+      /* Grant flows surface errors via the per-check re-probe. We don't
+         throw past the button — the env panel will reflect whatever
+         state the browser settled on. */
+    }
+    await refreshEnvChecks();
+  }
+
+  /* Lazy-load the .facts/ file list for the View Files panel. The save
+     completed before this can be invoked, so the directory definitely
+     exists. We read names + sizes via the FSA handle we already have. */
+  async function loadViewFiles() {
+    if (!lastSourceHandle) return;
+    viewFilesLoading = true;
+    void handle.update();
+    try {
+      const factsDir = await lastSourceHandle.getDirectoryHandle('.facts');
+      const out: Array<{ name: string; size: number }> = [];
+      /* keys() isn't on the standard FileSystemDirectoryHandle type yet —
+         cast to a permissive shape (same idiom as FsaFileWriter). */
+      const iter = (factsDir as unknown as { keys: () => AsyncIterableIterator<string> }).keys();
+      for await (const name of iter) {
+        try {
+          const fh = await factsDir.getFileHandle(name);
+          const file = await fh.getFile();
+          out.push({ name, size: file.size });
+        } catch {
+          /* Skip entries we can't read (subdirectories like snapshots/
+             would throw NotAllowedError on getFileHandle — that's fine,
+             this list is just for the top-level artifacts). */
+        }
+      }
+      out.sort((a, b) => a.name.localeCompare(b.name));
+      viewFilesList = out;
+    } catch (err) {
+      viewFilesList = [];
+      error = err instanceof Error ? err.message : String(err);
+      void handle.update();
+      return;
+    } finally {
+      viewFilesLoading = false;
+    }
+    void handle.update();
+  }
+
+  /* "Reveal in OS picker" — closest legal approximation to "open in
+     Finder". showDirectoryPicker({ startIn: factsHandle }) pops the
+     native picker (literally the OS file UI) rooted at .facts/, so the
+     user sees the actual file names + sizes through Finder/Explorer.
+     They cancel to close. */
+  async function revealFactsInPicker() {
+    if (!lastSourceHandle) return;
+    try {
+      const factsDir = await lastSourceHandle.getDirectoryHandle('.facts');
+      const picker = (window as unknown as {
+        showDirectoryPicker?: (opts?: {
+          mode?: 'read' | 'readwrite';
+          startIn?: FileSystemDirectoryHandle;
+        }) => Promise<FileSystemDirectoryHandle>;
+      }).showDirectoryPicker;
+      if (!picker) return;
+      try {
+        await picker({ mode: 'read', startIn: factsDir });
+      } catch (err) {
+        /* AbortError == user cancelled — that's the expected exit. Other
+           errors are best-effort: the inline file list still works. */
+        if (err instanceof Error && err.name === 'AbortError') return;
+      }
+    } catch {
+      /* .facts/ might not exist if the user opened a different recent
+         since the last save. Silently no-op. */
+    }
+  }
+
+  function toggleViewFiles() {
+    viewFilesOpen = !viewFilesOpen;
+    if (viewFilesOpen && viewFilesList === null) void loadViewFiles();
+    void handle.update();
+  }
+
   function show(nextMode: Mode = 'local') {
     if (open && mode === nextMode) return;
     open = true;
@@ -539,6 +873,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     if (!recentsLoaded) {
       void refreshRecents();
     }
+    /* Always refresh environment checks on open — capabilities don't
+       change session-to-session, but a freshly-revoked perm or a
+       browser update between opens should be reflected. */
+    void refreshEnvChecks();
     /* Focus the URL input on next tick if we're in GitHub mode. The
        Local mode's primary button is the directory picker, which the
        user will tab into anyway; auto-focusing it would cause an
@@ -629,6 +967,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     /* Stash the source handle BEFORE the scan completes so the save
        fast-path knows which directory to re-prompt for write perm. */
     lastSourceHandle = dirHandle;
+    /* Re-probe env checks now that we have a handle — the read/write
+       permission rows for the picked dir become relevant here. */
+    void refreshEnvChecks();
     await runScan(bridge, (onProgress) => bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }));
   }
 
@@ -753,6 +1094,12 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         destination: destination.name + '/.facts',
       };
       phase = 'saved';
+      /* After a successful save, the write permission almost certainly
+         flipped to 'granted'. Re-probe so the env panel reflects it
+         (also resets the view-files file list since .facts/ now exists
+         with fresh content). */
+      viewFilesList = null;
+      void refreshEnvChecks();
       void handle.update();
     } catch (err) {
       phase = 'error';
@@ -995,9 +1342,161 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     );
   }
 
+  /* ─────────── new partial renderers (disclaimer + env panel + view-files) ─────────── */
+
+  /**
+   * Privacy disclaimer — always visible in the pre-scan body of both
+   * Local and GitHub modes. Plain language; no scare tactics. Tells
+   * the user three things they care about:
+   *   1. Where their data goes (nowhere — stays in the browser).
+   *   2. When that changes (only if THEY click Save).
+   *   3. What a refresh does (clears the in-memory analysis).
+   */
+  function renderDisclaimer() {
+    return (
+      <div mix={disclaimer}>
+        Everything runs in your browser. <span mix={disclaimerStrong}>No code or files
+        leave your device</span> unless you click Save to write{' '}
+        <span class="mono">.facts/</span> back to disk. A page refresh clears the
+        in-memory analysis — nothing persists unless saved.
+      </div>
+    );
+  }
+
+  /**
+   * Environment / permissions panel. Collapsible. Auto-expanded when
+   * any check fails so the user sees the actionable detail without an
+   * extra click. Header shows status pill ("All green" / "N issue(s)")
+   * — a one-glance read of system readiness.
+   *
+   * The check list grows when a directory is picked: read + write
+   * permission rows for the picked dir become relevant after the
+   * user clicks Choose Folder.
+   */
+  function renderEnvPanel() {
+    if (!envChecks) return null; // first-render race; rendered on next update
+    const checks = envChecks;
+    const failCount = checks.filter((c) => c.status === 'fail').length;
+    const warnCount = checks.filter((c) => c.status === 'warn').length;
+    const allOk = failCount === 0 && warnCount === 0;
+    const statusLabel = allOk
+      ? 'All green'
+      : failCount > 0
+        ? `${failCount} issue${failCount === 1 ? '' : 's'}`
+        : `${warnCount} optional`;
+    const headerDotClass = allOk ? dotOk : failCount > 0 ? dotFail : dotWarn;
+    return (
+      <div mix={envPanel}>
+        <button
+          type="button"
+          aria-expanded={envExpanded ? 'true' : 'false'}
+          mix={[envHeader, on('click', () => {
+            envExpanded = !envExpanded;
+            void handle.update();
+          })]}
+        >
+          <span mix={envHeaderLeft}>
+            <span aria-hidden="true" mix={[dot, headerDotClass]} />
+            <span>Permissions &amp; environment</span>
+          </span>
+          <span mix={envHeaderRight}>
+            <span>{statusLabel}</span>
+            <span aria-hidden="true" mix={[envChevron, envExpanded ? envChevronOpen : null]}>
+              ›
+            </span>
+          </span>
+        </button>
+        {envExpanded && (
+          <div mix={envBody}>
+            {checks.map((c) => {
+              const dotClass = c.status === 'ok' ? dotOk : c.status === 'fail' ? dotFail : dotWarn;
+              return (
+                <div key={c.id} mix={envRow}>
+                  <span aria-hidden="true" mix={[dot, dotClass]} />
+                  <span mix={envRowLabel}>
+                    <span>{c.label}</span>
+                    <span mix={envRowDetail}>{c.detail}</span>
+                  </span>
+                  {c.grant ? (
+                    <button
+                      type="button"
+                      mix={[envGrantBtn, on('click', () => { void runGrant(c.grant!); })]}
+                    >Grant</button>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  /**
+   * Post-save inline file viewer + "reveal in OS picker" affordance.
+   *
+   * Browsers cannot programmatically open Finder/Explorer at a path
+   * (sandboxed). We get as close as possible with two surfaces:
+   *
+   *   1. **Inline file list** — read .facts/ via the FSA handle we
+   *      already have, show name + size for each top-level entry.
+   *      User always has a visual answer to "where did my files go?".
+   *
+   *   2. **Reveal in OS picker** — calls showDirectoryPicker with
+   *      startIn: factsHandle, which pops the OS-native file picker
+   *      (literally the macOS Files UI / Windows Explorer UI) rooted
+   *      at .facts/. User sees the actual files through the actual
+   *      OS file UI, cancels to close.
+   */
+  function renderViewFiles() {
+    if (!lastSourceHandle) return null;
+    return (
+      <div mix={viewFilesPanel}>
+        <div mix={actionsRow}>
+          <button
+            type="button"
+            mix={[secondaryBtn, on('click', toggleViewFiles)]}
+          >{viewFilesOpen ? 'Hide files' : 'View .facts files'}</button>
+          <button
+            type="button"
+            title="Open the OS-native file picker rooted at .facts/ — closest a browser sandbox can get to revealing in Finder/Explorer."
+            mix={[secondaryBtn, on('click', () => { void revealFactsInPicker(); })]}
+          >Reveal in OS picker</button>
+        </div>
+        {viewFilesOpen && (
+          <>
+            {viewFilesLoading && <div mix={viewFilesNote}>Loading file list…</div>}
+            {!viewFilesLoading && viewFilesList && viewFilesList.length > 0 && (
+              <div mix={filesList}>
+                {viewFilesList.map((f) => (
+                  <div key={f.name} mix={fileRow}>
+                    <span mix={fileName}>{f.name}</span>
+                    <span mix={fileSize}>{fmtBytes(f.size)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!viewFilesLoading && viewFilesList && viewFilesList.length === 0 && (
+              <div mix={viewFilesNote}>No files in .facts/. The save may not have completed.</div>
+            )}
+            <div mix={viewFilesNote}>
+              Browsers can't open Finder or Explorer directly from a page. The list above
+              reads the files via the same File System Access permission you granted —
+              the actual files live at <span class="mono">{lastSourceHandle.name}/.facts/</span>{' '}
+              on your device. Use <span class="mono">Reveal in OS picker</span> to see them
+              through the native file UI.
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
   function renderLocalBody() {
     return (
       <>
+        {renderDisclaimer()}
+        {renderEnvPanel()}
         <p mix={lede}>
           Pick a directory on your machine. The scan runs entirely in your browser —
           no files leave the device. After the scan you can save the artifacts
@@ -1062,13 +1561,21 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             <span mix={resultStatNum}>{elapsed} s</span>
           </div>
           {phase === 'saved' && savedSummary && (
-            <div mix={savedNote}>
-              <span aria-hidden="true">●</span>
-              <span>
-                Wrote {savedSummary.files} files ({fmtBytes(savedSummary.bytes)}) to{' '}
-                <span class="mono">{savedSummary.destination}</span>
-              </span>
-            </div>
+            <>
+              <div mix={savedNote}>
+                <span aria-hidden="true">●</span>
+                <span>
+                  Wrote {savedSummary.files} files ({fmtBytes(savedSummary.bytes)}) to{' '}
+                  <span class="mono">{savedSummary.destination}</span>
+                </span>
+              </div>
+              <div mix={savedHint}>
+                <span class="mono">.facts/</span> is hidden in macOS Finder by default — press{' '}
+                <span class="mono">⌘⇧.</span> (Cmd-Shift-Period) to reveal it, or open the folder
+                in your editor / terminal.
+              </div>
+              {renderViewFiles()}
+            </>
           )}
         </div>
         <div mix={actionsRow}>
@@ -1093,6 +1600,8 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   function renderGithubBody() {
     return (
       <>
+        {renderDisclaimer()}
+        {renderEnvPanel()}
         <p mix={lede}>
           Paste a public repo URL or <span class="mono">owner/repo</span>. We hit the GitHub Trees API
           and fetch source files via <span class="mono">raw.githubusercontent.com</span>. PAT raises the
@@ -1210,3 +1719,7 @@ function fmtAge(ms: number): string {
   if (mo < 12) return mo + 'mo';
   return Math.floor(mo / 12) + 'y';
 }
+
+/* `EnvCheck` + `computeEnvChecks` extracted to `../lib/envChecks.ts`
+   so the probe logic is testable in isolation (envChecks.test.ts) and
+   sibling lib/ helpers (recents, scannerBridge) sit at the same tier. */
