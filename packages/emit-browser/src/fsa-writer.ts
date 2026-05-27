@@ -65,10 +65,32 @@ export class FsaFileWriter implements FileWriter {
 
   async writeText(p: string, body: string): Promise<number> {
     const [dir, name] = await this.resolveDirAndName(p);
+    /* Encode once: we need the byte count three times (write payload,
+       truncate target, verification expected-size) and the cost of
+       re-encoding a JSON blob 3x is silly. */
+    const bytes = new TextEncoder().encode(body);
+    const byteLength = bytes.byteLength;
+
     const handle = await dir.getFileHandle(name, { create: true });
-    const writable = await handle.createWritable();
+    /* Explicit `keepExistingData: false` — every writeText is a full
+       replace, never a delta. The default is false, but being explicit
+       clarifies intent and matches the FileWriter contract. */
+    const writable = await handle.createWritable({ keepExistingData: false });
     try {
-      await writable.write(body);
+      /* Write as BufferSource (Uint8Array) instead of string. The FSA
+         spec allows both, but WebKit's pre-17.x Safari and some FSA
+         polyfills shipped with bugs where the string form silently
+         wrote 0 bytes or partial bytes on macOS. BufferSource is the
+         universally-tested path — Chrome, Firefox, Safari 17+, every
+         FSA polyfill we've checked accepts it without quirks. */
+      await writable.write(bytes);
+      /* Explicit truncate to the expected byte length defends against
+         a known WebKit/Safari bug where close() resolves before the
+         data fully flushes when the file was opened in replace mode
+         without an explicit truncate — leaving a 0-byte file on disk
+         even though every promise resolved successfully. Forcing the
+         size here makes the implementation commit. */
+      await writable.truncate(byteLength);
     } finally {
       /* Always close — leaving a writable open holds the file lock
          and the next write attempt throws NoModificationAllowedError.
@@ -77,7 +99,45 @@ export class FsaFileWriter implements FileWriter {
          lifecycle explicit. */
       await writable.close();
     }
-    return new TextEncoder().encode(body).byteLength;
+
+    /* Post-write verification. The previous flow trusted that
+       successful close() meant bytes hit disk, but three macOS-specific
+       failure modes silently violate that assumption:
+         1. iCloud Drive "Optimize Mac Storage" (offline-only) folders
+            accept writes via FSA but never sync them locally — Finder
+            shows no file even though the FSA layer reported success.
+         2. Chrome 122+ on macOS sometimes returns `'granted'` from
+            requestPermission but writes still no-op because the
+            underlying macOS sandbox capability wasn't transferred.
+         3. WebKit's close-without-truncate bug (pre-17.x Safari)
+            occasionally left 0-byte files.
+       Re-open the file and check the size. If it doesn't match, the
+       write silently failed — throw a descriptive error pointing at
+       the likely cause so the user can recover (try a different
+       folder, exit iCloud sandbox, retry the permission). */
+    let verifiedSize: number;
+    try {
+      const verifyHandle = await dir.getFileHandle(name);
+      const file = await verifyHandle.getFile();
+      verifiedSize = file.size;
+    } catch (err) {
+      throw new Error(
+        `Write verification could not re-read "${p}": ${err instanceof Error ? err.message : String(err)}. ` +
+        `The write may have silently failed. If the destination folder is inside iCloud Drive, ` +
+        `try saving to a local folder (e.g., your home directory) instead.`,
+      );
+    }
+    if (verifiedSize !== byteLength) {
+      throw new Error(
+        `Write verification failed for "${p}": expected ${byteLength} bytes on disk, ` +
+        `found ${verifiedSize}. The destination directory may be inside iCloud Drive ` +
+        `with offline-only sync, or the browser's File System Access write permission ` +
+        `was silently denied. Try picking a folder under your home directory that's NOT ` +
+        `in iCloud Drive, Documents, or Downloads.`,
+      );
+    }
+
+    return byteLength;
   }
 
   async listKeys(dir: string): Promise<string[]> {
