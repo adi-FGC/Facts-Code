@@ -108,9 +108,53 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
  *                Route-level chunk splitting now URGENT — at 68 KB we're
  *                past where it pays off cleanly. Adding it next would
  *                cut Main JS to ~30 KB. Raw 280→320 KB.
+ *   2026-05-25 — main JS gz 68 → 72 KB after the OpenModal trust/safety
+ *                surface landed (privacy disclaimer + collapsible
+ *                environment-check panel + post-save "View .facts files"
+ *                inline list + "Reveal in OS picker" affordance).
+ *                Breakdown (~1.8 KB gz):
+ *                  - computeEnvChecks() async probe of FSA + storage +
+ *                    per-handle perms (~0.4 KB gz)
+ *                  - envPanel renderer (collapsible header + grant
+ *                    buttons per row) (~0.6 KB gz)
+ *                  - disclaimer + view-files panel + helpers (~0.8 KB gz)
+ *                All first-paint — modal owns ⌘O and the global open
+ *                event, the trust surface must be ready the moment the
+ *                modal opens or it defeats the purpose. Lazy-splitting
+ *                only the env helpers (~0.4 KB) would force a network
+ *                hop on first ⌘O, the worst possible time. Better to
+ *                bump the cap once and let users hit a coherent
+ *                permissions UI synchronously. Raw 320→340 KB.
+ *                Route-level chunk splitting still tracked as separate
+ *                refactor (would also fix this) but not blocking.
+ *   2026-05-26 — main JS gz 72 → 80 KB after the security tier landed:
+ *                two new routes (/credentials + /vulnerabilities) plus
+ *                the OSV.dev client. Breakdown (~2.5 KB gz that lands
+ *                on main, ~1.5 KB gz lazy-split):
+ *                  - routes/Credentials.tsx (~1.2 KB gz): secrets-
+ *                    scanner finding visualization + 8-rule reference
+ *                    card. Filters data.risks by category === 'secret'.
+ *                  - routes/Vulnerabilities.tsx (~1.3 KB gz): OSV.dev
+ *                    CVE scanner UI — manifest detection, paste-driven
+ *                    scan flow, severity-bucketed result rendering,
+ *                    inline VulnRowView + local helpers (bucketing +
+ *                    advisory URL) duplicated from osvScanner so the
+ *                    row component renders without dynamic-import
+ *                    overhead.
+ *                  - lib/osvScanner.ts (~1.5 KB gz, LAZY): batch query
+ *                    client + localStorage cache + manifest parser.
+ *                    Dynamic-imported on the Scan button click; main
+ *                    bundle pays type-only cost.
+ *                Both routes are first-paint code (tab list owns them).
+ *                Splitting either to lazy chunks would flash an empty
+ *                tab on navigation — bad UX for security-adjacent pages
+ *                that need to feel instantly responsive. Route-level
+ *                chunk splitting (still tracked) would solve this
+ *                holistically.
+ *                Raw 340→370 KB.
  */
-const CAP_MAIN_JS_RAW = 320 * 1024;
-const CAP_MAIN_JS_GZ = 68 * 1024;
+const CAP_MAIN_JS_RAW = 370 * 1024;
+const CAP_MAIN_JS_GZ = 80 * 1024;
 const CAP_WORKER_JS_RAW = 600 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;

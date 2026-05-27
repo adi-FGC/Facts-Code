@@ -255,6 +255,101 @@ export const ConfigSchema = z.object({
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
+/* ─────────── Security tier (v0.6 / 2026-05-27) ───────────
+ *
+ * Two additive surfaces — both default to [] so pre-v0.6 artifacts
+ * validate unchanged and the schema version stays at 0.1.0:
+ *
+ *   - dependencyManifests[] — every detected manifest file
+ *     (package.json, pyproject.toml, Cargo.toml, go.mod, pom.xml,
+ *     Gemfile) parsed into a uniform dep-list shape. Produced by
+ *     @factstack/scanners' scanDependencyManifest during analyze.
+ *     Always populated (empty when no manifests detected).
+ *
+ *   - vulnerabilities[] — CVE findings cross-referenced against
+ *     OSV.dev. NOT populated by analyze (no network in core); the
+ *     opt-in `factstack scan-vulns` CLI subcommand fetches and
+ *     persists them. Defaults to [].
+ *
+ * Why two separate fields instead of nesting vulns under manifests:
+ *   - Flat queries are simpler ("show all critical CVEs across the
+ *     whole monorepo" vs "iterate manifests, then iterate deps").
+ *   - The MCP server's list_vulnerabilities tool returns a flat list
+ *     regardless of manifest origin — matches the SQL-ish shape AI
+ *     agents expect from a "findings" surface.
+ *   - Manifest provenance is preserved via the per-finding
+ *     `manifestPath` field. No information lost.
+ */
+
+export const ManifestEcosystemSchema = z.enum([
+  'npm',
+  'pypi',
+  'cargo',
+  'go',
+  'maven',
+  'rubygems',
+  'unknown',
+]);
+export type ManifestEcosystem = z.infer<typeof ManifestEcosystemSchema>;
+
+export const DependencyManifestSchema = z.object({
+  /** Path relative to project root. e.g. "package.json", "apps/cli/package.json". */
+  path: z.string(),
+  ecosystem: ManifestEcosystemSchema,
+  /** Declared package name. Null for root workspaces / private apps
+   *  that omit `name`, and for ecosystems that don't require it. */
+  name: z.string().nullable(),
+  /** Declared package version. Null when not declared (root workspaces,
+   *  applications). The OSV query uses each dep's version, NOT this. */
+  version: z.string().nullable(),
+  /** Runtime dependencies. Map from package name to declared version
+   *  spec ("^4.17.21", "~1.0.0", "1.2.3", "workspace:*"). The OSV
+   *  client normalizes these to concrete versions before querying. */
+  dependencies: z.record(z.string(), z.string()).default({}),
+  /** Dev-only dependencies. Kept separate so consumers can choose
+   *  whether to scan them — most CI gates include them since they
+   *  ship in tarballs and run during build. */
+  devDependencies: z.record(z.string(), z.string()).default({}),
+});
+export type DependencyManifest = z.infer<typeof DependencyManifestSchema>;
+
+export const VulnerabilitySeveritySchema = z.enum([
+  'critical',
+  'high',
+  'medium',
+  'low',
+  'unknown',
+]);
+export type VulnerabilitySeverity = z.infer<typeof VulnerabilitySeveritySchema>;
+
+export const VulnerabilitySchema = z.object({
+  /** OSV / CVE / GHSA identifier ("CVE-2024-1234", "GHSA-abcd-1234-..."). */
+  id: z.string(),
+  /** One-line summary from the advisory. Optional — some advisories
+   *  carry only details, no summary. */
+  summary: z.string().optional(),
+  severity: VulnerabilitySeveritySchema,
+  ecosystem: ManifestEcosystemSchema,
+  /** Affected package name ("lodash", "django"). */
+  package: z.string(),
+  /** Version installed in the project that triggered this finding. */
+  installedVersion: z.string(),
+  /** First version that fixes the vulnerability; null when unpatched
+   *  or when the OSV record doesn't carry a `fixed` event. */
+  fixedVersion: z.string().nullable(),
+  /** Best-effort URL to the advisory (GHSA page, vendor advisory,
+   *  fallback to osv.dev/vulnerability/{id}). */
+  advisoryUrl: z.string(),
+  /** UNIX ms timestamp when scan-vulns last queried for this finding.
+   *  The UI uses this to decide whether to re-query live or trust the
+   *  artifact's snapshot. */
+  lastChecked: z.number().int().positive(),
+  /** Path of the manifest where the dep was declared. Lets the UI
+   *  group findings by manifest in monorepos. */
+  manifestPath: z.string(),
+});
+export type Vulnerability = z.infer<typeof VulnerabilitySchema>;
+
 export const AgentArtifactSchema = z.object({
   $schema: z.literal('https://factstack.dev/schema/agent.v1.json').default(
     'https://factstack.dev/schema/agent.v1.json',
@@ -273,5 +368,14 @@ export const AgentArtifactSchema = z.object({
    *  pre-v0.3.6 artifacts; renderers fall back to "no config data" when
    *  absent. */
   config: ConfigSchema.optional(),
+  /** v0.6 — every detected dep manifest with its dep map. Always
+   *  populated (empty when no manifests found). Default keeps
+   *  pre-v0.6 artifacts validating unchanged. */
+  dependencyManifests: z.array(DependencyManifestSchema).default([]),
+  /** v0.6 — CVE findings from the last `factstack scan-vulns` run.
+   *  Empty by default (analyze doesn't make network calls). The UI's
+   *  Vulnerabilities page reads from here first, falls back to live
+   *  OSV query when empty or stale. */
+  vulnerabilities: z.array(VulnerabilitySchema).default([]),
 });
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;

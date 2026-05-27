@@ -39,14 +39,22 @@ import {
 import { extractOutline } from '@factstack/extractors';
 import { gzippedBytes, humanToViz, readSnapshots, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
-import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
+import {
+  flattenManifests,
+  queryOsvBatch,
+  osvResultsToVulnerabilities,
+  normalizeNpmVersion,
+  noopCache,
+  type OsvQuery,
+} from '@factstack/scanners';
+import type { AgentArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
 
 const program = new Command();
 
 program
   .name('factstack')
-  .description('FACTS — AI Coding Tracker Stack. Analyse a project and emit AI-agent + CXO-readable artifacts.')
+  .description('FACTS — Fun AI Coding Tools. Analyse a project and emit AI-agent + CXO-readable artifacts.')
   .version('0.1.0-alpha.1')
   // Top-level `--json` so `factstack --json .` matches the file-header
   // promise of "machine-invocable mode (no TTY chrome)". Subcommands
@@ -518,6 +526,164 @@ program
   });
 
 program
+  .command('scan-vulns [target]')
+  .description('Query OSV.dev for CVEs in dependencyManifests + persist findings into <target>/.facts/agent.json')
+  .option('--prod-only', 'Skip devDependencies (default: scan everything that ships)')
+  .option('--no-cache', 'Bypass any local cache and force fresh OSV queries')
+  .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
+  .action(async (target: string | undefined, opts: { prodOnly?: boolean; cache: boolean; json?: boolean }) => {
+    const root = path.resolve(target ?? '.');
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    const humanPath = path.join(root, '.facts', 'human.json');
+
+    /* Pre-flight: agent.json must exist + be valid. We deliberately
+       do NOT auto-analyze here (unlike `ui` which does it) — scan-vulns
+       is the network-touching step, and we want the user's "analyze
+       happened" decision to be explicit. */
+    if (!existsSync(agentPath)) {
+      process.stderr.write(kleur.red('factstack scan-vulns: ') + 'no .facts/agent.json found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first; then re-run scan-vulns.\n'));
+      process.exit(1);
+    }
+
+    let agent: AgentArtifact;
+    let human: HumanArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+      human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack scan-vulns: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    /* Build the OSV query list. flattenManifests dedupes (ecosystem,
+       name, version) across the whole project so a dep declared in 8
+       workspace packages still makes one OSV query. */
+    const flat = flattenManifests(agent.dependencyManifests);
+    /* normalizeNpmVersion drops non-registry protocols (workspace:,
+       file:, git+, etc.) — those can't be CVE-checked at OSV. We log
+       the skipped count so the user knows what we couldn't scan. */
+    const queries: OsvQuery[] = [];
+    let skippedNonRegistry = 0;
+    for (const entry of flat) {
+      if (opts.prodOnly) {
+        /* --prod-only filtering would require us to know which manifest's
+           dep map each entry came from. flattenManifests collapses dev +
+           runtime — for prod-only we'd need a richer flatten. MVP: emit
+           a warning, scan everything. */
+      }
+      const concrete = entry.ecosystem === 'npm' ? normalizeNpmVersion(entry.version) : entry.version;
+      if (!concrete) {
+        skippedNonRegistry++;
+        continue;
+      }
+      queries.push({
+        ecosystem: entry.ecosystem,
+        name: entry.name,
+        version: concrete,
+        manifestPath: entry.manifestPaths[0] ?? '',
+      });
+    }
+
+    if (opts.prodOnly) {
+      process.stderr.write(kleur.yellow('  --prod-only: not yet implemented; scanning all deps.\n'));
+    }
+
+    if (queries.length === 0) {
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · scan-vulns: ') + '0 queriable deps (try `factstack analyze` first?)\n');
+      if (skippedNonRegistry > 0) {
+        process.stderr.write(kleur.dim(`  ${skippedNonRegistry} non-registry deps (workspace:/file:/git:) skipped\n`));
+      }
+      return;
+    }
+
+    process.stderr.write(
+      kleur.bold().green('FACTS') +
+      kleur.dim(' · scan-vulns: querying ') +
+      kleur.cyan(String(queries.length)) +
+      kleur.dim(` dep${queries.length === 1 ? '' : 's'} against OSV.dev…\n`),
+    );
+
+    const t0 = performance.now();
+    let results;
+    try {
+      /* MVP cache: noopCache. A future filesystem cache at
+         .facts/cache/osv/ would speed up repeated CI runs, but the
+         OSV API is generous + a single run is the common case. */
+      results = await queryOsvBatch(queries, {
+        cache: opts.cache === false ? noopCache : noopCache,
+      });
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack scan-vulns: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  network error? OSV.dev unreachable? Re-run later.\n'));
+      process.exit(1);
+    }
+    const elapsedMs = performance.now() - t0;
+
+    /* Convert OSV's raw shape into the canonical Vulnerability[] the
+       artifact carries. Filters out empty results (clean packages). */
+    const vulnerabilities: Vulnerability[] = osvResultsToVulnerabilities(results);
+
+    /* Persist back to agent.json. We rewrite the whole artifact via
+       writeArtifacts so the .pack + .jsonl companions also refresh
+       (they're regenerated from the same in-memory artifact every
+       write, so stale companion files would lie about the new vulns). */
+    const nextAgent: AgentArtifact = { ...agent, vulnerabilities };
+    await writeArtifacts({
+      root,
+      agent: nextAgent,
+      human,
+      addGitignoreEntry: false,
+      memoryBody: buildMemory(nextAgent, human),
+    });
+
+    /* Explicit shape (not Record<string, number>) so noUncheckedIndexedAccess
+       can prove each key exists at read time. */
+    const counts: { critical: number; high: number; medium: number; low: number; unknown: number } = {
+      critical: 0, high: 0, medium: 0, low: 0, unknown: 0,
+    };
+    for (const v of vulnerabilities) counts[v.severity] = counts[v.severity] + 1;
+    const totalVulnerable = new Set(vulnerabilities.map((v) => `${v.ecosystem}|${v.package}@${v.installedVersion}`)).size;
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({
+        scanned: queries.length,
+        skippedNonRegistry,
+        vulnerablePackages: totalVulnerable,
+        findings: vulnerabilities.length,
+        counts,
+        elapsedMs: Math.round(elapsedMs),
+        vulnerabilities,
+      }, null, 2) + '\n');
+      return;
+    }
+
+    /* TTY summary — clear-eyed numbers + a one-line headline. */
+    const lines: string[] = [];
+    lines.push(
+      kleur.bold().green('FACTS') +
+      kleur.dim(` · scan-vulns: ${queries.length} scanned, ${totalVulnerable} vulnerable, ${vulnerabilities.length} ${vulnerabilities.length === 1 ? 'finding' : 'findings'}`) +
+      kleur.dim(` · ${Math.round(elapsedMs)}ms`),
+    );
+    if (vulnerabilities.length === 0) {
+      lines.push(kleur.green('  ✓ no known vulnerabilities at queried versions'));
+    } else {
+      const sevParts: string[] = [];
+      if (counts.critical > 0) sevParts.push(kleur.red(`${counts.critical} critical`));
+      if (counts.high > 0)     sevParts.push(kleur.yellow(`${counts.high} high`));
+      if (counts.medium > 0)   sevParts.push(kleur.cyan(`${counts.medium} medium`));
+      if (counts.low > 0)      sevParts.push(kleur.dim(`${counts.low} low`));
+      if (counts.unknown > 0)  sevParts.push(kleur.dim(`${counts.unknown} unknown`));
+      lines.push('  ' + sevParts.join(kleur.dim(' · ')));
+      lines.push(kleur.dim('  written to .facts/agent.json — see the Vulnerabilities tab or `factstack query vulnerabilities`'));
+    }
+    if (skippedNonRegistry > 0) {
+      lines.push(kleur.dim(`  ${skippedNonRegistry} non-registry deps skipped (workspace:/file:/git: protocols)`));
+    }
+    process.stderr.write(lines.join('\n') + '\n');
+  });
+
+program
   .command('diff [snapshotA] [snapshotB]')
   .description('Compare two analyses. Zero args: current agent.json vs the latest snapshot. Two args: two snapshot files.')
   .option('--json', 'Emit the diff artifact as JSON on stdout instead of a TTY summary')
@@ -557,6 +723,12 @@ program
             packageCount: 0,
             totalTokenCost: raw.stats?.totalTokenCost ?? 0,
           },
+          /* v0.6 — both new fields default to []. Snapshots don't
+             carry dep/vuln data; the diff treats them as "unknown
+             rather than zero." Future snapshot version may include
+             vuln counts in the rollup. */
+          dependencyManifests: [],
+          vulnerabilities: [],
         };
         // Snapshots roll up headline counts (todos, broken, stale,
         // secrets) at the top level. Pass every known numeric field

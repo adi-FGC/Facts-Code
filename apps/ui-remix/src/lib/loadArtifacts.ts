@@ -17,6 +17,8 @@
  * platform. Same module shape as the previous React version.
  */
 
+import type { DependencyManifest, Vulnerability } from '@factstack/spec';
+
 export interface DatasetFile {
   name: string;
   path: string;
@@ -118,6 +120,12 @@ export interface Dataset {
     }>;
     schemas: unknown[];
   };
+  /** v0.6 — security tier. Types come straight from @factstack/spec
+   *  so the schema is the single source of truth. Optional on the
+   *  type for backward-compat with pre-v0.6 inline datasets — older
+   *  artifacts that lack these fields entirely should still load. */
+  dependencyManifests?: DependencyManifest[];
+  vulnerabilities?: Vulnerability[];
 }
 
 const INLINE_ID = 'factstack-data';

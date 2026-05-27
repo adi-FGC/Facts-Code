@@ -371,6 +371,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      /* v0.6 — flat view of secret-scanner findings (subset of risks
+         filtered to category === 'secret'). Convenience for agents
+         auditing credential hygiene without re-deriving the filter. */
+      name: 'list_credentials',
+      description: 'List leaked-credential findings from the secrets scanner — all `risks` entries with category === "secret". Each finding includes ruleId, file, line, severity, and a redacted preview (raw secrets are NEVER emitted; enforced at the type level in @factstack/scanners). JSON-only response.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          severity: { type: 'string', enum: ['info', 'low', 'medium', 'high', 'critical'] },
+        },
+      },
+    },
+    {
+      /* v0.6 — CVE findings from the last `factstack scan-vulns` run.
+         Empty when scan-vulns hasn't been run; tells the agent
+         explicitly so it can advise running it. */
+      name: 'list_vulnerabilities',
+      description: 'List known CVE/GHSA advisories matched against the project\'s dependency manifests. Populated by the opt-in `factstack scan-vulns` subcommand (queries OSV.dev). Returns {findings, lastChecked, manifestCount}. When findings is empty AND lastChecked is null, scan-vulns has not been run yet — the agent should advise running it. Filterable by severity / ecosystem / package name.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          severity:  { type: 'string', enum: ['critical', 'high', 'medium', 'low', 'unknown'] },
+          ecosystem: { type: 'string', enum: ['npm', 'pypi', 'cargo', 'go', 'maven', 'rubygems', 'unknown'] },
+          package:   { type: 'string', description: 'Filter to advisories affecting this exact package name.' },
+        },
+      },
+    },
   ],
 }));
 
@@ -495,6 +523,51 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { content: [{ type: 'text', text: listRisksToPack(risks, packSnapshotId(cached!.agent)) }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify({ count: risks.length, risks }) }] };
+  }
+
+  /* v0.6 — credentials = filtered risks. Same data, different lens.
+     Defined as its own tool so agents asking "any leaked secrets?"
+     don't have to know the category-filter trick. */
+  if (name === 'list_credentials') {
+    if (!cached) await ensureAnalyzed();
+    const sev = args.severity as string | undefined;
+    let creds = cached!.agent.risks.filter((r) => r.category === 'secret');
+    if (sev) creds = creds.filter((r) => r.severity === sev);
+    return { content: [{ type: 'text', text: JSON.stringify({ count: creds.length, credentials: creds }) }] };
+  }
+
+  /* v0.6 — vulnerabilities pulled from agent.vulnerabilities (populated
+     by `factstack scan-vulns`). When empty, signal "scan not run" vs
+     "scan ran, zero findings" so agents can react accordingly. */
+  if (name === 'list_vulnerabilities') {
+    if (!cached) await ensureAnalyzed();
+    const sev = args.severity as string | undefined;
+    const eco = args.ecosystem as string | undefined;
+    const pkg = args.package as string | undefined;
+    let findings = cached!.agent.vulnerabilities;
+    if (sev) findings = findings.filter((v) => v.severity === sev);
+    if (eco) findings = findings.filter((v) => v.ecosystem === eco);
+    if (pkg) findings = findings.filter((v) => v.package === pkg);
+    /* Most-recent lastChecked across all findings — null when array
+       is empty. This is how the caller distinguishes "scan never ran"
+       from "scan ran, found nothing." */
+    const lastChecked = cached!.agent.vulnerabilities.reduce(
+      (m, v) => Math.max(m, v.lastChecked), 0,
+    ) || null;
+    return {
+      content: [{
+        type: 'text',
+        text: JSON.stringify({
+          count: findings.length,
+          lastChecked,
+          manifestCount: cached!.agent.dependencyManifests.length,
+          hint: lastChecked === null
+            ? 'No scan-vulns run recorded for this artifact. Run `factstack scan-vulns .` to populate.'
+            : undefined,
+          findings,
+        }),
+      }],
+    };
   }
 
   if (name === 'read_memory') {

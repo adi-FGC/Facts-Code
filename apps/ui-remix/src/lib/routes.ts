@@ -37,6 +37,14 @@ export const tabPatterns = {
   library:  RoutePattern.parse('/library'),
   routes:   RoutePattern.parse('/routes'),
   risks:    RoutePattern.parse('/risks'),
+  /* /credentials added in v0.6 — surfaces secrets-scanner findings
+     from data.risks (category === 'secret') with a rule-reference
+     card so the user knows what we DID check, not just what fired. */
+  credentials: RoutePattern.parse('/credentials'),
+  /* /vulnerabilities added in v0.6 — CVE scanner backed by OSV.dev.
+     Lazy-loads the osvScanner client on click to keep main bundle
+     under cap. */
+  vulnerabilities: RoutePattern.parse('/vulnerabilities'),
   tests:    RoutePattern.parse('/tests'),
   history:  RoutePattern.parse('/history'),
   about:    RoutePattern.parse('/about'),
@@ -65,6 +73,8 @@ export const TABS: readonly TabMeta[] = [
   { key: 'library',  label: 'Library',  href: createHref(tabPatterns.library),  ported: true  },
   { key: 'routes',   label: 'Routes',   href: createHref(tabPatterns.routes),   ported: true  },
   { key: 'risks',    label: 'Risks',    href: createHref(tabPatterns.risks),    ported: true  },
+  { key: 'credentials',    label: 'Credentials',    href: createHref(tabPatterns.credentials),    ported: true  },
+  { key: 'vulnerabilities', label: 'Vulnerabilities', href: createHref(tabPatterns.vulnerabilities), ported: true },
   { key: 'tests',    label: 'Tests',    href: createHref(tabPatterns.tests),    ported: true  },
   { key: 'history',  label: 'History',  href: createHref(tabPatterns.history),  ported: true  },
   { key: 'about',    label: 'About',    href: createHref(tabPatterns.about),    ported: true  },

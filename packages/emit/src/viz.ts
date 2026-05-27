@@ -11,7 +11,7 @@
  * artifact lives alongside (not instead of) agent.json + human.json.
  */
 
-import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
+import type { AgentArtifact, DependencyManifest, HumanArtifact, Vulnerability } from '@factstack/spec';
 
 export interface VizLanguage {
   id: string;
@@ -123,6 +123,12 @@ export interface VizArtifact {
     }>;
     schemas: unknown[];
   };
+  /** v0.6 — security tier passthrough. Both are always present
+   *  (empty array when no manifests detected / scan-vulns not run).
+   *  Types come straight from @factstack/spec so the schema is the
+   *  single source of truth — no shape drift between artifact and viz. */
+  dependencyManifests: DependencyManifest[];
+  vulnerabilities: Vulnerability[];
 }
 
 /** Language-brand colors mirror the ones used by the prototype scan.mjs. */
@@ -306,6 +312,13 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
     })),
     /* v0.3.6 — env-var inventory, when the analyzer produced one. */
     ...(agent.config ? { config: agent.config } : {}),
+    /* v0.6 — security tier passthrough. Both default to [] in the
+       schema so they're always present on agent. Empty-array is
+       meaningful (the analyzer ran but found nothing) so we always
+       emit — the UI renders "no manifests detected" or "no known
+       vulns" rather than treating absence as "scan didn't run." */
+    dependencyManifests: agent.dependencyManifests,
+    vulnerabilities: agent.vulnerabilities,
   };
 }
 

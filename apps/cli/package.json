@@ -21,6 +21,7 @@
     "@factstack/emit": "workspace:*",
     "@factstack/extractors": "workspace:*",
     "@factstack/fs-node": "workspace:*",
+    "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
     "chokidar": "^4.0.1",
     "commander": "^12.1.0",

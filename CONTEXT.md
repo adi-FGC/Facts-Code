@@ -94,6 +94,26 @@ same idiom as `Array.from`, `Buffer.from`, `pipeTo`.
 in `packages/emit-browser/src/fsa-writer.ts`. Used by the browser
 shim `writeBrowserArtifacts(opts)`.
 
+**macOS write-defense layer (2026-05-25)**: every `writeText` does a
+three-step ritual the Node adapter doesn't need:
+1. **Write BufferSource, not string** — WebKit pre-17.x and some FSA
+   polyfills silently wrote 0 bytes when given a raw string. Uint8Array
+   is the universally-tested path.
+2. **Explicit `truncate(byteLength)` after write** — defends against a
+   real WebKit bug where `close()` resolved before the buffer flushed,
+   leaving a 0-byte file behind. Truncating to the exact write size
+   forces the implementation to commit.
+3. **Post-write readback verification** — re-open the file via
+   `getFileHandle` and compare `file.size` against the expected byte
+   count. Catches the silent-failure modes that don't throw: iCloud
+   Drive "offline only" folders accepting writes that never sync,
+   Chrome 122+ on macOS returning `'granted'` from `requestPermission`
+   but writes still no-op, and the WebKit close-bug residue. On
+   mismatch, throws a descriptive error pointing at the likely cause.
+
+Adapter-specific extras stay on the adapter side per the architectural
+principle below — none of this leaks into the orchestrator.
+
 ### `writeArtifacts` (Node shim)
 Thin top-level export from `packages/emit/`. Constructs a
 `NodeFileWriter`, calls `writeArtifactsTo`, runs
@@ -105,6 +125,63 @@ Thin top-level export from `packages/emit-browser/`. Constructs an
 `FsaFileWriter` (after upgrading the directory handle to readwrite
 permission), calls `writeArtifactsTo`. Backward-compatible surface
 for the in-browser scan flow.
+
+---
+
+## Security tier — vocabulary introduced 2026-05-27
+
+> **Why this section exists**: the security surface (Credentials +
+> Vulnerabilities pages) shipped as UI-only in v0.6.0. The
+> deepening lifts CVE + dep-manifest data into the artifact pipeline
+> so the MCP server can serve them and the CLI can gate CI on them,
+> not just the UI tier.
+
+### `dependencyManifests[]` (on `agent.json`)
+Always-populated array of `DependencyManifest` entries — one per
+detected package.json (today) or pyproject.toml / Cargo.toml /
+go.mod / pom.xml / Gemfile (detected, not yet parsed). Each entry
+has `{ path, ecosystem, name?, version?, dependencies, devDependencies }`.
+Schema lives in `packages/spec/src/agent.ts`. Defaults to `[]` for
+pre-v0.6 artifacts.
+
+### `vulnerabilities[]` (on `agent.json`)
+CVE / GHSA findings keyed back to the dep that triggered them.
+**Empty by default** — `analyze` never makes network calls (constraint
+C1). Populated by the opt-in `factstack scan-vulns` subcommand which
+queries OSV.dev and writes findings back. Schema lives alongside
+`dependencyManifests`. UI's Vulnerabilities page reads from here
+first, falls back to live OSV query when empty.
+
+### `scanDependencyManifest(path, text)`
+Pure scanner in `packages/scanners/src/dependencies.ts`. Detects
+ecosystem from basename in O(1); for npm, fully parses + merges
+`dependencies` / `devDependencies` / `peerDependencies` /
+`optionalDependencies`. For other ecosystems, emits a detected
+manifest record with empty deps (parser stubs, schema-ready).
+Called inline from the analyzer's main scan loop in
+`packages/core/src/index.ts`.
+
+### `queryOsvBatch(queries, options)`
+Shared OSV.dev client in `packages/scanners/src/vulnerabilities.ts`.
+Two-stage protocol (batch IDs → per-vuln detail). Pluggable
+`CacheStore` interface — UI passes `localStorageCache` (6h TTL),
+CLI passes `noopCache` for now. Isomorphic: uses `fetch` + minimal
+narrow type declarations rather than DOM lib.
+
+### `factstack scan-vulns [target]`
+CLI subcommand in `apps/cli/src/cli.ts`. Reads `.facts/agent.json`,
+flattens dep manifests, normalizes versions, queries OSV in batch,
+converts results to canonical `Vulnerability[]`, persists back via
+`writeArtifacts`. Pre-flight rejects if `agent.json` is missing —
+analyze first, then scan-vulns explicitly. Network-touching step is
+deliberately separate so `analyze` stays C1-pure.
+
+### MCP tools `list_credentials` + `list_vulnerabilities`
+In `apps/mcp-server/src/server.ts`. `list_credentials` filters
+`agent.risks` to category=secret. `list_vulnerabilities` returns
+`agent.vulnerabilities` with optional severity/ecosystem/package
+filters. When `lastChecked` is null, surfaces a hint that
+`scan-vulns` hasn't been run.
 
 ---
 

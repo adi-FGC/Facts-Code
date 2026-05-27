@@ -13,6 +13,7 @@
 
 import type {
   AgentArtifact,
+  DependencyManifest,
   FactsFS,
   FileOutline,
   HumanArtifact,
@@ -32,6 +33,7 @@ import {
   scanManifestLicense,
   scanSecrets,
   scanTodos,
+  scanDependencyManifest,
   type TodoEntry,
 } from '@factstack/scanners';
 import {
@@ -127,6 +129,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
   // Phase 1 — walk + per-file scanning
   const outlines: FileOutline[] = [];
+  /* v0.6 — accumulate every detected dep manifest. Populated in the
+     main scan loop below; emitted on the artifact for the UI's
+     Vulnerabilities page + the MCP server's list_vulnerabilities tool
+     + the CLI's scan-vulns subcommand. */
+  const dependencyManifests: DependencyManifest[] = [];
   const allTodos: Array<{ file: string; entries: TodoEntry[] }> = [];
   const secrets: AgentArtifact['risks'] = [];
   const frameworksFromManifests: string[][] = [];
@@ -183,6 +190,15 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     // Scanners
     const todoEntries = scanTodos(text);
     if (todoEntries.length) allTodos.push({ file: f.path, entries: todoEntries });
+
+    /* v0.6 — try to parse the file as a dependency manifest. Cheap:
+       scanDependencyManifest returns null for non-manifest paths in O(1)
+       (basename match). For matched manifests it produces a uniform
+       record consumed by the Vulnerabilities page + scan-vulns CLI.
+       Runs before scanSecrets so a malformed package.json doesn't
+       prevent the secret scan; both are independent passes. */
+    const manifest = scanDependencyManifest(f.path, text);
+    if (manifest) dependencyManifests.push(manifest);
 
     if (lang) {
       for (const s of scanSecrets(f.path, text)) {
@@ -515,6 +531,13 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       totalTokenCost: totalTokens,
     },
     config,
+    /* v0.6 — security tier. dependencyManifests populated above in the
+       main scan loop; vulnerabilities stays [] here because analyze
+       MUST NOT make network calls (constraint C1). The opt-in
+       `factstack scan-vulns` subcommand reads agent.json, queries OSV,
+       and writes findings back. */
+    dependencyManifests,
+    vulnerabilities: [],
   };
 
   // Build human artifact (dashboard).

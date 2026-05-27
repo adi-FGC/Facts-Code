@@ -9,7 +9,7 @@
     "build": "vite build && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "build:static": "vite build --mode static && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "start": "vite preview --port 3000",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
     "lint": "echo 'no lint yet' && exit 0",
     "typecheck": "tsc --noEmit"
   },
@@ -17,6 +17,7 @@
     "@factstack/core": "workspace:*",
     "@factstack/emit-browser": "workspace:*",
     "@factstack/fs-browser": "workspace:*",
+    "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
     "@factstack/ui-theme": "workspace:*",
     "remix": "3.0.0-beta.2"

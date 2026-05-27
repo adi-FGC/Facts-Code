@@ -3,6 +3,8 @@ export * from './todos.js';
 export * from './secrets.js';
 export * from './frameworks.js';
 export * from './tokencost.js';
+export * from './dependencies.js';
+export * from './vulnerabilities.js';
 export {
   scanFileLicense,
   scanManifestLicense,

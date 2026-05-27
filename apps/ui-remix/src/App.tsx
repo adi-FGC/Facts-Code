@@ -23,6 +23,8 @@ import { TreePanel } from './components/TreePanel.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Overview } from './routes/Overview.tsx';
 import { Risks } from './routes/Risks.tsx';
+import { Credentials } from './routes/Credentials.tsx';
+import { Vulnerabilities } from './routes/Vulnerabilities.tsx';
 import { History } from './routes/History.tsx';
 import { GraphRoute } from './routes/GraphRoute.tsx';
 import { Flow } from './routes/Flow.tsx';
@@ -169,6 +171,8 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
     case 'library':  return <Library data={data} />;
     case 'routes':   return <RoutesTab data={data} />;
     case 'risks':    return <Risks data={data} />;
+    case 'credentials':    return <Credentials data={data} />;
+    case 'vulnerabilities': return <Vulnerabilities data={data} />;
     case 'tests':    return <Tests data={data} />;
     case 'history':  return <History data={data} />;
     case 'about':    return <About data={data} />;
