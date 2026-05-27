@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Ideas board — FACTS</title>
+  <meta name="description" content="100 ideas for extending FACTS to help humans + AI coding agents. Triage with persistent status + notes; add your own. Local-only working doc." />
+  <meta name="robots" content="noindex, nofollow" />
+  <style>
+    /* ─────────── design tokens (mirror sibling docs) ─────────── */
+    :root {
+      --bg:           #0B0D10;
+      --surface-1:    #14171C;
+      --surface-2:    #1B1F25;
+      --hairline:     rgba(230, 232, 234, 0.08);
+      --border:       rgba(230, 232, 234, 0.14);
+      --fg:           #E6E8EA;
+      --fg-muted:     rgba(230, 232, 234, 0.72);
+      --fg-faint:     rgba(230, 232, 234, 0.44);
+      --accent:       #7CC4FF;
+      --accent-soft:  rgba(124, 196, 255, 0.10);
+      --ok:           #6EE7A1;
+      --warn:         #FFC857;
+      --danger:       #FF8585;
+      --code-bg:      rgba(230, 232, 234, 0.04);
+      --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      --fs-10: 0.6875rem; --fs-11: 0.75rem; --fs-12: 0.8125rem;
+      --fs-13: 0.875rem;  --fs-14: 0.9375rem; --fs-16: 1rem;
+      --fs-20: 1.25rem;   --fs-24: 1.5rem;   --fs-32: 2rem;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #FAFAF8; --surface-1: #FFFFFF; --surface-2: #F2F2EE;
+        --hairline: rgba(11, 13, 16, 0.08); --border: rgba(11, 13, 16, 0.14);
+        --fg: #1A1D21; --fg-muted: rgba(26, 29, 33, 0.72); --fg-faint: rgba(26, 29, 33, 0.44);
+        --accent: #1A6FBF; --accent-soft: rgba(26, 111, 191, 0.08);
+        --code-bg: rgba(11, 13, 16, 0.04);
+      }
+    }
+
+    /* ─────────── reset + base ─────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: var(--font-body); font-size: var(--fs-14);
+      line-height: 1.6; font-feature-settings: 'cv11', 'ss01', 'ss03';
+      text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* ─────────── layout (shared shell with sibling docs) ─────────── */
+    .shell { display: grid; grid-template-columns: minmax(0, 1fr); min-height: 100vh; }
+    @media (min-width: 1024px) { .shell { grid-template-columns: 260px minmax(0, 1fr); } }
+
+    .toc {
+      position: sticky; top: 0; align-self: start;
+      max-height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--hairline);
+      padding: var(--space-5) var(--space-4);
+      background: color-mix(in oklab, var(--bg) 92%, var(--accent) 0%);
+    }
+    @media (max-width: 1023px) {
+      .toc { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--hairline); }
+    }
+    .toc__brand {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .toc__title {
+      font-family: var(--font-body); font-size: var(--fs-16);
+      font-weight: 600; letter-spacing: -0.01em;
+      color: var(--fg); margin: 0 0 var(--space-5) 0;
+    }
+    .toc__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+    .toc a {
+      display: flex; justify-content: space-between; align-items: center; gap: var(--space-2);
+      padding: 4px var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.02em;
+      color: var(--fg-muted); text-decoration: none;
+      border-left: 2px solid transparent;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart), background 120ms var(--ease-out-quart);
+    }
+    .toc a:hover { color: var(--fg); background: var(--accent-soft); }
+    .toc a.is-active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+    .toc__count {
+      font-size: var(--fs-10); color: var(--fg-faint);
+      font-variant-numeric: tabular-nums;
+    }
+    .toc__stats {
+      margin-top: var(--space-5); padding-top: var(--space-4);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      color: var(--fg-faint);
+      display: flex; flex-direction: column; gap: var(--space-2);
+    }
+    .toc__stats strong { color: var(--fg-muted); font-weight: 500; }
+    .toc__action {
+      margin-top: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2);
+    }
+
+    .content { padding: var(--space-6) clamp(var(--space-5), 4vw, var(--space-7)); max-width: 88ch; }
+
+    /* ─────────── typography (shared) ─────────── */
+    h1, h2, h3 {
+      font-family: var(--font-body); font-weight: 600;
+      letter-spacing: -0.015em; line-height: 1.25;
+      color: var(--fg); scroll-margin-top: var(--space-5);
+    }
+    h1 { font-size: clamp(var(--fs-24), 4vw, var(--fs-32)); margin: 0 0 var(--space-3) 0; }
+    h2 {
+      font-size: var(--fs-20); margin: var(--space-7) 0 var(--space-3) 0;
+      padding-bottom: var(--space-2); border-bottom: 1px solid var(--hairline);
+      display: flex; align-items: baseline; gap: var(--space-3);
+    }
+    h2 .h2-count {
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint); letter-spacing: 0.12em; font-weight: 400;
+    }
+    p { margin: 0 0 var(--space-4) 0; color: var(--fg-muted); }
+    a { color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms var(--ease-out-quart); }
+    a:hover { border-bottom-color: var(--accent); }
+    code {
+      font-family: var(--font-mono); font-size: 0.9em;
+      background: var(--code-bg); color: var(--fg);
+      padding: 1px 5px; border-radius: 3px;
+    }
+    .kicker {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .lede {
+      font-size: var(--fs-16); line-height: 1.55;
+      color: var(--fg-muted); margin-bottom: var(--space-6); max-width: 64ch;
+    }
+    .meta {
+      display: flex; flex-wrap: wrap; gap: var(--space-3);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+      padding: var(--space-3) 0;
+      border-top: 1px solid var(--hairline);
+      border-bottom: 1px solid var(--hairline);
+      margin-bottom: var(--space-6);
+    }
+    .meta strong { color: var(--fg-muted); font-weight: 500; }
+
+    .callout {
+      padding: var(--space-4); margin: 0 0 var(--space-5) 0;
+      border-left: 2px solid var(--accent);
+      border-top: 1px dashed var(--hairline);
+      border-right: 1px dashed var(--hairline);
+      border-bottom: 1px dashed var(--hairline);
+      background: color-mix(in oklab, var(--accent) 4%, transparent);
+      font-size: var(--fs-13); color: var(--fg-muted);
+    }
+    .callout__label {
+      display: inline-block; font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-1);
+    }
+
+    /* ─────────── filter bar ─────────── */
+    .filter-bar {
+      display: flex; flex-direction: column; gap: var(--space-3);
+      padding: var(--space-4); margin: 0 0 var(--space-5) 0;
+      border: 1px solid var(--hairline);
+      background: color-mix(in oklab, var(--bg) 96%, var(--accent) 0%);
+      position: sticky; top: 0; z-index: 5;
+    }
+    .filter-row {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+    .filter-label {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--fg-faint); margin-right: var(--space-2);
+      min-width: 70px;
+    }
+    .chip {
+      display: inline-flex; align-items: center; gap: var(--space-1);
+      padding: 3px 10px;
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.08em;
+      color: var(--fg-muted);
+      background: transparent;
+      border: 1px solid var(--hairline);
+      cursor: pointer;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart), background 120ms var(--ease-out-quart);
+    }
+    .chip:hover { color: var(--fg); border-color: var(--border); }
+    .chip.is-active {
+      color: var(--accent); border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .chip__count {
+      color: var(--fg-faint); font-variant-numeric: tabular-nums;
+    }
+    .chip.is-active .chip__count { color: var(--accent); }
+
+    .search {
+      flex: 1; min-width: 200px;
+      padding: 6px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      font-family: var(--font-mono); font-size: var(--fs-12);
+      outline: none;
+      caret-color: var(--accent);
+    }
+    .search:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    /* ─────────── idea cards ─────────── */
+    .ideas-list {
+      display: flex; flex-direction: column;
+      border: 1px solid var(--hairline);
+    }
+    .idea {
+      display: grid;
+      grid-template-columns: 28px minmax(0, 1fr) auto;
+      gap: var(--space-3);
+      padding: var(--space-3) var(--space-4);
+      border-bottom: 1px solid var(--hairline);
+      align-items: start;
+      transition: background 120ms var(--ease-out-quart);
+    }
+    .idea:last-child { border-bottom: none; }
+    .idea:hover { background: var(--accent-soft); }
+    .idea[data-status="interested"] { background: color-mix(in oklab, var(--accent) 4%, transparent); }
+    .idea[data-status="in-progress"] { background: color-mix(in oklab, var(--warn) 5%, transparent); }
+    .idea[data-status="shipped"]    { background: color-mix(in oklab, var(--ok) 5%, transparent); }
+    .idea[data-status="skipped"]    { opacity: 0.5; }
+    .idea[data-spotlight="true"]    { border-left: 2px solid var(--accent); }
+
+    .idea__num {
+      font-family: var(--font-mono); font-size: var(--fs-12);
+      color: var(--fg-faint); font-variant-numeric: tabular-nums;
+      padding-top: 2px;
+    }
+    .idea__main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+    .idea__title {
+      font-family: var(--font-body); font-size: var(--fs-14);
+      color: var(--fg); font-weight: 600; line-height: 1.35;
+    }
+    .idea[data-status="shipped"] .idea__title,
+    .idea[data-status="skipped"] .idea__title {
+      text-decoration: line-through; color: var(--fg-faint);
+    }
+    .idea__desc {
+      font-family: var(--font-body); font-size: var(--fs-13);
+      color: var(--fg-muted); line-height: 1.55;
+    }
+    .idea__tags {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.1em; text-transform: uppercase;
+    }
+    .tag {
+      padding: 1px 6px; border: 1px solid var(--hairline); color: var(--fg-muted);
+    }
+    .tag--cat { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+    .tag--effort-S { color: var(--ok);     border-color: var(--ok); }
+    .tag--effort-M { color: var(--accent); border-color: var(--accent); }
+    .tag--effort-L { color: var(--warn);   border-color: var(--warn); }
+    .tag--value-high { color: var(--warn); border-color: var(--warn); }
+    .tag--spotlight  { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+
+    .idea__notes {
+      width: 100%; margin-top: 6px;
+      min-height: 48px; max-height: 200px;
+      padding: 6px 8px;
+      background: var(--bg);
+      border: 1px solid var(--hairline);
+      color: var(--fg-muted);
+      font-family: var(--font-mono); font-size: var(--fs-11); line-height: 1.5;
+      resize: vertical;
+      outline: none;
+      display: none;
+    }
+    .idea__notes.is-open { display: block; }
+    .idea__notes:focus-visible {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent);
+    }
+
+    .idea__actions {
+      display: flex; flex-direction: column; align-items: stretch; gap: 4px;
+      min-width: 110px;
+    }
+    .status-btn {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid var(--hairline);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart);
+      text-align: center;
+    }
+    .status-btn:hover { color: var(--fg); border-color: var(--border); }
+    .status-btn[data-state="interested"] { color: var(--accent); border-color: var(--accent); }
+    .status-btn[data-state="in-progress"] { color: var(--warn); border-color: var(--warn); }
+    .status-btn[data-state="shipped"]    { color: var(--ok); border-color: var(--ok); }
+    .status-btn[data-state="skipped"]    { color: var(--fg-faint); }
+
+    .notes-btn {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      padding: 4px 8px;
+      background: transparent;
+      border: 1px solid var(--hairline);
+      color: var(--fg-faint);
+      cursor: pointer;
+      transition: color 120ms var(--ease-out-quart);
+      text-align: center;
+    }
+    .notes-btn:hover { color: var(--accent); }
+    .notes-btn.has-content { color: var(--accent); }
+
+    .toolbar-btn {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.14em; text-transform: uppercase;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+      cursor: pointer;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms var(--ease-out-quart);
+    }
+    .toolbar-btn:hover { color: var(--accent); border-color: var(--accent); }
+    .toolbar-btn--primary {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .toolbar-btn--danger:hover { color: var(--danger); border-color: var(--danger); }
+
+    /* ─────────── add-custom form ─────────── */
+    .custom-form {
+      display: flex; flex-direction: column; gap: var(--space-2);
+      padding: var(--space-4);
+      border: 1px dashed var(--hairline);
+      margin: 0 0 var(--space-5) 0;
+    }
+    .custom-form.is-open { border-color: var(--accent); }
+    .custom-form input, .custom-form textarea, .custom-form select {
+      background: var(--bg); color: var(--fg);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      font-family: var(--font-mono); font-size: var(--fs-12);
+      outline: none;
+    }
+    .custom-form input:focus-visible, .custom-form textarea:focus-visible, .custom-form select:focus-visible {
+      border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent);
+    }
+    .custom-form textarea { min-height: 60px; line-height: 1.5; }
+    .custom-form-row { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
+    .custom-form-row > * { flex: 1 1 100px; min-width: 100px; }
+    .custom-form-row .toolbar-btn { flex: 0 0 auto; }
+    .custom-form-label {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--fg-faint);
+    }
+
+    /* ─────────── vector callout cards ─────────── */
+    .vector-grid {
+      display: grid; grid-template-columns: 1fr; gap: var(--space-3);
+      margin: 0 0 var(--space-6) 0;
+    }
+    @media (min-width: 700px) { .vector-grid { grid-template-columns: 1fr 1fr; } }
+    .vector-card {
+      padding: var(--space-4);
+      border: 1px solid var(--hairline);
+      background: color-mix(in oklab, var(--bg) 96%, var(--accent) 0%);
+    }
+    .vector-card__label {
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: var(--space-2);
+    }
+    .vector-card__title {
+      font-family: var(--font-body); font-size: var(--fs-16);
+      font-weight: 600; color: var(--fg); margin-bottom: var(--space-2);
+    }
+    .vector-card__body {
+      font-size: var(--fs-13); color: var(--fg-muted); line-height: 1.55;
+    }
+
+    .empty {
+      padding: var(--space-5);
+      font-family: var(--font-mono); font-size: var(--fs-12);
+      color: var(--fg-faint); text-align: center;
+      border: 1px dashed var(--hairline);
+    }
+
+    .footer {
+      margin-top: var(--space-8); padding-top: var(--space-5);
+      border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-11);
+      color: var(--fg-faint);
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="toc" aria-label="Categories">
+      <div class="toc__brand">FACTS · ideas</div>
+      <p class="toc__title">100 ideas board</p>
+      <ul class="toc__list" id="toc-categories">
+        <!-- rendered by script -->
+      </ul>
+      <div class="toc__stats" id="toc-stats">
+        <div><strong>Total</strong> <span id="stat-total">—</span></div>
+        <div><strong>Visible</strong> <span id="stat-visible">—</span></div>
+        <div><strong>Interested</strong> <span id="stat-interested">—</span></div>
+        <div><strong>In progress</strong> <span id="stat-in-progress">—</span></div>
+        <div><strong>Shipped</strong> <span id="stat-shipped">—</span></div>
+        <div><strong>Custom</strong> <span id="stat-custom">—</span></div>
+      </div>
+      <div class="toc__action">
+        <button class="toolbar-btn" id="export-btn" type="button">Export JSON</button>
+        <button class="toolbar-btn toolbar-btn--danger" id="reset-btn" type="button">Reset state</button>
+      </div>
+    </nav>
+
+    <main class="content">
+      <p class="kicker">Local-only working doc · <code>docs/ideas.html</code></p>
+      <h1>100 ideas for FACTS</h1>
+      <p class="lede">
+        Things to build that help humans + AI coding agents through this analyzer. Triage with status + notes; add your own at the bottom. State persists locally — anyone on the team opens this file and sees their own working state without affecting yours.
+      </p>
+      <div class="meta">
+        <span><strong>Sequence</strong> Path A shipped · Path B next</span>
+        <span><strong>Companion</strong> <a href="./roadmap.html">roadmap.html</a></span>
+        <span><strong>Companion</strong> <a href="./handoff.html">handoff.html</a></span>
+        <span><strong>Storage</strong> <code>localStorage</code> key <code>factstack:ideas:v1</code></span>
+      </div>
+
+      <!-- Strategic vectors -->
+      <h2 id="vectors">Two strategic vectors <span class="h2-count">choose one</span></h2>
+      <p>
+        Every idea below slots into one of two distinct product trajectories. The first ten things you ship differ a lot depending on which one you bet on.
+      </p>
+      <div class="vector-grid">
+        <div class="vector-card">
+          <div class="vector-card__label">Vector A · platform</div>
+          <div class="vector-card__title">FACTS as the agent-OS layer</div>
+          <div class="vector-card__body">
+            Every coding agent uses FACTS context to be better. Semantic search, NL summaries, skill auto-generation, Q&amp;A surfaces. <strong>High moat, ambiguous (whose LLM? whose tokens?), weeks of work.</strong> Look at categories <em>B (AI tooling)</em> and <em>J (FACTS platform)</em>.
+          </div>
+        </div>
+        <div class="vector-card">
+          <div class="vector-card__label">Vector B · reach</div>
+          <div class="vector-card__title">FACTS in every dev workflow</div>
+          <div class="vector-card__body">
+            GitHub Action, IDE plugins, public hosted service, integrations. <strong>Lower moat, install-base compounds, the agent layer benefits from more analyzed projects anyway.</strong> Look at categories <em>C (Dev UX)</em>, <em>D (security)</em>, and <em>J (platform)</em>.
+          </div>
+        </div>
+      </div>
+      <div class="callout">
+        <div class="callout__label">Hybrid worth flagging</div>
+        <p style="margin: 0;">
+          <strong>#21 (skill auto-generator) + #45 (GitHub Action)</strong> together make FACTS the thing that puts agent context into every PR review without any opt-in beyond <code>gh extension install factstack</code>. Cheapest move that touches both vectors.
+        </p>
+      </div>
+
+      <!-- Filter bar -->
+      <h2 id="board">Idea board <span class="h2-count" id="board-count">—</span></h2>
+      <div class="filter-bar">
+        <div class="filter-row">
+          <span class="filter-label">Search</span>
+          <input type="text" class="search" id="search-input" placeholder="Filter by title or description…" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="filter-row" id="category-chips">
+          <span class="filter-label">Category</span>
+          <!-- rendered by script -->
+        </div>
+        <div class="filter-row" id="status-chips">
+          <span class="filter-label">Status</span>
+          <!-- rendered by script -->
+        </div>
+        <div class="filter-row" id="effort-chips">
+          <span class="filter-label">Effort</span>
+          <!-- rendered by script -->
+        </div>
+        <div class="filter-row">
+          <span class="filter-label">Sort</span>
+          <button class="chip is-active" data-sort="number" type="button">By number</button>
+          <button class="chip" data-sort="effort" type="button">By effort (S → L)</button>
+          <button class="chip" data-sort="spotlight" type="button">Spotlight first</button>
+          <button class="chip" data-sort="status" type="button">By status</button>
+        </div>
+      </div>
+      <div class="ideas-list" id="ideas-list">
+        <!-- rendered by script -->
+      </div>
+
+      <!-- Custom additions -->
+      <h2 id="custom">Your additions <span class="h2-count" id="custom-count">0</span></h2>
+      <p>
+        Add ideas as they surface. They live in <code>localStorage</code> only — export to share. Each gets a synthetic ID (<code>C-001</code>, <code>C-002</code>, …) so they don't collide with the canonical 1–100.
+      </p>
+      <button class="toolbar-btn toolbar-btn--primary" id="add-btn" type="button">+ Add custom idea</button>
+      <div class="custom-form" id="custom-form" style="display: none">
+        <div class="custom-form-label">New idea</div>
+        <input type="text" id="custom-title" placeholder="Title (e.g. 'GraphQL schema diffing tool')" />
+        <textarea id="custom-desc" placeholder="One-sentence description of what this does + why it matters"></textarea>
+        <div class="custom-form-row">
+          <select id="custom-category">
+            <!-- rendered by script -->
+          </select>
+          <select id="custom-effort">
+            <option value="S">Effort: S (hours)</option>
+            <option value="M" selected>Effort: M (days)</option>
+            <option value="L">Effort: L (weeks)</option>
+          </select>
+          <button class="toolbar-btn toolbar-btn--primary" id="custom-save" type="button">Add idea</button>
+          <button class="toolbar-btn" id="custom-cancel" type="button">Cancel</button>
+        </div>
+      </div>
+      <div class="ideas-list" id="custom-list">
+        <div class="empty">No custom ideas yet. Use the button above to add one.</div>
+      </div>
+
+      <p class="footer">
+        Living ideas board · maintained at <code>docs/ideas.html</code>. State (status + notes + custom additions) persists in <code>localStorage</code>. <strong>Export</strong> serializes everything to a JSON file so it's portable across browsers. <strong>Reset</strong> clears local state, leaving the baseline 100 ideas un-triaged.
+      </p>
+    </main>
+  </div>
+
+  <script>
+    /* ===============================================================
+     *  Data: the 100 ideas, by category. Each idea has:
+     *    n         — canonical number (1..100)
+     *    title     — short imperative title
+     *    desc      — one-sentence "what + why"
+     *    cat       — short category code (A..J)
+     *    catLabel  — full category name
+     *    effort    — 'S' | 'M' | 'L'
+     *    spotlight — true if among the 5 "start here" picks
+     * =============================================================== */
+    const CATEGORIES = [
+      { code: 'A', label: 'Deeper analysis' },
+      { code: 'B', label: 'AI-agent tooling' },
+      { code: 'C', label: 'Dev UX + IDE' },
+      { code: 'D', label: 'Security + supply chain' },
+      { code: 'E', label: 'Cross-repo + org' },
+      { code: 'F', label: 'Performance' },
+      { code: 'G', label: 'Documentation' },
+      { code: 'H', label: 'Migration' },
+      { code: 'I', label: 'Team health' },
+      { code: 'J', label: 'FACTS platform' },
+    ];
+
+    const IDEAS = [
+      // A. Deeper analysis (1–15)
+      { n: 1,  cat: 'A', effort: 'M', title: 'Dead-code detector',         desc: 'Symbols defined but never imported. Cross-references graph edges against FileOutline.exports. Big value for agents pruning before refactor.' },
+      { n: 2,  cat: 'A', effort: 'S', title: 'Unused-exports per package', desc: 'Narrower scope of #1: which export lines have zero internal or external consumers. Easy add via existing graph.' },
+      { n: 3,  cat: 'A', effort: 'S', title: 'Test-coverage gap map',      desc: 'Diff agent.tests[].describesFile against agent.files[].path to find files with no test.' },
+      { n: 4,  cat: 'A', effort: 'M', title: 'API surface area metric',    desc: 'Count of public exports per package over time; sparkline view in History tab.' },
+      { n: 5,  cat: 'A', effort: 'S', title: 'Cyclomatic complexity hotspots', desc: 'Already extracted; surface as a "Top 20 most complex functions" view in Files tab.' },
+      { n: 6,  cat: 'A', effort: 'M', title: 'Type-safety holes',          desc: 'Count any/unknown/as casts per file; trend over snapshots. Visible drift indicator.' },
+      { n: 7,  cat: 'A', effort: 'M', title: 'Async/sync mismatch detector', desc: 'Flag promises returned from sync-typed signatures, missing awaits, fire-and-forget patterns.' },
+      { n: 8,  cat: 'A', effort: 'M', title: 'N+1 query detector',         desc: 'Pattern match on ORM call sites inside loops. Most common perf footgun in real codebases.' },
+      { n: 9,  cat: 'A', effort: 'S', title: 'Hardcoded URLs/IPs/ports',   desc: 'Scanner like secrets but for network endpoints. Catches forgotten staging hosts before they ship.' },
+      { n: 10, cat: 'A', effort: 'S', title: 'Magic-number detector',      desc: 'Numeric literals outside {0, 1, -1} in business logic. Low-signal high-volume — useful as a config-driven check.' },
+      { n: 11, cat: 'A', effort: 'S', title: 'God-class detector',         desc: 'Classes/modules above N exports + M references. Signals refactor candidates.' },
+      { n: 12, cat: 'A', effort: 'S', title: 'Cycle severity scoring',     desc: 'Already detected; add severity by cycle size + frequency of nodes in cycles.' },
+      { n: 13, cat: 'A', effort: 'L', title: 'API call graph',             desc: 'For each route, show all downstream service calls (HTTP, DB, queue). Requires call-site analysis beyond imports.' },
+      { n: 14, cat: 'A', effort: 'M', title: 'Recursion depth analyzer',   desc: 'Find unbounded recursive call patterns; statically bounded vs runtime-bounded.' },
+      { n: 15, cat: 'A', effort: 'S', title: 'Long-lived TODO debt',       desc: 'TODOs/FIXMEs with git-blame age; surface as risk above N days. Mostly wiring on existing data.' },
+
+      // B. AI-agent-specific tooling (16–35)
+      { n: 16, cat: 'B', effort: 'L', title: 'Per-symbol NL summaries',     desc: 'One-sentence "what this does" per exported function, pre-generated via small LLM, cached in artifact. The biggest unlock for agents.', spotlight: true },
+      { n: 17, cat: 'B', effort: 'L', title: 'Semantic search over symbols', desc: 'Embed every symbol once, query via cosine sim. Requires embedding model + storage; pays off across every other AI feature.' },
+      { n: 18, cat: 'B', effort: 'M', title: 'Agent-friendly error messages', desc: 'Wrap thrown errors with FACTS context: "file X, called from Y, last touched Z, similar functions: Q, R".' },
+      { n: 19, cat: 'B', effort: 'M', title: 'Token-cost estimator per refactor', desc: 'Given a proposed change set, compute tokens needed to apply + verify. Helps agents budget their context.' },
+      { n: 20, cat: 'B', effort: 'M', title: 'Reasoning-trace export',     desc: 'Log every tool call the MCP server made + outcomes, append to .facts/learnings.jsonl. Foundation already exists.' },
+      { n: 21, cat: 'B', effort: 'M', title: 'Skill/rule auto-generator', desc: 'Emit a Claude skill (.md) + Cursor rule (.cursorrules) + Aider conventions from agent.json. Huge ecosystem hook.', spotlight: true },
+      { n: 22, cat: 'B', effort: 'M', title: '"What changes if I refactor X" sim', desc: 'Given a target file, list all dependent files + estimated work. Uses existing graph.' },
+      { n: 23, cat: 'B', effort: 'L', title: 'Cross-repo similarity',     desc: 'Embed each file, find similar files in other FACTS artifacts. Enables "this looks like that repo\'s X" recommendations.' },
+      { n: 24, cat: 'B', effort: 'M', title: 'Auto-generated test stubs', desc: 'Given a function signature, generate a Vitest/Pytest skeleton + edge-case ideas. Agents fill in the bodies.' },
+      { n: 25, cat: 'B', effort: 'L', title: 'Auto-generated codebase Q&A', desc: 'RAG layer over agent.pack + MEMORY.md. Hosted endpoint or local. The natural-language API to FACTS.' },
+      { n: 26, cat: 'B', effort: 'M', title: 'Author-style detector',     desc: 'For each file, infer formatting/naming conventions an agent should match. Personalizes generated code.' },
+      { n: 27, cat: 'B', effort: 'M', title: '"AI-readable" mode',         desc: 'Densify comments, expand acronyms, replace single-letter vars in summaries. Optional output filter.' },
+      { n: 28, cat: 'B', effort: 'M', title: 'Per-PR change summary',     desc: 'Diff two agent.json, produce human-readable changelog with risk callouts. Existing diff tier does the heavy lifting.' },
+      { n: 29, cat: 'B', effort: 'L', title: 'Risk-budgeted edits',       desc: 'Given a budget (≤N high-risk file touches), suggest a refactor path that fits. Agents pick the safest equivalent.' },
+      { n: 30, cat: 'B', effort: 'M', title: 'Glossary auto-extraction', desc: 'Pull domain terms from comments, names, README. Cluster relationships. Becomes the project\'s vocabulary surface.' },
+      { n: 31, cat: 'B', effort: 'L', title: 'AI confidence calibration', desc: 'Track which AI predictions about the codebase were right (Brier score). Foundation for trust framework.' },
+      { n: 32, cat: 'B', effort: 'M', title: '"Last-touched-by-AI" attribution', desc: 'Mark files modified primarily by AI commits via heuristics (commit message patterns, churn signatures).' },
+      { n: 33, cat: 'B', effort: 'M', title: 'Prompt injection vector detector', desc: 'Scan for eval, Function(), dangerouslySetInnerHTML near user input. AI-coding-specific risk surface.' },
+      { n: 34, cat: 'B', effort: 'L', title: 'LLM-generated code detector', desc: 'Heuristics: verbose comments, certain idioms, low style variance. Fuzzy but useful for code review.' },
+      { n: 35, cat: 'B', effort: 'S', title: 'MCP "explain this finding" tool', desc: 'Accept a finding ID, return all context an agent needs to act. Cheap to implement; opens richer agent-flows.' },
+
+      // C. Developer UX / IDE integration (36–50)
+      { n: 36, cat: 'C', effort: 'L', title: 'VS Code extension',         desc: 'Host the existing UI bundle as a webview. Already planned (Phase 2B). Webview + VS Code FactsFS adapter + JSON-RPC bridge.' },
+      { n: 37, cat: 'C', effort: 'L', title: 'JetBrains plugin',          desc: 'Same webview pattern for IntelliJ / WebStorm / PyCharm. Reach is huge in enterprise.' },
+      { n: 38, cat: 'C', effort: 'L', title: 'Vim/Neovim plugin',         desc: 'LSP-style hover + go-to via FACTS data. Smaller user base but high engagement.' },
+      { n: 39, cat: 'C', effort: 'L', title: 'Emacs package',             desc: 'Same idea for Emacs. Org-mode integration could be interesting for technical-writing workflows.' },
+      { n: 40, cat: 'C', effort: 'M', title: 'Cursor / Windsurf integration', desc: 'Auto-inject FACTS context into agent prompts. Tap into the explosively-growing AI-IDE market.' },
+      { n: 41, cat: 'C', effort: 'M', title: 'Inline complexity hints',   desc: 'CodeLens-style "cycl: 8, callers: 3" above each function. IDE-host-dependent.' },
+      { n: 42, cat: 'C', effort: 'M', title: '"Tour mode"',                desc: 'Guided walkthrough for new contributors, ordered by entry-point importance. Reduces onboarding cost dramatically.' },
+      { n: 43, cat: 'C', effort: 'S', title: 'Time-to-onboard metric',    desc: 'Estimated minutes to read the "minimum viable subset" of files. Surfaces as a top-line stat on Overview.' },
+      { n: 44, cat: 'C', effort: 'S', title: 'Pre-commit hook',           desc: 'Block commits that introduce critical risks (new secret, vuln upgrade required). Husky/lefthook compatible.' },
+      { n: 45, cat: 'C', effort: 'M', title: 'GitHub Action',             desc: 'Gate PRs on risk delta. Turns FACTS from "I run it locally" into "every PR is gated." Multiplies adoption velocity.', spotlight: true },
+      { n: 46, cat: 'C', effort: 'M', title: 'GitLab CI pipeline',        desc: 'Same idea for GitLab repos. Smaller market but underserved.' },
+      { n: 47, cat: 'C', effort: 'M', title: 'Slack/Discord bot',         desc: 'Daily project-health pulse to a team channel. Health badge + top-3-risks + new-deps callout.' },
+      { n: 48, cat: 'C', effort: 'M', title: 'Notion sync',                desc: 'Push human.json into a Notion DB for product/CXO consumption. Connector-style integration.' },
+      { n: 49, cat: 'C', effort: 'M', title: 'Linear/Jira ticket auto-creation', desc: 'For every new critical risk, open a ticket with the file/line evidence. Most user-requested workflow.' },
+      { n: 50, cat: 'C', effort: 'S', title: 'Stack Overflow bookmarklet', desc: '"Find similar code in this repo" via FACTS search from any SO page. Clever, cheap, sticky.' },
+
+      // D. Security + supply chain (51–62)
+      { n: 51, cat: 'D', effort: 'S', title: 'SBOM generation',           desc: 'Emit CycloneDX / SPDX-JSON from dependencyManifests. One emitter; immediate enterprise/compliance unlock.', spotlight: true },
+      { n: 52, cat: 'D', effort: 'M', title: 'SLSA attestation generator', desc: 'Produce in-toto attestations from artifact. Supply-chain trust framework.' },
+      { n: 53, cat: 'D', effort: 'L', title: 'Container image scanner',   desc: 'Analyze Dockerfile + image layers for known CVEs. Extends the security tier beyond source code.' },
+      { n: 54, cat: 'D', effort: 'L', title: 'IaC drift detector',        desc: 'Terraform / CloudFormation analysis. Detect when prod config drifts from committed IaC.' },
+      { n: 55, cat: 'D', effort: 'S', title: 'Typosquatting detector',    desc: 'Flag npm packages with names suspiciously close to popular ones. Levenshtein vs top-10K name list.' },
+      { n: 56, cat: 'D', effort: 'S', title: 'License compatibility deepening', desc: 'Graph licences, flag GPL-in-MIT mixes. Scanner exists; deepen with project-wide chain analysis.' },
+      { n: 57, cat: 'D', effort: 'L', title: 'Privacy / PII flow analyzer', desc: 'Trace fields tagged as PII from input to storage. Compliance-grade with annotation support.' },
+      { n: 58, cat: 'D', effort: 'M', title: 'Crypto misuse scanner',     desc: 'Flag MD5, ECB mode, hardcoded IVs, weak entropy seeds. Pattern-match common antipatterns.' },
+      { n: 59, cat: 'D', effort: 'M', title: 'OAuth scope analyzer',      desc: 'For OAuth integrations, report least-privilege deltas (scopes asked vs scopes used).' },
+      { n: 60, cat: 'D', effort: 'M', title: 'Vulnerable pattern catalog', desc: 'XSS sinks, prototype pollution, SSRF endpoints. Each pattern is a few lines + AST match.' },
+      { n: 61, cat: 'D', effort: 'S', title: 'More secret rules',         desc: 'Azure keys, GCP service accounts, JWT, Cloudflare, Twilio, SendGrid, Algolia. Already on roadmap.' },
+      { n: 62, cat: 'D', effort: 'M', title: 'Custom rule API',           desc: 'Let .facts/config.json add user-defined secret patterns + severity overrides. Per-project customization.' },
+
+      // E. Cross-repo / org-scale (63–70)
+      { n: 63, cat: 'E', effort: 'L', title: 'Multi-repo dashboard',       desc: 'Aggregate N FACTS artifacts into one org view. Foundation for everything else in this category.' },
+      { n: 64, cat: 'E', effort: 'M', title: 'Org-wide vulnerability fleet', desc: '"Show me all repos still on lodash@4.17.20." Triages a CVE across the whole codebase footprint.' },
+      { n: 65, cat: 'E', effort: 'L', title: 'Reuse opportunity detection', desc: 'Find functions implemented similarly in 3+ repos. Surfaces shared-library candidates.' },
+      { n: 66, cat: 'E', effort: 'S', title: 'Org-wide license rollup',    desc: 'Inventory + flagging across every repo. Compliance answer in one query.' },
+      { n: 67, cat: 'E', effort: 'M', title: 'Standardization drift',      desc: 'Diff style/lint configs across repos. Surfaces "we have 4 different prettier configs" early.' },
+      { n: 68, cat: 'E', effort: 'M', title: 'Service catalog generator',  desc: 'Auto-populated per-team service inventory. Replaces hand-maintained Confluence pages.' },
+      { n: 69, cat: 'E', effort: 'M', title: 'Knowledge silo detector',    desc: 'Files with one author across multiple repos. Cross-repo bus-factor.' },
+      { n: 70, cat: 'E', effort: 'M', title: 'Tech debt heatmap',          desc: 'Debt distribution across teams + repos. Useful for engineering leadership prioritization.' },
+
+      // F. Performance + observability (71–80)
+      { n: 71, cat: 'F', effort: 'S', title: 'Bundle-size delta on PR',   desc: 'Diff gzip per file between two snapshots. The new-byte gate every frontend wants.' },
+      { n: 72, cat: 'F', effort: 'M', title: 'Lighthouse integration',    desc: 'Wire FACTS to a headless Chrome run, capture Core Web Vitals into the artifact.' },
+      { n: 73, cat: 'F', effort: 'M', title: 'Long-task detector',        desc: 'Pattern-match synchronous JSON parses, large loops in render paths.' },
+      { n: 74, cat: 'F', effort: 'M', title: 'Cold-start analyzer',       desc: 'For serverless deploys, count imports in handler entry. Predicts cold-start cost.' },
+      { n: 75, cat: 'F', effort: 'S', title: 'Test-time profiler',        desc: 'Capture which tests are slowest, integrate with Vitest reporter. Drives test-suite optimization.' },
+      { n: 76, cat: 'F', effort: 'L', title: 'Database query plan capture', desc: 'Instrument ORM calls during analyze. Wide ecosystem support is the hard part.' },
+      { n: 77, cat: 'F', effort: 'M', title: 'Sentry integration',        desc: 'Correlate errors to file/line via FACTS\'s path-addressable map. Native deep-links into Sentry.' },
+      { n: 78, cat: 'F', effort: 'M', title: 'Datadog integration',       desc: 'Push metrics from artifact stats. Dashboards keyed by FACTS\'s capability tags.' },
+      { n: 79, cat: 'F', effort: 'L', title: 'Cache-hit rate analysis',   desc: 'Read browser/CDN/Redis configs, estimate effective caching. Highly actionable, deep work.' },
+      { n: 80, cat: 'F', effort: 'M', title: 'Memory-leak pattern detector', desc: 'Closures over large objects, event listeners never removed, useEffect cleanup gaps.' },
+
+      // G. Documentation + onboarding (81–88)
+      { n: 81, cat: 'G', effort: 'S', title: 'README auto-section generator', desc: 'Produce architecture / stack / scripts blocks. Inserts before "Manual sections start here" marker.' },
+      { n: 82, cat: 'G', effort: 'S', title: 'CONTRIBUTING.md generator', desc: 'Onboarding flow inferred from setup scripts + entry points + test commands.' },
+      { n: 83, cat: 'G', effort: 'M', title: '"If you change X also update Y" map', desc: 'Derived from cross-file references. Surfaces sneaky coupling that reviewers miss.' },
+      { n: 84, cat: 'G', effort: 'M', title: 'API reference static site',  desc: 'JSDoc/TSDoc + FACTS metadata → static site. Public docs without a doc-system commitment.' },
+      { n: 85, cat: 'G', effort: 'M', title: 'Deployment runbook extractor', desc: 'Find deploy scripts, infer steps. Surfaces as "What this deploys" in the artifact.' },
+      { n: 86, cat: 'G', effort: 'S', title: 'Mermaid/D2 architecture diagram', desc: 'Generate from graph. One-day implementation; immediately makes Graph tab shareable in PR descriptions + docs.', spotlight: true },
+      { n: 87, cat: 'G', effort: 'S', title: 'CODEOWNERS auto-suggest',    desc: 'Based on git authorship + churn. Reduces the "who reviews this?" guesswork.' },
+      { n: 88, cat: 'G', effort: 'M', title: '"First PR" task suggestions', desc: 'Easy issues based on TODO entries + low-complexity files. Onboarding-as-a-feature.' },
+
+      // H. Migration + refactoring (89–96)
+      { n: 89, cat: 'H', effort: 'L', title: 'Framework migration planner', desc: 'Next.js pages→app, React 18→19, Vue 2→3. Codifies the migration playbook.' },
+      { n: 90, cat: 'H', effort: 'L', title: 'JS → TS conversion scaffolder', desc: 'Given a .js file, emit a .ts shell with inferred types. Reduces the marginal cost of migration.' },
+      { n: 91, cat: 'H', effort: 'M', title: 'Codemod recommender',        desc: 'For each anti-pattern, suggest known codemod (jscodeshift, ast-grep). Bridge from FACTS to action.' },
+      { n: 92, cat: 'H', effort: 'M', title: 'Library replacement scout', desc: 'Find deprecated APIs, suggest modern equivalents (moment → date-fns, request → fetch).' },
+      { n: 93, cat: 'H', effort: 'L', title: 'Database migration analyzer', desc: 'Diff schema files, predict downtime/rollback path. ORM-specific but huge value.' },
+      { n: 94, cat: 'H', effort: 'M', title: 'Breaking change impact analyzer', desc: 'Given a planned API change, list all callers. Couples with #22 — same data, different framing.' },
+      { n: 95, cat: 'H', effort: 'S', title: 'ESM/CJS migration detector', desc: 'Find mixed import styles, suggest conversion order. Visible drift indicator.' },
+      { n: 96, cat: 'H', effort: 'L', title: 'Monolith → services splitter', desc: 'Propose service boundaries from graph clustering. Ambitious; the kind of feature consultancies are built on.' },
+
+      // I. Team health (97–99)
+      { n: 97, cat: 'I', effort: 'S', title: 'Bus-factor calculator',     desc: 'Per-directory, count distinct authors with N+ commits. Already mostly there; just needs the rollup view.' },
+      { n: 98, cat: 'I', effort: 'M', title: 'PR turn-around heatmap',    desc: 'Pair topContributors data with review latency. Surfaces team-health gaps quantitatively.' },
+      { n: 99, cat: 'I', effort: 'M', title: 'Knowledge-transfer doc generator', desc: 'For high-bus-factor files, auto-draft a "how this works" doc seeded with comments + commits.' },
+
+      // J. FACTS platform itself (100)
+      { n: 100, cat: 'J', effort: 'L', title: 'Public FACTS-as-a-service', desc: 'Point a URL at a GitHub repo, get a hosted analysis + permalink. Biggest reach unlock — turns a CLI tool into a platform.' },
+    ];
+
+    /* Add catLabel via lookup so the data block stays terse. */
+    const CAT_LABELS = Object.fromEntries(CATEGORIES.map((c) => [c.code, c.label]));
+    IDEAS.forEach((i) => { i.catLabel = CAT_LABELS[i.cat]; });
+
+    /* ===============================================================
+     *  State: localStorage-persisted triage data.
+     *
+     *  shape: {
+     *    statuses: { [n]: 'interested'|'in-progress'|'shipped'|'skipped' },
+     *    notes:    { [n]: string },
+     *    custom:   [{ id: 'C-001', title, desc, cat, effort }, ...],
+     *    customStatuses: { [id]: ... }, customNotes: { [id]: string }
+     *  }
+     * =============================================================== */
+    const STORAGE_KEY = 'factstack:ideas:v1';
+    const STATUS_CYCLE = ['none', 'interested', 'in-progress', 'shipped', 'skipped'];
+
+    function readState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : {};
+      } catch { return {}; }
+    }
+    function writeState(s) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch {}
+    }
+    let state = readState();
+    state.statuses ||= {};
+    state.notes ||= {};
+    state.custom ||= [];
+    state.customStatuses ||= {};
+    state.customNotes ||= {};
+
+    /* Filter + sort state — not persisted (per-session). */
+    const filters = {
+      search: '',
+      categories: new Set(),       // empty = all
+      statuses: new Set(),         // empty = all
+      efforts: new Set(),          // empty = all
+      sort: 'number',
+    };
+
+    /* ===============================================================
+     *  Render: filter chips
+     * =============================================================== */
+    function renderCategoryChips() {
+      const row = document.getElementById('category-chips');
+      const allBtn = makeChip('All', filters.categories.size === 0, IDEAS.length, () => {
+        filters.categories.clear();
+        renderAll();
+      });
+      row.querySelectorAll('.chip').forEach((el) => el.remove());
+      row.appendChild(allBtn);
+      for (const c of CATEGORIES) {
+        const count = IDEAS.filter((i) => i.cat === c.code).length;
+        const active = filters.categories.has(c.code);
+        const btn = makeChip(`${c.code} · ${c.label}`, active, count, () => {
+          if (filters.categories.has(c.code)) filters.categories.delete(c.code);
+          else filters.categories.add(c.code);
+          renderAll();
+        });
+        row.appendChild(btn);
+      }
+    }
+
+    function renderStatusChips() {
+      const row = document.getElementById('status-chips');
+      row.querySelectorAll('.chip').forEach((el) => el.remove());
+      const allBtn = makeChip('All', filters.statuses.size === 0, allIdeas().length, () => {
+        filters.statuses.clear();
+        renderAll();
+      });
+      row.appendChild(allBtn);
+      for (const s of STATUS_CYCLE) {
+        const count = allIdeas().filter((i) => (lookupStatus(i) || 'none') === s).length;
+        const active = filters.statuses.has(s);
+        const label = s === 'none' ? 'untriaged' : s;
+        const btn = makeChip(label, active, count, () => {
+          if (filters.statuses.has(s)) filters.statuses.delete(s);
+          else filters.statuses.add(s);
+          renderAll();
+        });
+        row.appendChild(btn);
+      }
+    }
+
+    function renderEffortChips() {
+      const row = document.getElementById('effort-chips');
+      row.querySelectorAll('.chip').forEach((el) => el.remove());
+      const allBtn = makeChip('All', filters.efforts.size === 0, IDEAS.length, () => {
+        filters.efforts.clear();
+        renderAll();
+      });
+      row.appendChild(allBtn);
+      for (const e of ['S', 'M', 'L']) {
+        const count = IDEAS.filter((i) => i.effort === e).length;
+        const active = filters.efforts.has(e);
+        const labels = { S: 'S · hours', M: 'M · days', L: 'L · weeks' };
+        const btn = makeChip(labels[e], active, count, () => {
+          if (filters.efforts.has(e)) filters.efforts.delete(e);
+          else filters.efforts.add(e);
+          renderAll();
+        });
+        row.appendChild(btn);
+      }
+    }
+
+    function makeChip(label, active, count, onclick) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'chip' + (active ? ' is-active' : '');
+      const text = document.createElement('span');
+      text.textContent = label;
+      btn.appendChild(text);
+      if (count != null) {
+        const c = document.createElement('span');
+        c.className = 'chip__count';
+        c.textContent = String(count);
+        btn.appendChild(c);
+      }
+      btn.addEventListener('click', onclick);
+      return btn;
+    }
+
+    /* ===============================================================
+     *  Render: TOC sidebar (categories with counts)
+     * =============================================================== */
+    function renderToc() {
+      const list = document.getElementById('toc-categories');
+      list.innerHTML = '';
+      list.appendChild(makeTocItem('vectors', 'Strategic vectors', null));
+      list.appendChild(makeTocItem('board', 'Idea board', IDEAS.length));
+      list.appendChild(makeTocItem('custom', 'Your additions', state.custom.length));
+    }
+    function makeTocItem(href, label, count) {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = '#' + href;
+      const lab = document.createElement('span');
+      lab.textContent = label;
+      a.appendChild(lab);
+      if (count != null) {
+        const c = document.createElement('span');
+        c.className = 'toc__count';
+        c.textContent = String(count);
+        a.appendChild(c);
+      }
+      li.appendChild(a);
+      return li;
+    }
+
+    /* ===============================================================
+     *  Render: idea rows
+     * =============================================================== */
+    function lookupStatus(idea) {
+      if (idea.id) return state.customStatuses[idea.id];
+      return state.statuses[idea.n];
+    }
+    function lookupNotes(idea) {
+      if (idea.id) return state.customNotes[idea.id] || '';
+      return state.notes[idea.n] || '';
+    }
+    function saveStatus(idea, nextStatus) {
+      const target = idea.id ? state.customStatuses : state.statuses;
+      const key = idea.id || idea.n;
+      if (nextStatus === 'none') delete target[key];
+      else target[key] = nextStatus;
+      writeState(state);
+    }
+    function saveNotes(idea, text) {
+      const target = idea.id ? state.customNotes : state.notes;
+      const key = idea.id || idea.n;
+      if (!text) delete target[key];
+      else target[key] = text;
+      writeState(state);
+    }
+
+    function allIdeas() {
+      return [...IDEAS, ...state.custom];
+    }
+
+    function applyFilters(list) {
+      const q = filters.search.trim().toLowerCase();
+      return list.filter((i) => {
+        if (filters.categories.size > 0 && !filters.categories.has(i.cat)) return false;
+        if (filters.efforts.size > 0 && !filters.efforts.has(i.effort)) return false;
+        if (filters.statuses.size > 0) {
+          const st = lookupStatus(i) || 'none';
+          if (!filters.statuses.has(st)) return false;
+        }
+        if (q) {
+          const hay = (i.title + ' ' + i.desc + ' ' + i.catLabel).toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+    }
+
+    function sortIdeas(list) {
+      const arr = [...list];
+      switch (filters.sort) {
+        case 'effort': {
+          const rank = { S: 0, M: 1, L: 2 };
+          arr.sort((a, b) => rank[a.effort] - rank[b.effort] || (a.n || 0) - (b.n || 0));
+          break;
+        }
+        case 'spotlight':
+          arr.sort((a, b) => (b.spotlight ? 1 : 0) - (a.spotlight ? 1 : 0) || (a.n || 0) - (b.n || 0));
+          break;
+        case 'status': {
+          const rank = { 'in-progress': 0, 'interested': 1, 'none': 2, 'shipped': 3, 'skipped': 4 };
+          arr.sort((a, b) => (rank[lookupStatus(a) || 'none'] - rank[lookupStatus(b) || 'none']) || (a.n || 0) - (b.n || 0));
+          break;
+        }
+        case 'number':
+        default:
+          arr.sort((a, b) => (a.n || 999) - (b.n || 999));
+      }
+      return arr;
+    }
+
+    function renderIdeaRow(idea, isCustom) {
+      const row = document.createElement('div');
+      row.className = 'idea';
+      row.dataset.ideaId = idea.id || String(idea.n);
+      const status = lookupStatus(idea);
+      if (status) row.dataset.status = status;
+      if (idea.spotlight) row.dataset.spotlight = 'true';
+
+      /* number/id cell */
+      const num = document.createElement('div');
+      num.className = 'idea__num';
+      num.textContent = idea.id || String(idea.n);
+      row.appendChild(num);
+
+      /* main cell — title, desc, tags, optional notes textarea */
+      const main = document.createElement('div');
+      main.className = 'idea__main';
+
+      const title = document.createElement('div');
+      title.className = 'idea__title';
+      title.textContent = idea.title;
+      main.appendChild(title);
+
+      const desc = document.createElement('div');
+      desc.className = 'idea__desc';
+      desc.textContent = idea.desc;
+      main.appendChild(desc);
+
+      const tags = document.createElement('div');
+      tags.className = 'idea__tags';
+      tags.appendChild(makeTag(idea.cat + ' · ' + idea.catLabel, 'cat'));
+      tags.appendChild(makeTag('effort: ' + idea.effort, 'effort-' + idea.effort));
+      if (idea.spotlight) tags.appendChild(makeTag('start here', 'spotlight'));
+      main.appendChild(tags);
+
+      const ta = document.createElement('textarea');
+      ta.className = 'idea__notes';
+      ta.placeholder = 'Notes — why this matters, what blocks it, who could do it…';
+      ta.value = lookupNotes(idea);
+      ta.addEventListener('input', () => {
+        saveNotes(idea, ta.value);
+        notesBtn.classList.toggle('has-content', !!ta.value.trim());
+      });
+      main.appendChild(ta);
+
+      row.appendChild(main);
+
+      /* actions cell — status cycle button + notes toggle */
+      const actions = document.createElement('div');
+      actions.className = 'idea__actions';
+
+      const statusBtn = document.createElement('button');
+      statusBtn.type = 'button';
+      statusBtn.className = 'status-btn';
+      statusBtn.dataset.state = status || 'none';
+      statusBtn.textContent = status || 'mark…';
+      statusBtn.title = 'Click to cycle: none → interested → in-progress → shipped → skipped → none';
+      statusBtn.addEventListener('click', () => {
+        const cur = lookupStatus(idea) || 'none';
+        const idx = STATUS_CYCLE.indexOf(cur);
+        const next = STATUS_CYCLE[(idx + 1) % STATUS_CYCLE.length];
+        saveStatus(idea, next);
+        renderAll(); // re-render for status-tinted rows + counts
+      });
+      actions.appendChild(statusBtn);
+
+      const notesBtn = document.createElement('button');
+      notesBtn.type = 'button';
+      notesBtn.className = 'notes-btn' + (lookupNotes(idea) ? ' has-content' : '');
+      notesBtn.textContent = lookupNotes(idea) ? 'notes ●' : 'notes';
+      notesBtn.addEventListener('click', () => {
+        ta.classList.toggle('is-open');
+        if (ta.classList.contains('is-open')) ta.focus();
+      });
+      actions.appendChild(notesBtn);
+
+      if (isCustom) {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'notes-btn';
+        delBtn.textContent = 'delete';
+        delBtn.addEventListener('click', () => {
+          if (!confirm(`Delete custom idea "${idea.title}"?`)) return;
+          state.custom = state.custom.filter((c) => c.id !== idea.id);
+          delete state.customStatuses[idea.id];
+          delete state.customNotes[idea.id];
+          writeState(state);
+          renderAll();
+        });
+        actions.appendChild(delBtn);
+      }
+
+      row.appendChild(actions);
+      return row;
+    }
+
+    function makeTag(text, kind) {
+      const t = document.createElement('span');
+      t.className = 'tag tag--' + kind;
+      t.textContent = text;
+      return t;
+    }
+
+    function renderIdeasList() {
+      const list = document.getElementById('ideas-list');
+      list.innerHTML = '';
+      const filtered = sortIdeas(applyFilters(IDEAS));
+      if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty">No ideas match the current filters.</div>';
+      } else {
+        for (const idea of filtered) list.appendChild(renderIdeaRow(idea, false));
+      }
+      document.getElementById('board-count').textContent =
+        filtered.length === IDEAS.length ? `${IDEAS.length} ideas` : `${filtered.length} / ${IDEAS.length} visible`;
+    }
+
+    function renderCustomList() {
+      const list = document.getElementById('custom-list');
+      list.innerHTML = '';
+      const filtered = sortIdeas(applyFilters(state.custom));
+      if (state.custom.length === 0) {
+        list.innerHTML = '<div class="empty">No custom ideas yet. Use the button above to add one.</div>';
+      } else if (filtered.length === 0) {
+        list.innerHTML = '<div class="empty">Your custom ideas exist but are hidden by the current filters.</div>';
+      } else {
+        for (const idea of filtered) list.appendChild(renderIdeaRow(idea, true));
+      }
+      document.getElementById('custom-count').textContent = String(state.custom.length);
+    }
+
+    function renderStats() {
+      const all = allIdeas();
+      const counts = { interested: 0, 'in-progress': 0, shipped: 0 };
+      for (const i of all) {
+        const s = lookupStatus(i);
+        if (s && counts[s] != null) counts[s]++;
+      }
+      document.getElementById('stat-total').textContent = String(all.length);
+      document.getElementById('stat-visible').textContent = String(applyFilters(all).length);
+      document.getElementById('stat-interested').textContent = String(counts.interested);
+      document.getElementById('stat-in-progress').textContent = String(counts['in-progress']);
+      document.getElementById('stat-shipped').textContent = String(counts.shipped);
+      document.getElementById('stat-custom').textContent = String(state.custom.length);
+    }
+
+    function renderAll() {
+      renderToc();
+      renderCategoryChips();
+      renderStatusChips();
+      renderEffortChips();
+      renderIdeasList();
+      renderCustomList();
+      renderStats();
+    }
+
+    /* ===============================================================
+     *  Wire up: filters, sort, search, add-custom, export, reset
+     * =============================================================== */
+    document.getElementById('search-input').addEventListener('input', (e) => {
+      filters.search = e.target.value;
+      renderIdeasList();
+      renderCustomList();
+      renderStats();
+    });
+
+    document.querySelectorAll('[data-sort]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-sort]').forEach((b) => b.classList.remove('is-active'));
+        btn.classList.add('is-active');
+        filters.sort = btn.dataset.sort;
+        renderIdeasList();
+        renderCustomList();
+      });
+    });
+
+    /* Populate custom form's category dropdown. */
+    const customCatSel = document.getElementById('custom-category');
+    for (const c of CATEGORIES) {
+      const opt = document.createElement('option');
+      opt.value = c.code;
+      opt.textContent = `${c.code} · ${c.label}`;
+      customCatSel.appendChild(opt);
+    }
+
+    const customForm = document.getElementById('custom-form');
+    const addBtn = document.getElementById('add-btn');
+    addBtn.addEventListener('click', () => {
+      const open = customForm.style.display !== 'none';
+      customForm.style.display = open ? 'none' : 'flex';
+      customForm.classList.toggle('is-open', !open);
+      if (!open) document.getElementById('custom-title').focus();
+    });
+    document.getElementById('custom-cancel').addEventListener('click', () => {
+      customForm.style.display = 'none';
+      customForm.classList.remove('is-open');
+    });
+    document.getElementById('custom-save').addEventListener('click', () => {
+      const title = document.getElementById('custom-title').value.trim();
+      const desc = document.getElementById('custom-desc').value.trim();
+      if (!title) { alert('Title required.'); return; }
+      const cat = document.getElementById('custom-category').value;
+      const effort = document.getElementById('custom-effort').value;
+      /* Stable IDs avoid index drift if user deletes earlier custom ideas. */
+      const nextNum = state.custom.reduce((m, c) => {
+        const n = parseInt((c.id || '').replace(/^C-/, ''), 10);
+        return Number.isFinite(n) ? Math.max(m, n) : m;
+      }, 0) + 1;
+      const id = 'C-' + String(nextNum).padStart(3, '0');
+      state.custom.push({ id, title, desc: desc || '(no description)', cat, catLabel: CAT_LABELS[cat] || cat, effort });
+      writeState(state);
+      /* Reset form fields. */
+      document.getElementById('custom-title').value = '';
+      document.getElementById('custom-desc').value = '';
+      customForm.style.display = 'none';
+      customForm.classList.remove('is-open');
+      renderAll();
+      /* Scroll the new idea into view. */
+      setTimeout(() => {
+        const el = document.querySelector(`[data-idea-id="${id}"]`);
+        if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 50);
+    });
+
+    document.getElementById('export-btn').addEventListener('click', () => {
+      const snapshot = {
+        exportedAt: new Date().toISOString(),
+        state,
+      };
+      const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `factstack-ideas-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    });
+
+    document.getElementById('reset-btn').addEventListener('click', () => {
+      if (!confirm('Reset ALL state? Custom ideas, statuses, and notes will be cleared. The 100 baseline ideas remain.')) return;
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+      state = { statuses: {}, notes: {}, custom: [], customStatuses: {}, customNotes: {} };
+      renderAll();
+    });
+
+    /* Active-section highlight in the TOC. */
+    (function () {
+      const headings = document.querySelectorAll('main h2[id]');
+      const links = {};
+      document.querySelectorAll('.toc a[href^="#"]').forEach((a) => {
+        links[a.getAttribute('href').slice(1)] = a;
+      });
+      if (!('IntersectionObserver' in window)) return;
+      let current = null;
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const id = entry.target.id;
+          if (current === id) return;
+          if (current && links[current]) links[current].classList.remove('is-active');
+          if (links[id]) links[id].classList.add('is-active');
+          current = id;
+        });
+      }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+      headings.forEach((h) => obs.observe(h));
+    })();
+
+    /* First render. */
+    renderAll();
+  </script>
+</body>
+</html>
