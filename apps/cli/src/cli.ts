@@ -37,7 +37,7 @@ import {
   type DiffEndpoint,
 } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
-import { gzippedBytes, humanToViz, readSnapshots, writeArtifacts } from '@factstack/emit';
+import { gzippedBytes, humanToViz, NodeFileWriter, readSnapshots, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import {
   flattenManifests,
@@ -47,8 +47,10 @@ import {
   noopCache,
   type OsvQuery,
 } from '@factstack/scanners';
+import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skills';
 import type { AgentArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
+import { renderCiReport } from './emitters/ci-report.js';
 
 const program = new Command();
 
@@ -694,88 +696,17 @@ program
     const factsDir = path.join(root, '.facts');
     const snapDir = path.join(factsDir, 'snapshots');
 
-    // Load an AgentArtifact from either a full .facts/agent.json OR a
-    // compact snapshot (.facts/snapshots/*.json — stored as a
-    // stats-only rollup). Snapshots don't contain `files[]` so we fall
-    // back to a synthetic AgentArtifact with enough shape for diffing
-    // headline metrics.
-    const loadEndpoint = (p: string): DiffEndpoint | null => {
-      if (!existsSync(p)) return null;
-      try {
-        const raw = JSON.parse(readFileSync(p, 'utf8'));
-        // Heuristic: full agent artifact has `files[]`; snapshot doesn't.
-        if (Array.isArray(raw.files)) return { artifact: raw as AgentArtifact };
-        // Snapshot → synthesize a minimal AgentArtifact.
-        const synthetic: AgentArtifact = {
-          $schema: 'https://factstack.dev/schema/agent.v1.json',
-          factsVersion: '0.1.0',
-          generatedAt: raw.at ?? new Date().toISOString(),
-          project: { name: '', root: '', languages: [], frameworks: [], entryPoints: [], monorepo: null },
-          files: [],
-          graph: { nodes: [], edges: [], cycles: [] },
-          routes: [],
-          scripts: {},
-          capabilities: [],
-          risks: new Array(raw.risks ?? 0).fill(null).map(() => ({ severity: 'info' as const, category: 'stale' as const, rule: 'snapshot-placeholder', message: '' })),
-          stats: {
-            loc: raw.stats?.loc ?? 0,
-            fileCount: raw.stats?.fileCount ?? 0,
-            packageCount: 0,
-            totalTokenCost: raw.stats?.totalTokenCost ?? 0,
-          },
-          /* v0.6 — both new fields default to []. Snapshots don't
-             carry dep/vuln data; the diff treats them as "unknown
-             rather than zero." Future snapshot version may include
-             vuln counts in the rollup. */
-          dependencyManifests: [],
-          vulnerabilities: [],
-        };
-        // Snapshots roll up headline counts (todos, broken, stale,
-        // secrets) at the top level. Pass every known numeric field
-        // through as an override so the diff reports real numbers
-        // instead of always showing "0 → current" for each.
-        const overrides: NonNullable<DiffEndpoint['overrides']> = {};
-        if (typeof raw.todos === 'number')   overrides.todos = raw.todos;
-        if (typeof raw.broken === 'number')  overrides.broken = raw.broken;
-        if (typeof raw.stale === 'number')   overrides.stale = raw.stale;
-        if (typeof raw.secrets === 'number') overrides.secrets = raw.secrets;
-        return {
-          artifact: synthetic,
-          snapshotFile: p,
-          ...(Object.keys(overrides).length ? { overrides } : {}),
-        };
-      } catch {
-        return null;
-      }
-    };
-
-    const resolveEndpoint = (arg: string | undefined): DiffEndpoint | null => {
-      if (!arg) return null;
-      // Accept a bare snapshot stamp, a full path, or a file in snapDir.
-      const candidates = [
-        arg,
-        path.resolve(arg),
-        path.join(snapDir, arg),
-        path.join(snapDir, arg + '.json'),
-      ];
-      for (const c of candidates) {
-        const loaded = loadEndpoint(c);
-        if (loaded) return loaded;
-      }
-      return null;
-    };
-
     let from: DiffEndpoint | null;
     let to:   DiffEndpoint | null;
 
     if (snapA && snapB) {
       // Two-arg: explicit snapshots.
-      from = resolveEndpoint(snapA);
-      to   = resolveEndpoint(snapB);
+      from = resolveDiffEndpointArg(snapA, snapDir);
+      to   = resolveDiffEndpointArg(snapB, snapDir);
     } else if (snapA && !snapB) {
       // One-arg: named snapshot vs current agent.json.
-      from = resolveEndpoint(snapA);
-      to   = loadEndpoint(path.join(factsDir, 'agent.json'));
+      from = resolveDiffEndpointArg(snapA, snapDir);
+      to   = loadDiffEndpoint(path.join(factsDir, 'agent.json'));
     } else {
       // Zero-arg: PREVIOUS snapshot (not most recent) vs current
       // agent.json. The most recent snapshot was almost certainly
@@ -788,10 +719,10 @@ program
             const files = (statSync(snapDir).isDirectory() ? readdirSnapshotList(snapDir) : []);
             if (!files.length) return null;
             const pick = files[files.length - 2] ?? files[files.length - 1]!;
-            return resolveEndpoint(pick);
+            return resolveDiffEndpointArg(pick, snapDir);
           })()
         : null;
-      to = loadEndpoint(path.join(factsDir, 'agent.json'));
+      to = loadDiffEndpoint(path.join(factsDir, 'agent.json'));
     }
 
     if (!from || !to) {
@@ -903,6 +834,161 @@ program
   });
 
 program
+  .command('export-skills [target]')
+  .description('Emit project context as AI-agent skill files (Claude SKILL.md + Cursor .cursorrules + GitHub Copilot copilot-instructions.md)')
+  .option('--format <ids>', `Comma-separated subset of formats to emit (default: all). Available: ${ALL_FORMATS.join(', ')}`)
+  .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
+  .action(async (target: string | undefined, opts: { format?: string; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    const humanPath = path.join(root, '.facts', 'human.json');
+
+    /* Pre-flight: artifact must exist. Unlike `ui` we do NOT
+       auto-analyze here — `export-skills` writes user-visible files at
+       the project root, and we want the user's "analyze happened"
+       decision to be explicit. */
+    if (!existsSync(agentPath) || !existsSync(humanPath)) {
+      process.stderr.write(kleur.red('factstack export-skills: ') + 'no .facts/agent.json or human.json found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first; then re-run export-skills.\n'));
+      process.exit(1);
+    }
+
+    let agent: AgentArtifact;
+    let human: HumanArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+      human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack export-skills: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    /* Parse --format. Filter against ALL_FORMATS so a typo doesn't
+       silently emit nothing (the orchestrator silently drops unknowns
+       by design; we surface the typo here at the CLI layer where the
+       user can see it). */
+    let formats: SkillFormatId[] | undefined;
+    if (opts.format) {
+      const requested = opts.format.split(',').map((s) => s.trim()).filter(Boolean);
+      const known = new Set<string>(ALL_FORMATS);
+      const unknown = requested.filter((id) => !known.has(id));
+      if (unknown.length > 0) {
+        process.stderr.write(
+          kleur.red('factstack export-skills: ') +
+            `unknown format${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}\n`,
+        );
+        process.stderr.write(kleur.dim(`  available: ${ALL_FORMATS.join(', ')}\n`));
+        process.exit(1);
+      }
+      formats = requested as SkillFormatId[];
+    }
+
+    /* Skills land at the PROJECT ROOT, not under .facts/ — `.cursorrules`
+       lives next to package.json, `.claude/skills/...` is what Claude
+       Code scans, `.github/copilot-instructions.md` is GitHub's
+       convention. The empty-subdir constructor variant gives us that. */
+    const writer = new NodeFileWriter(root, '');
+    const result = await buildSkillsTo(writer, agent, human, formats);
+
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: true,
+            formats: result.formats,
+            files: Object.keys(result.files),
+            bytesWritten: result.bytesWritten,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      return;
+    }
+
+    const lines: string[] = [
+      '',
+      kleur.bold().green('FACTS') + kleur.dim(' · export-skills'),
+      kleur.dim('  ─────────────────'),
+    ];
+    for (const filePath of Object.keys(result.files).sort()) {
+      lines.push(`  ${kleur.green('✓')} ${filePath}`);
+    }
+    lines.push('');
+    lines.push(
+      kleur.dim(
+        `  ${result.formats.length} format${result.formats.length === 1 ? '' : 's'} · ` +
+          `${Object.keys(result.files).length} file${Object.keys(result.files).length === 1 ? '' : 's'} · ` +
+          `${formatBytes(result.bytesWritten)} written`,
+      ),
+    );
+    lines.push('');
+    process.stderr.write(lines.join('\n') + '\n');
+  });
+
+program
+  .command('ci-report [target]')
+  .description('Emit a markdown diff report (head vs base) suitable for posting as a PR comment or GitHub Actions step summary')
+  .requiredOption('--base <path>', 'Base endpoint to compare against (snapshot path, snapshot stamp, or agent.json)')
+  .option('--head <path>', 'Head endpoint (default: <target>/.facts/agent.json)')
+  .option('--fail-on-shift <n>', 'Exit non-zero if vulns.severityShift >= n (use in CI to gate merges; default: no gate)')
+  .option('--json', 'Emit the underlying DiffArtifact as JSON on stdout instead of the markdown report')
+  .action(async (target: string | undefined, opts: { base: string; head?: string; failOnShift?: string; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const factsDir = path.join(root, '.facts');
+    const snapDir = path.join(factsDir, 'snapshots');
+
+    const from = resolveDiffEndpointArg(opts.base, snapDir);
+    const headPath = opts.head ? path.resolve(opts.head) : path.join(factsDir, 'agent.json');
+    const to = loadDiffEndpoint(headPath);
+
+    if (!from) {
+      process.stderr.write(kleur.red('factstack ci-report: ') + `base "${opts.base}" not found.\n`);
+      process.stderr.write(kleur.dim('  pass a snapshot path under .facts/snapshots/ or a full agent.json path.\n'));
+      process.exit(1);
+    }
+    if (!to) {
+      process.stderr.write(kleur.red('factstack ci-report: ') + `head "${headPath}" not found.\n`);
+      process.stderr.write(kleur.dim('  run `factstack analyze .` to produce .facts/agent.json, or pass --head.\n'));
+      process.exit(1);
+    }
+
+    const diff = diffArtifacts(from, to);
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(diff, null, 2) + '\n');
+    } else {
+      /* Default behavior: markdown on stdout so it pipes cleanly into
+         `gh pr comment --body-file -` and similar. TTY chrome goes to
+         stderr (preserved by all the other commands too). */
+      process.stdout.write(renderCiReport(diff));
+    }
+
+    /* --fail-on-shift: optional merge gate. Compares against the
+       severity-shift score (not raw count) because shift captures
+       "got meaningfully worse" — see comments in packages/core/src/diff.ts.
+       A value of `1` would gate on any net worsening; `4` would gate
+       only on a new critical-equivalent. */
+    if (opts.failOnShift !== undefined) {
+      const threshold = parseIntInRange(opts.failOnShift, NaN, -1000, 1000);
+      if (!Number.isFinite(threshold)) {
+        process.stderr.write(kleur.red('factstack ci-report: ') + `--fail-on-shift must be a number (got "${opts.failOnShift}")\n`);
+        process.exit(2);
+      }
+      if (diff.vulns.severityShift >= threshold) {
+        const sign = diff.vulns.severityShift >= 0 ? '+' : '';
+        process.stderr.write(
+          kleur.red('factstack ci-report: ') +
+            `severity shift ${sign}${diff.vulns.severityShift} >= ${threshold} — gating merge.\n`,
+        );
+        process.exit(1);
+      }
+    }
+  });
+
+program
   .command('doctor')
   .description('Verify FACTS can analyse this machine (Node version, permissions, etc.)')
   .action(async () => {
@@ -944,6 +1030,106 @@ program.parseAsync(process.argv).catch((err: unknown) => {
 });
 
 /* -------------------------------- utils ------------------------------- */
+
+/**
+ * Load an `AgentArtifact`-shaped `DiffEndpoint` from a path on disk.
+ * Used by both `diff` and `ci-report`.
+ *
+ * Handles two file shapes:
+ *   1. Full `.facts/agent.json` — has `files[]`. Loaded as-is.
+ *   2. Compact `.facts/snapshots/<ISO>.json` — stats-only rollup, no
+ *      `files[]`. Synthesized into a minimal AgentArtifact with
+ *      empty `files`/`graph`/`vulnerabilities` arrays so the diff
+ *      function's headline-metric paths work; per-file diffs get
+ *      `incomplete: true`. Top-level rollup counts (todos, broken,
+ *      stale, secrets) ride along as `overrides` so the diff doesn't
+ *      report "0 → current" for them.
+ *
+ * Returns `null` if the path doesn't exist or doesn't parse — callers
+ * (`diff`, `ci-report`) surface that as their own error message.
+ *
+ * Extracted from the inline closures in `diff` and `ci-report` so the
+ * two verbs share one source of truth for endpoint loading.
+ */
+/**
+ * Resolve a user-supplied diff-endpoint argument by trying a small
+ * candidate list:
+ *   1. Raw arg (works if user gave a full or cwd-relative path).
+ *   2. `path.resolve(arg)` (absolutize cwd-relative).
+ *   3. `<snapDir>/<arg>` (bare snapshot stamp).
+ *   4. `<snapDir>/<arg>.json` (snapshot stamp without extension).
+ *
+ * Returns the first successfully-loaded endpoint, or null.
+ *
+ * Extracted because `diff` and `ci-report` both apply the same search
+ * priority — the only per-call variable is `snapDir`.
+ */
+function resolveDiffEndpointArg(arg: string, snapDir: string): DiffEndpoint | null {
+  const candidates = [
+    arg,
+    path.resolve(arg),
+    path.join(snapDir, arg),
+    path.join(snapDir, arg + '.json'),
+  ];
+  for (const c of candidates) {
+    const loaded = loadDiffEndpoint(c);
+    if (loaded) return loaded;
+  }
+  return null;
+}
+
+function loadDiffEndpoint(p: string): DiffEndpoint | null {
+  if (!existsSync(p)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(p, 'utf8'));
+    // Heuristic: full agent artifact has `files[]`; snapshot doesn't.
+    if (Array.isArray(raw.files)) return { artifact: raw as AgentArtifact };
+    // Snapshot → synthesize a minimal AgentArtifact.
+    const synthetic: AgentArtifact = {
+      $schema: 'https://factstack.dev/schema/agent.v1.json',
+      factsVersion: '0.1.0',
+      generatedAt: raw.at ?? new Date().toISOString(),
+      project: { name: '', root: '', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+      files: [],
+      graph: { nodes: [], edges: [], cycles: [] },
+      routes: [],
+      scripts: {},
+      capabilities: [],
+      /* Clamp risk-count synthesis: snapshots are on-disk data we
+         don't fully trust (corrupted file, mis-written by an older
+         FACTS, etc.). `new Array(1e9).fill(...)` would OOM the CLI
+         instantly; cap at a sane upper bound. The cap (10_000) is
+         larger than any realistic risk count + small enough to be
+         safe to allocate. Negative values would throw RangeError so
+         the Math.max(0, …) is load-bearing too. */
+      risks: new Array(Math.max(0, Math.min(raw.risks ?? 0, 10_000))).fill(null).map(() => ({ severity: 'info' as const, category: 'stale' as const, rule: 'snapshot-placeholder', message: '' })),
+      stats: {
+        loc: raw.stats?.loc ?? 0,
+        fileCount: raw.stats?.fileCount ?? 0,
+        packageCount: 0,
+        totalTokenCost: raw.stats?.totalTokenCost ?? 0,
+      },
+      /* v0.6 — both new fields default to []. Snapshots don't carry
+         dep/vuln data; the diff treats them as "unknown rather than
+         zero." Future snapshot versions may include vuln counts in
+         the rollup. */
+      dependencyManifests: [],
+      vulnerabilities: [],
+    };
+    const overrides: NonNullable<DiffEndpoint['overrides']> = {};
+    if (typeof raw.todos === 'number')   overrides.todos = raw.todos;
+    if (typeof raw.broken === 'number')  overrides.broken = raw.broken;
+    if (typeof raw.stale === 'number')   overrides.stale = raw.stale;
+    if (typeof raw.secrets === 'number') overrides.secrets = raw.secrets;
+    return {
+      artifact: synthetic,
+      snapshotFile: p,
+      ...(Object.keys(overrides).length ? { overrides } : {}),
+    };
+  } catch {
+    return null;
+  }
+}
 
 function formatCount(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';

@@ -12,7 +12,7 @@
     "build": "pnpm run sync:ui && tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",
     "sync:ui": "node scripts/sync-ui.mjs",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
     "lint": "echo 'no lint yet' && exit 0",
     "typecheck": "tsc --noEmit"
   },
@@ -22,6 +22,7 @@
     "@factstack/extractors": "workspace:*",
     "@factstack/fs-node": "workspace:*",
     "@factstack/scanners": "workspace:*",
+    "@factstack/skills": "workspace:*",
     "@factstack/spec": "workspace:*",
     "chokidar": "^4.0.1",
     "commander": "^12.1.0",

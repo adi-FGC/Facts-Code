@@ -82,6 +82,37 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   const aSecrets = from.overrides?.secrets ?? a.risks.filter((r) => r.category === 'secret').length;
   const bSecrets = to.overrides?.secrets ?? b.risks.filter((r) => r.category === 'secret').length;
 
+  /* v0.7 — vulnerability ID-set diff + severity-shift score.
+   *
+   * Set diff: `new` = IDs in `to` not in `from`; `fixed` = IDs in `from`
+   * not in `to`. Sorted for deterministic output.
+   *
+   * Shift score: signed integer with weighted severity. Captures the
+   * asymmetry a naive count delta misses — one new critical (+4) +
+   * one fixed low (-1) = +3 net, meaning the security posture got
+   * meaningfully worse even though the count moved by zero.
+   *
+   * a.vulnerabilities / b.vulnerabilities default to [] in the v0.6
+   * schema, so this works on every artifact without optional chaining
+   * gymnastics. Snapshots also default to [] in the synthetic-loader
+   * path in cli.ts.
+   */
+  const SEVERITY_SCORE: Record<string, number> = {
+    critical: 4, high: 3, medium: 2, low: 1, unknown: 0,
+  };
+  /* Defensive `?? []`: pre-v0.6 artifacts (and test fixtures that
+     bypass Zod via `as AgentArtifact`) won't have `vulnerabilities`
+     populated. The schema's .default([]) only fills it in at parse
+     time, not when the artifact is constructed directly. */
+  const aVulns = a.vulnerabilities ?? [];
+  const bVulns = b.vulnerabilities ?? [];
+  const aVulnIds = new Set(aVulns.map((v) => v.id));
+  const bVulnIds = new Set(bVulns.map((v) => v.id));
+  const newVulnIds   = [...bVulnIds].filter((id) => !aVulnIds.has(id)).sort();
+  const fixedVulnIds = [...aVulnIds].filter((id) => !bVulnIds.has(id)).sort();
+  const aScore = aVulns.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
+  const bScore = bVulns.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
+
   return {
     $schema: 'https://factstack.dev/schema/diff.v1.json',
     factsVersion: a.factsVersion,
@@ -95,6 +126,10 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
       risks:   delta(aRisks, bRisks),
       todos:   delta(aTodos, bTodos),
       secrets: delta(aSecrets, bSecrets),
+      /* v0.7 — count delta. The signed-severity-shift lives on
+       *  `vulns` below; this is just the raw count change for parity
+       *  with the other stats fields. */
+      vulns:   delta(aVulnIds.size, bVulnIds.size),
     },
     files: {
       added,
@@ -104,6 +139,13 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
       // a snapshot endpoint). Consumers should suppress added/removed
       // counts and surface a "(file-level diff unavailable)" hint.
       ...(filesIncomplete ? { incomplete: true as const } : {}),
+    },
+    /* v0.7 — vulnerability ID-set diff + severity-shift score. See the
+     *  comments next to the SEVERITY_SCORE table above for the rationale. */
+    vulns: {
+      new: newVulnIds,
+      fixed: fixedVulnIds,
+      severityShift: bScore - aScore,
     },
   };
 }

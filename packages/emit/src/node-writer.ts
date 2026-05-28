@@ -25,19 +25,42 @@ export class NodeFileWriter implements FileWriter {
   private readonly root: string;
 
   /**
-   * @param projectRoot Project root directory. The writer scopes
-   *   itself to `<projectRoot>/.facts/` internally; callers don't
-   *   pass `.facts/` in any path.
+   * @param projectRoot Project root directory.
+   * @param subdir Optional subdirectory under `projectRoot` to scope
+   *   the writer to. Defaults to `.facts` — every existing caller
+   *   relies on that. Pass `''` to write directly at the project root
+   *   (used by `factstack export-skills`, which lands files like
+   *   `.cursorrules`, `.claude/skills/...`, `.github/...` next to
+   *   `package.json`, not under `.facts/`).
    */
-  constructor(projectRoot: string) {
-    this.root = path.join(projectRoot, '.facts');
+  constructor(projectRoot: string, subdir: string = '.facts') {
+    this.root = subdir === '' ? projectRoot : path.join(projectRoot, subdir);
   }
 
-  /** Resolve a writer-relative path to an absolute filesystem path. */
+  /** Resolve a writer-relative path to an absolute filesystem path.
+   *
+   *  Defends against path escape: a renderer-supplied path containing
+   *  `..` segments could otherwise resolve outside `this.root` (e.g.
+   *  `../../etc/passwd`). The three currently-shipping skill renderers
+   *  emit only hardcoded safe paths, but the orchestrator's registry
+   *  is open-ended — future renderers shouldn't be able to silently
+   *  escape the project root. Throw early instead. */
   private resolve(p: string): string {
     /* Normalize forward slashes from the orchestrator to host
-       separators. node:path.join does this automatically. */
-    return path.join(this.root, ...p.split('/'));
+       separators. node:path.join does this automatically + collapses
+       `..` segments before we check containment. */
+    const abs = path.join(this.root, ...p.split('/'));
+    /* Containment check: the resolved path must be `this.root` itself
+       or a descendant of it. `path.relative` returning an empty string
+       means same path; otherwise it must not start with `..` and must
+       not be absolute (which on Windows means a different drive). */
+    const rel = path.relative(this.root, abs);
+    if (rel !== '' && (rel.startsWith('..') || path.isAbsolute(rel))) {
+      throw new Error(
+        `NodeFileWriter: path escape detected: "${p}" resolves outside the writer root.`,
+      );
+    }
+    return abs;
   }
 
   async writeText(p: string, body: string): Promise<number> {
@@ -92,9 +115,3 @@ export class NodeFileWriter implements FileWriter {
   }
 }
 
-/**
- * Convenience factory mirroring `nodeFS()` / `memoryFS()` style.
- */
-export function nodeFileWriter(projectRoot: string): NodeFileWriter {
-  return new NodeFileWriter(projectRoot);
-}

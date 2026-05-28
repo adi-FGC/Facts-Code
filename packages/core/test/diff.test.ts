@@ -181,3 +181,126 @@ describe('diffArtifacts — endpoint markers', () => {
     expect(d.to.at).toBe('2026-05-01T00:00:00Z');
   });
 });
+
+/**
+ * v0.7 — vulnerability ID-set diff + severity-shift score.
+ *
+ * The diff exposes two signals: a sorted `new` / `fixed` ID set
+ * (what changed) and a signed `severityShift` (how much the posture
+ * moved, weighted by severity). The asymmetric-mix case is the
+ * load-bearing one — it's what justifies the shift score over a
+ * pure count delta.
+ *
+ * The "pre-v0.6 artifact" case exercises the defensive `?? []`
+ * fallback in diff.ts: `makeArtifact` here bypasses Zod via
+ * `as AgentArtifact`, so the `.default([])` on the schema's
+ * `vulnerabilities` field never fires and the runtime value is
+ * literally `undefined`. Real fixtures behave this way.
+ */
+function vuln(
+  id: string,
+  severity: 'critical' | 'high' | 'medium' | 'low' | 'unknown' = 'high',
+) {
+  return {
+    id,
+    severity,
+    ecosystem: 'npm' as const,
+    package: 'pkg',
+    installedVersion: '1.0.0',
+    fixedVersion: '1.0.1',
+    advisoryUrl: `https://example.test/${id}`,
+    lastChecked: 0,
+    manifestPath: 'package.json',
+  };
+}
+
+describe('diffArtifacts — vulnerability delta', () => {
+  it('returns empty arrays + zero shift when both sides have no vulns', () => {
+    const a = makeArtifact({ vulnerabilities: [] });
+    const b = makeArtifact({ vulnerabilities: [] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual([]);
+    expect(d.vulns.fixed).toEqual([]);
+    expect(d.vulns.severityShift).toBe(0);
+    expect(d.stats.vulns).toEqual({ before: 0, after: 0, delta: 0 });
+  });
+
+  it('flags new vuln IDs as `new` with positive severity shift', () => {
+    const a = makeArtifact({ vulnerabilities: [] });
+    const b = makeArtifact({
+      vulnerabilities: [vuln('GHSA-1', 'critical'), vuln('GHSA-2', 'high')],
+    });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual(['GHSA-1', 'GHSA-2']);
+    expect(d.vulns.fixed).toEqual([]);
+    // critical (4) + high (3) - 0 = +7
+    expect(d.vulns.severityShift).toBe(7);
+    expect(d.stats.vulns).toEqual({ before: 0, after: 2, delta: 2 });
+  });
+
+  it('flags removed vuln IDs as `fixed` with negative severity shift', () => {
+    const a = makeArtifact({
+      vulnerabilities: [vuln('GHSA-1', 'high'), vuln('GHSA-2', 'medium')],
+    });
+    const b = makeArtifact({ vulnerabilities: [] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual([]);
+    expect(d.vulns.fixed).toEqual(['GHSA-1', 'GHSA-2']);
+    // 0 - (high 3 + medium 2) = -5
+    expect(d.vulns.severityShift).toBe(-5);
+    expect(d.stats.vulns).toEqual({ before: 2, after: 0, delta: -2 });
+  });
+
+  it('captures asymmetric mix: 1 added critical + 1 fixed low = +3 shift, 0 count delta', () => {
+    /* The load-bearing case: count delta is 0 (one in, one out), but
+     * posture got meaningfully worse. severityShift must surface that. */
+    const a = makeArtifact({ vulnerabilities: [vuln('OLD-1', 'low')] });
+    const b = makeArtifact({ vulnerabilities: [vuln('NEW-1', 'critical')] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual(['NEW-1']);
+    expect(d.vulns.fixed).toEqual(['OLD-1']);
+    // critical (4) - low (1) = +3
+    expect(d.vulns.severityShift).toBe(3);
+    expect(d.stats.vulns).toEqual({ before: 1, after: 1, delta: 0 });
+  });
+
+  it('severityShift reflects severity upgrades on the same ID (posture got worse)', () => {
+    /* Contract: `new` / `fixed` answer "which IDs changed"; the shift
+     * score answers "how bad". Score is computed over the FULL vuln
+     * list on each side, so when an advisory's severity gets upgraded
+     * mid-flight (e.g., GitHub re-classifies GHSA-X from low → critical),
+     * the ID set is unchanged but the shift correctly surfaces the
+     * worse posture. */
+    const a = makeArtifact({ vulnerabilities: [vuln('GHSA-X', 'low')] });
+    const b = makeArtifact({ vulnerabilities: [vuln('GHSA-X', 'critical')] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual([]);
+    expect(d.vulns.fixed).toEqual([]);
+    // critical (4) - low (1) = +3 even though ID set is identical
+    expect(d.vulns.severityShift).toBe(3);
+  });
+
+  it('handles pre-v0.6 artifacts (no vulnerabilities field) without throwing', () => {
+    /* Pre-v0.6 fixtures bypass Zod and have `vulnerabilities`
+     * literally undefined. The `?? []` fallback in diff.ts means
+     * this stays a no-op rather than a crash. */
+    const a = makeArtifact({ vulnerabilities: undefined as unknown as [] });
+    const b = makeArtifact({ vulnerabilities: undefined as unknown as [] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.new).toEqual([]);
+    expect(d.vulns.fixed).toEqual([]);
+    expect(d.vulns.severityShift).toBe(0);
+  });
+
+  it('returns IDs sorted for deterministic diff output', () => {
+    const a = makeArtifact({
+      vulnerabilities: [vuln('ZZZ-1'), vuln('AAA-1'), vuln('MMM-1')],
+    });
+    const b = makeArtifact({
+      vulnerabilities: [vuln('YYY-2'), vuln('BBB-2'), vuln('NNN-2')],
+    });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.vulns.fixed).toEqual(['AAA-1', 'MMM-1', 'ZZZ-1']);
+    expect(d.vulns.new).toEqual(['BBB-2', 'NNN-2', 'YYY-2']);
+  });
+});

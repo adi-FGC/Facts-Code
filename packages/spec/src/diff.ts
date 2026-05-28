@@ -26,6 +26,26 @@ export const DiffDeltaSchema = z.object({
   delta: z.number(),
 });
 
+/* v0.7 — vulnerability delta surface.
+ *
+ *   - `new`    — vuln IDs present in `to` but not `from` (regressions).
+ *   - `fixed`  — vuln IDs present in `from` but not `to` (improvements).
+ *   - `severityShift` — signed integer summarizing direction + magnitude
+ *     of the change. Computed via weighted scoring
+ *     (critical:4, high:3, medium:2, low:1, unknown:0). Positive = worse
+ *     security posture; negative = better; zero = neutral.
+ *
+ * The shift score captures the asymmetry a count delta misses: one new
+ * critical + one fixed low = +3 (clearly worse), whereas a naive count
+ * delta of 0 would suggest no change. PR-comment renderers use this as
+ * their headline number.
+ */
+export const VulnDiffSchema = z.object({
+  new: z.array(z.string()).default([]),
+  fixed: z.array(z.string()).default([]),
+  severityShift: z.number().int().default(0),
+});
+
 export const DiffStatsSchema = z.object({
   loc: DiffDeltaSchema,
   tokens: DiffDeltaSchema,
@@ -33,6 +53,10 @@ export const DiffStatsSchema = z.object({
   risks: DiffDeltaSchema,
   todos: DiffDeltaSchema,
   secrets: DiffDeltaSchema,
+  /* v0.7 — vulns count delta. Defaults to {0,0,0} so pre-v0.7 diff
+   *  JSON validates unchanged. Same backward-compat pattern as
+   *  AgentArtifact's dependencyManifests[]/vulnerabilities[] defaults. */
+  vulns: DiffDeltaSchema.default({ before: 0, after: 0, delta: 0 }),
 });
 
 export const DiffFileChangeSchema = z.object({
@@ -63,6 +87,11 @@ export const DiffArtifactSchema = z.object({
     changed: z.array(DiffFileChangeSchema),
     incomplete: z.literal(true).optional(),
   }),
+  /* v0.7 — vulnerability ID-level diff. Defaults to empty arrays +
+   *  zero shift so pre-v0.7 diff JSON validates unchanged. Consumers
+   *  that don't care about vulns simply ignore this field. */
+  vulns: VulnDiffSchema.default({ new: [], fixed: [], severityShift: 0 }),
 });
 
 export type DiffArtifact = z.infer<typeof DiffArtifactSchema>;
+export type VulnDiff = z.infer<typeof VulnDiffSchema>;

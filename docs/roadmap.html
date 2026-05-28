@@ -257,6 +257,7 @@
     }
     .phase-status--now    { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
     .phase-status--next   { color: var(--warn);   border-color: var(--warn); }
+    .phase-status--shipped { color: var(--ok); border-color: var(--ok); background: color-mix(in oklab, var(--ok) 10%, transparent); }
     .phase-status--later  { color: var(--fg-faint); }
 
     .decision-card {
@@ -580,6 +581,27 @@
           The Vulnerabilities page in the UI reads from the artifact first.
           MCP server exposes <code>list_vulnerabilities</code> and <code>list_credentials</code> tools.
           The deployed demo shows real CVE data for FACTS's own dependencies.
+        </p>
+      </div>
+
+      <!-- Phase 2A.5: Hybrid feature (idea #21 + #45) shipped 2026-05-28 -->
+      <h2 id="phase-2a5">2A.5 · Hybrid feature: skill emitters + PR risk gate <span class="phase-status phase-status--shipped">shipped 2026-05-28</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> 1 day <strong>Scope</strong> ideas <a href="ideas.html#21">#21</a> + <a href="ideas.html#45">#45</a> combined</p>
+      <p>
+        The two highest-leverage items from <a href="ideas.html">the 100-ideas board</a> shipped together. They share a backbone (a per-format renderer over the existing <code>AgentArtifact</code>), so building them as one feature was cheaper than building them sequentially.
+      </p>
+      <p>
+        <strong>Out of scope (deferred):</strong> the actual GitHub Action <code>action.yml</code>, the <code>gh extension</code> package, and any Marketplace publishing. The <em>core feature</em> ships first; distribution surfaces come in a follow-up once the user has dogfooded the CLI verbs against real PRs.
+      </p>
+
+      <div class="callout" style="border-color: var(--ok); background: color-mix(in oklab, var(--ok) 8%, transparent);">
+        <div class="callout__label" style="color: var(--ok);">What landed</div>
+        <p style="margin: 0;">
+          <strong>New package:</strong> <code>@factstack/skills</code> — pure isomorphic, sits at the same tier as <code>@factstack/core</code>. Three renderers (Claude <code>SKILL.md</code>, Cursor <code>.cursorrules</code>, GitHub Copilot <code>copilot-instructions.md</code>) fed from one canonical <code>SkillSpec</code> intermediate representation. Orchestrator <code>buildSkillsTo(writer, agent, human, formats?)</code> mirrors the existing <code>writeArtifactsTo</code> shape.<br><br>
+          <strong>Schema extension:</strong> <code>DiffArtifactSchema</code> grew a <code>vulns: { new[], fixed[], severityShift }</code> field (v0.7). The severity-shift score is weighted (<code>critical: 4, high: 3, medium: 2, low: 1</code>) so a PR that adds one critical and fixes one low correctly shows <code>+3</code> rather than the misleading <code>0</code> a pure count delta would show.<br><br>
+          <strong>Two CLI verbs:</strong> <code>factstack export-skills [target]</code> emits the three skill files at the project root; <code>factstack ci-report [target] --base &lt;snapshot&gt;</code> emits a markdown diff report suitable for <code>gh pr comment --body-file</code> and includes a <code>--fail-on-shift &lt;n&gt;</code> gate that exits non-zero when severity worsens past a threshold. The shared <code>loadDiffEndpoint</code> + <code>resolveDiffEndpointArg</code> helpers are reused between <code>diff</code> and <code>ci-report</code>.<br><br>
+          <strong>Tests:</strong> 38 in <code>@factstack/skills</code> (extract + 3 renderers + orchestrator) · 7 new vuln-diff cases in <code>@factstack/core</code> · 22 in <code>apps/cli</code> for the markdown report. All 672 workspace tests green.<br><br>
+          <strong>Dogfooded:</strong> ran <code>export-skills</code> against FACTS itself — three real skill files now live at <code>.claude/skills/factstack-factstack/SKILL.md</code>, <code>.cursorrules</code>, and <code>.github/copilot-instructions.md</code>. <code>ci-report</code> against a 3-day-old snapshot correctly surfaced the 2 new high-severity GHSAs in our own deps with severity shift <code>+6</code>.
         </p>
       </div>
 
