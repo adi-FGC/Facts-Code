@@ -179,7 +179,13 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
     void handle.update();
   }
 
-  void refresh();
+  /* Defer the initial refresh by one microtask. refresh() reaches a
+     synchronous `handle.update()` when getCurrentSourceId() returns null
+     (no recent active source), and the Remix v3 runtime only wires
+     setScheduleUpdate AFTER the setup function returns — so a sync call
+     here throws "scheduleUpdate not implemented". One microtask is enough
+     to let the runtime wire up before update() fires. */
+  queueMicrotask(() => { void refresh(); });
   const unsub = onCurrentSourceChange(() => { void refresh(); });
   handle.signal.addEventListener('abort', unsub);
 

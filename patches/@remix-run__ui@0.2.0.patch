@@ -1,0 +1,64 @@
+diff --git a/dist/runtime/component.js b/dist/runtime/component.js
+index 017b4e01357a3f28e39a1426bc83018c4fcae303..bfc262b728f1a73e76917001c2c2f81f3a90e33f 100644
+--- a/dist/runtime/component.js
++++ b/dist/runtime/component.js	
+@@ -18,8 +18,15 @@ class ComponentRuntime {
+     #renderController;
+     #renderFn;
+     #removed = false;
++    // Default queues the request until setScheduleUpdate wires the real
++    // scheduler (called by renderComponent AFTER the setup fn returns).
++    // The original threw "scheduleUpdate not implemented", which surfaced
++    // as an unhandled rejection whenever a component called handle.update()
++    // synchronously from its setup body. With the queued default, the
++    // request is replayed once setScheduleUpdate is installed.
++    #pendingScheduleUpdate = false;
+     #scheduleUpdate = () => {
+-        throw new Error('scheduleUpdate not implemented');
++        this.#pendingScheduleUpdate = true;
+     };
+     #tasks = [];
+     constructor(config) {
+@@ -56,6 +63,10 @@ class ComponentRuntime {
+     };
+     setScheduleUpdate = (nextScheduleUpdate) => {
+         this.#scheduleUpdate = nextScheduleUpdate;
++        if (this.#pendingScheduleUpdate) {
++            this.#pendingScheduleUpdate = false;
++            nextScheduleUpdate();
++        }
+     };
+     getContextValue = () => this.#contextValue;
+     isRemoved = () => this.#removed;
+diff --git a/src/runtime/component.ts b/src/runtime/component.ts
+index 60a21610ecaf970b68407f4c3ce92e1d58c6247c..9aad26ce56cd825fa6e7b340c06e85106dff60fa 100644
+--- a/src/runtime/component.ts
++++ b/src/runtime/component.ts	
+@@ -253,8 +253,15 @@ class ComponentRuntime<C = NoContext> implements ComponentHandle<C> {
+   #renderController: AbortController | undefined
+   #renderFn: RenderFn | undefined
+   #removed = false
++  // Default queues the request until setScheduleUpdate wires the real
++  // scheduler (called by renderComponent AFTER the setup fn returns).
++  // The original threw "scheduleUpdate not implemented", which surfaced
++  // as an unhandled rejection whenever a component called handle.update()
++  // synchronously from its setup body. With the queued default, the
++  // request is replayed once setScheduleUpdate is installed.
++  #pendingScheduleUpdate = false
+   #scheduleUpdate: () => void = () => {
+-    throw new Error('scheduleUpdate not implemented')
++    this.#pendingScheduleUpdate = true
+   }
+   #tasks: Task[] = []
+ 
+@@ -300,6 +307,10 @@ class ComponentRuntime<C = NoContext> implements ComponentHandle<C> {
+ 
+   setScheduleUpdate = (nextScheduleUpdate: () => void): void => {
+     this.#scheduleUpdate = nextScheduleUpdate
++    if (this.#pendingScheduleUpdate) {
++      this.#pendingScheduleUpdate = false
++      nextScheduleUpdate()
++    }
+   }
+ 
+   getContextValue = (): C | undefined => this.#contextValue

@@ -558,6 +558,10 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                 ref<HTMLTextAreaElement>((node) => { pasteEl = node; }),
                 on<HTMLTextAreaElement, 'input'>('input', (e) => {
                   pasteText = (e.currentTarget as HTMLTextAreaElement | null)?.value ?? '';
+                  /* Re-render so the Scan button's `disabled` prop
+                     (driven by pasteText.trim().length === 0) flips
+                     the moment the textarea becomes non-empty. */
+                  void handle.update();
                 }),
               ]}
             />
