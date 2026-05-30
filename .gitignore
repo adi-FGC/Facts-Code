@@ -50,4 +50,13 @@ packages/*/.netlify/
 # stay tracked).
 .playwright-mcp/
 /design.html
+/DAGswimlanes.html
 /facts_dag.html
+
+# Ad-hoc preview / screenshot scratch — when verifying a docs/*.html
+# render we drop a throwaway Playwright script + its PNGs next to the
+# package whose node_modules resolves @playwright/test. These are
+# verification scratch, never committed. UN-anchored (no leading /) so
+# they're ignored at any depth, including apps/*/ and packages/*/.
+.shot.mjs
+.shot-*.png
