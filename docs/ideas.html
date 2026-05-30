@@ -666,7 +666,7 @@
       { n: 83, cat: 'G', effort: 'M', title: '"If you change X also update Y" map', desc: 'Derived from cross-file references. Surfaces sneaky coupling that reviewers miss.' },
       { n: 84, cat: 'G', effort: 'M', title: 'API reference static site',  desc: 'JSDoc/TSDoc + FACTS metadata → static site. Public docs without a doc-system commitment.' },
       { n: 85, cat: 'G', effort: 'M', title: 'Deployment runbook extractor', desc: 'Find deploy scripts, infer steps. Surfaces as "What this deploys" in the artifact.' },
-      { n: 86, cat: 'G', effort: 'S', title: 'Mermaid/D2 architecture diagram', desc: 'Generate from graph. One-day implementation; immediately makes Graph tab shareable in PR descriptions + docs.', spotlight: true },
+      { n: 86, cat: 'G', effort: 'S', title: 'Mermaid/D2 architecture diagram', desc: '✓ SHIPPED 2026-05-29. `factstack export-diagram` emits Mermaid flowcharts in three views (package / hub / focal). `ci-report --with-diagram` auto-picks view based on the diff shape (1 file → focal; 2-3 in 1 package → focal on most-changed; otherwise → package). 47 renderer tests + 8 ci-report integration tests. D2 deferred until a 2nd-adapter use case appears.', spotlight: true },
       { n: 87, cat: 'G', effort: 'S', title: 'CODEOWNERS auto-suggest',    desc: 'Based on git authorship + churn. Reduces the "who reviews this?" guesswork.' },
       { n: 88, cat: 'G', effort: 'M', title: '"First PR" task suggestions', desc: 'Easy issues based on TODO entries + low-complexity files. Onboarding-as-a-feature.' },
 

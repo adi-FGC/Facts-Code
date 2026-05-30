@@ -42,7 +42,30 @@ const FILE_LIST_CAP = 25;
  *  becomes its own scrollable region. */
 const VULN_LIST_CAP = 20;
 
-export function renderCiReport(diff: DiffArtifact): string {
+/**
+ * Optional diagram embed. The CLI layer pre-computes the Mermaid
+ * source (so the emitter stays pure — no graph deps) and passes it
+ * alongside metadata explaining what the reader is looking at.
+ *
+ * `view` + `focus` flow into the section heading and lede so a reader
+ * can tell at a glance whether they're seeing the whole architecture
+ * or a focal subgraph. We don't embed the Mermaid block when source
+ * is missing — that keeps the report tight when the auto-pick logic
+ * decides there's nothing useful to show.
+ */
+export interface CiReportDiagram {
+  /** Bare Mermaid source (no ` ```mermaid ` fence — emitter adds it). */
+  source: string;
+  /** Which view was chosen. Surfaces in the section heading. */
+  view: 'package' | 'hub' | 'focal';
+  /** Focus path when view === 'focal'; appears in the lede. */
+  focus?: string;
+}
+
+export function renderCiReport(
+  diff: DiffArtifact,
+  opts: { diagram?: CiReportDiagram } = {},
+): string {
   const lines: string[] = [];
   const shift = diff.vulns.severityShift;
 
@@ -105,6 +128,30 @@ export function renderCiReport(diff: DiffArtifact): string {
       );
       lines.push('');
     }
+  }
+
+  /* ── Diagram (between vulns + files) ────────────────────────────
+   *
+   * Renders only when the CLI passed a pre-computed Mermaid source.
+   * The CLI's auto-pick logic decides which view to show; we just
+   * surface it with a clear heading + a one-line lede explaining
+   * what the reader's looking at.
+   *
+   * Position chosen so the diagram is visible without scrolling past
+   * the file changes (the longest section) but doesn't push the
+   * stats/vuln summary below the GitHub "show more" fold. */
+  if (opts.diagram) {
+    lines.push('### Architecture');
+    lines.push('');
+    lines.push(renderDiagramLede(opts.diagram));
+    lines.push('');
+    lines.push('```mermaid');
+    /* Strip trailing newline from the Mermaid source — we add our
+     * own after the closing fence so there's exactly one blank line
+     * before the files block. */
+    lines.push(opts.diagram.source.replace(/\n+$/, ''));
+    lines.push('```');
+    lines.push('');
   }
 
   /* ── File changes (collapsed by default) ────────────────────────
@@ -212,6 +259,21 @@ function signed(n: number): string {
  *  approach. */
 function escapeInlineCode(s: string): string {
   return s.replace(/`/g, '\\`');
+}
+
+/** One-line description of what the embedded diagram is showing.
+ *  Keeps the reader oriented when scanning down the PR comment. */
+function renderDiagramLede(d: CiReportDiagram): string {
+  switch (d.view) {
+    case 'package':
+      return '_Package-level dependency graph_ — inter-package imports aggregated with counts.';
+    case 'hub':
+      return '_Top hubs view_ — most-imported files + their direct importers.';
+    case 'focal':
+      return d.focus
+        ? `_Focal view_ — callers of \`${escapeInlineCode(d.focus)}\` (this PR's primary change site).`
+        : '_Focal view_ — caller graph rooted on this PR\'s primary change.';
+  }
 }
 
 function row(label: string, d: { before: number; after: number; delta: number }): string {

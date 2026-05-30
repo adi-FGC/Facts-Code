@@ -29,11 +29,13 @@ import open from 'open';
 import chokidar, { type FSWatcher } from 'chokidar';
 import {
   analyze,
+  buildDiagram,
   buildMemory,
   diffArtifacts,
   executeQuery,
   formatLearningEvent,
   selfCalibrateEvent,
+  type DiagramView,
   type DiffEndpoint,
 } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
@@ -48,7 +50,7 @@ import {
   type OsvQuery,
 } from '@factstack/scanners';
 import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skills';
-import type { AgentArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
+import type { AgentArtifact, DiffArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
 import { renderCiReport } from './emitters/ci-report.js';
 
@@ -928,13 +930,138 @@ program
   });
 
 program
+  .command('export-diagram [target]')
+  .description('Emit a Mermaid flowchart of the project graph (package / hub / focal views)')
+  .option('--view <view>', 'Diagram view: package | hub | focal (default: package)', 'package')
+  .option('--focus <path>', 'Project-relative file path; required when --view=focal')
+  .option('--depth <n>', 'Max BFS depth for focal view (default: 2)', '2')
+  .option('--max-nodes <n>', 'Hard cap on node count across all views (default: 30)', '30')
+  .option('-o, --out <path>', 'Write the diagram to <path> instead of stdout. Wraps in a ```mermaid block if the file ends in .md.')
+  .option('--no-wrap', 'When writing a .md file, skip the ```mermaid wrapper (emit bare flowchart source)')
+  .option('--json', 'Emit a JSON envelope with metadata + the diagram source')
+  .action(async (
+    target: string | undefined,
+    opts: {
+      view: string;
+      focus?: string;
+      depth: string;
+      maxNodes: string;
+      out?: string;
+      wrap: boolean;
+      json?: boolean;
+    },
+  ) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const agentPath = path.join(root, '.facts', 'agent.json');
+
+    if (!existsSync(agentPath)) {
+      process.stderr.write(kleur.red('factstack export-diagram: ') + 'no .facts/agent.json found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first.\n'));
+      process.exit(1);
+    }
+
+    let agent: AgentArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack export-diagram: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    /* Validate --view against the union before passing to buildDiagram.
+       commander gives us a string; the renderer wants a literal type. */
+    if (opts.view !== 'package' && opts.view !== 'hub' && opts.view !== 'focal') {
+      process.stderr.write(
+        kleur.red('factstack export-diagram: ') +
+          `unknown --view "${opts.view}". Expected: package, hub, focal\n`,
+      );
+      process.exit(1);
+    }
+
+    /* Focal requires --focus. Surface this as a clear error from the
+       CLI rather than letting the renderer throw — the renderer's
+       throw is the second line of defense; this is the user-facing one. */
+    if (opts.view === 'focal' && !opts.focus) {
+      process.stderr.write(
+        kleur.red('factstack export-diagram: ') +
+          '--view=focal requires --focus <path>.\n',
+      );
+      process.stderr.write(
+        kleur.dim('  example: factstack export-diagram --view focal --focus packages/core/src/diff.ts\n'),
+      );
+      process.exit(1);
+    }
+
+    const view = opts.view as DiagramView;
+    const depth = parseIntInRange(opts.depth, 2, 1, 5);
+    const maxNodes = parseIntInRange(opts.maxNodes, 30, 2, 80);
+
+    const mermaidSource = buildDiagram(agent, {
+      view,
+      ...(opts.focus ? { focus: opts.focus } : {}),
+      depth,
+      maxNodes,
+    });
+
+    /* JSON mode: emit an envelope with metadata + the source so
+       downstream tools (e.g. a future MCP tool) can compose against
+       a known shape. */
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            view,
+            ...(opts.focus ? { focus: opts.focus } : {}),
+            depth,
+            maxNodes,
+            mermaid: mermaidSource,
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      return;
+    }
+
+    /* --out file write OR stdout pipe. For .md files we wrap in a
+       ```mermaid block by default so the file is paste-ready into any
+       markdown surface; --no-wrap opts out for users targeting a
+       Mermaid Live Editor or a custom embed. */
+    const outputBody = opts.out && opts.out.endsWith('.md') && opts.wrap !== false
+      ? '```mermaid\n' + mermaidSource + '```\n'
+      : mermaidSource;
+
+    if (opts.out) {
+      const outPath = path.resolve(opts.out);
+      mkdirSync(path.dirname(outPath), { recursive: true });
+      writeFileSync(outPath, outputBody, 'utf8');
+      process.stderr.write(
+        kleur.bold().green('FACTS') +
+          kleur.dim(' · export-diagram ') +
+          kleur.cyan(view) +
+          kleur.dim(' → ') +
+          kleur.cyan(relativize(outPath, process.cwd())) +
+          kleur.dim(` (${formatBytes(outputBody.length)})`) +
+          '\n',
+      );
+      return;
+    }
+
+    /* Default: pipe to stdout so consumers can do
+       `factstack export-diagram > out.mmd` or pipe into pbcopy/xclip. */
+    process.stdout.write(outputBody);
+  });
+
+program
   .command('ci-report [target]')
   .description('Emit a markdown diff report (head vs base) suitable for posting as a PR comment or GitHub Actions step summary')
   .requiredOption('--base <path>', 'Base endpoint to compare against (snapshot path, snapshot stamp, or agent.json)')
   .option('--head <path>', 'Head endpoint (default: <target>/.facts/agent.json)')
   .option('--fail-on-shift <n>', 'Exit non-zero if vulns.severityShift >= n (use in CI to gate merges; default: no gate)')
+  .option('--with-diagram', 'Embed a Mermaid architecture diagram between vuln + files sections (auto-picks package or focal view based on the diff)')
   .option('--json', 'Emit the underlying DiffArtifact as JSON on stdout instead of the markdown report')
-  .action(async (target: string | undefined, opts: { base: string; head?: string; failOnShift?: string; json?: boolean }) => {
+  .action(async (target: string | undefined, opts: { base: string; head?: string; failOnShift?: string; withDiagram?: boolean; json?: boolean }) => {
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
     const factsDir = path.join(root, '.facts');
@@ -962,8 +1089,21 @@ program
     } else {
       /* Default behavior: markdown on stdout so it pipes cleanly into
          `gh pr comment --body-file -` and similar. TTY chrome goes to
-         stderr (preserved by all the other commands too). */
-      process.stdout.write(renderCiReport(diff));
+         stderr (preserved by all the other commands too).
+
+         --with-diagram: auto-pick a view based on the diff shape.
+         The rule:
+           - exactly 1 changed file → focal view rooted on it
+             (most useful: "what depends on the thing I changed")
+           - 2-3 files in 1 package → focal view rooted on the
+             most-changed file (largest |tokenDelta|)
+           - otherwise → package view (broad changes need overview)
+
+         The auto-pick is intentionally simple so PR reviewers can
+         predict when the diagram will be focal vs package. See
+         `pickAutoView` below. */
+      const diagram = opts.withDiagram ? buildAutoDiagram(to.artifact, diff) : undefined;
+      process.stdout.write(renderCiReport(diff, { ...(diagram ? { diagram } : {}) }));
     }
 
     /* --fail-on-shift: optional merge gate. Compares against the
@@ -1075,6 +1215,96 @@ function resolveDiffEndpointArg(arg: string, snapDir: string): DiffEndpoint | nu
     const loaded = loadDiffEndpoint(c);
     if (loaded) return loaded;
   }
+  return null;
+}
+
+/**
+ * Decide which diagram view to embed in `ci-report` given the diff
+ * shape, then build the Mermaid source for it. Returns `undefined`
+ * if the head artifact has no graph data (can happen with snapshot
+ * endpoints) — the emitter handles that by omitting the section.
+ *
+ * Rule:
+ *   - exactly 1 changed file → focal view rooted on that file.
+ *   - 2-3 files all in the same package → focal on the most-changed
+ *     (largest |tokenDelta|). Picks a single anchor that reviewers
+ *     can mentally tie to the change set.
+ *   - 0 file changes (incomplete diff or zero-delta) → package view.
+ *   - otherwise (broad changes) → package view.
+ *
+ * The package view is the safe default: it always renders and never
+ * "lies" about what changed. Focal is the more useful view when it
+ * fits cleanly.
+ */
+function buildAutoDiagram(
+  headAgent: AgentArtifact,
+  diff: DiffArtifact,
+): { source: string; view: 'package' | 'focal'; focus?: string } | undefined {
+  /* Bail when the head artifact has no graph — synthetic snapshot
+     endpoints in loadDiffEndpoint have an empty edges array. The
+     diagram would render an empty placeholder; better to omit. */
+  if (!headAgent.graph || headAgent.graph.edges.length === 0) return undefined;
+
+  /* When the file-level diff is incomplete (snapshot rollup endpoint),
+     we can't see individual files — fall straight to package view. */
+  if (diff.files.incomplete) {
+    return {
+      source: buildDiagram(headAgent, { view: 'package' }),
+      view: 'package',
+    };
+  }
+
+  const changed = [
+    ...diff.files.added.map((path) => ({ path, tokenDelta: 0 })),
+    ...diff.files.removed.map((path) => ({ path, tokenDelta: 0 })),
+    ...diff.files.changed.map((c) => ({ path: c.path, tokenDelta: c.tokenDelta })),
+  ];
+
+  /* 1 changed file: focal view rooted on it. */
+  if (changed.length === 1) {
+    const focus = changed[0]!.path;
+    return {
+      source: buildDiagram(headAgent, { view: 'focal', focus }),
+      view: 'focal',
+      focus,
+    };
+  }
+
+  /* 2-3 files all in the same package: focal on most-changed.
+     Compares package roots (e.g. `apps/cli/...` vs `packages/spec/...`)
+     using the first two path segments — same heuristic the diagram's
+     own package classifier uses, kept local to avoid cross-package
+     re-export gymnastics for one private helper. */
+  if (changed.length >= 2 && changed.length <= 3) {
+    const pkgs = new Set(changed.map((c) => packageRoot(c.path)));
+    if (pkgs.size === 1 && !pkgs.has(null)) {
+      const anchor = changed
+        .slice()
+        .sort((a, b) => Math.abs(b.tokenDelta) - Math.abs(a.tokenDelta))[0]!;
+      return {
+        source: buildDiagram(headAgent, { view: 'focal', focus: anchor.path }),
+        view: 'focal',
+        focus: anchor.path,
+      };
+    }
+  }
+
+  /* Broad changes: package view. */
+  return {
+    source: buildDiagram(headAgent, { view: 'package' }),
+    view: 'package',
+  };
+}
+
+/* Local-only mirror of @factstack/core's classifyPath. Inlined here
+ * because exposing it through buildDiagram's surface area for one
+ * caller wasn't worth the API contract. */
+function packageRoot(p: string): string | null {
+  const norm = p.replace(/\\/g, '/');
+  const match = norm.match(/^(packages|apps)\/([^/]+)/);
+  if (match) return `${match[1]}/${match[2]}`;
+  if (norm.startsWith('docs/')) return 'docs';
+  if (norm.startsWith('legacy/')) return 'legacy';
   return null;
 }
 

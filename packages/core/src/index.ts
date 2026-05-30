@@ -65,6 +65,18 @@ export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
 export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
+export {
+  buildDiagram,
+  buildPackageDiagram,
+  buildHubDiagram,
+  buildFocalDiagram,
+  classifyPath,
+  sanitizeId,
+  shortPath,
+  escapeMermaidLabel,
+  type DiagramView,
+  type DiagramOptions,
+} from './diagram.js';
 export { computeReadingTime, sumReadingMinutes, type ReadingTimeInput } from './reading-time.js';
 import { computeReadingTime } from './reading-time.js';
 export {

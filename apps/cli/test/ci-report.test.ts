@@ -312,3 +312,87 @@ describe('renderCiReport — determinism + footer', () => {
     expect(out.endsWith('\n\n')).toBe(false);
   });
 });
+
+describe('renderCiReport — diagram embed', () => {
+  const sampleMermaid = 'flowchart LR\n  A --> B\n';
+
+  it('omits the diagram section by default (no opts.diagram passed)', () => {
+    const out = renderCiReport(makeDiff());
+    expect(out).not.toContain('### Architecture');
+    expect(out).not.toContain('```mermaid');
+  });
+
+  it('embeds the diagram block when opts.diagram is supplied', () => {
+    const out = renderCiReport(makeDiff(), {
+      diagram: { source: sampleMermaid, view: 'package' },
+    });
+    expect(out).toContain('### Architecture');
+    expect(out).toContain('```mermaid');
+    expect(out).toContain('flowchart LR');
+    expect(out).toContain('A --> B');
+  });
+
+  it('uses the package-view lede when view is package', () => {
+    const out = renderCiReport(makeDiff(), {
+      diagram: { source: sampleMermaid, view: 'package' },
+    });
+    expect(out).toContain('Package-level dependency graph');
+  });
+
+  it('uses the hub-view lede when view is hub', () => {
+    const out = renderCiReport(makeDiff(), {
+      diagram: { source: sampleMermaid, view: 'hub' },
+    });
+    expect(out).toContain('Top hubs view');
+  });
+
+  it('uses the focal lede with backticked focus path when view is focal', () => {
+    const out = renderCiReport(makeDiff(), {
+      diagram: {
+        source: sampleMermaid,
+        view: 'focal',
+        focus: 'packages/core/src/diff.ts',
+      },
+    });
+    expect(out).toContain('Focal view');
+    expect(out).toContain('`packages/core/src/diff.ts`');
+  });
+
+  it('places the diagram block between Vulnerability changes and Files sections', () => {
+    /* The position contract — between vuln changes + files block —
+     * is what makes the diagram visible without scrolling past the
+     * stats summary but without pushing the file changes above-fold.
+     * Lock the ordering so a refactor can't silently shift it. */
+    const out = renderCiReport(
+      makeDiff({
+        vulns: { new: ['GHSA-1'], fixed: [], severityShift: 3 },
+        files: { added: ['x.ts'], removed: [], changed: [] },
+      }),
+      { diagram: { source: sampleMermaid, view: 'package' } },
+    );
+    const vulnIdx = out.indexOf('### Vulnerability changes');
+    const archIdx = out.indexOf('### Architecture');
+    const filesIdx = out.indexOf('<details>');
+    expect(vulnIdx).toBeGreaterThan(-1);
+    expect(archIdx).toBeGreaterThan(vulnIdx);
+    expect(filesIdx).toBeGreaterThan(archIdx);
+  });
+
+  it('strips trailing newlines from the Mermaid source before wrapping', () => {
+    /* If we don't strip, the closing fence ` ``` ` ends up on a blank
+     * line and Mermaid renderers can get confused about where the
+     * block ends. The contract: exactly one newline between the
+     * source and the closing fence. */
+    const out = renderCiReport(makeDiff(), {
+      diagram: { source: 'flowchart LR\n  A --> B\n\n\n', view: 'package' },
+    });
+    expect(out).toContain('  A --> B\n```\n');
+    expect(out).not.toContain('  A --> B\n\n```');
+  });
+
+  it('produces deterministic output with diagram embed', () => {
+    const diff = makeDiff();
+    const diagram = { source: sampleMermaid, view: 'package' as const };
+    expect(renderCiReport(diff, { diagram })).toBe(renderCiReport(diff, { diagram }));
+  });
+});

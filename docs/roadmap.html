@@ -605,6 +605,24 @@
         </p>
       </div>
 
+      <!-- Phase 2A.6: Mermaid diagrams (idea #86) shipped 2026-05-29 -->
+      <h2 id="phase-2a6">2A.6 · Mermaid architecture diagrams <span class="phase-status phase-status--shipped">shipped 2026-05-29</span></h2>
+      <p class="phase-meta"><strong>Effort</strong> ~1 day <strong>Scope</strong> idea <a href="ideas.html#86">#86</a></p>
+      <p>
+        Third spotlight idea from the 100-board ships. Compounds with the just-landed Hybrid feature: every <code>ci-report</code> PR comment can now embed a Mermaid architecture diagram with one flag, and the diagram view auto-picks based on what the PR actually changed.
+      </p>
+
+      <div class="callout" style="border-color: var(--ok); background: color-mix(in oklab, var(--ok) 8%, transparent);">
+        <div class="callout__label" style="color: var(--ok);">What landed</div>
+        <p style="margin: 0;">
+          <strong>New module:</strong> <code>buildDiagram(agent, opts)</code> in <code>@factstack/core</code> alongside <code>buildMemory</code>. Pure isomorphic Mermaid emitter; three views (package / hub / focal) with hard caps to keep output renderable by GitHub's Mermaid (~50 node limit).<br><br>
+          <strong>New CLI verb:</strong> <code>factstack export-diagram [target] --view package|hub|focal [--focus &lt;path&gt;] [--out &lt;file&gt;]</code>. Auto-wraps in <code>```mermaid</code> when output path ends in <code>.md</code>; bare flowchart source otherwise.<br><br>
+          <strong>ci-report integration:</strong> <code>--with-diagram</code> flag embeds a Mermaid block between the vulnerability changes and files sections. View auto-picks based on diff shape: 1 changed file → focal; 2-3 in 1 package → focal on most-changed (largest <code>|tokenDelta|</code>); broader changes → package.<br><br>
+          <strong>Edge style vocabulary:</strong> <code>--&gt;</code> for <code>import</code>, <code>-.-&gt;</code> for <code>type-import</code>, <code>==&gt;</code> for <code>dynamic-import</code>. Aggregated package-view edges show counts (<code>--&gt;|N|</code>) when multiple file-level edges collapse.<br><br>
+          <strong>Tests:</strong> 47 renderer tests in <code>@factstack/core</code> + 8 ci-report integration tests in <code>apps/cli</code>. All 204 core + 30 cli tests green. <strong>Dogfooded:</strong> three diagram artifacts committed at <code>docs/architecture/</code> (package, hubs, focal-spec).
+        </p>
+      </div>
+
       <!-- Phase 2B -->
       <h2 id="phase-2b">2B · VS Code extension <span class="phase-status phase-status--next">after 2A</span></h2>
       <p class="phase-meta"><strong>Effort</strong> ~1 week <strong>Goal</strong> v0.3 milestone: FACTS without leaving the editor</p>
