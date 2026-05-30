@@ -269,6 +269,15 @@ const kbd = css({
   marginInline: '4px',
 });
 
+/* Stable ids wiring the combobox/listbox relationship (W3C APG
+   autocomplete-list pattern). The input is the `combobox`, the result
+   <ul> is the `listbox`, and each <li> is an `option` whose id the
+   input points at via `aria-activedescendant` (virtual focus — real
+   DOM focus stays in the input). Only one palette exists at a time, so
+   module-static ids are unambiguous. */
+const LISTBOX_ID = 'cmdk-listbox';
+const optionId = (i: number) => `cmdk-option-${i}`;
+
 export function CommandPalette(handle: Handle<PaletteProps>) {
   // Closure state.
   let open = false;
@@ -368,9 +377,14 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
             <span aria-hidden="true" mix={inputPrompt}>{'>'}</span>
             <input
               type="text"
+              role="combobox"
               placeholder="Jump to a tab or a file…"
               value={query}
               aria-label="Search"
+              aria-autocomplete="list"
+              aria-expanded={cachedResults.length > 0 ? 'true' : 'false'}
+              aria-controls={cachedResults.length > 0 ? LISTBOX_ID : undefined}
+              aria-activedescendant={cachedResults.length > 0 ? optionId(selectedIdx) : undefined}
               autocomplete="off"
               spellcheck={false}
               mix={[
@@ -399,10 +413,12 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
               Try a partial filename, a folder name, or one of the tab names.
             </div>
           ) : (
-            <ul mix={list}>
+            <ul id={LISTBOX_ID} role="listbox" aria-label="Results" mix={list}>
               {cachedResults.map((r, i) => (
                 <li
                   key={`${r.type}:${r.href}:${i}`}
+                  id={optionId(i)}
+                  role="option"
                   aria-selected={i === selectedIdx ? 'true' : 'false'}
                   mix={[
                     row,

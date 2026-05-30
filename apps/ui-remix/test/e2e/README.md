@@ -53,6 +53,7 @@ The `webServer` config does run `pnpm build` automatically when starting from sc
 | --- | --- |
 | `smoke.spec.ts` | All 13 routes: page loads, no console errors, the editorial H1 (or its empty-state variant) renders. Plus cross-route invariants: shell landmarks survive, tab navigation updates the URL. |
 | `vulnerabilities.spec.ts` | The Vulnerabilities form interaction: scan button enable state, manifest-row click populates textarea. The actual OSV scan path is marked `test.fixme` pending a stub-vs-live decision (see the comment block in the spec). |
+| `interactions.spec.ts` | Stateful controls the smoke suite can't reach: command palette (⌘K open / filter / Escape / Enter-navigate), Config theme + density switching (asserts `html[data-theme]` / `html[data-density]` actually applied, + localStorage persistence across reload), Flow view-mode tab switching, Library sort radio. |
 
 ## Adding a new route
 
