@@ -10,6 +10,7 @@
     ".": "./src/index.ts",
     "./tokens.css": "./src/tokens.css",
     "./glass.css": "./src/glass.css",
+    "./diagram.css": "./src/diagram.css",
     "./themes/light.css": "./src/themes/light.css",
     "./themes/dark.css": "./src/themes/dark.css",
     "./motion": "./src/motion.ts",

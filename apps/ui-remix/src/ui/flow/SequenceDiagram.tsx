@@ -367,10 +367,20 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
           role="img"
           aria-label={`Sequence diagram with ${ordered.length} actors and ${result.messages.length} messages, starting from ${basename(result.entryPoint)}`}
         >
-          {/* Arrow marker reused across forward + return arrows. */}
+          {/* Directional arrow markers — one per edge intent so the
+              arrowhead carries the same color as its line. Colors come
+              from the shared diagram vocabulary (@factstack/ui-theme/
+              diagram.css): primary = call/import, return = response,
+              async = cycle/dynamic. */}
           <defs>
-            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border-strong, var(--fg-muted))" />
+            <marker id="seq-arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-primary)" />
+            </marker>
+            <marker id="seq-arrow-return" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-return)" />
+            </marker>
+            <marker id="seq-arrow-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-async)" />
             </marker>
           </defs>
 
@@ -385,7 +395,7 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                   y1={padding + headerHeight}
                   x2={x}
                   y2={svgHeight - padding}
-                  stroke="var(--hairline)"
+                  stroke="var(--dg-lifeline)"
                   stroke-width="1"
                   stroke-dasharray="2 4"
                 />
@@ -402,8 +412,8 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                 y={s.y1}
                 width="6"
                 height={Math.max(messageHeight, s.y2 - s.y1)}
-                fill="color-mix(in oklab, var(--accent) 22%, transparent)"
-                stroke="color-mix(in oklab, var(--accent) 40%, transparent)"
+                fill="color-mix(in oklab, var(--dg-edge-primary) 18%, transparent)"
+                stroke="color-mix(in oklab, var(--dg-edge-primary) 36%, transparent)"
                 stroke-width="1"
               />
             ))}
@@ -481,11 +491,11 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                       y1={y}
                       x2={x2}
                       y2={y}
-                      stroke={m.isCycle ? 'var(--warn, var(--accent))' : 'var(--border-strong, var(--fg-muted))'}
-                      stroke-width={m.isReturn ? '1' : '1.4'}
-                      stroke-dasharray={m.isReturn ? '4 3' : (m.isCycle ? '1 3' : 'none')}
-                      marker-end="url(#seq-arrow)"
-                      stroke-opacity="0.7"
+                      stroke={m.isCycle ? 'var(--dg-edge-async)' : m.isReturn ? 'var(--dg-edge-return)' : 'var(--dg-edge-primary)'}
+                      stroke-width={m.isReturn ? '1.4' : '1.8'}
+                      stroke-dasharray={m.isReturn ? 'var(--dg-edge-dash-return)' : (m.isCycle ? 'var(--dg-edge-dash-async)' : 'none')}
+                      marker-end={m.isCycle ? 'url(#seq-arrow-async)' : m.isReturn ? 'url(#seq-arrow-return)' : 'url(#seq-arrow-primary)'}
+                      stroke-opacity="0.92"
                     />
                     <text
                       class="seq-arrow-label"

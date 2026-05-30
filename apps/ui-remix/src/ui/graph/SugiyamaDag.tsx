@@ -154,16 +154,15 @@ const svg = css({
   touchAction: 'none',
   transition: 'opacity var(--dur-quick) var(--ease-out-quart)',
 
-  /* Neo-DAG color variables and overrides */
-  '--neo-import': 'oklch(78% 0.16 142)',
-  '--neo-export': 'oklch(74% 0.15 238)',
-  '--neo-guide': 'var(--border-thin, var(--border))',
-
-  /* Light theme overrides */
-  ':global([data-theme="light"]) &': {
-    '--neo-import': 'oklch(62% 0.15 142)',
-    '--neo-export': 'oklch(58% 0.16 238)',
-  },
+  /* Neo-DAG edge channels alias the shared diagram vocabulary
+     (@factstack/ui-theme/diagram.css): green = import, blue = export —
+     the project's established legend. They resolve through the base
+     --ok / --info tokens, which already carry tuned light + dark
+     values, so the per-theme oklch overrides that used to live here
+     are gone. Guide rails reuse the lifeline token. */
+  '--neo-import': 'var(--dg-edge-import)',
+  '--neo-export': 'var(--dg-edge-export)',
+  '--neo-guide': 'var(--dg-lifeline, var(--border))',
 
   /* Hover edge-highlight: when the SVG root has [data-hover-id], all
      paths dim to a faint trace. The mouseover delegation also marks
@@ -173,9 +172,10 @@ const svg = css({
     transition: 'stroke var(--dur-quick) var(--ease-out-quart), stroke-opacity var(--dur-quick) var(--ease-out-quart), stroke-width var(--dur-quick) var(--ease-out-quart)',
     strokeOpacity: '0.10',
   },
-  /* For Classic mode incident edge hover: stroke is var(--accent) */
+  /* Classic-mode incident edge hover uses the shared focus token
+     (orange, reserved across every diagram for interaction). */
   '&:not([data-style-mode="neo"])[data-hover-id] path[data-incident]': {
-    stroke: 'var(--accent)',
+    stroke: 'var(--dg-focus)',
     strokeOpacity: '1',
     strokeWidth: '1.5',
   },
@@ -214,22 +214,22 @@ const nodeGroup = css({
   '> rect': {
     transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart), transform var(--dur-quick) var(--ease-out-quart)',
   },
-  /* Classic Hover */
+  /* Classic Hover — focus token (interaction-reserved orange). */
   'svg:not([data-style-mode="neo"]) &:hover > rect': {
-    fill: 'var(--accent-soft)',
-    stroke: 'var(--accent)',
+    fill: 'var(--dg-focus-soft)',
+    stroke: 'var(--dg-focus)',
   },
   'svg:not([data-style-mode="neo"]) &:hover > text': {
-    fill: 'var(--accent)',
+    fill: 'var(--dg-focus)',
   },
   /* Neo-DAG Hover */
   'svg[data-style-mode="neo"] &:hover > rect': {
-    fill: 'var(--accent-soft)',
-    stroke: 'var(--accent)',
+    fill: 'var(--dg-focus-soft)',
+    stroke: 'var(--dg-focus)',
     transform: 'scale(1.02)',
   },
   'svg[data-style-mode="neo"] &:hover > text': {
-    fill: 'var(--accent)',
+    fill: 'var(--dg-focus)',
   },
   /* No native CSS for "show me when alt is held" — surfaced via the
      UI affordance copy in DagControls' tooltip ("Alt+drag a node to

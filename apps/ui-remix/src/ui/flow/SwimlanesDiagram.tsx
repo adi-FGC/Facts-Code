@@ -135,8 +135,8 @@ const laneGroup = css({
     transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
   },
   '&:hover > rect.lane-bg': {
-    fill: 'var(--accent-soft)',
-    stroke: 'var(--accent)',
+    fill: 'var(--dg-focus-soft)',
+    stroke: 'var(--dg-focus)',
   },
   animation: 'swimlanes-lane-in 280ms var(--ease-out-quart) both',
   animationDelay: 'calc(min(var(--row, 0), 8) * 40ms)',
@@ -270,7 +270,10 @@ export function SwimlanesDiagram(_h: Handle<SwimlanesDiagramProps>) {
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--border-strong, var(--fg-muted))" />
+              {/* Inter-tier dependency arrows are "primary" edges in the
+                  shared diagram vocabulary (@factstack/ui-theme/diagram.css)
+                  — same blue grammar as the sequence view's import arrows. */}
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-primary)" />
             </marker>
             <marker
               id="swim-arrow-active"
@@ -281,7 +284,9 @@ export function SwimlanesDiagram(_h: Handle<SwimlanesDiagramProps>) {
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--accent)" />
+              {/* Hover/active state uses the focus token (accent orange),
+                  reserved across diagrams for interaction only. */}
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-focus)" />
             </marker>
           </defs>
 
@@ -384,9 +389,9 @@ export function SwimlanesDiagram(_h: Handle<SwimlanesDiagramProps>) {
                   <path
                     d={path}
                     fill="none"
-                    stroke="var(--border-strong, var(--fg-muted))"
+                    stroke="var(--dg-edge-primary)"
                     stroke-width={sw}
-                    stroke-opacity="0.62"
+                    stroke-opacity="0.72"
                     marker-end="url(#swim-arrow)"
                   />
                   {/* Edge count label sits at the midpoint of the arc.

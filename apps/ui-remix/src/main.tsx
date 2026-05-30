@@ -17,6 +17,7 @@ import { App } from './App.tsx';
 // Design system — must load before app render so first paint is styled.
 import '@factstack/ui-theme/tokens.css';
 import '@factstack/ui-theme/glass.css';
+import '@factstack/ui-theme/diagram.css';
 import './styles/app.css';
 
 const container = document.getElementById('root');
