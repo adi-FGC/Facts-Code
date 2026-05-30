@@ -399,6 +399,7 @@
           <tr><td>read_memory</td><td>The 2–10 KB MEMORY.md digest.</td><td><strong>Call first.</strong> Cold-start a project for &lt;1/10th the tokens of agent.json.</td></tr>
           <tr><td>analyze</td><td>Runs a full analysis; refreshes cache; returns a version block.</td><td>Refresh the map mid-session after edits.</td></tr>
           <tr><td>query_graph</td><td>callers / imports / cycles / orphans (FactsPack default).</td><td>"What breaks if I change X?"</td></tr>
+          <tr><td>get_diagram</td><td>dependency graph as a Mermaid flowchart — <code>view</code> = package / hub / focal (focal roots on a <code>focus</code> file, depth 1..5).</td><td>"Show me the architecture" — paste into a PR/README, or read it to grasp the shape without walking the graph.</td></tr>
           <tr><td>get_outline</td><td>Live symbol outline (declarations) for one file.</td><td>"What's in this file?" without reading it whole.</td></tr>
           <tr><td>list_risks</td><td>Scanner findings, filterable by severity/category.</td><td>The full risk surface for triage.</td></tr>
           <tr><td>list_credentials</td><td>Secret findings (redacted previews only).</td><td>Credential-hygiene audit.</td></tr>

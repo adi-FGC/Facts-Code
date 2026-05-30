@@ -44,6 +44,7 @@ import {
 import {
   analyze,
   buildMemory,
+  buildDiagram,
   executeQuery,
   formatLearningEvent,
   parseLearningsJsonl,
@@ -51,6 +52,7 @@ import {
   queryLearnings,
   selfCalibrateEvent,
   since as buildSinceReport,
+  type DiagramView,
   type LearningEvent,
 } from '@factstack/core';
 import {
@@ -399,6 +401,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      /* v0.7.1 — the dependency graph as a Mermaid flowchart. Lets an
+         agent SEE the architecture as cheap text instead of inferring
+         it from query_graph calls. Three views:
+           package — inter-package edges (the architectural summary)
+           hub     — the most-imported files + their importers
+           focal   — caller graph rooted on one file (--focus), depth-capped
+         Returns bare Mermaid source (drops into any ```mermaid block). */
+      name: 'get_diagram',
+      description: 'Render the dependency graph as a Mermaid flowchart. view=package (inter-package edges, the architectural summary) | hub (most-imported files + importers) | focal (caller graph rooted on `focus`, requires it). Returns ready-to-embed Mermaid source — paste into a PR/README, or read it to grasp the shape without walking query_graph. Edge style: --> import, -.-> type-import, ==> dynamic.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          view:  { type: 'string', enum: ['package', 'hub', 'focal'], default: 'package' },
+          focus: { type: 'string', description: 'Project-relative file path; required when view=focal.' },
+          depth: { type: 'number', description: 'Max BFS depth for focal view (default 2, max 5).', default: 2 },
+        },
+      },
+    },
   ],
 }));
 
@@ -477,6 +498,31 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { content: [{ type: 'text', text: queryGraphToPack(result, packSnapshotId(cached!.agent)) }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  if (name === 'get_diagram') {
+    if (!cached) await ensureAnalyzed();
+    /* Validate view against the union; default to package. Focal needs a
+       focus path — surface that as a structured error (like query_graph)
+       rather than letting buildDiagram throw. */
+    const view = (['package', 'hub', 'focal'].includes(String(args.view))
+      ? (args.view as DiagramView)
+      : 'package');
+    const focus = typeof args.focus === 'string' && args.focus.length > 0 ? args.focus : undefined;
+    if (view === 'focal' && !focus) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'view=focal requires a "focus" file path' }, null, 2) }],
+        isError: true,
+      };
+    }
+    const depthRaw = typeof args.depth === 'number' ? args.depth : 2;
+    const depth = Math.max(1, Math.min(5, Math.trunc(depthRaw)));
+    const mermaid = buildDiagram(cached!.agent, {
+      view,
+      ...(focus ? { focus } : {}),
+      depth,
+    });
+    return { content: [{ type: 'text', text: mermaid }] };
   }
 
   if (name === 'get_outline') {
