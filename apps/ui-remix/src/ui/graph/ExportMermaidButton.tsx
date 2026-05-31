@@ -115,21 +115,44 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
   let copyTimer: ReturnType<typeof setTimeout> | null = null;
   let dlTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /* The 2s label-reset timers and the post-`await` setters below run on a
+     delay. If the user leaves the Diagram lens (switches view / navigates
+     away) the component is removed but those callbacks still hold `handle`
+     and would call handle.update() on a torn-down component. Clear the
+     timers on abort, and bail out of any post-abort setter. Same idiom as
+     SugiyamaDag + OpenModal (handle.signal.addEventListener('abort', …)). */
+  handle.signal.addEventListener('abort', () => {
+    if (copyTimer) clearTimeout(copyTimer);
+    if (dlTimer) clearTimeout(dlTimer);
+  });
+
   function setCopyPhase(next: Phase) {
+    if (handle.signal.aborted) return;
     copyPhase = next;
     void handle.update();
     if (copyTimer) { clearTimeout(copyTimer); copyTimer = null; }
     if (next === 'done' || next === 'error') {
-      copyTimer = setTimeout(() => { copyPhase = 'idle'; copyTimer = null; void handle.update(); }, 2000);
+      copyTimer = setTimeout(() => {
+        copyTimer = null;
+        if (handle.signal.aborted) return;
+        copyPhase = 'idle';
+        void handle.update();
+      }, 2000);
     }
   }
 
   function setDlPhase(next: Phase) {
+    if (handle.signal.aborted) return;
     dlPhase = next;
     void handle.update();
     if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
     if (next === 'done' || next === 'error') {
-      dlTimer = setTimeout(() => { dlPhase = 'idle'; dlTimer = null; void handle.update(); }, 2000);
+      dlTimer = setTimeout(() => {
+        dlTimer = null;
+        if (handle.signal.aborted) return;
+        dlPhase = 'idle';
+        void handle.update();
+      }, 2000);
     }
   }
 
