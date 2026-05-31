@@ -51,11 +51,20 @@ export function linkClick(event: Event): void {
   if (!(target instanceof Element)) return;
   const a = target.closest('a');
   if (!a) return;
+  // A `download` anchor is an explicit file save, never SPA navigation.
+  // Without this guard we preventDefault() the click and try to "navigate"
+  // to the download URL — which for a blob: URL navigates the tab to raw
+  // file content instead of downloading it (the Graph tab's "Download .mmd"
+  // export hit exactly this). Let the browser handle download links.
+  if (a.hasAttribute('download')) return;
   const href = a.getAttribute('href');
   if (!href) return;
   // Only intercept same-origin navigation to a non-hash path.
   if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//')) return;
   if (href.startsWith('mailto:') || href.startsWith('tel:')) return;
+  // Non-navigational schemes: blob:/data: are object/inline payloads (e.g.
+  // generated file downloads), never route paths. Leave them to the browser.
+  if (href.startsWith('blob:') || href.startsWith('data:')) return;
   if (a.target && a.target !== '_self') return;
   event.preventDefault();
   navigate(href);
