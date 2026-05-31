@@ -57,6 +57,7 @@ import {
   buildCallerIndex,
   buildDependencyGraph,
   buildWorkspaceIndex,
+  buildAliasIndex,
   resolveSpecifier,
   type ResolverContext,
 } from '@factstack/graph';
@@ -417,9 +418,27 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // Phase 2 — dependency graph. Workspace index first so relative imports
   // AND @scope/package imports both resolve. Resolver emits null for
   // external/unresolved specifiers — we keep those as risks/broken-imports.
+  // tsconfig/jsconfig `paths` aliases → let bare specifiers like `@lib/foo`
+  // resolve to internal files. Without this, every aliased import is
+  // mislabeled "external" and its dependency-graph edge silently vanishes.
+  // We re-read the (few) config files here rather than thread them through
+  // the per-file loop — cheap, and keeps the collection self-contained.
+  const tsconfigTexts: Array<{ path: string; text: string }> = [];
+  for (const f of files) {
+    const base = f.path.slice(f.path.lastIndexOf('/') + 1);
+    if ((base.startsWith('tsconfig.') || base.startsWith('jsconfig.')) && base.endsWith('.json')) {
+      try {
+        tsconfigTexts.push({ path: f.path, text: await fs.readText(f.path) });
+      } catch {
+        /* unreadable config — skip, don't fail the whole analysis */
+      }
+    }
+  }
+
   const resolverCtx: ResolverContext = {
     files: new Set(outlines.map((o) => o.path)),
     workspaces: buildWorkspaceIndex(packageJsons),
+    aliases: buildAliasIndex(tsconfigTexts),
   };
   const depGraph = buildDependencyGraph(outlines, importsByFile, resolverCtx);
   // Backfill the `callers` field on every graph node so consumers can

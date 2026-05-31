@@ -32,6 +32,37 @@ export interface ResolverContext {
   files: Set<string>;
   /** Workspace packages, indexed by name. */
   workspaces: Map<string, WorkspacePackage>;
+  /**
+   * tsconfig `paths` alias rules (root-relative targets), built once by
+   * {@link buildAliasIndex}. Optional — a repo with no path aliases omits it.
+   * Lets bare specifiers like `@lib/foo` resolve to internal files instead of
+   * being dropped as "external".
+   */
+  aliases?: AliasRule[];
+}
+
+/**
+ * A tsconfig `paths` alias rule, pre-resolved to repo-root-relative targets.
+ *
+ * `"@lib/*": ["src/lib/*"]` in `apps/web/tsconfig.json` (baseUrl `.`) →
+ *   { prefix: '@lib/', suffix: '', wildcard: true,
+ *     targets: ['apps/web/src/lib/*'], scope: 'apps/web' }
+ */
+export interface AliasRule {
+  /** Literal text before the `*` (or the whole pattern when `wildcard` is false). */
+  prefix: string;
+  /** Literal text after the `*` (`''` when terminal; unused when not a wildcard). */
+  suffix: string;
+  /** Whether the source pattern contained a single `*` wildcard. */
+  wildcard: boolean;
+  /** Target templates, repo-root-relative, each with at most one `*`. */
+  targets: string[];
+  /**
+   * The tsconfig's own directory (repo-relative; `''` = root). A rule only
+   * applies to importing files within this subtree, so two packages can each
+   * define `@lib/*` without colliding.
+   */
+  scope?: string;
 }
 
 const CANDIDATE_EXTS = [
@@ -119,7 +150,55 @@ export function resolveSpecifier(
     );
   }
 
+  // tsconfig `paths` alias (e.g. `@lib/foo` → `apps/web/src/lib/foo.ts`).
+  // Tried after workspace matching, before declaring the import external —
+  // otherwise every aliased import silently loses its graph edge.
+  const aliased = resolveAlias(spec, importerPath, ctx);
+  if (aliased) return aliased;
+
   return null;
+}
+
+/**
+ * Resolve a bare specifier through tsconfig `paths` aliases. Only rules whose
+ * scope governs `importerPath` apply, nearest tsconfig (longest scope) first.
+ * Returns the resolved project path, or null if no rule resolves.
+ */
+export function resolveAlias(
+  spec: string,
+  importerPath: string,
+  ctx: ResolverContext,
+): string | null {
+  const rules = ctx.aliases;
+  if (!rules || rules.length === 0) return null;
+  const applicable = rules
+    .filter((r) => aliasInScope(r, importerPath))
+    .sort((a, b) => (b.scope?.length ?? 0) - (a.scope?.length ?? 0));
+
+  for (const rule of applicable) {
+    let star = '';
+    if (rule.wildcard) {
+      if (spec.length < rule.prefix.length + rule.suffix.length) continue;
+      if (!spec.startsWith(rule.prefix)) continue;
+      if (rule.suffix !== '' && !spec.endsWith(rule.suffix)) continue;
+      star = spec.slice(rule.prefix.length, spec.length - rule.suffix.length);
+    } else if (spec !== rule.prefix) {
+      continue;
+    }
+    for (const target of rule.targets) {
+      const candidate = rule.wildcard ? target.replace('*', star) : target;
+      const hit = probe(candidate, ctx.files);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+/** Whether an alias rule governs the importing file (by scope subtree). */
+function aliasInScope(rule: AliasRule, importerPath: string): boolean {
+  const scope = rule.scope;
+  if (scope === undefined || scope === '') return true;
+  return importerPath === scope || importerPath.startsWith(`${scope}/`);
 }
 
 function matchWorkspace(spec: string, all: Map<string, WorkspacePackage>): WorkspacePackage | null {
@@ -253,6 +332,124 @@ export function buildWorkspaceIndex(
     out.set(name, { name, dir, entry });
   }
   return out;
+}
+
+/**
+ * Build the alias index from every tsconfig/jsconfig seen during the walk.
+ * Mirrors {@link buildWorkspaceIndex}: same `{ path, text }` input shape.
+ * Resolves `baseUrl` + each `paths` entry against the tsconfig's own dir, so
+ * the returned targets are all repo-root-relative.
+ *
+ * Known limitation (documented, not silent): `extends` chains are NOT
+ * followed — only `paths`/`baseUrl` declared directly in the file are honored.
+ */
+export function buildAliasIndex(
+  tsconfigs: Array<{ path: string; text: string }>,
+): AliasRule[] {
+  const rules: AliasRule[] = [];
+  for (const { path: p, text } of tsconfigs) {
+    const parsed = parseTsconfigJson(text);
+    const opts = parsed?.compilerOptions;
+    const pathsRaw = opts?.paths;
+    if (!pathsRaw || typeof pathsRaw !== 'object') continue;
+
+    const tsconfigDir = dirname(p);
+    const baseUrl = typeof opts?.baseUrl === 'string' ? opts.baseUrl : '.';
+    // `paths` resolve relative to baseUrl, which is relative to the tsconfig
+    // dir. Absent baseUrl ⇒ relative to the tsconfig dir (baseUrl === '.').
+    const effectiveBase = normalize(tsconfigDir, baseUrl);
+
+    for (const [pattern, targetsRaw] of Object.entries(pathsRaw as Record<string, unknown>)) {
+      if (!Array.isArray(targetsRaw)) continue;
+      const stars = pattern.split('*');
+      if (stars.length > 2) continue; // TS allows at most one `*`
+      const wildcard = stars.length === 2;
+      const prefix = wildcard ? stars[0]! : pattern;
+      const suffix = wildcard ? stars[1]! : '';
+
+      const targets: string[] = [];
+      for (const t of targetsRaw) {
+        if (typeof t !== 'string') continue;
+        if (t.split('*').length > 2) continue;
+        // normalize() preserves `*` (an ordinary path segment char).
+        targets.push(normalize(effectiveBase, t));
+      }
+      if (targets.length > 0) rules.push({ prefix, suffix, wildcard, targets, scope: tsconfigDir });
+    }
+  }
+  return rules;
+}
+
+interface TsconfigShape {
+  compilerOptions?: { baseUrl?: unknown; paths?: unknown };
+}
+
+/** Tolerantly parse tsconfig JSONC (comments + trailing commas allowed). */
+function parseTsconfigJson(text: string): TsconfigShape | null {
+  try {
+    const v = JSON.parse(stripJsonc(text)) as unknown;
+    return v && typeof v === 'object' ? (v as TsconfigShape) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Strip `//` line comments, block comments, and trailing commas from JSONC,
+ * leaving comment-like sequences inside string literals untouched.
+ */
+function stripJsonc(text: string): string {
+  let out = '';
+  let inString = false;
+  let inLine = false;
+  let inBlock = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (inLine) {
+      if (ch === '\n') {
+        inLine = false;
+        out += ch;
+      }
+      continue;
+    }
+    if (inBlock) {
+      if (ch === '*' && next === '/') {
+        inBlock = false;
+        i++;
+      }
+      continue;
+    }
+    if (inString) {
+      out += ch;
+      if (ch === '\\') {
+        if (next !== undefined) {
+          out += next;
+          i++;
+        }
+      } else if (ch === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      out += ch;
+      continue;
+    }
+    if (ch === '/' && next === '/') {
+      inLine = true;
+      i++;
+      continue;
+    }
+    if (ch === '/' && next === '*') {
+      inBlock = true;
+      i++;
+      continue;
+    }
+    out += ch;
+  }
+  return out.replace(/,(\s*[}\]])/g, '$1');
 }
 
 const NODE_BUILTINS = new Set([

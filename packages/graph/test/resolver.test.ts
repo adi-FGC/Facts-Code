@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { resolveSpecifier, isRelative, isNodeBuiltin } from '../src/resolver.js';
+import {
+  resolveSpecifier,
+  resolveAlias,
+  buildAliasIndex,
+  isRelative,
+  isNodeBuiltin,
+  type AliasRule,
+} from '../src/resolver.js';
 
 const ctx = (paths: string[], workspaces: Array<{ name: string; dir: string; entry?: string | null }> = []) => ({
   files: new Set(paths),
@@ -81,5 +88,157 @@ describe('isRelative + isNodeBuiltin (additional edges)', () => {
   it('isNodeBuiltin handles fs/promises and timers/promises', () => {
     expect(isNodeBuiltin('fs/promises')).toBe(true);
     expect(isNodeBuiltin('node:fs/promises')).toBe(true);
+  });
+});
+
+// ── tsconfig `paths` alias resolution ──────────────────────────────────────
+
+/** Resolver context carrying alias rules (no workspaces). */
+const ctxA = (paths: string[], aliases: AliasRule[]) => ({
+  files: new Set(paths),
+  workspaces: new Map(),
+  aliases,
+});
+
+const libRule: AliasRule = {
+  prefix: '@lib/',
+  suffix: '',
+  wildcard: true,
+  targets: ['src/lib/*'],
+};
+
+describe('resolveSpecifier — tsconfig path aliases', () => {
+  it('resolves a wildcard alias to an internal file', () => {
+    const c = ctxA(['src/a.ts', 'src/lib/foo.ts'], [libRule]);
+    expect(resolveSpecifier('@lib/foo', 'src/a.ts', c)).toBe('src/lib/foo.ts');
+  });
+
+  it('probes index files through an alias', () => {
+    const c = ctxA(['src/lib/widget/index.ts'], [libRule]);
+    expect(resolveSpecifier('@lib/widget', 'src/a.ts', c)).toBe('src/lib/widget/index.ts');
+  });
+
+  it('returns null (external) when the alias target does not exist', () => {
+    const c = ctxA(['src/a.ts'], [libRule]);
+    expect(resolveSpecifier('@lib/ghost', 'src/a.ts', c)).toBeNull();
+  });
+
+  it('resolves a non-wildcard (exact) alias', () => {
+    const rule: AliasRule = { prefix: '@config', suffix: '', wildcard: false, targets: ['src/config/index.ts'] };
+    const c = ctxA(['src/config/index.ts'], [rule]);
+    expect(resolveSpecifier('@config', 'src/a.ts', c)).toBe('src/config/index.ts');
+  });
+
+  it('tries multiple targets in order, taking the first that exists', () => {
+    const rule: AliasRule = { prefix: '~/', suffix: '', wildcard: true, targets: ['src/*', 'generated/*'] };
+    const c = ctxA(['generated/types.ts'], [rule]);
+    expect(resolveSpecifier('~/types', 'src/a.ts', c)).toBe('generated/types.ts');
+  });
+
+  it('still resolves relative imports when aliases are present', () => {
+    const c = ctxA(['src/a.ts', 'src/b.ts'], [libRule]);
+    expect(resolveSpecifier('./b', 'src/a.ts', c)).toBe('src/b.ts');
+  });
+
+  it('leaves bare specifiers external when no alias matches', () => {
+    const c = ctxA(['src/a.ts'], [libRule]);
+    expect(resolveSpecifier('react', 'src/a.ts', c)).toBeNull();
+  });
+});
+
+describe('resolveAlias — scoping (monorepo)', () => {
+  const webRule: AliasRule = { prefix: '@lib/', suffix: '', wildcard: true, targets: ['apps/web/src/lib/*'], scope: 'apps/web' };
+  const apiRule: AliasRule = { prefix: '@lib/', suffix: '', wildcard: true, targets: ['apps/api/src/lib/*'], scope: 'apps/api' };
+  const files = new Set(['apps/web/src/lib/x.ts', 'apps/api/src/lib/x.ts']);
+  const c = { files, workspaces: new Map(), aliases: [webRule, apiRule] };
+
+  it('applies a scoped rule only within its subtree', () => {
+    expect(resolveAlias('@lib/x', 'apps/web/main.ts', c)).toBe('apps/web/src/lib/x.ts');
+    expect(resolveAlias('@lib/x', 'apps/api/main.ts', c)).toBe('apps/api/src/lib/x.ts');
+  });
+
+  it('does not let an out-of-scope file resolve a package alias', () => {
+    expect(resolveAlias('@lib/x', 'apps/cli/main.ts', c)).toBeNull();
+  });
+
+  it('prefers the nearest (longest-scope) tsconfig', () => {
+    const rootRule: AliasRule = { prefix: '@lib/', suffix: '', wildcard: true, targets: ['shared/lib/*'], scope: '' };
+    const cc = { files: new Set(['shared/lib/x.ts', 'apps/web/src/lib/x.ts']), workspaces: new Map(), aliases: [rootRule, webRule] };
+    expect(resolveAlias('@lib/x', 'apps/web/main.ts', cc)).toBe('apps/web/src/lib/x.ts');
+  });
+
+  it('honors a non-empty suffix in the pattern', () => {
+    const rule: AliasRule = { prefix: '#styles/', suffix: '.css', wildcard: true, targets: ['src/styles/*.css'] };
+    const cc = { files: new Set(['src/styles/app.css']), workspaces: new Map(), aliases: [rule] };
+    expect(resolveAlias('#styles/app.css', 'src/a.ts', cc)).toBe('src/styles/app.css');
+  });
+
+  it('returns null when no rules are present', () => {
+    expect(resolveAlias('@x/y', 'a.ts', { files: new Set(), workspaces: new Map() })).toBeNull();
+  });
+});
+
+describe('buildAliasIndex', () => {
+  it('resolves wildcard paths against baseUrl + tsconfig dir', () => {
+    const rules = buildAliasIndex([
+      { path: 'apps/web/tsconfig.json', text: JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@lib/*': ['src/lib/*'] } } }) },
+    ]);
+    expect(rules).toEqual([
+      { prefix: '@lib/', suffix: '', wildcard: true, targets: ['apps/web/src/lib/*'], scope: 'apps/web' },
+    ]);
+  });
+
+  it('defaults baseUrl to the tsconfig directory when absent', () => {
+    const rules = buildAliasIndex([
+      { path: 'packages/x/tsconfig.json', text: JSON.stringify({ compilerOptions: { paths: { '@lib/*': ['./lib/*'] } } }) },
+    ]);
+    expect(rules).toEqual([
+      { prefix: '@lib/', suffix: '', wildcard: true, targets: ['packages/x/lib/*'], scope: 'packages/x' },
+    ]);
+  });
+
+  it('folds baseUrl into the target; root tsconfig has empty scope', () => {
+    const rules = buildAliasIndex([
+      { path: 'tsconfig.json', text: JSON.stringify({ compilerOptions: { baseUrl: './src', paths: { '@/*': ['*'] } } }) },
+    ]);
+    expect(rules).toEqual([
+      { prefix: '@/', suffix: '', wildcard: true, targets: ['src/*'], scope: '' },
+    ]);
+  });
+
+  it('handles non-wildcard (exact) patterns', () => {
+    const rules = buildAliasIndex([
+      { path: 'tsconfig.json', text: JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@config': ['src/config/index.ts'] } } }) },
+    ]);
+    expect(rules).toEqual([
+      { prefix: '@config', suffix: '', wildcard: false, targets: ['src/config/index.ts'], scope: '' },
+    ]);
+  });
+
+  it('tolerates JSONC comments and trailing commas', () => {
+    const text = `{
+      // project config
+      "compilerOptions": {
+        /* alias map */
+        "baseUrl": ".",
+        "paths": { "@lib/*": ["src/lib/*"], },
+      },
+    }`;
+    const rules = buildAliasIndex([{ path: 'tsconfig.json', text }]);
+    expect(rules).toEqual([
+      { prefix: '@lib/', suffix: '', wildcard: true, targets: ['src/lib/*'], scope: '' },
+    ]);
+  });
+
+  it('returns no rules when paths is absent or unparseable', () => {
+    expect(buildAliasIndex([{ path: 'tsconfig.json', text: '{ "compilerOptions": { "baseUrl": "." } }' }])).toEqual([]);
+    expect(buildAliasIndex([{ path: 'tsconfig.json', text: '{ not json' }])).toEqual([]);
+  });
+
+  it('skips patterns with more than one wildcard', () => {
+    const rules = buildAliasIndex([
+      { path: 'tsconfig.json', text: JSON.stringify({ compilerOptions: { baseUrl: '.', paths: { '@x/*/*': ['src/*/*'] } } }) },
+    ]);
+    expect(rules).toEqual([]);
   });
 });

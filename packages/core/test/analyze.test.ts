@@ -278,3 +278,46 @@ describe('analyze — onProgress callback', () => {
     expect(last.pct).toBeGreaterThanOrEqual(0.99);
   });
 });
+
+describe('analyze — tsconfig path aliases (#15)', () => {
+  // The bug: a `@lib/*`-style import was classified external and its
+  // dependency-graph edge silently vanished. These tests prove the edge
+  // now appears end-to-end through the full analyze() pipeline, and that
+  // the tsconfig is what enables it (the no-config control).
+  const sources = {
+    'package.json': JSON.stringify({ name: 'aliased' }),
+    'src/app.ts': `import { util } from '@lib/util';\nexport const x = util;\n`,
+    'src/lib/util.ts': `export const util = 1;\n`,
+  };
+
+  it('resolves an aliased import to an internal edge when tsconfig defines paths', async () => {
+    const fs = memoryFS({
+      ...sources,
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { baseUrl: '.', paths: { '@lib/*': ['src/lib/*'] } },
+      }),
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'aliased' });
+    const edge = r.agent.graph.edges.find(
+      (e) => e.from === 'src/app.ts' && e.to === 'src/lib/util.ts',
+    );
+    expect(edge).toBeDefined();
+    expect(edge!.kind).toBe('import');
+    // And the import record on the file carries the resolved target.
+    const app = r.agent.files.find((f) => f.path === 'src/app.ts')!;
+    const imp = app.imports.find((i) => i.source === '@lib/util');
+    expect(imp?.resolved).toBe('src/lib/util.ts');
+  });
+
+  it('does NOT resolve the aliased import without a tsconfig (control)', async () => {
+    const fs = memoryFS(sources); // no tsconfig.json
+    const r = await analyze(fs, { root: '.', projectName: 'aliased' });
+    const edge = r.agent.graph.edges.find(
+      (e) => e.from === 'src/app.ts' && e.to === 'src/lib/util.ts',
+    );
+    expect(edge).toBeUndefined();
+    const app = r.agent.files.find((f) => f.path === 'src/app.ts')!;
+    const imp = app.imports.find((i) => i.source === '@lib/util');
+    expect(imp?.resolved).toBeNull();
+  });
+});
