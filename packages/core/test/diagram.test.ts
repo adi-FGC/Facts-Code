@@ -631,21 +631,30 @@ describe('escapes special characters in node labels (all views)', () => {
   // `<`/`>` are parsed as HTML by Mermaid's renderer. shortPath keeps the
   // first 2 + last segment, so put the hazardous chars in those.
   const evil = 'packages/x/"<b>".ts';
-  const agent = makeAgent([
-    { from: evil, to: 'packages/spec/src/index.ts' },
-    { from: 'apps/cli/src/cli.ts', to: evil },
-  ]);
+  // file-level edges via the real fixture shape (makeAgent takes
+  // Partial<AgentArtifact>, not an edge array): evil is BOTH imported (by
+  // cli) and an importer (of spec), so it surfaces as a hub AND a focal node.
+  const agent = makeAgent({
+    graph: {
+      nodes: [],
+      edges: [edge(evil, 'packages/spec/src/index.ts'), edge('apps/cli/src/cli.ts', evil)],
+      cycles: [],
+    },
+  });
 
-  it('package view escapes the package label', () => {
-    // classifyPath maps the evil file to package `packages/x`, no hazards
-    // there — so prove escaping via a package name that itself has a quote.
-    const a = makeAgent([
-      { from: 'apps/a"b/src/x.ts', to: 'packages/spec/src/index.ts' },
-    ]);
+  it('package view escapes a hazardous package name', () => {
+    // classifyPath collapses a file to its package, so the hazard must live
+    // in the package segment itself: `apps/a"b/...` → package `apps/a"b`.
+    const a = makeAgent({
+      graph: {
+        nodes: [],
+        edges: [edge('apps/a"b/src/x.ts', 'packages/spec/src/index.ts')],
+        cycles: [],
+      },
+    });
     const out = buildPackageDiagram(a);
-    // The raw double-quote must not appear inside a label literal.
-    expect(out).toContain('&quot;');
-    expect(out).not.toMatch(/\["[^"]*"[^"\]]*"\]/); // no stray unescaped quote
+    expect(out).toContain('apps/a&quot;b'); // quote escaped in the label
+    expect(out).not.toContain('apps/a"b['); // raw quote never precedes a node bracket
   });
 
   it('hub view escapes the file label but keeps the <br/> markup', () => {
