@@ -60,6 +60,7 @@ import { HubsTable } from '../ui/graph/HubsTable.tsx';
 import { CouplingsTable } from '../ui/graph/CouplingsTable.tsx';
 import { SugiyamaDag } from '../ui/graph/SugiyamaDag.tsx';
 import { DagControls, type Granularity } from '../ui/graph/DagControls.tsx';
+import { ExportMermaidButton } from '../ui/graph/ExportMermaidButton.tsx';
 import {
   ViewModeToggle,
   readStoredMode,
@@ -377,6 +378,13 @@ export function GraphRoute(handle: Handle<GraphProps>) {
                 styleMode={styleMode}
                 onStyleModeChange={setStyleMode}
               />
+              {/* Export the *full* in-project edge set (not the capped
+                  Sugiyama subset) — the Mermaid renderer applies its own
+                  package-level aggregation + node cap, so it wants the raw
+                  edges to summarize from. */}
+              <div mix={css({ marginBottom: 'var(--space-3)' })}>
+                <ExportMermaidButton edges={edges} />
+              </div>
               <SugiyamaDag
                 layout={sugiyamaLayout}
                 totalNodeCount={nodes.length}

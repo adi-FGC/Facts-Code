@@ -353,7 +353,7 @@
       <div class="feat">
         <div class="feat__head"><span class="feat__name">Mermaid diagram generator</span><span class="feat__tag">@factstack/core · idea #86</span></div>
         <p class="feat__row logic"><b>Logic</b><code>buildDiagram(agent, opts)</code> emits Mermaid flowcharts in three views: <strong>package</strong> (inter-package edges, aggregated with counts), <strong>hub</strong> (top-N most-imported files + importers), <strong>focal</strong> (caller graph BFS rooted on a file). Edge styling encodes kind (<code>--&gt;</code> import, <code>-.-&gt;</code> type, <code>==&gt;</code> dynamic). Hard node caps keep output renderable.</p>
-        <p class="feat__row use"><b>Use</b><span>Makes the dependency graph shareable in PR descriptions, READMEs, and docs.</span> A reviewer sees the architecture without opening the dashboard.</p>
+        <p class="feat__row use"><b>Use</b><span>Makes the dependency graph shareable in PR descriptions, READMEs, and docs.</span> A reviewer sees the architecture without opening the dashboard. The renderers depend only on <code>graph.edges</code> (a <code>DiagramSource</code>), so every surface reuses them: CLI <code>export-diagram</code>, CI <code>--with-diagram</code>, MCP <code>get_diagram</code>, and the web Graph tab (<strong>Copy Mermaid</strong> → fenced clipboard, <strong>Download .mmd</strong> → raw file; renderer lazy-loaded on click).</p>
       </div>
 
       <div class="feat">
@@ -420,7 +420,7 @@
         <thead><tr><th>Tab</th><th>Shows / logic</th><th>Question it answers</th></tr></thead>
         <tbody>
           <tr><td>Overview</td><td>Intent one-liner, stack, headline stats, one-click health badge → /risks.</td><td>"What is this and is it healthy?"</td></tr>
-          <tr><td>Graph</td><td>Sugiyama DAG of the dependency graph; draggable nodes, contained scroll.</td><td>"How do the modules connect?"</td></tr>
+          <tr><td>Graph</td><td>Sugiyama DAG of the dependency graph; draggable nodes, contained scroll. <strong>Copy Mermaid</strong> (fenced, to the clipboard) + <strong>Download .mmd</strong> (raw source) export the package-level flowchart.</td><td>"How do the modules connect?" — and "let me paste that into the PR / open it in a Mermaid editor."</td></tr>
           <tr><td>Flow</td><td>Data-flow views: swimlanes, sequence (entry-point picker), entities, text. Tier-classified.</td><td>"How does data move through the system?"</td></tr>
           <tr><td>Files</td><td>Every file ranked by weight (LOC/tokens); per-file outline.</td><td>"What's the heaviest / where do I start?"</td></tr>
           <tr><td>Library</td><td>Package table of contents; sortable.</td><td>"What packages exist and how big?"</td></tr>

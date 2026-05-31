@@ -32,6 +32,17 @@ import type { AgentArtifact } from '@factstack/spec';
 
 export type DiagramView = 'package' | 'hub' | 'focal';
 
+/**
+ * The minimal slice every renderer here actually reads: the graph's edge
+ * list. `AgentArtifact` satisfies this structurally, so all existing callers
+ * (CLI, MCP, ci-report) keep passing a full artifact unchanged — but a caller
+ * that only holds edges (e.g. the browser's `Dataset`) can feed the renderers
+ * without fabricating a whole artifact or casting. Depend on what you use.
+ */
+export interface DiagramSource {
+  graph: { edges: AgentArtifact['graph']['edges'] };
+}
+
 export interface DiagramOptions {
   view: DiagramView;
   /** Required for `focal`. Project-relative path of the file to center. */
@@ -61,7 +72,7 @@ export interface DiagramOptions {
  * that target markdown wrap it; callers that target a `.mmd` file
  * write it as-is.
  */
-export function buildDiagram(agent: AgentArtifact, opts: DiagramOptions): string {
+export function buildDiagram(agent: DiagramSource, opts: DiagramOptions): string {
   switch (opts.view) {
     case 'package':
       return buildPackageDiagram(agent, opts);
@@ -89,7 +100,7 @@ export function buildDiagram(agent: AgentArtifact, opts: DiagramOptions): string
  * graph (`agent.graph.cycles` operates at the file level).
  */
 export function buildPackageDiagram(
-  agent: AgentArtifact,
+  agent: DiagramSource,
   opts: Pick<DiagramOptions, 'maxNodes'> = {},
 ): string {
   const maxNodes = clamp(opts.maxNodes ?? 30, 2, 80);
@@ -182,7 +193,7 @@ export function buildPackageDiagram(
  * practice for a v1 visual.
  */
 export function buildHubDiagram(
-  agent: AgentArtifact,
+  agent: DiagramSource,
   opts: Pick<DiagramOptions, 'topHubs' | 'importersPerHub' | 'maxNodes'> = {},
 ): string {
   const topHubs = clamp(opts.topHubs ?? 3, 1, 5);
@@ -298,7 +309,7 @@ export function buildHubDiagram(
  * on?" but v1 keeps to the more common workflow.
  */
 export function buildFocalDiagram(
-  agent: AgentArtifact,
+  agent: DiagramSource,
   opts: { focus: string; depth?: number; maxNodes?: number },
 ): string {
   const depth = clamp(opts.depth ?? 2, 1, 5);
