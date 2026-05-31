@@ -59,6 +59,12 @@ export function linkClick(event: Event): void {
   if (a.hasAttribute('download')) return;
   const href = a.getAttribute('href');
   if (!href) return;
+  // In-page anchors (`#main`, `#section`) are native browser behavior: the
+  // browser scrolls the target into view and moves focus to it. Intercepting
+  // them would preventDefault() and pushState the hash WITHOUT scrolling or
+  // focusing — silently breaking the accessibility skip-link (Header.tsx's
+  // `<a href="#main">`) and any in-page jump. Let the browser handle them.
+  if (href.startsWith('#')) return;
   // Only intercept same-origin navigation to a non-hash path.
   if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('//')) return;
   if (href.startsWith('mailto:') || href.startsWith('tel:')) return;

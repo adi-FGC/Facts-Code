@@ -75,6 +75,34 @@ test.describe('global shell', () => {
     await expect(page.locator('.skip-link')).toHaveAttribute('href', '#main');
   });
 
+  test('activating the skip-link moves keyboard focus to <main>', async ({ page }) => {
+    /* Regression: the SPA's linkClick delegate used to intercept the
+     * `#main` skip-link as client-side navigation (preventDefault +
+     * pushState), so it neither scrolled NOR moved focus — defeating the
+     * skip link. And <main> lacked tabindex, so even native nav couldn't
+     * focus it. Both fixed: linkClick now ignores `#`-anchors and <main>
+     * is tabindex=-1.
+     *
+     * We focus the skip-link directly and activate it with Enter (the real
+     * keyboard path) rather than asserting exact Tab order — the first Tab
+     * stop varies by headless focus state, but the contract under test is
+     * "activate skip-link → focus lands on <main>", not "skip-link is the
+     * 1st tab stop" (that's covered by it being first in DOM order). */
+    await page.goto('/');
+    await waitForReady(page);
+
+    const skip = page.locator('.skip-link');
+    await skip.focus();
+    await expect(skip).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    // Focus must move to <main id="main"> (proves linkClick let the native
+    // anchor through AND <main> is a focus target).
+    await expect(page.locator('main#main')).toBeFocused();
+    // URL hash updates too — native in-page anchor behavior, not swallowed.
+    await expect(page).toHaveURL(/#main$/);
+  });
+
   test('tab navigation updates the URL and aria-selected state', async ({ page }) => {
     /* Tests the SPA navigation loop end-to-end:
      *   click tab → pushState → URL-change event → re-render → tab

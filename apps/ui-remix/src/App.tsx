@@ -142,7 +142,12 @@ function Shell(_h: Handle<{ data: Dataset }>) {
         <div class="app-shell">
           <Header data={data} />
           <TreePanel data={data} />
-          <main id="main">
+          {/* tabIndex={-1} makes <main> a programmatic focus target so the
+              skip-link (`<a href="#main">`) MOVES focus here, not just
+              scrolls. Without it the browser scrolls to #main but focus
+              stays on the link, so the next Tab dumps the user back into the
+              nav — defeating the skip link. -1 keeps it out of the Tab order. */}
+          <main id="main" tabIndex={-1}>
             {renderRoute(tab, data)}
           </main>
           <StatusBar data={data} />
