@@ -163,7 +163,7 @@ export function buildPackageDiagram(
    * The label includes a short tag — `[apps/cli]` rather than just
    * `apps/cli` — for visual breathing room. */
   for (const pkg of nodes) {
-    lines.push(`  ${sanitizeId(pkg)}["${pkg}"]`);
+    lines.push(`  ${sanitizeId(pkg)}["${escapeMermaidLabel(pkg)}"]`);
   }
 
   /* Edges sorted alphabetically by (from, to) for deterministic
@@ -259,7 +259,7 @@ export function buildHubDiagram(
   /* Emit hub nodes with a distinctive label so they stand out from
    * the importer commodity nodes. */
   for (const h of hubData) {
-    lines.push(`  ${sanitizeId(h.path)}["${shortPath(h.path)}<br/>↪ ${h.inDegree} importers"]`);
+    lines.push(`  ${sanitizeId(h.path)}["${escapeMermaidLabel(shortPath(h.path))}<br/>↪ ${h.inDegree} importers"]`);
   }
 
   /* Emit importer nodes with their short label. Deduplicate against:
@@ -275,7 +275,7 @@ export function buildHubDiagram(
     for (const imp of h.importers) {
       if (renderedImporters.has(imp.from)) continue;
       renderedImporters.add(imp.from);
-      lines.push(`  ${sanitizeId(imp.from)}["${shortPath(imp.from)}"]`);
+      lines.push(`  ${sanitizeId(imp.from)}["${escapeMermaidLabel(shortPath(imp.from))}"]`);
     }
   }
 
@@ -368,7 +368,7 @@ export function buildFocalDiagram(
   lines.push('flowchart LR');
 
   /* Focus node first, styled distinctively. */
-  lines.push(`  ${sanitizeId(focus)}["${shortPath(focus)}"]`);
+  lines.push(`  ${sanitizeId(focus)}["${escapeMermaidLabel(shortPath(focus))}"]`);
   lines.push(
     `  style ${sanitizeId(focus)} fill:#fef3c7,stroke:#d97706,stroke-width:2px`,
   );
@@ -376,7 +376,7 @@ export function buildFocalDiagram(
   /* Other nodes (visited minus focus) in alpha order. */
   const others = [...visited].filter((n) => n !== focus).sort();
   for (const node of others) {
-    lines.push(`  ${sanitizeId(node)}["${shortPath(node)}"]`);
+    lines.push(`  ${sanitizeId(node)}["${escapeMermaidLabel(shortPath(node))}"]`);
   }
 
   /* Edges — already in BFS discovery order, which is deterministic. */

@@ -625,3 +625,41 @@ describe('Mermaid output invariants (cross-renderer)', () => {
     });
   }
 });
+
+describe('escapes special characters in node labels (all views)', () => {
+  // A path containing Mermaid-breaking chars: `"` ends a label literal,
+  // `<`/`>` are parsed as HTML by Mermaid's renderer. shortPath keeps the
+  // first 2 + last segment, so put the hazardous chars in those.
+  const evil = 'packages/x/"<b>".ts';
+  const agent = makeAgent([
+    { from: evil, to: 'packages/spec/src/index.ts' },
+    { from: 'apps/cli/src/cli.ts', to: evil },
+  ]);
+
+  it('package view escapes the package label', () => {
+    // classifyPath maps the evil file to package `packages/x`, no hazards
+    // there — so prove escaping via a package name that itself has a quote.
+    const a = makeAgent([
+      { from: 'apps/a"b/src/x.ts', to: 'packages/spec/src/index.ts' },
+    ]);
+    const out = buildPackageDiagram(a);
+    // The raw double-quote must not appear inside a label literal.
+    expect(out).toContain('&quot;');
+    expect(out).not.toMatch(/\["[^"]*"[^"\]]*"\]/); // no stray unescaped quote
+  });
+
+  it('hub view escapes the file label but keeps the <br/> markup', () => {
+    const out = buildHubDiagram(agent);
+    expect(out).toContain('&quot;');
+    expect(out).toContain('&lt;b&gt;');
+    expect(out).not.toContain('"<b>"'); // raw hazard never emitted
+    expect(out).toContain('<br/>'); // intentional line-break markup preserved
+  });
+
+  it('focal view escapes both the focus node and caller nodes', () => {
+    const out = buildFocalDiagram(agent, { focus: evil, depth: 2 });
+    expect(out).toContain('&quot;');
+    expect(out).toContain('&lt;b&gt;');
+    expect(out).not.toContain('"<b>"');
+  });
+});
