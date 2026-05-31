@@ -126,6 +126,9 @@ importers:
       '@factstack/fs-browser':
         specifier: workspace:*
         version: link:../../packages/fs-browser
+      '@factstack/fs-memory':
+        specifier: workspace:*
+        version: link:../../packages/fs-memory
       '@factstack/scanners':
         specifier: workspace:*
         version: link:../../packages/scanners

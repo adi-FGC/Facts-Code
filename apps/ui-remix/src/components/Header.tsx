@@ -25,13 +25,21 @@ const wrap = css({
   columnGap: 'var(--space-5)',     /* tightened from --space-6 */
   paddingInline: 'var(--gutter)',
   borderRadius: '0',
+  minWidth: '0',
   zIndex: '50',
+  '@media (max-width: 899px)': {
+    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    columnGap: 'var(--space-3)',
+  },
 });
 
 const rightCluster = css({
   display: 'inline-flex',
   alignItems: 'center',
   gap: 'var(--space-3)',
+  '@media (max-width: 899px)': {
+    gap: 'var(--space-2)',
+  },
 });
 
 const brand = css({
@@ -50,6 +58,13 @@ const brandMark = css({
   fontVariationSettings: '"opsz" 20',
 });
 
+const sourceWrap = css({
+  minWidth: '0',
+  '@media (max-width: 899px)': {
+    display: 'none',
+  },
+});
+
 /* The project chip got promoted to a real component (SourceChip) when
  * recents landed — it now reflects the actual scan source (local
  * folder, GitHub repo, or fall-through project name) and acts as a
@@ -65,7 +80,9 @@ export function Header(_handle: Handle<HeaderProps>) {
           <span mix={brandMark}>FACTS</span>
         </div>
         <NumberedNav />
-        <SourceChip projectName={data.project.name} projectRoot={root} />
+        <div mix={sourceWrap}>
+          <SourceChip projectName={data.project.name} projectRoot={root} />
+        </div>
         <div mix={rightCluster}>
           {/* Open is the entry point for in-browser scans (local dirs +
               GitHub URLs). Sits left of Re-analyze because it's the

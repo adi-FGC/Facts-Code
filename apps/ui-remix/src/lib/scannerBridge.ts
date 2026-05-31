@@ -49,6 +49,11 @@ export interface ScanResult {
   meta: { filesScanned: number; filesSkipped: number; elapsedMs: number };
 }
 
+export interface BrowserFileEntry {
+  path: string;
+  file: File;
+}
+
 let workerSingleton: Worker | null = null;
 let nextRequestId = 1;
 
@@ -96,6 +101,28 @@ export async function runLocalScan(
       id: String(nextRequestId++),
       kind: 'scan:local',
       root: handle,
+      ...(opts.projectName ? { projectName: opts.projectName } : {}),
+    },
+    opts,
+  );
+}
+
+/**
+ * Run a scan from a standard <input type="file" webkitdirectory> pick.
+ * This is the fallback/primary path for embedded browsers where
+ * showDirectoryPicker() advertises support but never opens a visible
+ * native picker. Files are cloned into the worker as File blobs and
+ * materialized into MemoryFS there.
+ */
+export async function runFileListScan(
+  files: BrowserFileEntry[],
+  opts: RunOptions & { projectName?: string } = {},
+): Promise<ScanResult> {
+  return runScan(
+    {
+      id: String(nextRequestId++),
+      kind: 'scan:files',
+      files,
       ...(opts.projectName ? { projectName: opts.projectName } : {}),
     },
     opts,

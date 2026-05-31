@@ -34,11 +34,13 @@
 
 import { analyze } from '@factstack/core';
 import { FsaBrowserFS, fetchGitHubToMemory, type GitHubFetchSpec } from '@factstack/fs-browser';
+import { MemoryFS } from '@factstack/fs-memory';
 import { browserGzippedBytes } from '@factstack/emit-browser';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 export type ScanRequest =
   | { id: string; kind: 'scan:local'; root: FileSystemDirectoryHandle; projectName?: string }
+  | { id: string; kind: 'scan:files'; files: Array<{ path: string; file: File }>; projectName?: string }
   | { id: string; kind: 'scan:github'; spec: GitHubFetchSpec };
 
 export type ScanResponse =
@@ -106,6 +108,36 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
       const onProgress = throttledProgress(req.id, 'analyzing');
       post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Walking…' });
       const result = await analyze(fs, buildAnalyzeOpts(req.projectName ?? req.root.name, onProgress));
+      post({ id: req.id, type: 'done', ...result });
+      return;
+    }
+
+    if (req.kind === 'scan:files') {
+      const files: Record<string, string> = {};
+      const total = req.files.length;
+      for (let i = 0; i < req.files.length; i++) {
+        const entry = req.files[i]!;
+        post({
+          id: req.id,
+          type: 'progress',
+          phase: 'reading',
+          current: i,
+          total,
+          label: entry.path,
+        });
+        files[entry.path] = await entry.file.text();
+      }
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'reading',
+        current: total,
+        total,
+        label: 'Analyzing…',
+      });
+      const fs = new MemoryFS(files);
+      const onProgress = throttledProgress(req.id, 'analyzing');
+      const result = await analyze(fs, buildAnalyzeOpts(req.projectName ?? 'local files', onProgress));
       post({ id: req.id, type: 'done', ...result });
       return;
     }

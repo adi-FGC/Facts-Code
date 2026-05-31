@@ -27,6 +27,51 @@ export interface EnvCheck {
   grant?: () => Promise<void>;
 }
 
+function detectBrowser(): string {
+  const nav = typeof navigator !== 'undefined'
+    ? navigator as Navigator & { userAgentData?: { brands?: Array<{ brand: string; version: string }> } }
+    : null;
+  const brands = nav?.userAgentData?.brands?.map((b) => b.brand).join(' ') ?? '';
+  const ua = nav?.userAgent ?? '';
+  const haystack = `${brands} ${ua}`;
+  if (/Edg\//u.test(haystack) || /Microsoft Edge/u.test(haystack)) return 'Edge';
+  if (/Chrome|Chromium/u.test(haystack)) return 'Chrome';
+  if (/Firefox/u.test(haystack)) return 'Firefox';
+  if (/Safari/u.test(haystack)) return 'Safari';
+  return 'Unknown browser';
+}
+
+function detectOS(): string {
+  const nav = typeof navigator !== 'undefined'
+    ? navigator as Navigator & {
+        userAgentData?: { platform?: string };
+        userAgent?: string;
+        platform?: string;
+        maxTouchPoints?: number;
+      }
+    : null;
+  const platform = nav?.userAgentData?.platform || nav?.platform || '';
+  const ua = nav?.userAgent || '';
+  const raw = `${platform} ${ua}`;
+  if (/iPhone|iPad|iPod/u.test(raw)) return 'iOS';
+  if (/Mac/u.test(platform) && (nav?.maxTouchPoints ?? 0) > 1) return 'iOS';
+  if (/Win/u.test(raw)) return 'Windows';
+  if (/Android/u.test(raw)) return 'Android';
+  if (/Mac/u.test(raw)) return 'macOS';
+  if (/Linux|X11/u.test(raw)) return 'Linux';
+  return 'Unknown OS';
+}
+
+function hasDirectoryInput(): boolean {
+  if (typeof document === 'undefined') return false;
+  const input = document.createElement('input') as HTMLInputElement & {
+    webkitdirectory?: boolean;
+    directory?: boolean;
+  };
+  input.type = 'file';
+  return 'webkitdirectory' in input || 'directory' in input;
+}
+
 /**
  * Probe the browser + the currently-picked directory (if any) for
  * everything the analyzer needs. Cheap — a few sync feature detects
@@ -44,7 +89,28 @@ export async function computeEnvChecks(
 ): Promise<EnvCheck[]> {
   const out: EnvCheck[] = [];
 
-  /* 1. File System Access API — capability, not permission. Either the
+  const os = detectOS();
+  const browser = detectBrowser();
+  out.push({
+    id: 'runtime',
+    label: `OS · ${os}`,
+    status: os === 'Unknown OS' ? 'warn' : 'ok',
+    detail: os === 'Unknown OS'
+      ? `${browser}; OS was not exposed by this browser.`
+      : `${browser} on ${os}.`,
+  });
+
+  const hasFolderInput = hasDirectoryInput();
+  out.push({
+    id: 'folder-input',
+    label: 'Folder input',
+    status: hasFolderInput ? 'ok' : 'fail',
+    detail: hasFolderInput
+      ? 'Browser can open the Choose Folder control.'
+      : 'Browser blocked directory input; try OS picker or Chrome/Edge.',
+  });
+
+  /* File System Access API — capability, not permission. Either the
         browser exposes the picker or it doesn't. No grant path. */
   const hasFsa = typeof (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
   out.push({

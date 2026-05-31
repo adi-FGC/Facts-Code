@@ -48,13 +48,21 @@ interface AppProps {
  *
  * The Re-analyze button dispatches a `factstack:dataset` CustomEvent
  * with the freshly-loaded Dataset; the listener below replaces
- * `cached` in place + notifies every subscriber so the whole tree
- * re-renders without a page reload.
+ * `cached` in place + asks `main.tsx` to re-render the root. We keep
+ * root-level re-rendering outside component handles because the root
+ * handle in the Remix UI runtime does not implement `handle.update()`.
  */
 let cached: Dataset | null = null;
 let loadError: string | null = null;
 let loadStarted = false;
-const subscribers = new Set<() => void>();
+
+export const DATA_READY_EVENT = 'factstack:data-ready';
+
+function notifyDataReady() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(DATA_READY_EVENT));
+  }
+}
 
 function ensureLoadStarted() {
   if (loadStarted) return;
@@ -62,11 +70,11 @@ function ensureLoadStarted() {
   loadArtifacts()
     .then((data) => {
       cached = data;
-      for (const fn of subscribers) fn();
+      notifyDataReady();
     })
     .catch((err: unknown) => {
       loadError = err instanceof Error ? err.message : String(err);
-      for (const fn of subscribers) fn();
+      notifyDataReady();
     });
 }
 
@@ -79,20 +87,13 @@ if (typeof window !== 'undefined') {
     if (detail) {
       cached = detail;
       loadError = null;
-      for (const fn of subscribers) fn();
+      notifyDataReady();
     }
   });
 }
 
-export function App(handle: Handle<AppProps>) {
+export function App(_handle: Handle<AppProps>) {
   ensureLoadStarted();
-  // Subscribe to data-cache changes so the App re-renders when
-  // loadArtifacts() resolves. handle.signal aborts on unmount, so we
-  // remove the subscriber automatically.
-  const fire = () => { void handle.update(); };
-  subscribers.add(fire);
-  handle.signal.addEventListener('abort', () => subscribers.delete(fire));
-
   return () => {
     if (loadError) return <ErrorScreen message={loadError} />;
     if (!cached) return <Loading />;

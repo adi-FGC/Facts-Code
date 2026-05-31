@@ -77,11 +77,32 @@ body {
 /* md and below — tree becomes a drawer (hidden by default). */
 @media (max-width: 899px) {
   .app-shell {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       "header"
       "main"
       "footer";
+    overflow-x: hidden;
+  }
+  .app-shell > header {
+    width: 100dvw !important;
+    min-width: 0 !important;
+    max-width: 100dvw !important;
+    grid-template-columns: auto minmax(0, 1fr) auto !important;
+    column-gap: var(--space-3) !important;
+    overflow: hidden !important;
+  }
+  .app-shell > header > :nth-child(3) {
+    display: none !important;
+  }
+  .app-shell > header [role="tablist"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+  }
+  .app-shell > main {
+    width: 100dvw;
+    max-width: 100dvw;
   }
   .app-shell > [aria-label="Project tree"] {
     display: none;

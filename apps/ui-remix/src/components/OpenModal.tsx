@@ -4,12 +4,12 @@
  *
  * Two modes (radio toggle in the header):
  *
- *   1. **Local** — primary affordance is "Choose folder", which calls
- *      `showDirectoryPicker({ mode: 'read' })`. After the user grants
- *      access, the worker walks the directory + analyzes; we pipe
- *      progress messages into the bottom rail and replace the dataset
- *      on completion. No save in this PR (read-only path); PR5 adds
- *      `mode: 'readwrite'` + writeBrowserArtifacts.
+ *   1. **Local** — primary affordance is "Choose folder", backed by a
+ *      hidden directory file input so embedded browsers reliably open
+ *      a chooser. The OS picker button keeps the File System Access
+ *      path available for browsers where showDirectoryPicker is solid.
+ *      The worker walks the selected files + analyzes; we pipe progress
+ *      messages into the bottom rail and replace the dataset on completion.
  *
  *   2. **GitHub** — text input for owner/repo or full URL, plus an
  *      optional PAT field (persisted to localStorage as
@@ -231,6 +231,22 @@ const actionsRow = css({
   justifyContent: 'space-between',
   gap: 'var(--space-3)',
   marginTop: 'var(--space-2)',
+});
+
+const filePickWrap = css({
+  display: 'inline-flex',
+});
+
+const filePickInput = css({
+  position: 'absolute',
+  width: '1px',
+  height: '1px',
+  margin: '-1px',
+  padding: '0',
+  overflow: 'hidden',
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+  border: '0',
 });
 
 const primaryBtn = css({
@@ -709,6 +725,13 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   let urlInput = '';
   let tokenInput = readStoredToken();
   let urlInputEl: HTMLInputElement | null = null;
+  let dirInputEl: HTMLInputElement | null = null;
+  /* Flips true the first time showDirectoryPicker() throws a non-Abort
+     error (embedded webviews that advertise FSA support but block the
+     picker, SecurityError inside an iframe, etc.). Once set, the Choose
+     Folder button routes straight to the hidden <input webkitdirectory>
+     so the user isn't stuck retrying a picker that never opens. */
+  let fsaFailed = false;
   /* Track the in-flight scan id so a stale promise from an earlier
      attempt doesn't accidentally close the modal after the user
      cancelled and started a new one. */
@@ -742,6 +765,8 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
      the user sees the actionable detail without an extra click; stays
      wherever the user left it otherwise. */
   let envExpanded = false;
+  let envGrantingId: string | null = null;
+  let envGrantMessage: { id: string; text: string } | null = null;
   /* Prevents stale envChecks from a slow async computation overwriting
      a fresher one — we keep a generation counter and only commit the
      result if the gen we started with is still current. */
@@ -756,30 +781,45 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   /* Refresh the environment checks. Cheap — just a few sync browser API
      probes plus at most two queryPermission calls. Re-runs eagerly on
      every state change that might affect the answer. */
-  async function refreshEnvChecks() {
+  async function refreshEnvChecks(): Promise<EnvCheck[] | null> {
     const myGen = ++envGen;
     const next = await computeEnvChecks(lastSourceHandle);
-    if (myGen !== envGen) return;
+    if (myGen !== envGen) return null;
     envChecks = next;
     /* Auto-expand the moment a problem appears. If the user explicitly
        collapsed it earlier and everything's still fine, leave it
        collapsed — we only force-expand on failure. */
     if (next.some((c) => c.status === 'fail')) envExpanded = true;
     void handle.update();
+    return next;
   }
 
   /* Invoke a per-row Grant action. Each action is its own async function
      supplied by computeEnvChecks(); after it runs we re-probe everything
      so the row's status flips on success. */
-  async function runGrant(action: () => Promise<void>) {
+  async function runGrant(check: EnvCheck) {
+    if (!check.grant || envGrantingId) return;
+    envGrantingId = check.id;
+    envGrantMessage = { id: check.id, text: 'Requesting...' };
+    void handle.update();
     try {
-      await action();
-    } catch {
-      /* Grant flows surface errors via the per-check re-probe. We don't
-         throw past the button — the env panel will reflect whatever
-         state the browser settled on. */
+      await check.grant();
+      const next = await refreshEnvChecks();
+      const refreshed = next?.find((c) => c.id === check.id);
+      envGrantMessage = {
+        id: check.id,
+        text: refreshed?.status === 'ok' ? 'Granted.' : 'Browser kept this optional.',
+      };
+    } catch (err) {
+      envGrantMessage = {
+        id: check.id,
+        text: err instanceof Error ? err.message : 'Grant failed.',
+      };
+      await refreshEnvChecks();
+    } finally {
+      envGrantingId = null;
+      void handle.update();
     }
-    await refreshEnvChecks();
   }
 
   /* Lazy-load the .facts/ file list for the View Files panel. The save
@@ -866,6 +906,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     lastResult = null;
     lastSourceHandle = null;
     savedSummary = null;
+    envExpanded = true;
     void handle.update();
     /* Lazy-load the recents list on first open so we don't pay an IDB
        hit on cold start. Subsequent opens reuse the cached list, which
@@ -928,11 +969,45 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
   /* ─────────── handlers ─────────── */
 
-  async function pickLocal() {
+  /**
+   * Synchronous click dispatcher for the "Choose folder" button.
+   *
+   * MUST stay synchronous up to the picker / input call: BOTH
+   * showDirectoryPicker() and a programmatic <input>.click() require a
+   * live user activation, which is consumed the moment we `await` or
+   * schedule a render. So this function does no handle.update() before
+   * dispatching.
+   *
+   * Strategy (user-chosen: FSA-first, file-input fallback):
+   *   - File System Access available → pickLocalWithFsa(). Returns a
+   *     directory handle, which unlocks Recents + one-click save-back to
+   *     .facts/. This is the rich path.
+   *   - No FSA (or FSA already proved broken this session) → click the
+   *     hidden <input webkitdirectory>, which opens a folder chooser in
+   *     any Chromium/Firefox. No handle, so no save-back/Recents, but it
+   *     reliably opens — which is the whole point of the fallback.
+   */
+  function chooseFolder() {
     if (phase === 'scanning' || phase === 'picking') return;
-    phase = 'picking';
+    const hasFsa =
+      !fsaFailed &&
+      typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker ===
+        'function';
+    if (hasFsa) {
+      void pickLocalWithFsa();
+    } else if (dirInputEl) {
+      dirInputEl.click();
+    } else {
+      phase = 'error';
+      error =
+        'No folder picker available in this browser. Try the GitHub tab, or use Chrome / Edge / Firefox.';
+      void handle.update();
+    }
+  }
+
+  async function pickLocalWithFsa() {
+    if (phase === 'scanning' || phase === 'picking') return;
     error = '';
-    void handle.update();
 
     let dirHandle: FileSystemDirectoryHandle;
     try {
@@ -945,6 +1020,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       if (!picker) {
         throw new Error('File System Access API not supported in this browser. Try Chrome or Edge.');
       }
+      /* Keep this as the first user-visible action in the click handler.
+         Some embedded Chromium shells reject native pickers if the page
+         mutates/render-schedules before showDirectoryPicker() runs. */
       dirHandle = await picker({ mode: 'read' });
     } catch (err) {
       /* AbortError == user clicked Cancel. Don't surface as an error —
@@ -954,12 +1032,24 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         void handle.update();
         return;
       }
+      /* FSA is present but failed (embedded webview that advertises
+         support but blocks the picker, SecurityError in an iframe, …).
+         Remember that so future clicks skip straight to the input, and
+         try the hidden <input webkitdirectory> now — its click may still
+         be honored within this gesture. */
+      fsaFailed = true;
+      if (dirInputEl) {
+        dirInputEl.click();
+        return;
+      }
       phase = 'error';
       error = err instanceof Error ? err.message : String(err);
       void handle.update();
       return;
     }
 
+    phase = 'picking';
+    void handle.update();
     /* Dynamic-imported bridge — see the type-only import note at the top
        of this file. The first scan pays the bridge-chunk download (~5 KB
        gz) on top of the worker chunk; subsequent scans are warm. */
@@ -971,6 +1061,30 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
        permission rows for the picked dir become relevant here. */
     void refreshEnvChecks();
     await runScan(bridge, (onProgress) => bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }));
+  }
+
+  async function scanFileInput(filesRaw: FileList | null) {
+    const picked = Array.from(filesRaw ?? []);
+    if (dirInputEl) dirInputEl.value = '';
+    if (picked.length === 0 || phase === 'scanning') return;
+
+    const firstPath = picked[0]?.webkitRelativePath || picked[0]?.name || 'local files';
+    const rootName = firstPath.includes('/') ? firstPath.split('/')[0]! : 'local files';
+    const files = picked
+      .map((file) => {
+        const rawPath = file.webkitRelativePath || file.name;
+        const path = rawPath.startsWith(rootName + '/') ? rawPath.slice(rootName.length + 1) : rawPath;
+        return { path, file };
+      })
+      .filter((entry) => entry.path.length > 0);
+
+    if (files.length === 0) return;
+    const bridge = await import('../lib/scannerBridge.ts');
+    lastSourceHandle = null;
+    void refreshEnvChecks();
+    await runScan(bridge, (onProgress) =>
+      bridge.runFileListScan(files, { onProgress, projectName: rootName }),
+    );
   }
 
   async function pickGithub() {
@@ -1379,11 +1493,14 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const failCount = checks.filter((c) => c.status === 'fail').length;
     const warnCount = checks.filter((c) => c.status === 'warn').length;
     const allOk = failCount === 0 && warnCount === 0;
+    const runtime = checks.find((c) => c.id === 'runtime');
+    const osLabel = runtime?.label.startsWith('OS · ') ? runtime.label.slice(5) : null;
     const statusLabel = allOk
       ? 'All green'
       : failCount > 0
         ? `${failCount} issue${failCount === 1 ? '' : 's'}`
         : `${warnCount} optional`;
+    const headerStatus = osLabel ? `${osLabel} · ${statusLabel}` : statusLabel;
     const headerDotClass = allOk ? dotOk : failCount > 0 ? dotFail : dotWarn;
     return (
       <div mix={envPanel}>
@@ -1400,7 +1517,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             <span>Permissions &amp; environment</span>
           </span>
           <span mix={envHeaderRight}>
-            <span>{statusLabel}</span>
+            <span>{headerStatus}</span>
             <span aria-hidden="true" mix={[envChevron, envExpanded ? envChevronOpen : null]}>
               ›
             </span>
@@ -1410,18 +1527,24 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           <div mix={envBody}>
             {checks.map((c) => {
               const dotClass = c.status === 'ok' ? dotOk : c.status === 'fail' ? dotFail : dotWarn;
+              const isGranting = envGrantingId === c.id;
+              const grantMessage = envGrantMessage?.id === c.id ? envGrantMessage.text : '';
               return (
                 <div key={c.id} mix={envRow}>
                   <span aria-hidden="true" mix={[dot, dotClass]} />
                   <span mix={envRowLabel}>
                     <span>{c.label}</span>
-                    <span mix={envRowDetail}>{c.detail}</span>
+                    <span mix={envRowDetail} aria-live="polite">
+                      {isGranting ? 'Requesting...' : c.detail}
+                      {!isGranting && grantMessage ? ` ${grantMessage}` : ''}
+                    </span>
                   </span>
                   {c.grant ? (
                     <button
                       type="button"
-                      mix={[envGrantBtn, on('click', () => { void runGrant(c.grant!); })]}
-                    >Grant</button>
+                      disabled={envGrantingId !== null}
+                      mix={[envGrantBtn, on('click', () => { void runGrant(c); })]}
+                    >{isGranting ? 'Granting...' : 'Grant'}</button>
                   ) : null}
                 </div>
               );
@@ -1493,6 +1616,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   }
 
   function renderLocalBody() {
+    const directoryInputId = 'factstack-directory-input';
     return (
       <>
         {renderDisclaimer()}
@@ -1500,12 +1624,51 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         <p mix={lede}>
           Pick a directory on your machine. The scan runs entirely in your browser —
           no files leave the device. After the scan you can save the artifacts
-          back to <span class="mono">.facts/</span>.
+          to <span class="mono">.facts/</span>.
         </p>
         <div mix={actionsRow}>
-          <button type="button" disabled={phase === 'scanning' || phase === 'picking'} mix={[primaryBtn, on('click', pickLocal)]}>
-            {phase === 'picking' ? 'Choosing…' : 'Choose folder…'}
-          </button>
+          <span mix={filePickWrap}>
+            {/* Programmatic-only target: chooseFolder() calls
+                dirInputEl.click(). It must NOT be a second control in the
+                a11y tree — a file input reports role=button, so a visible
+                "Choose folder…" button PLUS a named hidden input would make
+                a screen reader announce two identical controls. aria-hidden
+                + tabindex=-1 keep the visible <button> the single labeled
+                affordance. */}
+            <input
+              id={directoryInputId}
+              type="file"
+              multiple
+              aria-hidden="true"
+              tabindex={-1}
+              disabled={phase === 'scanning' || phase === 'picking'}
+              mix={[
+                filePickInput,
+                ref<HTMLInputElement>((node) => {
+                  dirInputEl = node;
+                  const folderInput = node as HTMLInputElement & {
+                    webkitdirectory?: boolean;
+                    directory?: boolean;
+                  };
+                  folderInput.webkitdirectory = true;
+                  folderInput.directory = true;
+                  node.setAttribute('webkitdirectory', '');
+                  node.setAttribute('directory', '');
+                }),
+                on<HTMLInputElement, 'change'>('change', (e) => {
+                  void scanFileInput((e.currentTarget as HTMLInputElement | null)?.files ?? null);
+                }),
+              ]}
+            />
+            <button
+              type="button"
+              disabled={phase === 'scanning' || phase === 'picking'}
+              title="Choose a folder to scan — opens your OS folder picker"
+              mix={[primaryBtn, on('click', () => { chooseFolder(); })]}
+            >
+              Choose folder…
+            </button>
+          </span>
           <button type="button" mix={[secondaryBtn, on('click', hide)]} disabled={phase === 'scanning'}>Close</button>
         </div>
       </>

@@ -2,10 +2,11 @@
  * Tests for `computeEnvChecks` — the probe that powers the OpenModal
  * trust panel.
  *
- * The probe reads three browser globals (`window.showDirectoryPicker`,
+ * The probe reads browser globals (`navigator.platform/userAgent`,
+ * directory input support, `window.showDirectoryPicker`,
  * `navigator.storage.persisted/persist`, the handle's `queryPermission`
- * / `requestPermission`) and produces 1-4 rows depending on what's
- * available + whether a directory handle is supplied.
+ * / `requestPermission`) and produces rows depending on what's available
+ * + whether a directory handle is supplied.
  *
  * Test strategy: stub the globals via `vi.stubGlobal` (no jsdom — Node
  * `globalThis` is sufficient since the helper only reads properties).
@@ -23,6 +24,22 @@ import { computeEnvChecks } from './envChecks.ts';
    expects `window` to be missing. */
 afterEach(() => {
   vi.unstubAllGlobals();
+});
+
+/* ─────────── Runtime detection ─────────── */
+
+describe('computeEnvChecks — runtime rows', () => {
+  it('surfaces the detected OS in the first row', async () => {
+    vi.stubGlobal('navigator', {
+      userAgentData: { platform: 'Windows' },
+      userAgent: 'Mozilla/5.0 Chrome/125.0.0.0 Safari/537.36',
+      platform: 'Win32',
+    });
+    const checks = await computeEnvChecks(null);
+    expect(checks[0]!.id).toBe('runtime');
+    expect(checks[0]!.label).toBe('OS · Windows');
+    expect(checks[0]!.detail).toMatch(/Chrome on Windows/u);
+  });
 });
 
 /** Minimal FSA directory handle stub for the per-handle perm rows.
@@ -266,7 +283,7 @@ describe('computeEnvChecks — per-handle permission rows', () => {
 /* ─────────── Row ordering + structure invariants ─────────── */
 
 describe('computeEnvChecks — structure invariants', () => {
-  it('returns rows in stable order: fsa, storage, read, write', async () => {
+  it('returns rows in stable order: runtime, folder-input, fsa, storage, read, write', async () => {
     /* The panel renders rows in array order — keeping this stable
        means the user's eye finds the same row in the same place
        across renders. Reshuffling on every re-probe would look like
@@ -281,7 +298,7 @@ describe('computeEnvChecks — structure invariants', () => {
     const handle = makeHandle({ query: () => 'granted' });
     const checks = await computeEnvChecks(handle);
     const ids = checks.map((c) => c.id);
-    expect(ids).toEqual(['fsa', 'storage', 'read', 'write']);
+    expect(ids).toEqual(['runtime', 'folder-input', 'fsa', 'storage', 'read', 'write']);
   });
 
   it('every row has the required EnvCheck fields', async () => {

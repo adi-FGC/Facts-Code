@@ -12,7 +12,7 @@
  * No React here. No ReactDOM. The build is React-free top to bottom.
  */
 import { createRoot } from 'remix/ui';
-import { App } from './App.tsx';
+import { App, DATA_READY_EVENT } from './App.tsx';
 
 // Design system — must load before app render so first paint is styled.
 import '@factstack/ui-theme/tokens.css';
@@ -24,16 +24,17 @@ const container = document.getElementById('root');
 if (!container) throw new Error('#root element missing from index.html');
 
 const root = createRoot(container);
-root.render(<App />);
+const rerender = () => root.render(<App />);
 
 // Re-render on URL changes so the route table picks up navigations.
 // This is the SPA shim for the Frame-less mount: instead of relying on
 // Remix's frame router, we listen for popstate + a custom `factstack:nav`
 // event (dispatched by the in-app `navigate()` helper) and ask the root
 // to render the App again.
-const rerender = () => root.render(<App />);
 window.addEventListener('popstate', rerender);
 window.addEventListener('factstack:nav', rerender);
+window.addEventListener(DATA_READY_EVENT, rerender);
+rerender();
 
 // Global click-delegation for internal <a href="..."> links. We do it at
 // the document level instead of via a per-element `on('click', ...)` mixin

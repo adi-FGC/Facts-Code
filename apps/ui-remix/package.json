@@ -19,6 +19,7 @@
     "@factstack/core": "workspace:*",
     "@factstack/emit-browser": "workspace:*",
     "@factstack/fs-browser": "workspace:*",
+    "@factstack/fs-memory": "workspace:*",
     "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
     "@factstack/ui-theme": "workspace:*",
