@@ -8,7 +8,7 @@
     "style": "off",
     "nursery": "off"
   },
-  "plugins": ["typescript", "unicorn", "import", "react", "react-hooks", "jsx-a11y", "promise", "node"],
+  "plugins": ["typescript", "unicorn", "import", "jsx-a11y", "promise", "node"],
   "env": {
     "node": true,
     "browser": true,
