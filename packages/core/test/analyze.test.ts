@@ -260,6 +260,63 @@ describe('analyze — license risks', () => {
   });
 });
 
+describe('analyze — health headline agrees with structured fields', () => {
+  /* Regression: the headline counted `secrets` from the TOTAL risk-array
+     length, not the secret-filtered count. A project whose only risk was
+     a missing LICENSE (RallyPro) got the false flag "1 secret exposed".
+     The structured `health.secrets` field was correctly 0 — proving the
+     invariant: the prose headline must be derived from the same filtered
+     counts the structured fields report. Data wins over generated prose. */
+
+  it('a non-secret risk (missing license) never says "secret exposed"', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }), // no license = 1 license risk
+      'src/index.ts': 'export const x = 1;\n',
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const h = r.human.summary.health;
+    // Exactly the RallyPro shape: a license risk exists, no secrets.
+    expect(r.agent.risks.some((rk) => rk.category === 'license')).toBe(true);
+    expect(h.secrets).toBe(0);
+    // The headline must NOT fabricate a secret from the license risk.
+    expect(h.headline).not.toMatch(/secret/i);
+  });
+
+  it('headline secret count matches the structured secrets field', async () => {
+    /* AWS example tokens, split so push-protection / future secret scans
+       don't re-flag this test file (same treatment as the secrets test). */
+    const AWS_KEY = 'AKIAI' + 'OSFODNN' + '7EXAMPLE';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app', license: 'MIT' }),
+      'src/config.ts': `export const k = "${AWS_KEY}";\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const h = r.human.summary.health;
+    /* Whatever the secret heuristic decides, the headline's secret claim
+       must agree with the structured count — not diverge. */
+    if (h.secrets > 0) {
+      expect(h.headline).toMatch(
+        new RegExp(`${h.secrets} secret${h.secrets === 1 ? '' : 's'} exposed`),
+      );
+    } else {
+      expect(h.headline).not.toMatch(/secret/i);
+    }
+  });
+
+  it('a clean project reports the clean headline', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app', license: 'MIT' }),
+      'src/index.ts': 'export const x = 1;\n',
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const h = r.human.summary.health;
+    if (h.broken === 0 && h.stale === 0 && h.todos === 0 && h.secrets === 0) {
+      expect(h.headline).toMatch(/clean/i);
+      expect(h.headline).not.toMatch(/secret/i);
+    }
+  });
+});
+
 describe('analyze — onProgress callback', () => {
   it('calls onProgress with a fraction + filename per file', async () => {
     const events: Array<{ pct: number; file: string }> = [];

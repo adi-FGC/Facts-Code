@@ -609,13 +609,22 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         handlerFile: '',
         description: null,
       })),
-      health: {
-        broken,
-        stale,
-        todos: todoCount,
-        secrets: secrets.filter((r) => r.category === 'secret').length,
-        headline: buildHealthHeadline(broken, stale, todoCount, secrets.length),
-      },
+      health: (() => {
+        /* Single source of truth for the secret count. The `secrets`
+           variable is actually the FULL risks array (license, todo, etc.
+           all live in it), so the headline must use the SAME filtered
+           count the structured field reports — not `secrets.length`,
+           which is the total risk count and produced the "1 secret
+           exposed" false flag when the only risk was a missing license. */
+        const secretCount = secrets.filter((r) => r.category === 'secret').length;
+        return {
+          broken,
+          stale,
+          todos: todoCount,
+          secrets: secretCount,
+          headline: buildHealthHeadline(broken, stale, todoCount, secretCount),
+        };
+      })(),
     },
     stack: languages.map((l) => ({
       name: l.label,
