@@ -49,8 +49,9 @@ const sep = css({
 const danger = css({ color: 'var(--danger)' });
 const warn = css({ color: 'var(--warn)' });
 
-export function StatusBar(_handle: Handle<StatusBarProps>) {
-  return ({ data }: StatusBarProps) => {
+export function StatusBar(handle: Handle<StatusBarProps>) {
+  return () => {
+    const { data } = handle.props;
     const s = data.stats;
     const h = data.summary.health;
     // No `.glass` here — status bar is a colophon strip, not chrome.

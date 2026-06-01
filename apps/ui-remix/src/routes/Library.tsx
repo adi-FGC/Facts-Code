@@ -211,7 +211,8 @@ export function Library(handle: Handle<LibraryProps>) {
     void handle.update();
   }
 
-  return ({ data }: LibraryProps) => {
+  return () => {
+    const { data } = handle.props;
     const rows = data.tree.children
       .map((c) => {
         const agg = aggregate(c);

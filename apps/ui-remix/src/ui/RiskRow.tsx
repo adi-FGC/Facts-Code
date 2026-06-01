@@ -99,8 +99,9 @@ const previewStyle = css({
   alignSelf: 'flex-start',
 });
 
-export function RiskRow(_h: Handle<RiskRowProps>) {
-  return ({ severity, rule, category, message, source, preview, messageTechnical }: RiskRowProps) => {
+export function RiskRow(handle: Handle<RiskRowProps>) {
+  return () => {
+    const { severity, rule, category, message, source, preview, messageTechnical } = handle.props;
     const c = SEV_COLOR[severity];
     return (
       <div mix={wrap}>

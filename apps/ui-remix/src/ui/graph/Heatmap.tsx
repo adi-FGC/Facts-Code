@@ -136,8 +136,9 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-export function Heatmap(_h: Handle<HeatmapProps>) {
-  return ({ data }: HeatmapProps) => {
+export function Heatmap(handle: Handle<HeatmapProps>) {
+  return () => {
+    const { data } = handle.props;
     const { folders, matrix: matrixData, maxCell } = data;
     const logMax = Math.log10(maxCell + 1) || 1;
     const intensity = (n: number): number =>

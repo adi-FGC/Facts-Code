@@ -63,8 +63,10 @@ function splitDirAndName(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, i), name: path.slice(i + 1) };
 }
 
-export function LayerSummary(_h: Handle<LayerSummaryProps>) {
-  return ({ byLayer, maxLayer }: LayerSummaryProps) => (
+export function LayerSummary(handle: Handle<LayerSummaryProps>) {
+  return () => {
+    const { byLayer, maxLayer } = handle.props;
+    return (
     <RuledTable cols="60px auto auto auto minmax(0, 1fr)">
       <RuledRow header>
         <RuledCell header align="right">Layer</RuledCell>
@@ -105,5 +107,6 @@ export function LayerSummary(_h: Handle<LayerSummaryProps>) {
         );
       })}
     </RuledTable>
-  );
+    );
+  };
 }

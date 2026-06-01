@@ -30,8 +30,9 @@ const arrow = css({
   color: 'var(--fg-faint)',
 });
 
-export function CouplingsTable(_h: Handle<CouplingsTableProps>) {
-  return ({ couplings }: CouplingsTableProps) => {
+export function CouplingsTable(handle: Handle<CouplingsTableProps>) {
+  return () => {
+    const { couplings } = handle.props;
     if (couplings.length === 0) return null;
     return (
       <Section label="Heaviest couplings" title="Cross-module edges, ranked">

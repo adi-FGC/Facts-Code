@@ -61,8 +61,9 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
-export function History(_h: Handle<HistoryProps>) {
-  return ({ data }: HistoryProps) => {
+export function History(handle: Handle<HistoryProps>) {
+  return () => {
+    const { data } = handle.props;
     const history = data.history ?? [];
     if (history.length === 0) {
       return (

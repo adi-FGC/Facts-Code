@@ -101,8 +101,10 @@ export function App(_handle: Handle<AppProps>) {
   };
 }
 
-function ErrorScreen(_h: Handle<{ message: string }>) {
-  return ({ message }: { message: string }) => (
+function ErrorScreen(handle: Handle<{ message: string }>) {
+  return () => {
+    const { message } = handle.props;
+    return (
     <div mix={css({ padding: '32px', maxWidth: '640px' })}>
       <h1 class="serif" mix={css({ fontSize: '28px', marginBottom: '12px' })}>Nothing to analyze yet.</h1>
       <p mix={css({ color: 'var(--fg-muted)' })}>
@@ -113,7 +115,8 @@ function ErrorScreen(_h: Handle<{ message: string }>) {
         {message}
       </p>
     </div>
-  );
+    );
+  };
 }
 
 /* Audit M6 fix: instead of a bare "Loading…" string in the corner,
@@ -134,8 +137,9 @@ function Loading(_h: Handle) {
   );
 }
 
-function Shell(_h: Handle<{ data: Dataset }>) {
-  return ({ data }: { data: Dataset }) => {
+function Shell(handle: Handle<{ data: Dataset }>) {
+  return () => {
+    const { data } = handle.props;
     const tab = activeTab(location.pathname);
     return (
       <>

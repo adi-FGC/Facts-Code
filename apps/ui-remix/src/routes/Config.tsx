@@ -339,7 +339,8 @@ export function Config(handle: Handle<ConfigProps>) {
     void handle.update();
   }
 
-  return ({ data }: ConfigProps) => {
+  return () => {
+    const { data } = handle.props;
     const envVars = data.config?.envVars ?? [];
     const totalReads = envVars.reduce((s, e) => s + e.reads.length, 0);
     const withDefaults = envVars.filter((e) => e.defaults.length > 0).length;

@@ -25,14 +25,15 @@ interface SparklineProps {
   label?: string;
 }
 
-export function Sparkline(_h: Handle<SparklineProps>) {
-  return ({
-    values,
-    width = 120,
-    height = 28,
-    color = 'var(--accent)',
-    label = 'trend',
-  }: SparklineProps) => {
+export function Sparkline(handle: Handle<SparklineProps>) {
+  return () => {
+    const {
+      values,
+      width = 120,
+      height = 28,
+      color = 'var(--accent)',
+      label = 'trend',
+    } = handle.props;
     if (values.length < 2) {
       return (
         <span

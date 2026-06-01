@@ -373,7 +373,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
     }
   }
 
-  return ({ data }: VulnerabilitiesProps) => {
+  return () => {
+    const { data } = handle.props;
     const files = flattenFiles(data.tree);
     const manifests = detectManifests(files);
 
@@ -688,8 +689,9 @@ interface VulnRowProps {
 /* Defining VulnRowView as a remix component closure ensures the
    dynamic-import boundary stays clean — this component only reads OSV
    types via type-only imports above. */
-function VulnRowView(_h: Handle<VulnRowProps>) {
-  return ({ vuln, installedVersion }: VulnRowProps) => {
+function VulnRowView(handle: Handle<VulnRowProps>) {
+  return () => {
+    const { vuln, installedVersion } = handle.props;
     /* Compute bucket + advisory URL inline (no need for osvScanner
        import at render-time — these are pure transforms over OSV
        types we already have as types). The osvScanner helpers run

@@ -357,7 +357,7 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
   window.addEventListener('factstack:nav', onNav);
   handle.signal.addEventListener('abort', () => window.removeEventListener('factstack:nav', onNav));
 
-  return ({ data: _data }: PaletteProps) => {
+  return () => {
     if (!open) return null;
     recompute();
     return (

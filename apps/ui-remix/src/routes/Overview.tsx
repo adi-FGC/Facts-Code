@@ -237,8 +237,9 @@ const ledeText = css({
   marginBottom: 'var(--space-12)',
 });
 
-export function Overview(_h: Handle<OverviewProps>) {
-  return ({ data }: OverviewProps) => {
+export function Overview(handle: Handle<OverviewProps>) {
+  return () => {
+    const { data } = handle.props;
     const { project, summary, stats } = data;
     const topLanguages = project.languages.slice(0, 6);
     const remainingFrameworks = Math.max(0, project.frameworks.length - 6);

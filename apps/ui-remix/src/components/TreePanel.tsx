@@ -282,7 +282,8 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
   // populated without a click. Done once in setup.
   for (const c of handle.props.data.tree.children) open.add(c.path);
 
-  return ({ data }: TreePanelProps) => {
+  return () => {
+    const { data } = handle.props;
     const activePath = activeFilePath();
     /* Auto-open every ancestor of the active file so the highlight is
        actually visible without manual expansion. We add to `open`

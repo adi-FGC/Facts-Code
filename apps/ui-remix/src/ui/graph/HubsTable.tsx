@@ -37,8 +37,9 @@ function splitDirAndName(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, i), name: path.slice(i + 1) };
 }
 
-export function HubsTable(_h: Handle<HubsTableProps>) {
-  return ({ hubs }: HubsTableProps) => {
+export function HubsTable(handle: Handle<HubsTableProps>) {
+  return () => {
+    const { hubs } = handle.props;
     if (hubs.length === 0) return null;
     return (
       <Section label="Hubs" title="Top files by in + out degree">

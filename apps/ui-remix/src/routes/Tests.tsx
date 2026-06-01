@@ -161,8 +161,9 @@ const dim = css({
   fontStyle: 'italic',
 });
 
-export function Tests(_h: Handle<TestsProps>) {
-  return ({ data }: TestsProps) => {
+export function Tests(handle: Handle<TestsProps>) {
+  return () => {
+    const { data } = handle.props;
     const all = flattenFiles(data.tree);
     const byPath = new Map<string, DatasetFile>(all.map((f) => [f.path, f]));
     const tests = all.filter(isTestFile);

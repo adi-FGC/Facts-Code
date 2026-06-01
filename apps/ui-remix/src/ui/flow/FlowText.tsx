@@ -167,7 +167,8 @@ export function FlowText(handle: Handle<FlowTextProps>) {
     }, 1400);
   }
 
-  return ({ result }: FlowTextProps) => {
+  return () => {
+    const { result } = handle.props;
     const text = renderFlowText(result);
     return (
       <div mix={wrap}>

@@ -84,8 +84,9 @@ const unitStyle = css({
   textTransform: 'uppercase',
 });
 
-export function LabelNumber(_h: Handle<LabelNumberProps>) {
-  return ({ label, value, unit, hint, last, lede, href, trailing }: LabelNumberProps) => {
+export function LabelNumber(handle: Handle<LabelNumberProps>) {
+  return () => {
+    const { label, value, unit, hint, last, lede, href, trailing } = handle.props;
     const numSize = lede
       ? css({ fontSize: 'var(--fs-display-sm)' })
       : css({ fontSize: 'var(--fs-32)' });
@@ -117,19 +118,22 @@ export function LabelNumber(_h: Handle<LabelNumberProps>) {
  * with a top + bottom hairline. Drops the right hairline on the last
  * cell automatically when its `last` prop isn't pre-set.
  */
-export function LabelNumberRow(_h: Handle<{ children: RemixNode }>) {
-  return ({ children }: { children: RemixNode }) => (
-    <div
-      mix={css({
-        display: 'flex',
-        alignItems: 'stretch',
-        flexWrap: 'wrap',
-        borderTop: '1px solid var(--hairline)',
-        borderBottom: '1px solid var(--hairline)',
-        marginInline: 'calc(var(--space-5) * -1)',
-      })}
-    >
-      {children}
-    </div>
-  );
+export function LabelNumberRow(handle: Handle<{ children: RemixNode }>) {
+  return () => {
+    const { children } = handle.props;
+    return (
+      <div
+        mix={css({
+          display: 'flex',
+          alignItems: 'stretch',
+          flexWrap: 'wrap',
+          borderTop: '1px solid var(--hairline)',
+          borderBottom: '1px solid var(--hairline)',
+          marginInline: 'calc(var(--space-5) * -1)',
+        })}
+      >
+        {children}
+      </div>
+    );
+  };
 }

@@ -125,8 +125,9 @@ const INTEGRATIONS: Surface[] = [
   { head: 'Static export', desc: 'factstack export ships a single-file HTML + bundled data — share with any stakeholder.' },
 ];
 
-export function About(_h: Handle<AboutProps>) {
-  return ({ data }: AboutProps) => {
+export function About(handle: Handle<AboutProps>) {
+  return () => {
+    const { data } = handle.props;
     const fileCount = data.stats.files;
     const tokenCount = data.stats.tokens;
     const fmtTokens = tokenCount >= 1000 ? `${(tokenCount / 1000).toFixed(0)}K` : `${tokenCount}`;

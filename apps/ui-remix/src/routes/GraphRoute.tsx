@@ -215,7 +215,8 @@ export function GraphRoute(handle: Handle<GraphProps>) {
     dagReset?.();
   }
 
-  return ({ data }: GraphProps) => {
+  return () => {
+    const { data } = handle.props;
     const all = flattenFiles(data.tree);
     const inProject = new Set<string>(all.map((f) => f.path));
     const edges = (data.edges ?? []).filter((e) => inProject.has(e.from) && inProject.has(e.to));

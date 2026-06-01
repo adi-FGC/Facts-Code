@@ -133,8 +133,9 @@ function entryKindLabel(kind: string): string {
   return 'rt';
 }
 
-export function RoutesTab(_h: Handle<RoutesProps>) {
-  return ({ data }: RoutesProps) => {
+export function RoutesTab(handle: Handle<RoutesProps>) {
+  return () => {
+    const { data } = handle.props;
     const eps = data.entryPoints ?? [];
     const routes = data.routes ?? [];
 

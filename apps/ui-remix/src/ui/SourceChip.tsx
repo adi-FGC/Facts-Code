@@ -196,7 +196,8 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
     window.dispatchEvent(new CustomEvent('factstack:open', { detail: { mode: 'local' } }));
   }
 
-  return ({ projectName, projectRoot }: SourceChipProps) => {
+  return () => {
+    const { projectName, projectRoot } = handle.props;
     /* When we have an active recent, show its glyph + label.
        Otherwise fall back to the project name + a path subline. */
     const glyph = activeRecent ? recentGlyph(activeRecent) : '·';

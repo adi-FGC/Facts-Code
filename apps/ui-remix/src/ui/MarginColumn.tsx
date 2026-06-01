@@ -16,8 +16,10 @@ interface ContentWithMarginProps {
   children: RemixNode;
 }
 
-export function ContentWithMargin(_h: Handle<ContentWithMarginProps>) {
-  return ({ children }: ContentWithMarginProps) => (
+export function ContentWithMargin(handle: Handle<ContentWithMarginProps>) {
+  return () => {
+    const { children } = handle.props;
+    return (
     <div
       mix={css({
         display: 'grid',
@@ -39,7 +41,8 @@ export function ContentWithMargin(_h: Handle<ContentWithMarginProps>) {
     >
       {children}
     </div>
-  );
+    );
+  };
 }
 
 interface MarginColumnProps {
@@ -49,8 +52,10 @@ interface MarginColumnProps {
   align?: 'top' | 'baseline';
 }
 
-export function MarginColumn(_h: Handle<MarginColumnProps>) {
-  return ({ children, align = 'top' }: MarginColumnProps) => (
+export function MarginColumn(handle: Handle<MarginColumnProps>) {
+  return () => {
+    const { children, align = 'top' } = handle.props;
+    return (
     <aside
       role="complementary"
       mix={css({
@@ -69,5 +74,6 @@ export function MarginColumn(_h: Handle<MarginColumnProps>) {
     >
       {children}
     </aside>
-  );
+    );
+  };
 }

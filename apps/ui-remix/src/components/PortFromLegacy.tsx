@@ -78,8 +78,9 @@ const featureText = css({
   lineHeight: '1.5',
 });
 
-export function PortFromLegacy(_handle: Handle<PortFromLegacyProps>) {
-  return ({ tab, legacyHash, summary, features, status = 'porting' }: PortFromLegacyProps) => {
+export function PortFromLegacy(handle: Handle<PortFromLegacyProps>) {
+  return () => {
+    const { tab, legacyHash, summary, features, status = 'porting' } = handle.props;
     const legacyHref = `${LEGACY_DEMO_URL}/${legacyHash}`;
     return (
       <ContentWithMargin>

@@ -738,16 +738,17 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
      every recompute, so identity-compare is enough). */
   let lastLayoutRef: SugiyamaLayout | null = null;
 
-  return ({
-    layout,
-    totalNodeCount,
-    nodeWidth = 140,
-    nodeHeight = 24,
-    layerGap = 60,
-    laneGap = 14,
-    showLabels: showLabelsProp,
-    styleMode = 'neo',
-  }: SugiyamaDagProps) => {
+  return () => {
+    const {
+      layout,
+      totalNodeCount,
+      nodeWidth = 140,
+      nodeHeight = 24,
+      layerGap = 60,
+      laneGap = 14,
+      showLabels: showLabelsProp,
+      styleMode = 'neo',
+    } = handle.props;
     exposeIfNeeded();
     /* Layout-change reset: zoom and pan don't make sense across
        different graphs (the diagram's coordinate space changed).

@@ -85,8 +85,9 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-export function EntityList(_h: Handle<EntityListProps>) {
-  return ({ entities }: EntityListProps) => {
+export function EntityList(handle: Handle<EntityListProps>) {
+  return () => {
+    const { entities } = handle.props;
     if (entities.length === 0) {
       return (
         <div mix={emptyState}>

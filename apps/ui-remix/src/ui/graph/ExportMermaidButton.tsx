@@ -205,7 +205,8 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
     }
   }
 
-  return ({ edges }: ExportMermaidButtonProps) => {
+  return () => {
+    const { edges } = handle.props;
     const empty = edges.length === 0;
 
     const copyLabel =

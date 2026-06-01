@@ -52,8 +52,9 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
-export function Risks(_h: Handle<RisksProps>) {
-  return ({ data }: RisksProps) => {
+export function Risks(handle: Handle<RisksProps>) {
+  return () => {
+    const { data } = handle.props;
     if (data.risks.length === 0) {
       return (
         <ContentWithMargin>

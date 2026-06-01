@@ -40,8 +40,9 @@ const KIND_COLOR: Record<Kind, string> = {
   info: 'var(--info)',
 };
 
-export function StatusChip(_h: Handle<StatusChipProps>) {
-  return ({ kind, label }: StatusChipProps) => {
+export function StatusChip(handle: Handle<StatusChipProps>) {
+  return () => {
+    const { kind, label } = handle.props;
     const c = KIND_COLOR[kind];
     return (
       <span

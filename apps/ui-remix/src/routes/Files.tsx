@@ -202,8 +202,9 @@ function splitDirAndName(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, i), name: path.slice(i + 1) };
 }
 
-export function Files(_h: Handle<FilesProps>) {
-  return ({ data }: FilesProps) => {
+export function Files(handle: Handle<FilesProps>) {
+  return () => {
+    const { data } = handle.props;
     const all = flattenFiles(data.tree);
     const sel = selectedPath();
 

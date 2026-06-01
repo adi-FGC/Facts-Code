@@ -59,8 +59,9 @@ const fileLink = css({
   '&:hover': { color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: '3px' },
 });
 
-export function CyclesPanel(_h: Handle<CyclesPanelProps>) {
-  return ({ cycles }: CyclesPanelProps) => {
+export function CyclesPanel(handle: Handle<CyclesPanelProps>) {
+  return () => {
+    const { cycles } = handle.props;
     if (cycles.length === 0) return null;
     return (
       <Section label="Cycles" title={`${cycles.length} dependency loop${cycles.length === 1 ? '' : 's'}`}>

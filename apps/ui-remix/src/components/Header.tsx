@@ -71,8 +71,9 @@ const sourceWrap = css({
  * second click target for the picker. The CSS that lived here moved
  * with the component. */
 
-export function Header(_handle: Handle<HeaderProps>) {
-  return ({ data }: HeaderProps) => {
+export function Header(handle: Handle<HeaderProps>) {
+  return () => {
+    const { data } = handle.props;
     const root = data.project.root.replace(/\\/g, '/');
     return (
       <header class="glass" role="banner" mix={wrap}>

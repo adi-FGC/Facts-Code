@@ -266,7 +266,8 @@ export function Flow(handle: Handle<FlowProps>) {
     void handle.update();
   }
 
-  return ({ data }: FlowProps) => {
+  return () => {
+    const { data } = handle.props;
     const all = flattenFiles(data.tree);
     const inProject = new Set<string>(all.map((f) => f.path));
     const edges = (data.edges ?? []).filter((e) => inProject.has(e.from) && inProject.has(e.to));

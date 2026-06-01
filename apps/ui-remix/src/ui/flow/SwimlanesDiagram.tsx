@@ -178,10 +178,11 @@ function arrowStrokeWidth(count: number, maxCount: number): number {
   return Math.min(6, 1 + (Math.log10(count + 1) / logMax) * 5);
 }
 
-export function SwimlanesDiagram(_h: Handle<SwimlanesDiagramProps>) {
+export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
   ensureKeyframes();
 
-  return ({ result }: SwimlanesDiagramProps) => {
+  return () => {
+    const { result } = handle.props;
     /* Filter to non-empty tiers, preserving TIER_ORDER. The diagram
        reads cleanly only when empty lanes are dropped (otherwise the
        "Tests" lane sits there at zero, looking broken). */

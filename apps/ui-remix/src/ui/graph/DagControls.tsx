@@ -138,8 +138,9 @@ const dimGlyph = css({
   color: 'var(--fg-faint)',
 });
 
-export function DagControls(_h: Handle<DagControlsProps>) {
-  return (props: DagControlsProps) => {
+export function DagControls(handle: Handle<DagControlsProps>) {
+  return () => {
+    const props = handle.props;
     const {
       granularity,
       onGranularityChange,

@@ -29,18 +29,21 @@ const base = css({
   letterSpacing: '-0.01em',
 });
 
-export function MonoNum(_h: Handle<MonoNumProps>) {
-  return ({ children, weight = 500, size }: MonoNumProps) => (
-    <span
-      mix={[
-        base,
-        css({
-          fontWeight: String(weight),
-          ...(size ? { fontSize: size } : {}),
-        }),
-      ]}
-    >
-      {children}
-    </span>
-  );
+export function MonoNum(handle: Handle<MonoNumProps>) {
+  return () => {
+    const { children, weight = 500, size } = handle.props;
+    return (
+      <span
+        mix={[
+          base,
+          css({
+            fontWeight: String(weight),
+            ...(size ? { fontSize: size } : {}),
+          }),
+        ]}
+      >
+        {children}
+      </span>
+    );
+  };
 }

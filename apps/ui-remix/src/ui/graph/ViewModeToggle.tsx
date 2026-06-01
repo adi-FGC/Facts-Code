@@ -97,8 +97,9 @@ const MODES: ReadonlyArray<{ key: GraphViewMode; label: string; hint: string }> 
   { key: 'layers',  label: 'Layers',  hint: 'Files grouped by depth + cycles' },
 ];
 
-export function ViewModeToggle(_h: Handle<ViewModeToggleProps>) {
-  return ({ value, onChange }: ViewModeToggleProps) => {
+export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
+  return () => {
+    const { value, onChange } = handle.props;
     /* Active-segment index drives the rail translation. translate by
        100% per segment because the rail's width is `calc(100% / 3)`
        (one-third of the wrap). Multiplying by index = sliding to the

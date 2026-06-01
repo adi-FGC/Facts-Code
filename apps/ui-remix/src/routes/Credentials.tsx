@@ -166,8 +166,9 @@ const sectionLabel = css({
   marginBottom: 'var(--space-2)',
 });
 
-export function Credentials(_h: Handle<CredentialsProps>) {
-  return ({ data }: CredentialsProps) => {
+export function Credentials(handle: Handle<CredentialsProps>) {
+  return () => {
+    const { data } = handle.props;
     /* Secret findings only — `category` is the canonical filter. We do
        NOT also include category === 'leak' or other adjacent labels
        to keep the page focused on what the secrets scanner produced. */

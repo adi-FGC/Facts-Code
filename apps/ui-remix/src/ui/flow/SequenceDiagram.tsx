@@ -293,7 +293,8 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
     setTimeout(() => { copied = false; void handle.update(); }, 1400);
   }
 
-  return ({ result }: SequenceDiagramProps) => {
+  return () => {
+    const { result } = handle.props;
     ensureFreshOrder(result);
 
     if (result.messages.length === 0) {

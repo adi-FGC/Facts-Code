@@ -23,19 +23,22 @@ interface TableProps {
   children: RemixNode;
 }
 
-export function RuledTable(_h: Handle<TableProps>) {
-  return ({ cols, children }: TableProps) => (
-    <div
-      role="table"
-      mix={css({
-        display: 'grid',
-        gridTemplateColumns: cols,
-        borderTop: '1px solid var(--hairline)',
-      })}
-    >
-      {children}
-    </div>
-  );
+export function RuledTable(handle: Handle<TableProps>) {
+  return () => {
+    const { cols, children } = handle.props;
+    return (
+      <div
+        role="table"
+        mix={css({
+          display: 'grid',
+          gridTemplateColumns: cols,
+          borderTop: '1px solid var(--hairline)',
+        })}
+      >
+        {children}
+      </div>
+    );
+  };
 }
 
 interface RowProps {
@@ -44,16 +47,19 @@ interface RowProps {
   header?: boolean;
 }
 
-export function RuledRow(_h: Handle<RowProps>) {
-  return ({ children, header }: RowProps) => (
-    <div
-      role="row"
-      mix={css({ display: 'contents' })}
-      data-row-header={header ? 'true' : undefined}
-    >
-      {children}
-    </div>
-  );
+export function RuledRow(handle: Handle<RowProps>) {
+  return () => {
+    const { children, header } = handle.props;
+    return (
+      <div
+        role="row"
+        mix={css({ display: 'contents' })}
+        data-row-header={header ? 'true' : undefined}
+      >
+        {children}
+      </div>
+    );
+  };
 }
 
 interface CellProps {
@@ -68,29 +74,32 @@ interface CellProps {
   header?: boolean;
 }
 
-export function RuledCell(_h: Handle<CellProps>) {
-  return ({ children, mono, muted, align = 'left', header }: CellProps) => (
-    <div
-      role={header ? 'columnheader' : 'cell'}
-      mix={css({
-        paddingInline: 'var(--space-4)',
-        paddingBlock: 'var(--space-3)',
-        borderBottom: '1px solid var(--hairline)',
-        fontFamily: mono ? 'var(--font-mono)' : 'inherit',
-        fontVariantNumeric: mono ? 'tabular-nums lining-nums' : 'normal',
-        color: muted ? 'var(--fg-muted)' : 'var(--fg)',
-        fontSize: header ? 'var(--fs-10)' : mono ? 'var(--fs-12)' : 'var(--fs-13)',
-        letterSpacing: header ? '0.14em' : 'normal',
-        textTransform: header ? 'uppercase' : 'none',
-        fontWeight: header ? '500' : '400',
-        textAlign: align,
-        minWidth: '0',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: align === 'left' ? 'normal' : 'nowrap',
-      })}
-    >
-      {children}
-    </div>
-  );
+export function RuledCell(handle: Handle<CellProps>) {
+  return () => {
+    const { children, mono, muted, align = 'left', header } = handle.props;
+    return (
+      <div
+        role={header ? 'columnheader' : 'cell'}
+        mix={css({
+          paddingInline: 'var(--space-4)',
+          paddingBlock: 'var(--space-3)',
+          borderBottom: '1px solid var(--hairline)',
+          fontFamily: mono ? 'var(--font-mono)' : 'inherit',
+          fontVariantNumeric: mono ? 'tabular-nums lining-nums' : 'normal',
+          color: muted ? 'var(--fg-muted)' : 'var(--fg)',
+          fontSize: header ? 'var(--fs-10)' : mono ? 'var(--fs-12)' : 'var(--fs-13)',
+          letterSpacing: header ? '0.14em' : 'normal',
+          textTransform: header ? 'uppercase' : 'none',
+          fontWeight: header ? '500' : '400',
+          textAlign: align,
+          minWidth: '0',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: align === 'left' ? 'normal' : 'nowrap',
+        })}
+      >
+        {children}
+      </div>
+    );
+  };
 }
