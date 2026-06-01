@@ -19,14 +19,25 @@
  */
 
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
-import { writeArtifactsTo } from '@factstack/emit/pure';
+import { writeArtifactsTo, type EmitProfile } from '@factstack/emit/pure';
 import { FsaFileWriter } from './fsa-writer.js';
+
+export type { EmitProfile };
 
 export interface BrowserWriteOptions {
   /** User-picked destination directory. Must be opened with mode: 'readwrite'. */
   root: FileSystemDirectoryHandle;
   agent: AgentArtifact;
   human: HumanArtifact;
+  /**
+   * Which artifact set to write. `minimal` ships only the AI-first core
+   * (agent.pack + human.json + MEMORY.md); `legacy` adds agent.json +
+   * agent.jsonl + a snapshot for tooling that reads raw JSON. Default
+   * `legacy` so the orchestrator's behavior is unchanged unless the
+   * caller (OpenModal, reading the per-project localStorage setting)
+   * opts into minimal.
+   */
+  profile?: EmitProfile;
   /** Also emit the streamable `agent.jsonl` companion. Default true. */
   streamable?: boolean;
   /** Write a snapshot row to `.facts/snapshots/<ISO>.json`. Default
@@ -40,8 +51,8 @@ export interface BrowserWriteOptions {
 }
 
 export interface BrowserWriteResult {
-  /** Names relative to `<root>/.facts/`. */
-  agentName: string;
+  /** Names relative to `<root>/.facts/`. `agentName` is null in minimal. */
+  agentName: string | null;
   humanName: string;
   jsonlName: string | null;
   packName: string;
@@ -54,17 +65,19 @@ export async function writeBrowserArtifacts(
   opts: BrowserWriteOptions,
 ): Promise<BrowserWriteResult> {
   const writer = new FsaFileWriter(opts.root);
-  /* Browser default for writeSnapshot is `true` (the in-browser
-     scanner always wants trend data). The Node side defaults to
-     `false` (the CLI's `ui` and `export` commands suppress
-     snapshots; `analyze` opts in explicitly). The orchestrator's
-     default is `false` — so the browser shim flips it when not
-     specified, preserving the pre-deepening behavior. */
-  const writeSnapshot = opts.writeSnapshot ?? true;
+  /* Browser default for writeSnapshot is `true` in LEGACY mode (the
+     in-browser scanner wants trend data for the History tab). In
+     MINIMAL mode snapshots are dropped, so we don't force it on — the
+     orchestrator's minimal default (off) stands unless the caller
+     explicitly asks. The Node side defaults to `false`; the browser
+     shim flips it for legacy to preserve pre-deepening behavior. */
+  const isMinimal = opts.profile === 'minimal';
+  const writeSnapshot = opts.writeSnapshot ?? !isMinimal;
 
   const result = await writeArtifactsTo(writer, opts.agent, opts.human, {
     /* Conditional-spread because exactOptionalPropertyTypes rejects
        `{ key: undefined }`. */
+    ...(opts.profile !== undefined && { profile: opts.profile }),
     ...(opts.streamable !== undefined && { streamable: opts.streamable }),
     writeSnapshot,
     ...(opts.snapshotRetention !== undefined && { snapshotRetention: opts.snapshotRetention }),

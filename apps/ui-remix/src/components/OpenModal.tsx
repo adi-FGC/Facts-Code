@@ -55,6 +55,7 @@ import {
   type Recent,
 } from '../lib/recents.ts';
 import { computeEnvChecks, type EnvCheck } from '../lib/envChecks.ts';
+import { getEmitProfile, setEmitProfile, type EmitProfile } from '../lib/emitProfile.ts';
 
 type Mode = 'local' | 'github';
 /* Phases:
@@ -384,6 +385,66 @@ const savedHint = css({
   paddingLeft: 'calc(1ch + var(--space-2))', // align under the green dot's text
   marginTop: 'calc(var(--space-2) * -1 + 2px)',
   lineHeight: '1.5',
+});
+
+/* ─────────── emit-profile toggle (minimal vs legacy) ─────────── */
+
+const profileRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: 'var(--space-3)',
+  marginTop: 'var(--space-3)',
+  paddingTop: 'var(--space-3)',
+  borderTop: '1px solid var(--hairline)',
+});
+
+const profileLabel = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
+const profileSeg = css({
+  display: 'inline-flex',
+  border: '1px solid var(--border)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+});
+
+const profileSegBtn = css({
+  paddingInline: 'var(--space-3)',
+  paddingBlock: '4px',
+  background: 'transparent',
+  border: 'none',
+  borderRight: '1px solid var(--border)',
+  color: 'var(--fg-muted)',
+  cursor: 'pointer',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  '&:last-child': { borderRight: 'none' },
+  '&:hover:not(:disabled)': { color: 'var(--accent)', background: 'var(--accent-soft)' },
+  '&:disabled': { color: 'var(--fg-faint)', cursor: 'not-allowed' },
+});
+
+const profileSegActive = css({
+  color: 'var(--fg)',
+  background: 'var(--accent-soft)',
+  boxShadow: 'inset 0 -2px 0 0 var(--accent)',
+});
+
+const profileHint = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-faint)',
+  lineHeight: '1.5',
+  marginTop: 'var(--space-2)',
 });
 
 /* ─────────── privacy disclaimer ─────────── */
@@ -748,12 +809,27 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
      confirmation row can show "Wrote N files (X KB) to .facts/" with
      real numbers. Reset on every new scan. */
   let savedSummary: { files: number; bytes: number; destination: string } | null = null;
+  /* Emit profile for the post-scan save. Hydrated from per-project
+     localStorage on show() (keyed by the active source id) so it
+     reflects this project's remembered choice; falls back to the
+     minimal default for a never-set project. The Minimal/Legacy toggle
+     in the save view mutates it + persists per-project. */
+  let emitProfile: EmitProfile = 'minimal';
   /* Cached recents list. Loaded on first show() and refreshed after every
      successful scan. Empty array (not null) is a meaningful state — it
      means "we tried IDB and it returned nothing" so the renderer hides
      the recents section instead of flashing an empty list. */
   let recents: Recent[] = [];
   let recentsLoaded = false;
+
+  /* Set the emit profile for the active project, persist it per-project,
+     and re-render the toggle. */
+  function setProfile(next: EmitProfile) {
+    if (emitProfile === next) return;
+    emitProfile = next;
+    setEmitProfile(getCurrentSourceId(), next);
+    void handle.update();
+  }
 
   /* ─────────── environment / permissions state ─────────── */
 
@@ -1195,10 +1271,24 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     }
 
     try {
-      const written = await bridge.saveArtifacts(destination, lastResult.agent, lastResult.human);
+      /* Per-project emit profile (localStorage). Minimal = the AI-first
+         core (agent.pack + human.json + MEMORY.md); legacy adds the
+         redundant agent.json + agent.jsonl + snapshot. Generate MEMORY.md
+         client-side via the isomorphic buildMemory — the browser flow
+         omitted it before, but it's the highest-value artifact for AI
+         agents (a 2-10 KB cold-start brief). */
+      const { buildMemory } = await import('@factstack/core');
+      const memoryBody = buildMemory(lastResult.agent, lastResult.human);
+      const written = await bridge.saveArtifacts(destination, lastResult.agent, lastResult.human, {
+        profile: emitProfile,
+        memoryBody,
+      });
+      /* Count from the RESULT (which reflects what actually landed) rather
+         than assuming a fixed set — agent.json/jsonl/snapshot are all
+         conditional now. human.json + agent.pack are always written. */
       const filesWritten =
-        2 /* agent.json + human.json */ +
-        1 /* agent.pack */ +
+        2 /* human.json + agent.pack */ +
+        (written.agentName ? 1 : 0) +
         (written.jsonlName ? 1 : 0) +
         (written.snapshotName ? 1 : 0) +
         (written.memoryName ? 1 : 0);
@@ -1253,7 +1343,14 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         });
       }
     }
-    if (saved) setCurrentSourceId(saved.id);
+    if (saved) {
+      setCurrentSourceId(saved.id);
+      /* Hydrate the emit-profile toggle for THIS project from its stored
+         preference (minimal default for a never-saved project). Done
+         here — not in show() — because the project id only exists once a
+         scan completes + persists. */
+      emitProfile = getEmitProfile(saved.id);
+    }
     await refreshRecents();
   }
 
@@ -1741,6 +1838,41 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             </>
           )}
         </div>
+
+        {/* Emit-profile toggle. Per-project (localStorage, keyed by the
+            active source id) so project A can be minimal while B is legacy.
+            Shown pre-save so the user picks the artifact set before writing;
+            disabled while saving/after saved. */}
+        {phase !== 'saved' && (
+          <>
+            <div mix={profileRow}>
+              <span mix={profileLabel}>Artifacts</span>
+              <div mix={profileSeg} role="radiogroup" aria-label="Emit profile">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={emitProfile === 'minimal' ? 'true' : 'false'}
+                  disabled={phase === 'saving'}
+                  title="agent.pack + human.json + MEMORY.md — the AI-first core"
+                  mix={[profileSegBtn, emitProfile === 'minimal' ? profileSegActive : null, on('click', () => setProfile('minimal'))]}
+                >Minimal</button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={emitProfile === 'legacy' ? 'true' : 'false'}
+                  disabled={phase === 'saving'}
+                  title="Adds agent.json + agent.jsonl + a snapshot for tools that read raw JSON"
+                  mix={[profileSegBtn, emitProfile === 'legacy' ? profileSegActive : null, on('click', () => setProfile('legacy'))]}
+                >Legacy</button>
+              </div>
+            </div>
+            <div mix={profileHint}>
+              {emitProfile === 'minimal'
+                ? 'Writes agent.pack + human.json + MEMORY.md. Skips the redundant agent.json, agent.jsonl, and snapshot.'
+                : 'Writes the full set, incl. agent.json + agent.jsonl + a history snapshot — for tooling that reads raw JSON. Remembered for this project.'}
+            </div>
+          </>
+        )}
         <div mix={actionsRow}>
           <button
             type="button"

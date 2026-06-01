@@ -24,7 +24,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
-import { writeArtifactsTo } from './orchestrator.js';
+import { writeArtifactsTo, type EmitProfile } from './orchestrator.js';
 import { NodeFileWriter } from './node-writer.js';
 
 export interface WriteOptions {
@@ -32,6 +32,14 @@ export interface WriteOptions {
   root: string;
   agent: AgentArtifact;
   human: HumanArtifact;
+  /**
+   * Which artifact set to write. Default `legacy` (the full set). The
+   * CLI keeps legacy by default because its own commands (scan-vulns,
+   * diff, export-skills/diagram, ci-report) read `.facts/agent.json`
+   * back — minimal would drop their source of truth. `--minimal` opts
+   * a single run into the lean set (agent.pack + human.json + MEMORY).
+   */
+  profile?: EmitProfile;
   /** Also emit the streamable `agent.jsonl` companion. Default true. */
   streamable?: boolean;
   /** Auto-add `.facts/` to root .gitignore if missing. Default true.
@@ -59,7 +67,7 @@ export interface WriteOptions {
  * — every CLI call site is unchanged.
  */
 export async function writeArtifacts(opts: WriteOptions): Promise<{
-  agentPath: string;
+  agentPath: string | null;
   humanPath: string;
   jsonlPath: string | null;
   packPath: string;
@@ -72,6 +80,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
      `{ key: undefined }` — the orchestrator's options must either
      have the key set to a real value or not have the key at all. */
   const result = await writeArtifactsTo(writer, opts.agent, opts.human, {
+    ...(opts.profile !== undefined && { profile: opts.profile }),
     ...(opts.streamable !== undefined && { streamable: opts.streamable }),
     ...(opts.writeSnapshot !== undefined && { writeSnapshot: opts.writeSnapshot }),
     ...(opts.snapshotRetention !== undefined && { snapshotRetention: opts.snapshotRetention }),
@@ -92,7 +101,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
      the writer's known root. */
   const root = writer.artifactRoot;
   return {
-    agentPath: path.join(root, result.agentName),
+    agentPath: result.agentName ? path.join(root, result.agentName) : null,
     humanPath: path.join(root, result.humanName),
     jsonlPath: result.jsonlName ? path.join(root, result.jsonlName) : null,
     packPath: path.join(root, result.packName),

@@ -14,7 +14,7 @@
  */
 
 export { writeBrowserArtifacts, readBrowserSnapshots } from './write.js';
-export type { BrowserWriteOptions, BrowserWriteResult } from './write.js';
+export type { BrowserWriteOptions, BrowserWriteResult, EmitProfile } from './write.js';
 
 export { browserGzippedBytes, shouldGzip } from './gzip.js';
 

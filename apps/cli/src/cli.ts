@@ -72,7 +72,8 @@ program
   .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
   .option('--no-progress', 'Suppress progress output')
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
-  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean }) => {
+  .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze.')
+  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean }) => {
     // Inherit top-level --json if subcommand-local flag isn't set.
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
@@ -124,12 +125,19 @@ program
         : undefined,
     });
 
+    /* Default `legacy` so the CLI's own downstream commands (diff,
+       scan-vulns, export-skills/diagram, ci-report) — which read
+       .facts/agent.json back — keep working. `--minimal` is an explicit
+       opt-in to the lean set. In minimal, the snapshot is also dropped
+       (the orchestrator forces it off), so we don't pass writeSnapshot. */
+    const minimal = opts.minimal ?? false;
     const written = await writeArtifacts({
       root,
       agent: result.agent,
       human: result.human,
+      profile: minimal ? 'minimal' : 'legacy',
       addGitignoreEntry: opts.gitignoreEntry ?? true,
-      writeSnapshot: true,
+      ...(minimal ? {} : { writeSnapshot: true }),
       memoryBody: buildMemory(result.agent, result.human),
     });
 
@@ -180,9 +188,11 @@ program
       '',
       kleur.bold('  Artifacts'),
       kleur.dim('  ─────────'),
-      `  ${kleur.green('✓')} ${relativize(written.agentPath, root)}`,
+      written.agentPath ? `  ${kleur.green('✓')} ${relativize(written.agentPath, root)}` : '',
       `  ${kleur.green('✓')} ${relativize(written.humanPath, root)}`,
+      `  ${kleur.green('✓')} ${relativize(written.packPath, root)}`,
       written.jsonlPath ? `  ${kleur.green('✓')} ${relativize(written.jsonlPath, root)}` : '',
+      written.memoryPath ? `  ${kleur.green('✓')} ${relativize(written.memoryPath, root)}` : '',
       '',
       kleur.dim(`  Done in ${elapsed.toFixed(0)} ms. Total ${formatBytes(written.bytesWritten)} written.`),
       '',

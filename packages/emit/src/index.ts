@@ -1,6 +1,7 @@
 export { gzippedBytes, shouldGzip } from './gzip.js';
 export { writeArtifacts, readSnapshots } from './write.js';
 export type { WriteOptions } from './write.js';
+export type { EmitProfile } from './orchestrator.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
 export { encodeAgentPack } from './pack.js';

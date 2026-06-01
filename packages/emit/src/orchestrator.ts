@@ -24,7 +24,34 @@ import type { AgentArtifact, FileWriter, HumanArtifact } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema } from '@factstack/spec';
 import { encodeAgentPack } from './pack.js';
 
+/**
+ * Emit profile — controls which artifacts land on disk.
+ *
+ *   - `legacy` (default): the full historical set. `agent.json` (raw
+ *     JSON for tooling/scripts that can't read the pack), `agent.jsonl`
+ *     (streamable per-file), the snapshot row, plus the always-on
+ *     `agent.pack` + `human.json` + optional `MEMORY.md`.
+ *
+ *   - `minimal`: the AI-first core only. `agent.pack` (the canonical,
+ *     token-efficient AI surface), `human.json` (dashboard), and
+ *     `MEMORY.md` (cold-start brief) when a body is supplied. Drops the
+ *     three redundant encodings: `agent.json` (pack supersedes it),
+ *     `agent.jsonl` (derivable), and the snapshot (History-tab only).
+ *
+ * Explicit `streamable` / `writeSnapshot` options still WIN over the
+ * profile when set — the profile only changes their *defaults*. This
+ * keeps the CLI's existing per-command snapshot control intact.
+ */
+export type EmitProfile = 'minimal' | 'legacy';
+
 export interface WriteArtifactsToOptions {
+  /**
+   * Which artifact set to write. Default `legacy` (the full set) so no
+   * existing caller's output changes unless it opts in. See
+   * {@link EmitProfile}. `minimal` drops `agent.json` + `agent.jsonl` +
+   * snapshot; `agent.pack` + `human.json` (+ `MEMORY.md`) always ship.
+   */
+  profile?: EmitProfile;
   /** Also emit the streamable `agent.jsonl` companion. Default true. */
   streamable?: boolean;
   /**
@@ -49,13 +76,13 @@ export interface WriteArtifactsToOptions {
 }
 
 export interface WriteArtifactsResult {
-  /** Always written: `agent.json`. */
-  agentName: 'agent.json';
+  /** `agent.json`, or null in the `minimal` profile (pack supersedes it). */
+  agentName: 'agent.json' | null;
   /** Always written: `human.json`. */
   humanName: 'human.json';
   /** Always written: `agent.pack`. */
   packName: 'agent.pack';
-  /** `agent.jsonl`, or null when streamable: false. */
+  /** `agent.jsonl`, or null when streamable: false / minimal profile. */
   jsonlName: string | null;
   /** `MEMORY.md`, or null when memoryBody is omitted/empty. */
   memoryName: string | null;
@@ -90,21 +117,34 @@ export async function writeArtifactsTo(
   AgentArtifactSchema.parse(agent);
   HumanArtifactSchema.parse(human);
 
-  const agentBody = JSON.stringify(agent, null, 2);
+  const profile: EmitProfile = options.profile ?? 'legacy';
+  const isMinimal = profile === 'minimal';
+
   const humanBody = JSON.stringify(human, null, 2);
-  /* v0.3.10 — FactsPack encoding for the AI surface. agent.json
-     continues to ship for one deprecation cycle so existing readers
-     don't break. The two files derive from the SAME in-memory
-     artifact — no two-source-of-truth drift. */
+  /* FactsPack is the canonical AI surface (~80% fewer tokens than the
+     raw JSON). It ships in EVERY profile — minimal and legacy alike. */
   const packBody = encodeAgentPack(agent);
 
   let bytes = 0;
-  bytes += await writer.writeText('agent.json', agentBody);
+
+  /* agent.json: the raw-JSON encoding. Redundant with agent.pack for
+     AI consumption, but several CLI commands (scan-vulns, diff,
+     export-skills/diagram, ci-report) read it back as their source of
+     truth, and external tooling may parse it. So it stays in `legacy`
+     and is dropped in `minimal`. */
+  let agentName: 'agent.json' | null = null;
+  if (!isMinimal) {
+    bytes += await writer.writeText('agent.json', JSON.stringify(agent, null, 2));
+    agentName = 'agent.json';
+  }
+
   bytes += await writer.writeText('human.json', humanBody);
   bytes += await writer.writeText('agent.pack', packBody);
 
+  /* agent.jsonl: streamable per-file. Profile sets the default
+     (legacy on, minimal off); an explicit `streamable` still wins. */
   let jsonlName: string | null = null;
-  if (options.streamable ?? true) {
+  if (options.streamable ?? !isMinimal) {
     // One file per line for streamable consumption by LLMs on tight
     // context windows.
     const lines = agent.files.map((f) => JSON.stringify(f)).join('\n') + '\n';
@@ -118,8 +158,15 @@ export async function writeArtifactsTo(
     memoryName = 'MEMORY.md';
   }
 
+  /* Snapshot: History-tab trend data. The profile sets the default
+     (legacy keeps the caller's prior default of false; minimal forces
+     off), but an explicit `writeSnapshot` still wins so the CLI's
+     `analyze` (which opts in) and the browser (which defaults on) keep
+     their behavior in legacy mode. In minimal, snapshots are off
+     unless the caller explicitly re-enables them. */
+  const snapshotDefault = isMinimal ? false : (options.writeSnapshot ?? false);
   let snapshotName: string | null = null;
-  if (options.writeSnapshot ?? false) {
+  if (options.writeSnapshot ?? snapshotDefault) {
     snapshotName = await writeSnapshotFile(writer, agent, human);
     if (snapshotName) {
       // Account for the snapshot bytes — writeText returns them but
@@ -137,7 +184,7 @@ export async function writeArtifactsTo(
   }
 
   return {
-    agentName: 'agent.json',
+    agentName,
     humanName: 'human.json',
     packName: 'agent.pack',
     jsonlName,

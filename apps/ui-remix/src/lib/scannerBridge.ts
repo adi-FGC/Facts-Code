@@ -28,7 +28,7 @@
 
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 import { humanToViz } from '@factstack/emit/pure';
-import { writeBrowserArtifacts, type BrowserWriteResult } from '@factstack/emit-browser';
+import { writeBrowserArtifacts, type BrowserWriteResult, type EmitProfile } from '@factstack/emit-browser';
 import type { GitHubFetchSpec } from '@factstack/fs-browser';
 import type { ScanRequest, ScanResponse } from '../scanner.worker.ts';
 import type { Dataset } from './loadArtifacts.ts';
@@ -175,12 +175,19 @@ export async function saveArtifacts(
   destination: FileSystemDirectoryHandle,
   agent: AgentArtifact,
   human: HumanArtifact,
+  opts: { profile?: EmitProfile; memoryBody?: string } = {},
 ): Promise<BrowserWriteResult> {
   const granted = await ensureWritePermission(destination);
   if (!granted) {
     throw new Error('Write permission denied for ' + destination.name);
   }
-  return writeBrowserArtifacts({ root: destination, agent, human });
+  return writeBrowserArtifacts({
+    root: destination,
+    agent,
+    human,
+    ...(opts.profile !== undefined && { profile: opts.profile }),
+    ...(opts.memoryBody !== undefined && { memoryBody: opts.memoryBody }),
+  });
 }
 
 /**

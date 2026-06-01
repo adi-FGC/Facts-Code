@@ -175,3 +175,79 @@ describe('writeArtifactsTo — MEMORY.md', () => {
     expect(r.bytesWritten).toBe(writer.totalBytes());
   });
 });
+
+describe('writeArtifactsTo — emit profile (minimal vs legacy)', () => {
+  it('legacy is the default: writes the full set incl. agent.json + jsonl', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman());
+    expect(writer.has('agent.json')).toBe(true);
+    expect(writer.has('agent.jsonl')).toBe(true);
+    expect(writer.has('agent.pack')).toBe(true);
+    expect(writer.has('human.json')).toBe(true);
+    expect(r.agentName).toBe('agent.json');
+    expect(r.jsonlName).toBe('agent.jsonl');
+  });
+
+  it('explicit legacy matches the default', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { profile: 'legacy' });
+    expect(writer.has('agent.json')).toBe(true);
+    expect(writer.has('agent.jsonl')).toBe(true);
+    expect(r.agentName).toBe('agent.json');
+  });
+
+  it('minimal drops agent.json + agent.jsonl, keeps pack + human', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { profile: 'minimal' });
+    // Dropped:
+    expect(writer.has('agent.json')).toBe(false);
+    expect(writer.has('agent.jsonl')).toBe(false);
+    expect(r.agentName).toBeNull();
+    expect(r.jsonlName).toBeNull();
+    // Always-on:
+    expect(writer.has('agent.pack')).toBe(true);
+    expect(writer.has('human.json')).toBe(true);
+    expect(r.packName).toBe('agent.pack');
+    expect(r.humanName).toBe('human.json');
+  });
+
+  it('minimal still writes MEMORY.md when a body is supplied', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), {
+      profile: 'minimal',
+      memoryBody: '# MEMORY\n',
+    });
+    expect(writer.has('MEMORY.md')).toBe(true);
+    expect(r.memoryName).toBe('MEMORY.md');
+    expect(writer.has('agent.json')).toBe(false);
+  });
+
+  it('minimal drops the snapshot by default', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { profile: 'minimal' });
+    expect(r.snapshotName).toBeNull();
+  });
+
+  it('explicit writeSnapshot wins over the minimal default', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), {
+      profile: 'minimal',
+      writeSnapshot: true,
+    });
+    // The caller explicitly asked, so even minimal honors it.
+    expect(r.snapshotName).not.toBeNull();
+  });
+
+  it('explicit streamable wins over the minimal default', async () => {
+    await writeArtifactsTo(writer, makeAgent(), makeHuman(), {
+      profile: 'minimal',
+      streamable: true,
+    });
+    // Minimal turns jsonl off by default, but the explicit flag re-enables it.
+    expect(writer.has('agent.jsonl')).toBe(true);
+  });
+
+  it('minimal writes byte-fewer than legacy for the same input', async () => {
+    const minimal = new MemoryFileWriter();
+    const legacy = new MemoryFileWriter();
+    const a = makeAgent();
+    const h = makeHuman();
+    const rMin = await writeArtifactsTo(minimal, a, h, { profile: 'minimal' });
+    const rLeg = await writeArtifactsTo(legacy, a, h, { profile: 'legacy' });
+    expect(rMin.bytesWritten).toBeLessThan(rLeg.bytesWritten);
+  });
+});
