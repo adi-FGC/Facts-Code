@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>FACTS — Field Guide: what we have + 200 suggestions</title>
+  <meta name="description" content="An ELI5-with-technical-context field guide to FACTS: every capability that ships today and the value it gives humans vs AI agents, followed by a searchable 200-point suggestion backlog." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:#0B0D10; --surface-1:#14171C; --surface-2:#1B1F25; --surface-3:#21262E;
+      --hairline:rgba(230,232,234,0.08); --border:rgba(230,232,234,0.14);
+      --fg:#E6E8EA; --fg-muted:rgba(230,232,234,0.72); --fg-faint:rgba(230,232,234,0.44);
+      --accent:#7CC4FF; --accent-soft:rgba(124,196,255,0.10);
+      --human:#4ADE80; --ai:#60A5FA;
+      --ok:#6EE7A1; --warn:#FFC857; --danger:#FF8585;
+      --code-bg:rgba(230,232,234,0.04);
+      --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+      --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+      --fs-10:.6875rem; --fs-11:.75rem; --fs-12:.8125rem; --fs-13:.875rem; --fs-14:.9375rem;
+      --fs-16:1rem; --fs-20:1.25rem; --fs-24:1.5rem; --fs-32:2rem; --fs-44:2.75rem; --fs-56:3.5rem;
+      --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+      --ease:cubic-bezier(0.25,1,0.5,1);
+    }
+    @media (prefers-color-scheme:light){:root{
+      --bg:#FAFAF8; --surface-1:#FFF; --surface-2:#F2F2EE; --surface-3:#E9E9E3;
+      --hairline:rgba(11,13,16,0.08); --border:rgba(11,13,16,0.14);
+      --fg:#1A1D21; --fg-muted:rgba(26,29,33,0.72); --fg-faint:rgba(26,29,33,0.44);
+      --accent:#1A6FBF; --accent-soft:rgba(26,111,191,0.08); --code-bg:rgba(11,13,16,0.04);
+      --human:#16A34A; --ai:#2563EB;
+    }}
+    *,*::before,*::after{box-sizing:border-box;}
+    html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:var(--fs-14);
+      line-height:1.62;font-feature-settings:'cv11','ss01','ss03';text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased;}
+    @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
+    a{color:inherit;} ::selection{background:rgba(124,196,255,0.22);}
+    code{font-family:var(--font-mono);font-size:.9em;background:var(--code-bg);padding:1px 5px;border-radius:4px;color:var(--fg);}
+
+    .shell{display:grid;grid-template-columns:minmax(0,1fr);min-height:100vh;}
+    @media (min-width:1080px){.shell{grid-template-columns:248px minmax(0,1fr);}}
+    .rail{position:sticky;top:0;align-self:start;max-height:100vh;overflow-y:auto;
+      border-right:1px solid var(--hairline);padding:var(--s6) var(--s4);
+      background:color-mix(in oklab,var(--bg) 94%,var(--accent) 0%);}
+    @media (max-width:1079px){.rail{position:static;max-height:none;border-right:none;border-bottom:1px solid var(--hairline);}}
+    .rail__brand{display:flex;align-items:center;gap:var(--s2);font-family:var(--font-mono);font-size:var(--fs-10);
+      letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:var(--s2);}
+    .rail__brand .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+    .rail__title{font-size:var(--fs-13);font-weight:600;margin:0 0 var(--s5);letter-spacing:-0.01em;}
+    .rail__search{width:100%;background:var(--surface-1);border:1px solid var(--border);border-radius:8px;color:var(--fg);
+      font-family:var(--font-mono);font-size:var(--fs-12);padding:var(--s2) var(--s3);margin-bottom:var(--s4);}
+    .rail__search::placeholder{color:var(--fg-faint);}
+    .rail__search:focus{outline:none;border-color:var(--accent);}
+    .rail__list{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:1px;}
+    .rail a.rl{display:flex;justify-content:space-between;gap:var(--s2);align-items:baseline;padding:5px var(--s2);
+      font-family:var(--font-mono);font-size:var(--fs-11);color:var(--fg-muted);text-decoration:none;border-left:2px solid transparent;
+      transition:color 120ms var(--ease),border-color 120ms,background 120ms;}
+    .rail a.rl .ct{color:var(--fg-faint);font-size:var(--fs-10);}
+    .rail a.rl:hover{color:var(--fg);background:var(--accent-soft);}
+    .rail a.rl.is-active{color:var(--accent);border-left-color:var(--accent);background:var(--accent-soft);}
+    .rail__foot{margin-top:var(--s6);padding-top:var(--s4);border-top:1px solid var(--hairline);
+      font-family:var(--font-mono);font-size:var(--fs-10);color:var(--fg-faint);line-height:1.7;}
+
+    .content{max-width:1180px;padding-bottom:var(--s8);}
+
+    .hero{position:relative;overflow:hidden;padding:clamp(var(--s7),8vw,var(--s8)) clamp(var(--s5),6vw,var(--s8)) var(--s7);border-bottom:1px solid var(--hairline);}
+    .hero::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.5;
+      background-image:linear-gradient(var(--hairline) 1px,transparent 1px),linear-gradient(90deg,var(--hairline) 1px,transparent 1px);
+      background-size:46px 46px;mask-image:radial-gradient(120% 90% at 85% 0%,#000,transparent 72%);}
+    .hero::before{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+      background:radial-gradient(120% 80% at 100% 0%,rgba(96,165,250,.10),transparent 55%),radial-gradient(90% 70% at 0% 10%,rgba(74,222,128,.07),transparent 50%);}
+    .hero>*{position:relative;z-index:1;}
+    .hero__kicker{font-family:var(--font-mono);font-size:var(--fs-11);letter-spacing:.22em;text-transform:uppercase;color:var(--fg-faint);
+      margin-bottom:var(--s4);display:flex;gap:var(--s3);flex-wrap:wrap;}
+    .hero__kicker b{color:var(--accent);font-weight:500;}
+    .hero h1{font-size:clamp(var(--fs-32),6vw,var(--fs-56));line-height:1.04;letter-spacing:-0.035em;font-weight:700;margin:0 0 var(--s5);max-width:18ch;}
+    .hero h1 .h{color:var(--human);} .hero h1 .a{color:var(--ai);}
+    .hero__lede{font-size:clamp(var(--fs-16),2.1vw,var(--fs-20));color:var(--fg-muted);max-width:62ch;margin:0 0 var(--s6);line-height:1.5;}
+    .hero__stats{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s3);}
+    .stat{font-family:var(--font-mono);font-size:var(--fs-11);color:var(--fg-muted);padding:var(--s2) var(--s3);
+      border:1px solid var(--hairline);border-radius:8px;background:color-mix(in oklab,var(--surface-1) 60%,transparent);}
+    .stat b{color:var(--fg);}
+
+    .band{padding:var(--s7) clamp(var(--s5),6vw,var(--s8));border-top:1px solid var(--hairline);}
+    .eyebrow{font-family:var(--font-mono);font-size:var(--fs-11);letter-spacing:.18em;text-transform:uppercase;color:var(--accent);
+      margin:0 0 var(--s4);display:flex;align-items:center;gap:var(--s3);}
+    .eyebrow::after{content:"";flex:1;height:1px;background:var(--hairline);}
+    h2{font-size:clamp(var(--fs-24),3.2vw,var(--fs-32));letter-spacing:-0.02em;margin:0 0 var(--s4);line-height:1.15;}
+    .lead{font-size:var(--fs-16);color:var(--fg-muted);max-width:74ch;margin:0 0 var(--s5);}
+    .lead code{font-size:.86em;}
+
+    /* inventory */
+    .invgroup{margin-bottom:var(--s6);}
+    .invgroup__h{font-family:var(--font-mono);font-size:var(--fs-12);letter-spacing:.12em;text-transform:uppercase;color:var(--fg);
+      margin:0 0 var(--s3);display:flex;align-items:center;gap:var(--s3);}
+    .invgroup__h .n{color:var(--fg-faint);}
+    .invgrid{display:grid;gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:14px;overflow:hidden;}
+    .inv{background:var(--surface-1);padding:var(--s4) var(--s5);display:grid;gap:var(--s3);grid-template-columns:1fr;}
+    @media (min-width:820px){.inv{grid-template-columns:minmax(190px,1fr) 1.3fr 1.3fr;align-items:start;}}
+    .inv__name{font-weight:600;font-size:var(--fs-14);}
+    .inv__name code{display:inline-block;margin-top:4px;font-size:var(--fs-11);color:var(--accent);background:none;padding:0;}
+    .inv__val{font-size:var(--fs-13);color:var(--fg-muted);padding-left:var(--s4);position:relative;line-height:1.5;}
+    .inv__val::before{position:absolute;left:0;top:0;font-family:var(--font-mono);font-size:var(--fs-10);letter-spacing:.1em;top:3px;}
+    .inv__val--h::before{content:"HUM";color:var(--human);}
+    .inv__val--a::before{content:"AI";color:var(--ai);}
+    @media (min-width:820px){.inv__val{padding-left:var(--s5);} .inv__val--h::before{content:"H";} .inv__val--a::before{content:"AI";}}
+
+    /* suggestions */
+    .filterbar{display:flex;flex-wrap:wrap;gap:var(--s2);margin-bottom:var(--s5);align-items:center;}
+    .chip{font-family:var(--font-mono);font-size:var(--fs-11);letter-spacing:.04em;padding:5px var(--s3);border-radius:999px;
+      border:1px solid var(--border);color:var(--fg-muted);background:transparent;cursor:pointer;transition:all 120ms var(--ease);}
+    .chip:hover{color:var(--fg);border-color:var(--fg-faint);}
+    .chip.is-on{color:var(--bg);background:var(--accent);border-color:var(--accent);font-weight:600;}
+    .countpill{margin-left:auto;font-family:var(--font-mono);font-size:var(--fs-11);color:var(--fg-faint);}
+    .countpill b{color:var(--fg);}
+
+    .catblock{margin-bottom:var(--s7);scroll-margin-top:var(--s5);}
+    .catblock__h{display:flex;align-items:baseline;gap:var(--s3);margin:0 0 var(--s4);padding-bottom:var(--s3);border-bottom:1px solid var(--hairline);}
+    .catblock__h h3{font-size:var(--fs-20);letter-spacing:-0.01em;margin:0;}
+    .catblock__h .tag{font-family:var(--font-mono);font-size:var(--fs-10);color:var(--fg-faint);}
+    .sgrid{display:grid;gap:var(--s3);grid-template-columns:1fr;}
+    @media (min-width:760px){.sgrid{grid-template-columns:1fr 1fr;}}
+    @media (min-width:1320px){.sgrid{grid-template-columns:1fr 1fr 1fr;}}
+    .sug{border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:var(--s4);display:flex;flex-direction:column;gap:var(--s2);
+      transition:border-color 140ms var(--ease),transform 140ms var(--ease);}
+    .sug:hover{border-color:var(--border);transform:translateY(-2px);}
+    .sug__top{display:flex;gap:var(--s3);align-items:baseline;}
+    .sug__num{font-family:var(--font-mono);font-size:var(--fs-11);color:var(--accent);font-variant-numeric:tabular-nums;min-width:2.5em;}
+    .sug__t{font-weight:600;font-size:var(--fs-13);line-height:1.35;}
+    .sug__e{font-size:var(--fs-12);color:var(--fg-muted);line-height:1.5;}
+    .sug__e b{color:var(--human);font-weight:600;}
+    .sug__x{font-family:var(--font-mono);font-size:var(--fs-11);color:var(--fg-faint);line-height:1.55;border-top:1px dashed var(--hairline);padding-top:var(--s2);margin-top:auto;}
+    .sug__x b{color:var(--ai);font-weight:600;}
+    .sug.is-hidden{display:none;}
+    .noresult{font-family:var(--font-mono);font-size:var(--fs-12);color:var(--fg-faint);padding:var(--s5);}
+
+    footer{padding:var(--s7) clamp(var(--s5),6vw,var(--s8));border-top:1px solid var(--hairline);
+      font-family:var(--font-mono);font-size:var(--fs-11);color:var(--fg-faint);line-height:1.8;}
+    footer a{color:var(--accent);text-decoration:none;}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="rail" aria-label="Contents">
+      <div class="rail__brand"><span class="dot"></span> FACTS · FIELD GUIDE</div>
+      <p class="rail__title">What we have + 200 suggestions</p>
+      <input id="search" class="rail__search" type="search" placeholder="/ filter 200 ideas…" aria-label="Filter suggestions" />
+      <ul class="rail__list" id="rail"></ul>
+      <div class="rail__foot">2026-06-02 · rev 2026-06-03 · local doc<br><span style="color:var(--human)">H</span>=human value · <span style="color:var(--ai)">AI</span>=agent value</div>
+    </nav>
+
+    <main class="content">
+      <header class="hero" id="top">
+        <div class="hero__kicker"><span>FIELD GUIDE</span><span>·</span><span><b id="hcount">200</b> suggestions</span><span>·</span><span>ELI5 + technical</span></div>
+        <h1>What FACTS gives <span class="h">humans</span>, what it gives <span class="a">AI</span>, and 200 ways to widen the gap.</h1>
+        <p class="hero__lede">FACTS reads a codebase and writes two things at once: a dashboard a human can skim, and a compact fact-pack an AI agent can swallow whole. Part I is the honest inventory of what ships today and who each piece serves. Part II is a searchable backlog of 200 concrete next moves, each explained plainly with the real technical hook underneath.</p>
+        <div class="hero__stats">
+          <span class="stat"><b>19</b> packages</span>
+          <span class="stat"><b>12</b> CLI verbs</span>
+          <span class="stat"><b>13</b> MCP tools</span>
+          <span class="stat"><b>7</b> UI tabs</span>
+          <span class="stat"><b>10+</b> artifacts</span>
+        </div>
+      </header>
+
+      <!-- PART I -->
+      <section class="band" id="have">
+        <p class="eyebrow">Part I · The inventory</p>
+        <h2>What we have today, and who it serves.</h2>
+        <p class="lead">Every row is something that ships now. <code>H</code> = what a human gets out of it. <code>AI</code> = what an agent gets. The whole bet of FACTS is that one analysis run can feed both columns at once.</p>
+        <div id="inventory"></div>
+      </section>
+
+      <!-- PART II -->
+      <section class="band" id="ideas">
+        <p class="eyebrow">Part II · The backlog</p>
+        <h2>200 suggestions.</h2>
+        <p class="lead">Grouped by area. Each one: a plain-English line (what it is, why anyone cares) and a technical line (the real mechanism / file / format). No ranking here — this is the idea surface, not the build order. For build order, see <code>docs/suggestions.html</code>.</p>
+        <div class="filterbar" id="chips"></div>
+        <div id="cats"></div>
+        <p class="noresult" id="noresult" hidden>No match. Clear the filter.</p>
+      </section>
+
+      <footer>
+        FACTS · field guide · <a href="#top">top</a><br>
+        Docs: <a href="index.html">Index</a> · <a href="briefing.html">Executive briefing</a> · <strong>Field guide</strong> · <a href="suggestions.html">Suggestions</a> · <a href="roadmap.html">Roadmap</a> · <a href="features.html">Features</a> · <a href="ideas.html">Ideas</a><br>
+        Grounded in: packages/{core,graph,scanners,extractors,factspack,intent,skills,spec} · apps/{cli,mcp-server,ui-remix}
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // ───────────────── PART I: inventory ─────────────────
+    const INV = [
+      ['Analysis engine', [
+        ['Whole-project analyzer','@factstack/core','Reads a folder, returns one structured picture of the codebase.','Composes walker→extractors→graph→scanners in one run; isomorphic (Node + browser, constraint C1).'],
+        ['Gitignore-aware walker','@factstack/walker','Skips junk (node_modules, build) so you see real code only.','Honors .gitignore over a FactsFS interface; no direct node:fs (C1) so it runs in-browser too.'],
+        ['JS/TS parsing (Babel)','@factstack/extractors','Understands code structure without running it.','Shared @babel/parser AST wrapper — parse once, reuse across extractors. Multi-language tree-sitter registry is planned (the parsers package is still a stub).'],
+        ['Symbol + outline extraction','@factstack/extractors','Lists the functions, classes, routes, imports in each file.','Pure AST→FileOutline extractors: symbols, symbols-refs, routes, imports, imports-python, astro, config-schema.'],
+        ['Language + framework detection','scanners/languages,frameworks','Tells you "this is a Next.js + Python repo" automatically.','Extension map + package.json/requirements heuristics; merged FrameworkDetection.'],
+      ]],
+      ['Dependency graph', [
+        ['Dependency graph builder','@factstack/graph','A map of which file imports which — the architecture, drawn.','buildDependencyGraph from extractor edges into a canonical graph; isomorphic.'],
+        ['Blast radius (callers)','graph/callers.ts','"If I touch this file, what else breaks?"','buildCallerIndex → reverse-dependency index (who imports X).'],
+        ['Cycle + orphan detection','core query / graph','Finds tangles (A↔B) and dead files nothing imports.','query verbs cycles | orphans over the resolved graph.'],
+        ['Import resolution + aliases','graph/resolver.ts','Follows `@lib/*` and workspace imports to real files.','resolveSpecifier + resolveAlias + workspace/alias indexes (tsconfig paths).'],
+        ['Mermaid diagram export','core/diagram.ts','A picture of the architecture you can paste in a PR.','buildDiagram → package / hub / focal Mermaid; edge styles encode import/type/dynamic.'],
+      ]],
+      ['Security & supply chain', [
+        ['Secret scanner','scanners/secrets.ts','Catches API keys and tokens left in the code.','Rule-based scan; raw secrets NEVER emitted — redacted preview enforced at the type level.'],
+        ['CVE scanner (OSV)','scanners/vulnerabilities.ts','Tells you which dependencies have known security holes.','Opt-in scan-vulns queries OSV.dev against parsed dependency manifests.'],
+        ['Dependency manifest parse','scanners/dependencies.ts','Knows every package you depend on, across ecosystems.','detectManifestEcosystem + scanDependencyManifest + flattenManifests.'],
+        ['License scanner','scanners/licenses.ts','Flags risky licenses (e.g. GPL in a closed product).','scanFileLicense + scanManifestLicense → LicenseRisk.'],
+        ['TODO / FIXME harvester','scanners/todos.ts','Collects every "fix this later" into one list.','scanTodos → TodoEntry with file:line + tag.'],
+      ]],
+      ['AI-agent surface', [
+        ['agent.pack (FactsPack)','@factstack/factspack','A zipped-down fact sheet an AI reads ~80% cheaper than JSON.','Line-oriented wire format; pure isomorphic encoder/decoder; canonical agent context.'],
+        ['MEMORY.md cold-start brief','core/memory.ts','A 2–10 KB "read me first" so an agent gets the gist instantly.','Replaces a 40–200 KB cold read of agent.json; read_memory MCP tool.'],
+        ['MCP server','apps/mcp-server','Lets Claude/Cursor query the codebase as live tools.','13 tools + resource templates over Model Context Protocol.'],
+        ['Skill bundles','@factstack/skills','Auto-writes the config that makes Claude/Cursor/Copilot smart on your repo.','agentToSkillSpec → Claude SKILL.md + .cursorrules + copilot-instructions.md.'],
+        ['Learnings ledger','core/learnings.ts','Remembers what agents proposed and whether humans accepted it.','learnings.jsonl append + query; calibration ("what have agents been right about?").'],
+      ]],
+      ['Artifacts & emit', [
+        ['agent.json / human.json','@factstack/emit','One file for machines, one shaped for a dashboard.','Zod-validated AgentArtifact + HumanArtifact; schema-versioned.'],
+        ['agent.jsonl stream','emit','Lets a tool read facts line-by-line without loading it all.','Newline-delimited record stream.'],
+        ['Emit profiles (minimal / legacy)','emit','Write just the AI-first core, or the full set with history.','--minimal writes agent.pack + human.json + MEMORY.md; legacy adds agent.json + agent.jsonl + snapshot. (A node:sqlite index is on the roadmap, not yet emitted.)'],
+        ['Snapshots + since','core/since.ts','Remembers past states so you can ask "what changed?"','.facts/snapshots/ baseline + since(timestamp) → added/modified/removed.'],
+        ['Intent generator','@factstack/intent','Guesses what the project is *for* in one sentence.','Deterministic signal composition (frameworks, monorepo shape, entrypoints).'],
+      ]],
+      ['Surfaces', [
+        ['CLI (factstack)','apps/cli','One command to analyze, serve, export, scan.','12 verbs: analyze, ui, watch, diff, review, query, scan-vulns, export, export-skills, export-diagram, ci-report, doctor.'],
+        ['Web dashboard','apps/ui-remix','A clickable, evidence-first view of the codebase.','Remix v3 (React-free) · 7 tabs (+ Config/About) · deploys static or live.'],
+        ['Self-contained HTML export','cli export','Email someone a whole interactive report, no server.','Inlines the dataset into one HTML file.'],
+        ['CI report','cli/emitters/ci-report.ts','A markdown summary to drop in a PR.','Head-vs-base markdown diff for PR comment / step summary.'],
+        ['Live watch + SSE','cli watch','Re-analyzes as you edit, pushes updates to the UI.','File-watch + Server-Sent Events push.'],
+      ]],
+    ];
+
+    // ───────────────── PART II: 200 suggestions ─────────────────
+    // each: [title, eli5, technical]
+    const CATS = [
+      ['engine','Analysis engine & languages', [
+        ['More language extractors','Right now some languages are first-class and others are guessed. Teach it Go, Rust, Java, C#, Ruby, PHP properly.','Add per-language symbol/import extractors over the planned tree-sitter registry; emit canonical FileOutline.'],
+        ['Call-graph, not just import-graph','Knowing file A imports B is coarse; knowing function f() calls g() is the real wiring.','Extend symbols-refs to resolve call expressions to declarations; add intra-file + cross-file call edges.'],
+        ['Type-aware resolution','Follow types, not just names, so `import type` and re-exports resolve correctly.','Use TS server / tree-sitter type queries to disambiguate barrel re-exports and aliased types.'],
+        ['Dead-code detection','Show code nothing reaches so it can be deleted with confidence.','Reachability over the call+import graph from entrypoints; flag unreferenced exports.'],
+        ['Monorepo workspace awareness','Treat a pnpm/turbo monorepo as many projects that talk to each other.','Per-package sub-analysis + cross-package edge layer; already have workspace index seed.'],
+        ['Generated-code filter','Stop counting machine-generated files as if a human wrote them.','Heuristic + header sniff (e.g. "// GENERATED") to tag and down-weight nodes.'],
+        ['Incremental re-analysis','Only re-read files that changed instead of the whole repo.','Content-hash per file; reuse prior outline when hash matches; rebuild graph deltas.'],
+        ['Config-file intelligence','Understand what env vars and feature flags the app reads.','Already extract env reads (get_config); extend to .env, flags, feature toggles.'],
+        ['SQL / schema extraction','Pull the database tables and columns the code implies.','Parse ORM models + raw SQL strings into an entity outline.'],
+        ['API surface extraction','List the public functions/exports a package offers to others.','Diff exported symbols vs internal; produce a package "public API" outline.'],
+        ['Test-to-source mapping','Show which tests cover which file, and which files have none.','Resolve test imports back to source symbols (Tests tab seed); compute coverage-by-reachability.'],
+        ['Comment / doc extraction','Surface the docstrings that already explain the code.','Capture leading JSDoc/docstring per symbol into the outline for humans + agents.'],
+        ['Binary / asset accounting','Account for images, fonts, wasm that bloat a repo but aren\'t code.','Classify non-code leaves; size + type rollup separate from LOC.'],
+        ['Confidence scores on inference','Say how sure it is, instead of pretending every guess is fact.','Attach 0..1 confidence to framework/intent/edge inferences; surface low-confidence distinctly.'],
+      ]],
+      ['graph','Dependency graph & architecture', [
+        ['Layer/tier auto-classification','Auto-sort files into entry → routes → domain → infra tiers.','Topological + heuristic layering (Sugiyama already renders it); persist tier per node.'],
+        ['God-object / hub risk score','Flag the one file everyone imports — a refactor landmine.','Rank by fan-in from buildCallerIndex; threshold + trend it over snapshots.'],
+        ['Coupling & cohesion metrics','Measure how tangled modules are, in a number leaders track.','Compute afferent/efferent coupling + instability (Ce/(Ca+Ce)) per package.'],
+        ['Layering-violation detector','Catch infra importing routes — architecture going backwards.','Define allowed tier edges; flag upward/backward edges as violations.'],
+        ['Cycle severity ranking','Not all cycles are equal; rank by how much they entangle.','Weight SCCs by node count + edge weight; surface worst-first.'],
+        ['Module boundary suggestions','Suggest where to split a big tangle into clean modules.','Community detection (Louvain) on the graph; propose cluster boundaries.'],
+        ['Ownership overlay','Map who owns which part of the graph (via CODEOWNERS / git).','Join graph nodes with CODEOWNERS + git blame authorship.'],
+        ['Change-coupling (temporal)','Show files that always change together even with no import.','Mine co-change from git history; add temporal edges distinct from static.'],
+        ['Entrypoint discovery','Auto-find the real front doors (main, routes, CLI bins).','Heuristics over package.json bin/main, framework conventions, route files.'],
+        ['Graph diff between versions','Visualize how the architecture changed between two analyses.','Node/edge set diff across snapshots; render added/removed/moved.'],
+        ['Path query ("how does A reach B?")','Answer "does the payment code ever touch the auth code?"','BFS/DFS path search over the graph; expose as a query verb + MCP tool.'],
+        ['Impact estimate per file','Before editing, see the blast radius size as a number.','|transitive callers| + risk-weighted reach from buildCallerIndex.'],
+        ['Visual graph clustering','Group the graph so a 2000-node repo is still readable.','Cluster by package/folder; collapse/expand; already have Sugiyama base.'],
+        ['Orphan triage','Separate truly-dead files from "entrypoint we didn\'t detect".','Cross-check orphans against entrypoint heuristics + dynamic-import scan.'],
+      ]],
+      ['change','Change intelligence & PR review', [
+        ['Change Verdict (the wedge)','One grounded answer: what does this PR do to the system, and is it risky?','buildChangeVerdict(diff,graph): fuse dep+vuln+secret+cycle deltas + blast radius → severity headline.'],
+        ['PR-comment markdown','Post the verdict straight into the pull request.','Render verdict as markdown; reuse ci-report plumbing; idempotent edit.'],
+        ['review_change MCP tool','Let an AI reviewer ask FACTS instead of re-reading the diff.','New MCP tool returning structured verdict JSON; token-cheap vs raw diff.'],
+        ['New-cycle alarm','Shout when a PR introduces a new dependency loop.','Diff SCC sets pre/post; flag newly-formed cycles in the verdict.'],
+        ['Blast-radius-in-PR','Show the reviewer how many modules this change can break.','Transitive callers of changed files surfaced inline.'],
+        ['Risk-delta headline','"+1 CVE, +1 secret, −3 TODOs" at a glance.','Compose scanner deltas from diffArtifacts into a one-line scoreboard.'],
+        ['Test-gap on changed code','Flag changed files that no test touches.','Intersect changed set with test-to-source map; report uncovered.'],
+        ['Severity policy + fail-on','Block merges that cross a line (new GPL, high CVE).','Policy file (.facts/policy.json) + --fail-on exit codes.'],
+        ['Auto-summary of the change','Plain-English "what this PR does" from the structural diff.','Template from symbol/route/dep deltas; optional LLM polish.'],
+        ['Reviewer checklist','Generate the 3 things a human should actually verify here.','Derive from touched tiers + risk deltas; e.g. "auth touched → check token expiry".'],
+        ['Hotspot warning','"You\'re editing the file 14 modules depend on — careful."','Cross fan-in rank with the changed set at review time.'],
+        ['Migration / breaking-change detector','Catch public-API removals that break downstreams.','Diff exported symbols; flag removed/renamed public exports.'],
+        ['Diff-scoped pack','Give an agent only the context the PR touches.','Slice agent.pack to changed files + their blast radius.'],
+        ['Approve-confidence score','A single 0–100 "how safe to merge" with reasons.','Weighted rollup of verdict findings; show the math, not a black box.'],
+      ]],
+      ['security','Security & secrets', [
+        ['Entropy-based secret detection','Catch keys that don\'t match a known pattern by looking random.','Add Shannon-entropy heuristic alongside rule-based scanSecrets.'],
+        ['JWT public-vs-private awareness','Don\'t flag a Supabase anon key (meant to ship) like a service_role key.','Classify token kind; only the dangerous server-side key is high severity.'],
+        ['Git-history secret scan','A key deleted today may still live in old commits.','Scan packed history for secret patterns, not just the working tree.'],
+        ['Secret rotation guidance','When a key leaks, tell the human exactly how to rotate it.','Per-provider rotation playbooks keyed by ruleId (Credentials tab seed).'],
+        ['Live secret validation','Tell if a leaked key is still active (highest urgency).','Optional, consented probe to provider auth endpoint; never logs the secret.'],
+        ['IaC / Dockerfile scanning','Misconfig in infra files is as risky as code.','Extend scanners to Dockerfile, k8s yaml, terraform for known bad patterns.'],
+        ['Permission / scope analysis','Show what the app is allowed to do (file, net, env).','Aggregate detected fs/net/env access into a capability summary.'],
+        ['Taint hints (source→sink)','Flag where user input could reach a dangerous call.','Lightweight dataflow from request params to exec/query sinks.'],
+        ['Dependency confusion check','Catch internal package names a public registry could hijack.','Compare manifest names against public registry existence.'],
+        ['Secret allowlist / suppressions','Let teams say "this test fixture is fine" without noise.','.facts/secrets-allow with justification; tracked, not silent.'],
+        ['Severity calibration','Stop crying wolf so the real alarms get heard.','Confidence × exploitability scoring; demote low-confidence to info.'],
+        ['Security trend over time','Is the codebase getting safer or worse each week?','Track secret/CVE counts across snapshots; sparkline + delta.'],
+      ]],
+      ['supply','Supply chain, licenses & SBOM', [
+        ['SBOM export (CycloneDX/SPDX)','The "ingredients list" customers and auditors now demand.','Emit standard SBOM JSON from flattenManifests + license data.'],
+        ['Transitive dependency graph','See the deps of your deps, where most risk hides.','Resolve lockfiles to full transitive tree; attribute CVEs to paths.'],
+        ['License compatibility matrix','Catch a copyleft license that poisons a proprietary product.','Policy table of license combos; flag incompatible pairs.'],
+        ['Outdated / abandoned dep flags','Spot packages that haven\'t shipped in years.','Registry metadata: last-publish age, deprecation, maintainer count.'],
+        ['Vuln auto-fix suggestion','Not just "you have a CVE" but "bump to 4.2.1 to fix it".','Map OSV advisory fixed-range to a concrete upgrade target.'],
+        ['Reachability of vulnerable code','A CVE you never call is lower priority — say so.','Cross CVE\'d package exports with the call graph; flag reachable ones.'],
+        ['Dependency weight / cost','Show which dep adds the most bytes/tokens to the build.','Join manifest with bundle-size + tokencost estimates.'],
+        ['Typosquat detection','Catch `lodahs` pretending to be `lodash`.','Levenshtein distance vs popular package names + age signal.'],
+        ['Provenance / signature check','Verify a package is really from who it claims.','Check npm provenance / sigstore attestations where present.'],
+        ['Update PR generator','Open the dependency-bump PR for the user.','Compute safe upgrade set; generate branch + changelog (needs git surface).'],
+        ['Internal package catalog','For monorepos, a directory of what each internal package offers.','Public-API outline per workspace package, cross-linked.'],
+        ['Supply-chain trend','Track CVE count / outdated count across time.','Snapshot the supply-chain rollup; trend + alert on regression.'],
+      ]],
+      ['pack','AI context pack & token economy', [
+        ['Delta pack (since last read)','Give an agent only what changed, not the whole repo again.','context_since(packHash): changed symbols/edges/risks, token-budgeted.'],
+        ['Token-budgeted pack','"Give me the 8k-token version" for a small context window.','Greedy importance ranking until budget; drop low-value rows first.'],
+        ['Importance-ranked context','Lead with the files that matter, not alphabetical order.','Rank by fan-in + recency + risk; pack emits most-important-first.'],
+        ['Task-scoped pack','"Only the auth-related context" for a focused agent task.','Filter pack to a subgraph by query/seed file + blast radius.'],
+        ['Streaming pack','Let the agent start reading before the whole thing is built.','Chunked agent.jsonl stream with stable record ordering.'],
+        ['Embedding-ready chunks','Pre-chunk the codebase for retrieval/RAG pipelines.','Emit symbol-sized chunks with stable ids + metadata for vector stores.'],
+        ['Natural-language repo summary','A paragraph an agent (or human) can read in 10 seconds.','Compose intent + capabilities + stack into prose; cache in MEMORY.md.'],
+        ['Question-answering endpoint','Ask "where is auth handled?" and get file:line back.','Map NL query → graph/symbol search; return cited locations.'],
+        ['Context freshness signal','Tell the agent how stale its context is.','Stamp pack with analyzedAt + changed-since-count; agent decides to refresh.'],
+        ['Cross-repo pack','One context spanning several repos for an agent.','Merge per-repo packs with namespaced ids + cross-repo edges.'],
+        ['Redaction profiles','Strip secrets/PII before handing context to a 3rd-party model.','Configurable redaction pass on pack emit; default-on for secrets.'],
+        ['Token-cost dashboard','Show humans how many tokens each part of the repo costs.','tokencost per file/package; surface the expensive context.'],
+        ['Pack diff explainer','Tell the agent in words what changed in its context.','Render delta pack as "added X, removed Y, risk now Z".'],
+        ['Cache-key contract','Stable hashes so agents cache context correctly.','Content-addressed pack hash; ETag-style revalidation.'],
+        ['Golden-context tests','Prove the pack actually answers real agent questions.','Eval harness: questions → expected cited files; regression-gate the pack.'],
+      ]],
+      ['mcp','MCP server depth', [
+        ['review_change tool','The PR verdict, callable by any MCP client.','Returns structured ChangeVerdict; the agent-side of the wedge.'],
+        ['search_code tool','Let an agent grep semantically, not just by string.','Symbol + outline search over the index; ranked results with cites.'],
+        ['path_between tool','"Does module A reach B?" as a one-call answer.','Graph path query exposed over MCP.'],
+        ['propose_edit + log','Agent proposes a change; FACTS records it for calibration.','Wrap log_learning with structured edit proposals + outcomes.'],
+        ['MCP resources for files','Expose files as MCP resources, not just tools.','Resource templates for source + outline (outline template exists).'],
+        ['Streaming tool responses','Return big results progressively to the agent.','Chunked tool output for large graph/pack responses.'],
+        ['Auth + multi-project','One server, many projects, with access control.','Project routing + token auth (needs infra you own).'],
+        ['Tool usage analytics','See which tools agents actually use, to cut the rest.','Local usage counters per tool; inform the surface.'],
+        ['get_intent tool','One call for "what is this project for".','Expose intent generator output over MCP.'],
+        ['watch / subscribe','Push to the agent when the codebase changes.','SSE/notification channel tied to the watch pipeline.'],
+        ['Schema-first responses','Every tool ships a schema so any language can parse it.','Already have schema resource; attach $schema to each response.'],
+        ['Capability discovery','Let a client ask what this server can do up front.','Manifest endpoint enumerating tools, formats, versions.'],
+      ]],
+      ['skills','Skills & onboarding', [
+        ['One-command init-agent','`factstack init-agent` drops in everything to make AI smart on the repo.','Write .claude/ + .cursor/ + MEMORY.md + pack in one verb.'],
+        ['Auto-refresh skills','Keep the agent config current as the code changes.','Regenerate skill files on significant change via watch hook.'],
+        ['More agent targets','Support Windsurf, Cline, Aider, Continue, JetBrains AI.','Add renderers alongside Claude/Cursor/Copilot in @factstack/skills.'],
+        ['Skill quality lint','Check the generated skill actually helps, not just exists.','Heuristics: coverage of entrypoints, risks, conventions in SKILL.md.'],
+        ['Convention extraction','Teach the agent the repo\'s own patterns (naming, structure).','Mine repeated structural patterns; emit "house style" rules.'],
+        ['Do/Don\'t rules from history','Turn past accepted/rejected proposals into agent guardrails.','Compile learnings.jsonl into positive/negative rules.'],
+        ['Per-area skills','A focused brief for "the payments module" not the whole repo.','Scope skill emit to a subgraph.'],
+        ['Skill marketplace export','Publish a repo\'s skill so others onboard fast.','Package skill bundle as a shareable artifact.'],
+        ['Onboarding walkthrough','A guided "start here → then here" path for new humans.','Order entrypoints + key files into a reading sequence.'],
+        ['Glossary generation','Define the repo\'s domain words so newcomers + agents align.','Extract recurring domain nouns; link to defining symbols.'],
+      ]],
+      ['learn','Learnings & calibration', [
+        ['Calibration dashboard','Show which agents/humans are usually right here.','Aggregate learnings.jsonl by agent/outcome; accuracy over time.'],
+        ['Confidence vs outcome curve','Are "90% sure" proposals actually right 90% of the time?','Bucket proposals by stated confidence; plot vs accepted rate.'],
+        ['Auto-rules from rejections','Stop agents repeating a mistake humans already rejected.','Mine rejected patterns → negative guardrails fed back to skills.'],
+        ['Decision provenance','Link a merged change back to who/what proposed it.','Join learnings with git commits + PR ids.'],
+        ['Team memory','Capture "why we did it this way" before it\'s forgotten.','Structured rationale entries attached to files/decisions.'],
+        ['Stale-decision review','Surface old decisions worth revisiting.','Age + change-coupling flags on past rationale entries.'],
+        ['Agent leaderboard','Which model/agent gives the best proposals on this repo.','Per-agent accepted-rate ranking from the ledger.'],
+        ['Outcome reminders','Nudge to record whether a proposal actually worked.','Pending-outcome queue from log_learning entries.'],
+        ['Export to fine-tune set','Turn accepted changes into training data for a house model.','Emit (context, proposal, outcome) tuples as a dataset.'],
+        ['Privacy controls','Keep calibration data local and scrubbed.','Local-only by default; redaction on export.'],
+      ]],
+      ['cli','CLI & developer experience', [
+        ['JSON/quiet output modes','Make every verb pipeable into other tools.','--json + --quiet flags across verbs; stable machine output.'],
+        ['Exit codes that mean something','Let scripts react to "found secrets" vs "ok".','Documented exit-code contract per verb.'],
+        ['Config file','Stop re-typing flags; put them in .facts/config.','Already partially; expand to all verbs + profiles.'],
+        ['Interactive TUI','A keyboard dashboard in the terminal for quick looks.','Ink/blessed TUI over core; reuse the same data as the web UI.'],
+        ['Shell completions','Tab-complete verbs and paths.','Generate bash/zsh/fish completion scripts.'],
+        ['Profiles (minimal/legacy/ci)','Pick how much to emit for the situation, in one word.','Emit profiles already exist; expose as named CLI presets.'],
+        ['Self-update / version check','Tell the user when a newer FACTS exists.','Version ping + changelog surface.'],
+        ['Plugin API','Let others add custom scanners/extractors.','Documented extension points + registration hook.'],
+        ['Watch performance HUD','Show analyze time + what\'s slow while watching.','Per-phase timing surfaced in watch output.'],
+        ['Offline mode guarantees','Work with zero network when needed (no OSV calls).','Explicit --offline; skip + mark network-dependent steps.'],
+        ['Doctor deep mode','Diagnose why analysis is incomplete on this machine.','Extend doctor: parser load, permissions, memory, language coverage.'],
+        ['Deno / Bun first-class','Run anywhere modern JS runs, not just Node.','Already Node20+/Deno2+; verify + document Bun path.'],
+      ]],
+      ['ui','Web UI & visualization', [
+        ['Search across everything','One ⌘K to find any file, symbol, route, risk.','Palette over the unified index; already have CommandPalette base.'],
+        ['Deep-linkable everything','Share a URL that opens the exact file:line/view.','Stable hash routes for selection state (route-pattern based).'],
+        ['Side-by-side file diff','See what changed in a file between snapshots.','Per-file diff view in History tab (spec\'d for v0.2).'],
+        ['Graph minimap + fit','Navigate a huge graph without getting lost.','Minimap + fit-to-screen on the Sugiyama/flow canvas.'],
+        ['Saved views / bookmarks','Pin the screens a team checks every week.','Persist view+filter state to localStorage / .facts/config.'],
+        ['Annotations / notes','Let a human pin a note to a file or risk.','Local annotation store keyed by node id; export with artifacts.'],
+        ['Print/PDF the overview','A CXO exports the dashboard as a one-pager.','@media print stylesheet → PDF; flatten glass (design_spec §12).'],
+        ['Empty-state coaching','Tell a new user exactly what to run next.','Per-tab empty states (design_spec §6.4) wired to real next-commands.'],
+        ['Keyboard-first navigation','Power users never touch the mouse.','j/k lists, shortcuts per design_spec §9; audit coverage.'],
+        ['Risk triage workflow','Mark a risk accepted/ignored/fixed, persistently.','Status per finding stored locally; filter by triage state.'],
+        ['Mobile drawer polish','The dashboard works on a phone, not just a monitor.','82vw drawer + scrollable tabs (design_spec §3.3).'],
+        ['Live re-analyze button state','Show progress, not a frozen spinner, during analysis.','Determinate ring on Re-analyze; SSE-driven progress.'],
+        ['Compare-two-repos view','Put two codebases side by side.','Dual-dataset shell; diff metrics across them.'],
+        ['Accessibility audit pass','Make it usable with a screen reader + keyboard.','axe-core in CI; aria-live for analysis; graph list-view fallback.'],
+        ['Shareable read-only link','Send a stakeholder a view without the tooling.','Static export already; add a hosted read-only share (needs infra).'],
+      ]],
+      ['history','History, trends & drift', [
+        ['Architecture drift report','Is the codebase getting more tangled over time?','Trend coupling/cycle/hub metrics across snapshots; alert on slope.'],
+        ['Coverage trend','Watch test coverage of changed code rise or fall.','Track coverage-by-reachability per snapshot.'],
+        ['Risk burndown','See secrets/CVEs/TODOs going down (or not).','Trend scanner counts; target lines.'],
+        ['Hotspot history','Which files churn the most and carry the most risk.','Join git churn with risk density per file over time.'],
+        ['Ownership decay','Flag code whose owner left or hasn\'t touched it in ages.','git authorship recency vs CODEOWNERS.'],
+        ['Snapshot scheduling','Auto-snapshot on a cadence so trends exist later.','Cron/CI hook to run analyze + snapshot.'],
+        ['Regression alerts','Ping when a metric crosses a bad threshold.','Threshold model + notification surface.'],
+        ['Velocity / change-rate','How fast is each area of the code moving.','Change counts per subgraph over time.'],
+        ['"What changed this week" digest','A Monday-morning summary of the codebase.','Compose since() over a week into a readable digest.'],
+        ['Time-travel view','Scrub the dashboard back to a past snapshot.','Load any snapshot as the active dataset.'],
+      ]],
+      ['integ','Integrations & delivery', [
+        ['GitHub App','Auto-post the verdict on every PR.','App + webhook + check-run/comment API (needs hosting).'],
+        ['GitHub Action','Drop FACTS into any CI in 3 lines.','Published action wrapping ci-report/review.'],
+        ['GitLab / Bitbucket','Meet teams where their code lives.','MR comment integrations mirroring the GitHub path.'],
+        ['Slack / Discord alerts','Push risk + drift alerts to where people talk.','Webhook emitter for verdict/threshold events.'],
+        ['VS Code extension','See FACTS inline while coding.','Webview reusing the UI + LSP-style inline risk markers.'],
+        ['JetBrains plugin','Same, for the other half of developers.','Tool window over the MCP/CLI surface.'],
+        ['Pre-commit hook','Catch a leaked secret before it\'s even committed.','git hook running scan-vulns/secrets on staged files.'],
+        ['Jira / Linear sync','Turn risks into tracked tickets automatically.','Map findings → issues via their APIs.'],
+        ['Webhooks out','Let teams pipe FACTS events into their own systems.','Generic outbound webhook on analyze/verdict.'],
+        ['Datadog / Grafana metrics','Put codebase health on the same dashboards as prod.','Emit metrics in OpenMetrics format.'],
+        ['Docker image','One container that analyzes anything.','Publish a slim image with the CLI + parsers baked in.'],
+        ['npm/pip postinstall report','Show supply-chain risk at install time.','Optional hook printing a CVE summary on install.'],
+        ['REST API','A simple HTTP endpoint for non-MCP consumers.','Wrap core behind a documented REST surface.'],
+      ]],
+      ['perf','Performance & scale', [
+        ['Parallel analysis','Use all CPU cores to analyze big repos fast.','Worker-pool the parse/extract phase; merge graph at the end.'],
+        ['Streaming/■out-of-core graph','Handle repos too big to fit the graph in memory.','Chunked graph build backed by index.db; page nodes.'],
+        ['Parser warm-cache','Don\'t reload WASM grammars every run.','Persist compiled grammar cache between runs.'],
+        ['Analysis budget / sampling','Get a fast approximate answer on giant monorepos.','Time-boxed analyze with documented sampling + a "partial" flag.'],
+        ['Memory ceiling guard','Never OOM the user\'s machine on a huge repo.','Backpressure + spill to index.db past a memory watermark.'],
+        ['Benchmark suite','Prove each release isn\'t slower than the last.','Perf-regression bench gating CI (benchmark skill exists).'],
+        ['Lazy UI dataset','The dashboard loads instantly even on huge repos.','Paginate/virtualize tree + graph; stream the dataset.'],
+        ['Bundle headroom','Keep the web app first-paint small as it grows.','Main JS at 79.75/80KB; lazy-split or raise cap before it trips.'],
+        ['Cold-start time target','Analyze a typical repo in under N seconds, tracked.','Define + track p50/p95 analyze time per repo size.'],
+        ['WASM size diet','Ship fewer/smaller grammars by default.','Lazy-load grammars on demand by detected language.'],
+      ]],
+      ['money','Monetization & packaging', [
+        ['Hosted SaaS tier','Run FACTS for teams who don\'t want to self-host.','Multi-tenant analyze + dashboards + auth + billing.'],
+        ['Per-seat vs per-repo pricing','Match price to how value actually lands.','Meter on repos analyzed / verdicts posted / agent calls.'],
+        ['Free OSS, paid cloud','Win developers free, charge for the team surface.','Keep CLI/MCP OSS; monetize hosting, history, portfolio.'],
+        ['Agent-call metering','Charge agents/operators for the context API.','Meter MCP/pack calls; the "AI pays in tokens saved" pitch.'],
+        ['Compliance pack as product','Sell the SBOM + posture report as a deliverable.','Branded, dated, exportable security report.'],
+        ['Portfolio dashboard (org)','One risk surface across all of a company\'s repos.','Multi-repo rollup; the CTO buyer.'],
+        ['Marketplace listing','Be discoverable where buyers already shop.','GitHub Marketplace + VS Code + MCP registries.'],
+        ['Usage-based context API','Pay-as-you-go endpoint for AI builders.','Token-budgeted pack behind an API key + quota.'],
+        ['Self-host enterprise','Air-gapped install for security-conscious orgs.','Licensed on-prem build; no outbound calls.'],
+        ['Design-partner program','A few teams shape the paid product with you.','Instrument + interview; tight feedback loop.'],
+        ['ROI calculator','Show a buyer the tokens/hours FACTS saves them.','From pack token-savings + review-time deltas.'],
+      ]],
+      ['trust','Testing, trust & correctness', [
+        ['Accuracy benchmarks','Prove the analysis is actually right, with numbers.','Fixture repos with known-good graphs; precision/recall on edges.'],
+        ['Golden artifacts','Lock the output so a refactor can\'t silently change facts.','Snapshot agent.json/pack for fixtures; diff-gate in CI.'],
+        ['Cross-language test matrix','Make sure every language extractor really works.','Per-language fixture + assertion suite.'],
+        ['Determinism guarantee','Same repo → same artifact, every time.','Sort + stable ids; test for byte-stable output.'],
+        ['False-positive tracking','Measure and drive down noisy findings.','Label fixtures; track FP rate per scanner over releases.'],
+        ['Fuzz the parsers','Don\'t crash on weird/broken source files.','Feed malformed inputs; assert graceful degradation.'],
+        ['Schema-compat tests','Never break agents that depend on the format.','Contract tests across schema versions; deprecation policy.'],
+        ['Public correctness page','Show users how accurate FACTS is, honestly.','Publish benchmark results; build trust through transparency.'],
+      ]],
+      ['docs','Docs, community & growth', [
+        ['Interactive demo on real repos','Let people try FACTS on a famous codebase instantly.','Hosted demo pre-loaded with well-known OSS projects.'],
+        ['"Explain my repo" share','A link that explains any public repo in 2 minutes.','Analyze-on-demand + shareable read-only view.'],
+        ['Recipes / cookbook','Copy-paste guides for common jobs (CI, agents, audit).','Task-oriented docs with runnable snippets.'],
+        ['Format spec docs','Let anyone build on agent.pack in any language.','Publish the FactsPack wire-format spec + decoders.'],
+        ['Comparison pages','Honestly show where FACTS fits vs alternatives.','vs SonarQube/CodeScene/CodeRabbit/RAG-indexers.'],
+        ['Contributor on-ramp','Make it easy for others to add a language/scanner.','Plugin guide + good-first-issues + extractor template.'],
+        ['Changelog + release notes','Tell users what changed and why it matters.','Automate from commits; human-readable highlights.'],
+        ['Case studies','Show a real team\'s before/after with FACTS.','Quant the tokens saved + risks caught with a design partner.'],
+      ]],
+    ];
+
+    // ───────────── render PART I ─────────────
+    document.getElementById('inventory').innerHTML = INV.map(([g,rows],i) => `
+      <div class="invgroup">
+        <div class="invgroup__h"><span class="n">${String(i+1).padStart(2,'0')}</span> ${g}</div>
+        <div class="invgrid">
+          ${rows.map(([name,where,h,a]) => `
+            <div class="inv">
+              <div class="inv__name">${name}<br><code>${where}</code></div>
+              <div class="inv__val inv__val--h">${h}</div>
+              <div class="inv__val inv__val--a">${a}</div>
+            </div>`).join('')}
+        </div>
+      </div>`).join('');
+
+    // ───────────── render PART II ─────────────
+    let n = 0;
+    const catsEl = document.getElementById('cats');
+    catsEl.innerHTML = CATS.map(([id,name,items]) => `
+      <div class="catblock" id="cat-${id}" data-cat="${id}">
+        <div class="catblock__h"><h3>${name}</h3><span class="tag">${items.length}</span></div>
+        <div class="sgrid">
+          ${items.map(([t,e,x]) => { n++; return `
+            <article class="sug" data-text="${(t+' '+e+' '+x).replace(/"/g,'&quot;').toLowerCase()}">
+              <div class="sug__top"><span class="sug__num">${String(n).padStart(3,'0')}</span><span class="sug__t">${t}</span></div>
+              <div class="sug__e">${e}</div>
+              <div class="sug__x">${x}</div>
+            </article>`; }).join('')}
+        </div>
+      </div>`).join('');
+    const TOTAL = n;
+    document.getElementById('hcount').textContent = TOTAL;
+
+    // ───────────── rail nav + counts ─────────────
+    const railEl = document.getElementById('rail');
+    railEl.innerHTML =
+      `<li><a class="rl" href="#have">Part I · Inventory <span class="ct">${INV.length}</span></a></li>` +
+      `<li><a class="rl" href="#ideas" style="color:var(--fg)">Part II · ${TOTAL} ideas</a></li>` +
+      CATS.map(([id,name,items]) => `<li><a class="rl" href="#cat-${id}"><span>${name}</span><span class="ct">${items.length}</span></a></li>`).join('');
+
+    // ───────────── search filter ─────────────
+    const search = document.getElementById('search');
+    const sugs = [...document.querySelectorAll('.sug')];
+    const blocks = [...document.querySelectorAll('.catblock')];
+    const noresult = document.getElementById('noresult');
+    search.addEventListener('input', () => {
+      const q = search.value.trim().toLowerCase();
+      let shown = 0;
+      sugs.forEach(s => { const hit = !q || s.dataset.text.includes(q); s.classList.toggle('is-hidden', !hit); if (hit) shown++; });
+      blocks.forEach(b => { const any = [...b.querySelectorAll('.sug')].some(s => !s.classList.contains('is-hidden')); b.style.display = any ? '' : 'none'; });
+      noresult.hidden = shown !== 0;
+    });
+    // "/" focuses search
+    document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== search) { e.preventDefault(); search.focus(); } });
+
+    // ───────────── scrollspy ─────────────
+    const links = [...railEl.querySelectorAll('.rl')];
+    const spy = new IntersectionObserver(es => es.forEach(e => {
+      if (e.isIntersecting) links.forEach(l => l.classList.toggle('is-active', l.getAttribute('href') === '#' + e.target.id));
+    }), { rootMargin: '-15% 0px -75% 0px' });
+    [document.getElementById('have'), document.getElementById('ideas'), ...blocks].forEach(el => el && spy.observe(el));
+  </script>
+</body>
+</html>

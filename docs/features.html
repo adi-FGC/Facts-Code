@@ -194,10 +194,10 @@
       </p>
 
       <div class="meta">
-        <span><strong>Generated</strong> 2026-05-29</span>
+        <span><strong>Generated</strong> 2026-05-29 · rev 2026-06-03</span>
         <span><strong>Packages</strong> 16</span>
         <span><strong>Apps</strong> 3 shipped · 3 planned</span>
-        <span><strong>Companion docs</strong> handoff.html · roadmap.html · architecture/</span>
+        <span><strong>Docs</strong> <a href="index.html">Index</a> · <a href="briefing.html">Briefing</a> · <a href="field-guide.html">Field guide</a> · <a href="suggestions.html">Suggestions</a> · <a href="roadmap.html">Roadmap</a> · <strong>Features</strong> · <a href="ideas.html">Ideas</a></span>
       </div>
 
       <!-- ═══════════════ 1 · OVERVIEW ═══════════════ -->
@@ -216,7 +216,7 @@
       <div class="pipe">
         directory<br/>
         &nbsp;&nbsp;→ <b>walker</b> &nbsp;gitignore-aware file discovery (over a FactsFS adapter)<br/>
-        &nbsp;&nbsp;→ <b>parsers</b> &nbsp;web-tree-sitter WASM grammars per language<br/>
+        &nbsp;&nbsp;→ <b>parse</b> &nbsp;@babel/parser → one shared AST per JS/TS file (multi-language tree-sitter is planned)<br/>
         &nbsp;&nbsp;→ <b>extractors</b> &nbsp;AST → FileOutline (imports, exports, declarations, routes, TODOs)<br/>
         &nbsp;&nbsp;→ <b>graph</b> &nbsp;resolve imports → dependency graph + cycles<br/>
         &nbsp;&nbsp;→ <b>scanners</b> &nbsp;secrets · licenses · frameworks · complexity · token-cost · bundle-size<br/>
@@ -239,9 +239,9 @@
       </div>
 
       <div class="feat">
-        <div class="feat__head"><span class="feat__name">WASM grammar registry</span><span class="feat__tag">@factstack/parsers</span></div>
-        <p class="feat__row logic"><b>Logic</b>web-tree-sitter (WASM) grammar registry — no native bindings, so it runs identically in Node and the browser (constraint C1). Lazy-loads the grammar for each detected language and exposes a uniform parse surface to the extractors.</p>
-        <p class="feat__row use"><b>Use</b><span>Language-agnostic AST access.</span> The reason FACTS can analyze a repo in a browser tab with zero install.</p>
+        <div class="feat__head"><span class="feat__name">Shared Babel parse</span><span class="feat__tag">@factstack/extractors</span></div>
+        <p class="feat__row logic"><b>Logic</b>A pure <code>@babel/parser</code> wrapper parses each JS/TS file once into a shared AST (keyed by a fast djb2 content hash), reused by every extractor — no native bindings, so it runs identically in Node and the browser (constraint C1). A multi-language web-tree-sitter registry (the <code>parsers</code> package) is planned, not yet shipped.</p>
+        <p class="feat__row use"><b>Use</b><span>Structure access for JS/TS today (Python via a regex extractor).</span> Parse-once-and-reuse is why FACTS can analyze a repo in a browser tab with zero install.</p>
       </div>
 
       <div class="feat">
@@ -381,6 +381,7 @@
           <tr><td>export</td><td>Emits the self-contained HTML report (CDN-stripped) to <code>./dist</code>.</td><td>Share a report with no server.</td></tr>
           <tr><td>scan-vulns</td><td>Queries OSV.dev against <code>dependencyManifests</code>, persists <code>vulnerabilities[]</code> into agent.json. <code>--prod-only</code>, <code>--no-cache</code>.</td><td>Opt-in network step: "check my deps for CVEs."</td></tr>
           <tr><td>diff</td><td>Compares two analyses (snapshots or live agent.json). Zero-arg = previous snapshot vs current. TTY delta table or <code>--json</code>.</td><td>"What changed?" between two points in time.</td></tr>
+          <tr><td>review</td><td>The Change Verdict — head vs the latest snapshot: one severity + grounded findings (new secrets/CVEs/cycles + blast radius). <code>--format markdown|json</code>.</td><td>"Is this change risky?" — for a PR or an agent, in one line.</td></tr>
           <tr><td>query</td><td>Graph queries: <code>callers</code> / <code>imports</code> / <code>cycles</code> / <code>orphans</code>, with <code>--filter</code> / <code>--limit</code> / <code>--depth</code>.</td><td>"What depends on this file?" from the terminal.</td></tr>
           <tr><td>export-skills</td><td>Emits the 3 agent skill files at the project root. <code>--format claude,cursor,copilot</code>.</td><td>Generate AI-agent onboarding files.</td></tr>
           <tr><td>ci-report</td><td>Markdown diff report (head vs <code>--base</code>) for PR comments. <code>--with-diagram</code>, <code>--fail-on-shift &lt;n&gt;</code>.</td><td>Gate PRs on risk delta in CI.</td></tr>
@@ -408,18 +409,20 @@
           <tr><td>get_config</td><td>Every env var the codebase reads, with read sites + defaults.</td><td>"What does this need from its environment?"</td></tr>
           <tr><td>log_learning</td><td>Appends a proposal/outcome event to learnings.jsonl.</td><td>Record what the agent proposed + whether it was accepted.</td></tr>
           <tr><td>query_learnings</td><td>Filters the learnings log (since/agent/outcome/tag).</td><td>"What has this codebase's agents been right about?"</td></tr>
+          <tr><td>review_change</td><td>The Change Verdict (severity + findings + blast radius) for head vs the latest snapshot; <code>format:"markdown"</code> for a PR block.</td><td>"Is this change risky?" — without re-reading the diff.</td></tr>
         </tbody>
       </table>
 
       <!-- ═══════════════ 9 · DASHBOARD ═══════════════ -->
       <h2 id="dashboard">9 · Web dashboard</h2>
-      <p><code>apps/ui-remix</code> — built on Remix v3 (its own VDOM runtime, no React). Thirteen route tabs + interactive surfaces. Loads its dataset inline (static build) or via <code>/data/factstack.json</code> (dev server).</p>
+      <p><code>apps/ui-remix</code> — built on Remix v3 (its own VDOM runtime, no React). Seven primary tabs (Overview · Architecture · Files · Review · Security · Tests · History) plus Config and About icon routes; related views are grouped as sub-tabs. Loads its dataset inline (static build) or via <code>/data/factstack.json</code> (dev server).</p>
 
-      <h3>Route tabs</h3>
+      <h3>Tabs &amp; views <span style="font-weight:400;color:var(--fg-muted);font-size:0.85em">— Architecture = Graph · Flow · Routes; Security = Risks · Credentials · Vulnerabilities; Files = Files · Library</span></h3>
       <table>
         <thead><tr><th>Tab</th><th>Shows / logic</th><th>Question it answers</th></tr></thead>
         <tbody>
           <tr><td>Overview</td><td>Intent one-liner, stack, headline stats, one-click health badge → /risks.</td><td>"What is this and is it healthy?"</td></tr>
+          <tr><td>Review</td><td>The Change Verdict — head vs the latest snapshot: severity + grounded findings (new secrets/CVEs/cycles + blast radius).</td><td>"Is this change risky?"</td></tr>
           <tr><td>Graph</td><td>Sugiyama DAG of the dependency graph; draggable nodes, contained scroll. <strong>Copy Mermaid</strong> (fenced, to the clipboard) + <strong>Download .mmd</strong> (raw source) export the package-level flowchart.</td><td>"How do the modules connect?" — and "let me paste that into the PR / open it in a Mermaid editor."</td></tr>
           <tr><td>Flow</td><td>Data-flow views: swimlanes, sequence (entry-point picker), entities, text. Tier-classified.</td><td>"How does data move through the system?"</td></tr>
           <tr><td>Files</td><td>Every file ranked by weight (LOC/tokens); per-file outline.</td><td>"What's the heaviest / where do I start?"</td></tr>
@@ -488,7 +491,7 @@
       </div>
       <div class="feat">
         <div class="feat__head"><span class="feat__name">End-to-end suite (Playwright)</span><span class="feat__tag">apps/ui-remix/test/e2e</span></div>
-        <p class="feat__row logic"><b>Logic</b>Per-route smoke (all 13 tabs load, no console errors), Vulnerabilities form interaction, and an interactions spec (command palette, theme/density apply to <code>html[data-*]</code>, Flow view modes, Library sort). A <code>waitForReady</code> helper distinguishes the loaded shell from the error screen; an auto-fixture fails any test that logs a console error.</p>
+        <p class="feat__row logic"><b>Logic</b>Per-route smoke (every route loads, no console errors), Vulnerabilities form interaction, and an interactions spec (command palette, theme/density apply to <code>html[data-*]</code>, Flow view modes, Library sort). A <code>waitForReady</code> helper distinguishes the loaded shell from the error screen; an auto-fixture fails any test that logs a console error.</p>
         <p class="feat__row use"><b>Use</b><span>Catches "page renders but the control is dead" regressions</span> that unit tests can't see — runs against the built+inlined output, matching production.</p>
       </div>
 

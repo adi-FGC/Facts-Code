@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Payable Features — FACTS audit &amp; suggestions</title>
+  <meta name="description" content="An evidence-first audit of where FACTS can charge money. Eight ranked feature bets for the two buyers FACTS actually has — AI agents and engineering leaders — each scored on willingness-to-pay, build effort, defensibility, and how much already exists in the codebase." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* ─────────── design tokens (shared with docs/handoff.html, roadmap.html) ─────────── */
+    :root {
+      --bg:           #0B0D10;
+      --surface-1:    #14171C;
+      --surface-2:    #1B1F25;
+      --surface-3:    #21262E;
+      --hairline:     rgba(230, 232, 234, 0.08);
+      --border:       rgba(230, 232, 234, 0.14);
+      --fg:           #E6E8EA;
+      --fg-muted:     rgba(230, 232, 234, 0.72);
+      --fg-faint:     rgba(230, 232, 234, 0.44);
+      --accent:       #7CC4FF;
+      --accent-soft:  rgba(124, 196, 255, 0.10);
+      --import:       #4ADE80;  /* emerald — "people pay" */
+      --export:       #60A5FA;  /* sky — "AI pays" */
+      --ok:           #6EE7A1;
+      --warn:         #FFC857;
+      --danger:       #FF8585;
+      --code-bg:      rgba(230, 232, 234, 0.04);
+      --font-body:    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+      --fs-10: 0.6875rem; --fs-11: 0.75rem; --fs-12: 0.8125rem; --fs-13: 0.875rem;
+      --fs-14: 0.9375rem; --fs-16: 1rem; --fs-20: 1.25rem; --fs-24: 1.5rem;
+      --fs-32: 2rem; --fs-44: 2.75rem; --fs-64: 4rem;
+      --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+      --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #FAFAF8; --surface-1: #FFFFFF; --surface-2: #F2F2EE; --surface-3: #E9E9E3;
+        --hairline: rgba(11,13,16,0.08); --border: rgba(11,13,16,0.14);
+        --fg: #1A1D21; --fg-muted: rgba(26,29,33,0.72); --fg-faint: rgba(26,29,33,0.44);
+        --accent: #1A6FBF; --accent-soft: rgba(26,111,191,0.08); --code-bg: rgba(11,13,16,0.04);
+        --import: #16A34A; --export: #2563EB;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--fg);
+      font-family: var(--font-body); font-size: var(--fs-14); line-height: 1.62;
+      font-feature-settings: 'cv11','ss01','ss03';
+      text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+    a { color: inherit; }
+    ::selection { background: rgba(124,196,255,0.22); }
+
+    /* ─────────── shell ─────────── */
+    .shell { display: grid; grid-template-columns: minmax(0,1fr); min-height: 100vh; }
+    @media (min-width: 1024px) { .shell { grid-template-columns: 264px minmax(0,1fr); } }
+
+    .toc {
+      position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto;
+      border-right: 1px solid var(--hairline); padding: var(--space-6) var(--space-4);
+      background: color-mix(in oklab, var(--bg) 94%, var(--accent) 0%);
+    }
+    @media (max-width: 1023px) {
+      .toc { position: static; max-height: none; border-right: none; border-bottom: 1px solid var(--hairline); }
+    }
+    .toc__brand {
+      display: flex; align-items: center; gap: var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-10);
+      letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent);
+      margin-bottom: var(--space-2);
+    }
+    .toc__brand .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .toc__title { font-size: var(--fs-13); font-weight: 600; color: var(--fg); margin: 0 0 var(--space-5); letter-spacing: -0.01em; }
+    .toc__list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 1px; }
+    .toc a.toc__link {
+      display: flex; gap: var(--space-2); align-items: baseline; padding: 5px var(--space-2);
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.01em;
+      color: var(--fg-muted); text-decoration: none; border-left: 2px solid transparent;
+      transition: color 120ms var(--ease-out-quart), border-color 120ms, background 120ms;
+    }
+    .toc a.toc__link .num { color: var(--fg-faint); font-size: var(--fs-10); min-width: 1.4em; }
+    .toc a.toc__link:hover { color: var(--fg); background: var(--accent-soft); }
+    .toc a.toc__link.is-active { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+    .toc__foot { margin-top: var(--space-6); padding-top: var(--space-4); border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-10); color: var(--fg-faint); line-height: 1.7; }
+
+    .content { padding: 0 0 var(--space-8); max-width: 1100px; }
+
+    /* ─────────── hero ─────────── */
+    .hero {
+      position: relative; overflow: hidden;
+      padding: clamp(var(--space-7), 8vw, var(--space-8)) clamp(var(--space-5), 6vw, var(--space-8)) var(--space-7);
+      border-bottom: 1px solid var(--hairline);
+    }
+    .hero::before {
+      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(120% 80% at 100% 0%, rgba(96,165,250,0.10), transparent 55%),
+        radial-gradient(90% 70% at 0% 10%, rgba(74,222,128,0.07), transparent 50%);
+    }
+    .hero::after {
+      content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
+      background-image: linear-gradient(var(--hairline) 1px, transparent 1px), linear-gradient(90deg, var(--hairline) 1px, transparent 1px);
+      background-size: 44px 44px; mask-image: radial-gradient(120% 90% at 80% 0%, #000, transparent 70%);
+    }
+    .hero > * { position: relative; z-index: 1; }
+    .hero__kicker {
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.22em; text-transform: uppercase;
+      color: var(--fg-faint); margin-bottom: var(--space-4); display: flex; gap: var(--space-3); flex-wrap: wrap; align-items: center;
+    }
+    .hero__kicker b { color: var(--accent); font-weight: 500; }
+    .hero h1 {
+      font-size: clamp(var(--fs-32), 6.5vw, var(--fs-64)); line-height: 1.02; letter-spacing: -0.035em;
+      font-weight: 700; margin: 0 0 var(--space-5); max-width: 17ch;
+    }
+    .hero h1 .em-ai { color: var(--export); }
+    .hero h1 .em-ppl { color: var(--import); }
+    .hero__lede { font-size: clamp(var(--fs-16), 2.2vw, var(--fs-20)); color: var(--fg-muted); max-width: 58ch; margin: 0 0 var(--space-6); line-height: 1.5; }
+    .hero__stats { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-3); }
+    .stat {
+      font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted);
+      padding: var(--space-2) var(--space-3); border: 1px solid var(--hairline); border-radius: 8px;
+      background: color-mix(in oklab, var(--surface-1) 60%, transparent); backdrop-filter: blur(6px);
+    }
+    .stat b { color: var(--fg); font-weight: 600; }
+
+    /* ─────────── section frame ─────────── */
+    .band { padding: var(--space-7) clamp(var(--space-5), 6vw, var(--space-8)); }
+    .band--rule { border-top: 1px solid var(--hairline); }
+    .eyebrow {
+      font-family: var(--font-mono); font-size: var(--fs-11); letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--accent); margin: 0 0 var(--space-4); display: flex; align-items: center; gap: var(--space-3);
+    }
+    .eyebrow::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+    h2 { font-size: clamp(var(--fs-24), 3.4vw, var(--fs-32)); letter-spacing: -0.02em; margin: 0 0 var(--space-4); line-height: 1.15; }
+    h3 { font-size: var(--fs-20); letter-spacing: -0.01em; margin: 0 0 var(--space-3); }
+    p { margin: 0 0 var(--space-4); max-width: 72ch; }
+    p.muted { color: var(--fg-muted); }
+    .lead { font-size: var(--fs-16); color: var(--fg-muted); max-width: 70ch; }
+
+    .twobuyer { display: grid; gap: var(--space-4); grid-template-columns: 1fr; margin-top: var(--space-5); }
+    @media (min-width: 720px) { .twobuyer { grid-template-columns: 1fr 1fr; } }
+    .buyer { border: 1px solid var(--border); border-radius: 14px; padding: var(--space-5); background: var(--surface-1); position: relative; overflow: hidden; }
+    .buyer::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; }
+    .buyer--ppl::before { background: var(--import); }
+    .buyer--ai::before { background: var(--export); }
+    .buyer h4 { margin: 0 0 var(--space-2); font-size: var(--fs-16); display: flex; align-items: center; gap: var(--space-2); }
+    .buyer .who { font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-faint); }
+    .buyer p { font-size: var(--fs-13); color: var(--fg-muted); margin: var(--space-2) 0 0; }
+
+    /* ─────────── scorecard legend ─────────── */
+    .legend { display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-5);
+      font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-muted); }
+    .legend span { display: inline-flex; align-items: center; gap: var(--space-2); }
+    .legend .key { color: var(--fg); }
+
+    /* ─────────── bet cards ─────────── */
+    #bets { display: flex; flex-direction: column; gap: var(--space-6); }
+    .bet {
+      border: 1px solid var(--border); border-radius: 16px; background: var(--surface-1);
+      overflow: hidden; opacity: 0; transform: translateY(14px);
+      transition: opacity 520ms var(--ease-out-quart), transform 520ms var(--ease-out-quart);
+    }
+    .bet.is-in { opacity: 1; transform: none; }
+    .bet--lead { border-color: color-mix(in oklab, var(--import) 50%, var(--border)); box-shadow: 0 0 0 1px color-mix(in oklab, var(--import) 22%, transparent), 0 20px 60px -30px rgba(74,222,128,0.4); }
+    .bet__head { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4); padding: var(--space-5) var(--space-5) var(--space-4); align-items: start; }
+    .bet__rank {
+      font-family: var(--font-mono); font-weight: 700; font-size: var(--fs-44); line-height: 0.8;
+      color: var(--fg-faint); font-variant-numeric: tabular-nums; letter-spacing: -0.04em; padding-top: 2px;
+    }
+    .bet--lead .bet__rank { color: var(--import); }
+    .bet__titles { min-width: 0; }
+    .bet__tagrow { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-2); }
+    .tag { font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; border: 1px solid var(--hairline); color: var(--fg-muted); white-space: nowrap; }
+    .tag--ppl { color: var(--import); border-color: color-mix(in oklab, var(--import) 40%, transparent); background: color-mix(in oklab, var(--import) 10%, transparent); }
+    .tag--ai  { color: var(--export); border-color: color-mix(in oklab, var(--export) 40%, transparent); background: color-mix(in oklab, var(--export) 10%, transparent); }
+    .tag--lead { color: var(--bg); background: var(--import); border-color: var(--import); font-weight: 700; }
+    .bet__name { font-size: var(--fs-24); letter-spacing: -0.02em; margin: 0 0 4px; line-height: 1.1; }
+    .bet__cmd { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--accent); }
+    .bet__pitch { padding: 0 var(--space-5) var(--space-4); color: var(--fg-muted); font-size: var(--fs-14); max-width: 78ch; }
+    .bet__pitch strong { color: var(--fg); font-weight: 600; }
+
+    /* scorecard meters */
+    .scorecard { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3) var(--space-5);
+      padding: 0 var(--space-5) var(--space-5); }
+    @media (min-width: 720px) { .scorecard { grid-template-columns: repeat(4, 1fr); } }
+    .meter { font-family: var(--font-mono); }
+    .meter__label { font-size: var(--fs-10); letter-spacing: 0.1em; text-transform: uppercase; color: var(--fg-faint); display: flex; justify-content: space-between; margin-bottom: 5px; }
+    .meter__label b { color: var(--fg); }
+    .meter__track { height: 5px; border-radius: 3px; background: var(--surface-3); overflow: hidden; }
+    .meter__fill { height: 100%; width: 0; border-radius: 3px; transition: width 700ms var(--ease-out-quart); }
+    .meter--wtp .meter__fill   { background: var(--import); }
+    .meter--effort .meter__fill{ background: var(--warn); }
+    .meter--moat .meter__fill  { background: var(--accent); }
+    .meter--ready .meter__fill { background: var(--export); }
+
+    /* exists vs missing */
+    .delta { display: grid; grid-template-columns: 1fr; gap: 1px; border-top: 1px solid var(--hairline); background: var(--hairline); }
+    @media (min-width: 720px) { .delta { grid-template-columns: 1fr 1fr; } }
+    .delta__col { background: var(--surface-1); padding: var(--space-5); }
+    .delta__h { font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: 0.14em; text-transform: uppercase; margin: 0 0 var(--space-3); display: flex; align-items: center; gap: var(--space-2); }
+    .delta__h--have { color: var(--ok); }
+    .delta__h--need { color: var(--warn); }
+    .delta ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+    .delta li { font-size: var(--fs-13); color: var(--fg-muted); padding-left: var(--space-4); position: relative; line-height: 1.5; }
+    .delta li::before { position: absolute; left: 0; top: 0; font-family: var(--font-mono); font-size: var(--fs-12); }
+    .delta__col--have li::before { content: "+"; color: var(--ok); }
+    .delta__col--need li::before { content: "→"; color: var(--warn); }
+    .delta code, .bet__pitch code, p code, .seq code { font-family: var(--font-mono); font-size: 0.92em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; color: var(--fg); }
+
+    /* first slice + competitor */
+    .bet__foot { border-top: 1px solid var(--hairline); padding: var(--space-5); display: grid; gap: var(--space-4); grid-template-columns: 1fr; }
+    @media (min-width: 860px) { .bet__foot { grid-template-columns: 1.4fr 1fr; } }
+    .slice__h, .moat__h { font-family: var(--font-mono); font-size: var(--fs-10); letter-spacing: 0.14em; text-transform: uppercase; color: var(--fg-faint); margin: 0 0 var(--space-2); }
+    pre.slice { margin: 0; background: var(--bg); border: 1px solid var(--hairline); border-radius: 10px; padding: var(--space-4); overflow-x: auto;
+      font-family: var(--font-mono); font-size: var(--fs-12); line-height: 1.65; color: var(--fg-muted); }
+    pre.slice .c { color: var(--fg-faint); }
+    pre.slice .k { color: var(--export); }
+    pre.slice .s { color: var(--import); }
+    .moat p { font-size: var(--fs-13); color: var(--fg-muted); margin: 0; }
+    .moat .tagline { color: var(--fg); font-weight: 600; display: block; margin-bottom: var(--space-2); font-size: var(--fs-13); }
+
+    /* ─────────── sequence ─────────── */
+    .seq { display: flex; flex-direction: column; gap: 0; margin-top: var(--space-5); }
+    .seq__row { display: grid; grid-template-columns: auto 1fr; gap: var(--space-4); padding: var(--space-4) 0; border-bottom: 1px solid var(--hairline); }
+    .seq__row:last-child { border-bottom: none; }
+    .seq__when { font-family: var(--font-mono); font-size: var(--fs-11); color: var(--accent); letter-spacing: 0.06em; padding-top: 2px; min-width: 9ch; }
+    .seq__what b { display: block; margin-bottom: 2px; }
+    .seq__what span { color: var(--fg-muted); font-size: var(--fs-13); }
+
+    .callout { border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 10px; background: var(--accent-soft);
+      padding: var(--space-5); margin-top: var(--space-5); }
+    .callout p:last-child { margin-bottom: 0; }
+
+    footer { padding: var(--space-7) clamp(var(--space-5), 6vw, var(--space-8)); border-top: 1px solid var(--hairline);
+      font-family: var(--font-mono); font-size: var(--fs-11); color: var(--fg-faint); line-height: 1.8; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav class="toc" aria-label="Contents">
+      <div class="toc__brand"><span class="dot"></span> FACTS · STRATEGY</div>
+      <p class="toc__title">Payable features — audit &amp; suggestions</p>
+      <ul class="toc__list" id="toc"></ul>
+      <div class="toc__foot">
+        Generated 2026-06-02<br>
+        Buyers: <span style="color:var(--import)">people</span> + <span style="color:var(--export)">AI</span><br>
+        Not deployed · local doc
+      </div>
+    </nav>
+
+    <main class="content">
+      <!-- HERO -->
+      <header class="hero" id="top">
+        <div class="hero__kicker">
+          <span>AUDIT</span><span>·</span><span><b>8</b> ranked bets</span><span>·</span><span>evidence-first</span>
+        </div>
+        <h1>Where FACTS can charge <span class="em-ppl">people</span> and <span class="em-ai">AI</span> money.</h1>
+        <p class="hero__lede">FACTS already turns a codebase into a compact, accurate, dual-audience artifact. The gap between "useful tool" and "thing people pay for" is composition, not invention — most of the primitives already ship. Eight bets, scored on willingness-to-pay, build effort, defensibility, and how much already exists.</p>
+        <div class="hero__stats">
+          <span class="stat"><b>12</b> CLI verbs shipped</span>
+          <span class="stat"><b>13</b> MCP tools</span>
+          <span class="stat"><b>agent.pack</b> ≈80% token cut</span>
+          <span class="stat"><b>graph + scanners</b> already built</span>
+        </div>
+      </header>
+
+      <!-- THESIS -->
+      <section class="band band--rule" id="thesis">
+        <p class="eyebrow">00 · The thesis</p>
+        <h2>Two buyers, one engine.</h2>
+        <p class="lead">FACTS is unusual: the same analysis output is valuable to a human who must judge a codebase and to an AI agent that must reason over it. Sell to both from one build. Willingness-to-pay shows up when the output stops being raw data and starts being a <em>verdict</em> — an opinionated, grounded answer to a question someone is already paying to answer (a slow human reviewer, or an agent burning tokens to re-derive structure).</p>
+        <div class="twobuyer">
+          <div class="buyer buyer--ppl">
+            <span class="who">Buyer A</span>
+            <h4>Engineering leaders &amp; developers</h4>
+            <p>Pay for risk visibility and reviewer leverage: "what does this change do to my system, is it safe to merge, is the codebase getting worse." The CodeRabbit / Greptile / SonarQube / CodeScene budget.</p>
+          </div>
+          <div class="buyer buyer--ai">
+            <span class="who">Buyer B</span>
+            <h4>AI agents &amp; agent operators</h4>
+            <p>Pay in tokens and accuracy: a fresh, structured, token-cheap context surface beats re-reading a repo every run. FACTS already emits the pack and speaks MCP — it can be the context layer agents call.</p>
+          </div>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><span class="key">WTP</span> willingness-to-pay</span>
+          <span><span class="key">EFFORT</span> build cost (shorter = cheaper)</span>
+          <span><span class="key">MOAT</span> defensibility</span>
+          <span><span class="key">READY</span> % already in the codebase</span>
+        </div>
+      </section>
+
+      <!-- BETS -->
+      <section class="band band--rule" id="board">
+        <p class="eyebrow">01 · The board</p>
+        <h2>Eight bets, ranked.</h2>
+        <p class="muted">Ranked by <b>WTP × buildable-now × defensibility</b>. The top three ship entirely in-repo with no hosting or billing. Each card shows what already exists (cite-able files) versus the missing composition layer.</p>
+        <div id="bets"></div>
+      </section>
+
+      <!-- SEQUENCE -->
+      <section class="band band--rule" id="sequence">
+        <p class="eyebrow">02 · Recommended sequence</p>
+        <h2>Build order.</h2>
+        <p class="muted">Ship the verdict first (it's mostly composition and proves the "verdict not data" thesis), then the surface that delivers it, then widen to the AI buyer.</p>
+        <div class="seq">
+          <div class="seq__row"><div class="seq__when">NOW</div><div class="seq__what"><b>① Change Verdict — core</b><span><code>packages/core/src/review.ts</code> · fuse diff + blast-radius + structural deltas into a typed <code>ChangeVerdict</code> with a severity headline. Tests + dogfood on FACTS itself.</span></div></div>
+          <div class="seq__row"><div class="seq__when">NEXT</div><div class="seq__what"><b>① surfaces</b><span><code>factstack review</code> verb (Markdown + JSON) and a <code>review_change</code> MCP tool. Now both buyers can consume one engine.</span></div></div>
+          <div class="seq__row"><div class="seq__when">THEN</div><div class="seq__what"><b>④ GitHub App / CI bot</b><span>Deliver the verdict as a PR comment automatically. This is the distribution surface that turns ① into a product people subscribe to.</span></div></div>
+          <div class="seq__row"><div class="seq__when">THEN</div><div class="seq__what"><b>② Agent context delta-pack</b><span>Build on <code>since</code> + <code>agent.pack</code> for incremental, always-fresh context. Strongest "AI pays" lever once a delivery endpoint exists.</span></div></div>
+          <div class="seq__row"><div class="seq__when">LATER</div><div class="seq__what"><b>③ ⑤ ⑥ ⑦ ⑧</b><span>Security posture report, drift tracking, onboarding pack, portfolio view, license gate — each reuses primitives the verdict already wires together.</span></div></div>
+        </div>
+        <div class="callout">
+          <p><strong>Why this order:</strong> the verdict is the wedge. It is ~70% existing primitives, it proves the "verdict, not raw data" thesis, and it is the one output both buyers want. Everything else is either a delivery surface for it (④) or a sibling that reuses the same composition (③⑤⑧).</p>
+          <p>The one strategic caveat: bets that monetize best as a hosted service (②⑦) need auth + billing + an endpoint — set those up yourself; I'll build the engine behind them.</p>
+        </div>
+      </section>
+
+      <footer>
+        FACTS · payable-feature audit · <a href="#top">back to top</a><br>
+        Grounded in: <code>packages/core/src/diff.ts</code> · <code>packages/graph/src/callers.ts</code> · <code>packages/scanners/*</code> · <code>apps/mcp-server/src/server.ts</code> · <code>packages/factspack</code><br>
+        Docs: <a href="index.html">Index</a> · <a href="briefing.html">Executive briefing</a> · <a href="field-guide.html">Field guide</a> · <strong>Suggestions</strong> · <a href="roadmap.html">Roadmap</a> · <a href="features.html">Features</a> · <a href="ideas.html">Ideas</a>
+      </footer>
+    </main>
+  </div>
+
+  <script>
+    // ─── data: the bets ───────────────────────────────────────────────
+    const BETS = [
+      {
+        rank: '01', lead: true, name: 'Change Verdict', cmd: 'factstack review <base> <head>',
+        tags: [['lead','▲ build first'],['ppl','people pay'],['ai','AI pays']],
+        pitch: 'Fuse dependency + vulnerability + secret + graph-structure deltas + <strong>blast radius</strong> into ONE opinionated, grounded answer to "what does this PR do to my system, and how risky is it?" Two surfaces from one engine: a <strong>Markdown PR comment</strong> (the human reviewer) and a <strong><code>review_change</code> MCP tool + JSON</strong> (an agent reviewing the PR, token-cheap and structured).',
+        wtp: 95, effort: 35, moat: 80, ready: 70,
+        have: [
+          '<code>diffArtifacts(from,to)</code> — packages/core/src/diff.ts (files, risks, vuln-diff already)',
+          '<code>buildCallerIndex(graph)</code> — packages/graph/src/callers.ts = blast radius',
+          'cycle / coupling / layer analysis (Graph tab) for structural deltas',
+          'scanners: secrets, deps, OSV CVEs already wired',
+          '<code>ci-report</code> emitter plumbing + <code>loadDiffEndpoint</code> helper',
+        ],
+        need: [
+          'the fusion layer: <code>buildChangeVerdict() → ChangeVerdict</code> with a severity headline',
+          '<code>factstack review</code> verb (--format md|json)',
+          'a <code>review_change</code> MCP tool (none of the 12 tools does change/diff)',
+          'verdict copy: "introduces 1 CVE + 1 new auth↔billing cycle; 14 modules depend on the changed file"',
+        ],
+        slice: `<span class="c">// packages/core/src/review.ts</span>
+<span class="k">export function</span> buildChangeVerdict(
+  diff: DiffArtifact,
+  graph: DependencyGraph,
+): ChangeVerdict {
+  <span class="k">const</span> blast = buildCallerIndex(graph)
+  <span class="c">// fuse: dep + vuln + secret + cycle deltas + blast</span>
+  <span class="k">return</span> { severity, headline, findings, blastRadius }
+}`,
+        moatLine: 'Competitors run an LLM over a raw diff.',
+        moatBody: 'FACTS grounds the verdict in the real dependency graph + security scan — structural truth ("this adds a cycle between auth and billing"), not a model\'s guess. That is the defensible difference, and it is the one output both buyers want.',
+      },
+      {
+        rank: '02', name: 'Agent Context API', cmd: 'delta-pack over MCP',
+        tags: [['ai','AI pays']],
+        pitch: 'An incremental, always-fresh, token-cheap context surface an external agent consumes. Built on the existing <code>since</code> capability + <code>agent.pack</code>: instead of re-reading a repo each run, an agent pulls only <strong>what changed</strong> since its last context, at ~80% token reduction.',
+        wtp: 85, effort: 60, moat: 70, ready: 55,
+        have: [
+          '<code>agent.pack</code> / FactsPack — the canonical ≈80%-token-cut context surface',
+          '<code>since</code> tool + packages/core since-logic (delta capability exists)',
+          'MCP server already exposes query tools (query_graph, get_outline, list_risks…)',
+        ],
+        need: [
+          'a delta-pack: "context changed since pack hash X" (not just full snapshots)',
+          'a stable agent-facing endpoint + cache-key contract',
+          'metering hooks (per-repo / per-query) — needs hosting + billing you set up',
+        ],
+        slice: `<span class="c">// agent asks for only the delta</span>
+mcp.call(<span class="s">'context_since'</span>, {
+  repo, sincePackHash,
+})
+<span class="c">// → changed symbols, new edges, new risks</span>
+<span class="c">//   token-budgeted, not a full re-read</span>`,
+        moatLine: 'The pack is the moat.',
+        moatBody: '80% fewer tokens with higher accuracy is a direct cost line for anyone running agents at scale. Strongest "AI pays" lever — but real monetization wants a hosted endpoint + billing, so it ranks below the in-repo wedge.',
+      },
+      {
+        rank: '03', name: 'Security Posture Report', cmd: 'factstack report --security',
+        tags: [['ppl','people pay']],
+        pitch: 'Compose secrets + CVEs + licenses + dependency manifest into one shareable <strong>SBOM + posture report</strong> (HTML / PDF / JSON). The artifact a buyer hands to a customer, an auditor, or a due-diligence team.',
+        wtp: 75, effort: 40, moat: 50, ready: 65,
+        have: [
+          'scanners/secrets.ts, dependencies.ts, vulnerabilities.ts (OSV), licenses.ts',
+          'dependencyManifests + vulnerabilities already in the spec schema',
+          'existing emitter + diagram rendering patterns to reuse for output',
+        ],
+        need: [
+          'an SBOM emitter (CycloneDX / SPDX JSON) from the manifest data',
+          'a single composed posture document + severity rollup',
+          'PDF export path (print stylesheet → PDF)',
+        ],
+        slice: `<span class="c">// one composed, shareable artifact</span>
+factstack report --security --format pdf
+<span class="c">// → SBOM (CycloneDX) + secrets summary</span>
+<span class="c">//   + CVE rollup + license flags</span>`,
+        moatLine: 'Compliance-adjacent, low-novelty.',
+        moatBody: 'Buyers: vendor assessment, SOC2 prep, M&A due diligence. The data already exists; the value is packaging it as a defensible, dated, shareable document. Moat is modest (commodity scanners) but WTP is real and recurring.',
+      },
+      {
+        rank: '04', name: 'GitHub App / CI bot', cmd: 'PR comment delivery',
+        tags: [['ppl','people pay']],
+        pitch: 'The <strong>distribution surface</strong> for the Change Verdict (①): a GitHub App / CI action that runs FACTS on every PR and posts the verdict as a comment. This is the part that turns a CLI into a subscription.',
+        wtp: 90, effort: 70, moat: 45, ready: 30,
+        have: [
+          '<code>ci-report</code> emitter already produces CI-shaped output',
+          'analysis runs headless in CI today (turbo test proves the engine runs cross-OS)',
+          'the verdict payload (once ① lands) is the comment body',
+        ],
+        need: [
+          'GitHub App (auth, webhook on PR, check-run / comment API)',
+          'hosted runner or GitHub Action package + marketplace listing',
+          'idempotent comment update (edit, don\'t spam) + base/head ref plumbing',
+        ],
+        slice: `<span class="c">// .github/workflows/facts.yml</span>
+- <span class="k">uses</span>: factstack/review-action@v1
+  <span class="k">with</span>:
+    base: \${{ github.base_ref }}
+    comment: <span class="s">true</span>`,
+        moatLine: 'Distribution, not technology.',
+        moatBody: 'Low moat on its own (anyone can post a PR comment), but it is the delivery channel that makes ① a recurring product. Build it right after the verdict core — not before. Needs infra you own.',
+      },
+      {
+        rank: '05', name: 'Architecture Drift', cmd: 'factstack drift',
+        tags: [['ppl','people pay']],
+        pitch: 'Turn the snapshot/History data into <strong>trend intelligence</strong>: coupling creep, "this module is becoming a god object", test coverage of changed code dropping, risk count climbing. The SonarQube / CodeScene "is it getting worse" angle, grounded in real graph metrics over time.',
+        wtp: 70, effort: 50, moat: 65, ready: 50,
+        have: [
+          'snapshots/ + History tab + <code>since</code> already track change over time',
+          'graph metrics (hubs, coupling, cycles) computable per snapshot',
+          'sparkline/trend rendering already in the UI',
+        ],
+        need: [
+          'trend deltas across snapshots (god-object score, coupling slope)',
+          'threshold + alert model ("coupling up 40% in 30 days")',
+          'a drift report surface (CLI + UI panel)',
+        ],
+        slice: `<span class="c">// trend, not snapshot</span>
+factstack drift --since 30d
+<span class="c">// → auth.ts fan-in +38% (god-object risk)</span>
+<span class="c">//   3 new cycles · coverage-of-changed 81%→62%</span>`,
+        moatLine: 'Time-series of structure.',
+        moatBody: 'Reuses the snapshot store FACTS already keeps. Defensible because it needs a history of accurate graphs — exactly what FACTS accumulates. Buyer: eng leadership tracking codebase health.',
+      },
+      {
+        rank: '06', name: 'AI Onboarding Pack', cmd: 'factstack init-agent',
+        tags: [['ppl','people pay'],['ai','AI pays']],
+        pitch: 'Productize the existing skills export into a one-command drop-in: <code>agent.pack</code> + <code>MEMORY.md</code> + Claude/Cursor/Copilot skill files committed to a repo so any AI tool instantly understands the codebase. "Make your AI 10× better on your code" is a clean dev-tools sell.',
+        wtp: 65, effort: 30, moat: 40, ready: 75,
+        have: [
+          'packages/skills: agentToSkillSpec + Claude/Cursor/Copilot renderers',
+          '<code>export-skills</code> CLI verb + ONBOARDING_SEQUENCE already ship',
+          'MEMORY.md cold-start brief + agent.pack already emitted',
+        ],
+        need: [
+          'a single <code>init-agent</code> verb that writes the full drop-in set',
+          'auto-refresh hook (regenerate on significant change)',
+          'positioning + a great README/template',
+        ],
+        slice: `<span class="c">// one command, repo understands itself</span>
+factstack init-agent
+<span class="c">// writes .claude/ .cursor/ + MEMORY.md</span>
+<span class="c">//   + agent.pack, refreshed on change</span>`,
+        moatLine: 'Highest ready %, lowest effort.',
+        moatBody: 'Almost entirely existing primitives repackaged. Low moat (it is mostly DX + positioning) but a strong wedge for adoption and the "AI pays" funnel. A fast, cheap ship that grows the top of the funnel.',
+      },
+      {
+        rank: '07', name: 'Portfolio View', cmd: 'multi-repo dashboard',
+        tags: [['ppl','people pay']],
+        pitch: 'Org-level rollup: risk, vulnerabilities, drift, and coverage across <strong>N repos</strong> in one view. The CTO / platform-team buyer who owns 40 services and wants one risk surface, not 40 dashboards.',
+        wtp: 80, effort: 85, moat: 60, ready: 25,
+        have: [
+          'per-repo analysis + artifacts are the unit; aggregation is the new layer',
+          'security + drift metrics already computed per repo',
+        ],
+        need: [
+          'multi-repo ingestion + storage + a hosted dashboard',
+          'auth, orgs, access control, billing (all infra you own)',
+          'cross-repo aggregation + ranking model',
+        ],
+        slice: `<span class="c">// one surface, many repos</span>
+org/* → ranked by risk
+  payments-api   ● 2 CVE · drift↑
+  auth-service   ● 1 secret · stable
+  ...38 more`,
+        moatLine: 'High WTP, heavy build.',
+        moatBody: 'Leadership pays well for one risk surface across a portfolio, but this is a full hosted product (auth, billing, storage). Highest effort here; pursue once the single-repo wedge has pull.',
+      },
+      {
+        rank: '08', name: 'License Gate', cmd: 'factstack review --fail-on',
+        tags: [['ppl','people pay']],
+        pitch: 'A policy gate riding on ① and the license scanner: fail a PR / build when a change introduces a disallowed license (GPL into a proprietary product), a new high-severity CVE, or a fresh secret. The "block the bad merge" control teams pay to enforce.',
+        wtp: 60, effort: 25, moat: 35, ready: 70,
+        have: [
+          'scanners/licenses.ts + vuln + secret detection already run',
+          'vuln-diff in diffArtifacts knows what a change <em>introduces</em>',
+          'CI exit-code plumbing in ci-report',
+        ],
+        need: [
+          'a policy config (<code>.facts/policy.json</code>: deny licenses, CVE severity ceiling)',
+          '<code>--fail-on</code> flag that exits non-zero on violation',
+          'clear violation messaging in the verdict',
+        ],
+        slice: `<span class="c">// block the bad merge</span>
+factstack review --fail-on license:GPL,cve:high
+<span class="c">// exit 1 + reason if a change</span>
+<span class="c">//   introduces a denied license or CVE</span>`,
+        moatLine: 'Cheap rider on ①.',
+        moatBody: 'Minimal new code once the verdict exists — it is the verdict plus a policy file plus an exit code. Low moat but high stickiness: policy gates are hard to remove once a team depends on them.',
+      },
+    ];
+
+    // ─── render bets ──────────────────────────────────────────────────
+    const meter = (cls, label, val) => `
+      <div class="meter meter--${cls}">
+        <div class="meter__label">${label} <b>${val}</b></div>
+        <div class="meter__track"><div class="meter__fill" data-w="${val}"></div></div>
+      </div>`;
+
+    const betsEl = document.getElementById('bets');
+    const tocEl = document.getElementById('toc');
+    betsEl.innerHTML = BETS.map(b => `
+      <article class="bet${b.lead ? ' bet--lead' : ''}" id="bet-${b.rank}">
+        <div class="bet__head">
+          <div class="bet__rank">${b.rank}</div>
+          <div class="bet__titles">
+            <div class="bet__tagrow">${b.tags.map(([t,l]) => `<span class="tag tag--${t}">${l}</span>`).join('')}</div>
+            <h3 class="bet__name">${b.name}</h3>
+            <div class="bet__cmd">${b.cmd}</div>
+          </div>
+        </div>
+        <p class="bet__pitch">${b.pitch}</p>
+        <div class="scorecard">
+          ${meter('wtp','WTP', b.wtp)}
+          ${meter('effort','Effort', b.effort)}
+          ${meter('moat','Moat', b.moat)}
+          ${meter('ready','Ready', b.ready)}
+        </div>
+        <div class="delta">
+          <div class="delta__col delta__col--have">
+            <p class="delta__h delta__h--have">Already exists</p>
+            <ul>${b.have.map(x => `<li>${x}</li>`).join('')}</ul>
+          </div>
+          <div class="delta__col delta__col--need">
+            <p class="delta__h delta__h--need">Missing — the build</p>
+            <ul>${b.need.map(x => `<li>${x}</li>`).join('')}</ul>
+          </div>
+        </div>
+        <div class="bet__foot">
+          <div class="slice">
+            <p class="slice__h">First slice</p>
+            <pre class="slice"><code>${b.slice}</code></pre>
+          </div>
+          <div class="moat">
+            <p class="moat__h">Why FACTS wins</p>
+            <p><span class="tagline">${b.moatLine}</span>${b.moatBody}</p>
+          </div>
+        </div>
+      </article>`).join('');
+
+    // ─── TOC ──────────────────────────────────────────────────────────
+    const tocItems = [
+      ['thesis','00','The thesis'],
+      ['board','01','The board'],
+      ...BETS.map(b => ['bet-'+b.rank, b.rank, b.name]),
+      ['sequence','02','Build order'],
+    ];
+    tocEl.innerHTML = tocItems.map(([id,n,label]) =>
+      `<li><a class="toc__link" href="#${id}"><span class="num">${n}</span>${label}</a></li>`).join('');
+
+    // ─── reveal + meter fill + scrollspy ──────────────────────────────
+    const fill = el => el.querySelectorAll('.meter__fill').forEach(f => f.style.width = f.dataset.w + '%');
+    const io = new IntersectionObserver((es) => {
+      es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('is-in'); fill(e.target); io.unobserve(e.target); } });
+    }, { threshold: 0.18 });
+    document.querySelectorAll('.bet').forEach(b => io.observe(b));
+
+    const links = [...document.querySelectorAll('.toc__link')];
+    const spy = new IntersectionObserver((es) => {
+      es.forEach(e => {
+        if (e.isIntersecting) {
+          links.forEach(l => l.classList.toggle('is-active', l.getAttribute('href') === '#' + e.target.id));
+        }
+      });
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    ['thesis','board','sequence', ...BETS.map(b => 'bet-'+b.rank)].forEach(id => {
+      const el = document.getElementById(id); if (el) spy.observe(el);
+    });
+  </script>
+</body>
+</html>

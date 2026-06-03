@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>FACTS — Docs</title>
+  <meta name="description" content="Index of the FACTS explainer docs: an executive briefing, the full capability field guide, the ranked suggestion backlog, the roadmap, and more." />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root{
+      --bg:#0B0D10; --surface-1:#14171C; --surface-2:#1B1F25;
+      --hairline:rgba(230,232,234,0.08); --border:rgba(230,232,234,0.14);
+      --fg:#E6E8EA; --fg-muted:rgba(230,232,234,0.72); --fg-faint:rgba(230,232,234,0.44);
+      --accent:#7CC4FF; --accent-soft:rgba(124,196,255,0.10); --human:#4ADE80; --ai:#60A5FA;
+      --font-body:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+      --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+      --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px;
+      --ease:cubic-bezier(0.25,1,0.5,1);
+    }
+    @media (prefers-color-scheme:light){:root{
+      --bg:#FAFAF8; --surface-1:#FFF; --surface-2:#F2F2EE;
+      --hairline:rgba(11,13,16,0.08); --border:rgba(11,13,16,0.14);
+      --fg:#1A1D21; --fg-muted:rgba(26,29,33,0.72); --fg-faint:rgba(26,29,33,0.44);
+      --accent:#1A6FBF; --accent-soft:rgba(26,111,191,0.08); --human:#16A34A; --ai:#2563EB;
+    }}
+    *,*::before,*::after{box-sizing:border-box;}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);line-height:1.6;
+      -webkit-font-smoothing:antialiased;font-size:.9375rem;}
+    a{color:inherit;text-decoration:none;}
+    ::selection{background:rgba(124,196,255,0.22);}
+    .wrap{max-width:1000px;margin:0 auto;padding:clamp(var(--s7),8vw,var(--s8)) clamp(var(--s4),5vw,var(--s8));}
+    .brand{display:flex;align-items:center;gap:var(--s2);font-family:var(--font-mono);font-size:.6875rem;
+      letter-spacing:.2em;text-transform:uppercase;color:var(--accent);margin-bottom:var(--s4);}
+    .brand .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);}
+    h1{font-size:clamp(2rem,5vw,2.75rem);letter-spacing:-0.03em;line-height:1.08;margin:0 0 var(--s4);max-width:18ch;}
+    h1 .h{color:var(--human);} h1 .a{color:var(--ai);}
+    .lede{font-size:clamp(1rem,2vw,1.25rem);color:var(--fg-muted);max-width:64ch;margin:0 0 var(--s7);line-height:1.5;}
+    .eyebrow{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.16em;text-transform:uppercase;color:var(--fg-faint);
+      margin:var(--s7) 0 var(--s4);display:flex;align-items:center;gap:var(--s3);}
+    .eyebrow::after{content:"";flex:1;height:1px;background:var(--hairline);}
+
+    .feature{display:grid;grid-template-columns:1fr;gap:var(--s4);border:1px solid var(--border);border-left:3px solid var(--accent);
+      border-radius:16px;background:var(--accent-soft);padding:clamp(var(--s5),4vw,var(--s6));transition:transform 140ms var(--ease);}
+    .feature:hover{transform:translateY(-2px);}
+    .feature .tag{font-family:var(--font-mono);font-size:.6875rem;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);}
+    .feature h2{font-size:1.5rem;letter-spacing:-0.02em;margin:var(--s2) 0;}
+    .feature p{margin:0;color:var(--fg-muted);max-width:64ch;}
+    .feature .go{font-family:var(--font-mono);font-size:.8125rem;color:var(--accent);margin-top:var(--s3);}
+
+    .grid{display:grid;gap:var(--s4);grid-template-columns:1fr;margin-top:var(--s4);}
+    @media (min-width:680px){.grid{grid-template-columns:1fr 1fr;}}
+    .doc{border:1px solid var(--hairline);border-radius:12px;background:var(--surface-1);padding:var(--s5);
+      transition:border-color 140ms var(--ease),transform 140ms var(--ease);display:flex;flex-direction:column;gap:6px;}
+    .doc:hover{border-color:var(--border);transform:translateY(-2px);}
+    .doc .fn{font-family:var(--font-mono);font-size:.6875rem;color:var(--fg-faint);}
+    .doc h3{margin:2px 0;font-size:1.0625rem;letter-spacing:-0.01em;}
+    .doc p{margin:0;font-size:.8125rem;color:var(--fg-muted);}
+    .doc.muted{opacity:.78;}
+
+    .ext{display:flex;flex-wrap:wrap;gap:var(--s3);margin-top:var(--s5);}
+    .ext a{font-family:var(--font-mono);font-size:.8125rem;padding:var(--s2) var(--s4);border:1px solid var(--border);border-radius:999px;
+      color:var(--fg-muted);transition:all 120ms var(--ease);}
+    .ext a:hover{color:var(--accent);border-color:var(--accent);background:var(--accent-soft);}
+
+    footer{margin-top:var(--s8);padding-top:var(--s4);border-top:1px solid var(--hairline);
+      font-family:var(--font-mono);font-size:.6875rem;color:var(--fg-faint);line-height:1.9;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><span class="dot"></span> FACTS · DOCS</div>
+    <h1>Read the codebase the way <span class="h">people</span> and <span class="a">AI</span> do.</h1>
+    <p class="lede">FACTS reads a codebase once and produces one shared source of truth for two audiences. These docs explain it at every altitude — from a one-page executive briefing to a 200-item engineering backlog.</p>
+
+    <p class="eyebrow">Start here</p>
+    <a class="feature" href="briefing.html">
+      <span class="tag">Executive briefing · ~10 min</span>
+      <h2>FACTS for a CXO or incoming CTO</h2>
+      <p>The decision-grade tour: the thesis, the economics, the risk &amp; governance posture, a live architecture diagram, and the roadmap. Start here if you're evaluating or sponsoring FACTS.</p>
+      <span class="go">Open the briefing →</span>
+    </a>
+
+    <p class="eyebrow">Go deeper</p>
+    <div class="grid">
+      <a class="doc" href="field-guide.html">
+        <span class="fn">field-guide.html</span>
+        <h3>The field guide</h3>
+        <p>The honest inventory of every capability that ships today — with what each gives humans vs. AI agents — plus a searchable backlog of 200 next moves.</p>
+      </a>
+      <a class="doc" href="suggestions.html">
+        <span class="fn">suggestions.html</span>
+        <h3>Ranked bets</h3>
+        <p>The same idea surface as the field guide, but sequenced — what to build next and why, in priority order.</p>
+      </a>
+      <a class="doc" href="roadmap.html">
+        <span class="fn">roadmap.html</span>
+        <h3>Roadmap</h3>
+        <p>Version-by-version plan, from the memory layer through to the bug-to-PR pipeline.</p>
+      </a>
+      <a class="doc" href="features.html">
+        <span class="fn">features.html</span>
+        <h3>Features</h3>
+        <p>A focused list of what's shipped and usable right now.</p>
+      </a>
+      <a class="doc muted" href="ideas.html">
+        <span class="fn">ideas.html</span>
+        <h3>Ideas</h3>
+        <p>The raw idea pool feeding the backlog.</p>
+      </a>
+      <a class="doc muted" href="architecture/README.md">
+        <span class="fn">architecture/</span>
+        <h3>Architecture diagrams</h3>
+        <p>Auto-generated Mermaid views: package graph, hubs, and a focal caller graph. Refreshed by <code>factstack export-diagram</code>.</p>
+      </a>
+    </div>
+
+    <p class="eyebrow">Off-page</p>
+    <div class="ext">
+      <a href="https://factscode.netlify.app" target="_blank" rel="noopener">Live dashboard ↗</a>
+      <a href="https://github.com/adi-FGC/Facts-Code" target="_blank" rel="noopener">Source on GitHub ↗</a>
+      <a href="FACTSPACK.md">FactsPack spec</a>
+    </div>
+
+    <footer>
+      FACTS — Fun AI Coding Tools · one analysis pass, two audiences.<br>
+      These are local explainer docs; the working source is the source of truth.
+    </footer>
+  </div>
+</body>
+</html>
