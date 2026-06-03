@@ -12,6 +12,9 @@ export * from './fs.js';
 export * from './file-writer.js';
 export * from './mcp.js';
 export * from './diff.js';
+export * from './review.js';
+export * from './docs.js';
+export * from './styles.js';
 export {
   agentJsonSchema,
   humanJsonSchema,

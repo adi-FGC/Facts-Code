@@ -1,0 +1,6 @@
+# Cloudflare Pages SPA fallback.
+# The dashboard is a client-side-routed SPA (see src/lib/routes.ts): /review,
+# /graph, /flow, etc. are rendered in the browser, not as separate HTML files.
+# Without this rule a hard load of a deep link (or a refresh on /review) 404s.
+# Mirror of the Netlify `[[redirects]] /* -> /index.html 200` in netlify.toml.
+/*  /index.html  200

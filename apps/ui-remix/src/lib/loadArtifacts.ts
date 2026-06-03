@@ -17,7 +17,7 @@
  * platform. Same module shape as the previous React version.
  */
 
-import type { DependencyManifest, Vulnerability } from '@factstack/spec';
+import type { DependencyManifest, DocFile, StyleAudit, Vulnerability } from '@factstack/spec';
 
 export interface DatasetFile {
   name: string;
@@ -126,6 +126,13 @@ export interface Dataset {
    *  artifacts that lack these fields entirely should still load. */
   dependencyManifests?: DependencyManifest[];
   vulnerabilities?: Vulnerability[];
+  /** v0.8 — flagged documentation files with parsed structure + capped raw
+   *  content. Optional for backward-compat with pre-v0.8 datasets; the Docs
+   *  tab renders an empty state when absent. */
+  docs?: DocFile[];
+  /** v0.8 — CSS / styling audit of the scanned project. Absent when the
+   *  project has no stylesheet sources; the RHS suggestions panel hides. */
+  styles?: StyleAudit;
 }
 
 const INLINE_ID = 'factstack-data';

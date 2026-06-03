@@ -7,6 +7,8 @@
  */
 
 import { z } from 'zod';
+import { DocFileSchema } from './docs.js';
+import { StyleAuditSchema } from './styles.js';
 
 export const FACTS_SCHEMA_VERSION = '0.1.0' as const;
 
@@ -377,5 +379,15 @@ export const AgentArtifactSchema = z.object({
    *  Vulnerabilities page reads from here first, falls back to live
    *  OSV query when empty or stale. */
   vulnerabilities: z.array(VulnerabilitySchema).default([]),
+  /** v0.8 — documentation intelligence. Every flagged doc/spec file with
+   *  parsed structure (headings, todos, diagrams) + capped raw content.
+   *  Powers the dashboard's Docs tab + agent doc-discovery. Default keeps
+   *  pre-v0.8 artifacts validating unchanged. */
+  docs: z.array(DocFileSchema).default([]),
+  /** v0.8 — CSS / styling audit of the scanned project (class map, selector
+   *  specificity, conflicts, responsive breakpoint coverage, paradigms,
+   *  lightningcss/tooling check). Optional for backward-compat; absent when
+   *  the project has no CSS sources. */
+  styles: StyleAuditSchema.optional(),
 });
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;

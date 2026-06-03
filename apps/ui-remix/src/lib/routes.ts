@@ -6,49 +6,40 @@
  * for href generation. Same data structure feeds the Header tablist
  * and the App's route table.
  *
- * Migration note (beta.2, 2026-05-22): `route-pattern` was split into
- * per-API subpaths (`/href`, `/match`, `/join`, `/specificity`) in
- * PR #11400. The old `pattern.href()` instance method is gone —
- * we now call the standalone `createHref(pattern)` factory. For
- * parameter-less routes that's a no-arg call; for parametric routes
- * (`/users/:id`) you'd pass `createHref(pattern, { id })`.
+ * v0.9 IA consolidation — 14 tabs collapsed to 7 numbered tabs + 2
+ * right-side icon routes:
+ *
+ *   01 Overview      (+ token-economics ROI panel)
+ *   02 Architecture  ← Graph + Flow + Routes   (SubViewTabs)
+ *   03 Files         ← Files + Library/Packages (SubViewTabs)
+ *   04 Review        (Change Verdict)
+ *   05 Security      ← Risks + Credentials + Vulnerabilities (SubViewTabs)
+ *   06 Tests
+ *   07 History
+ *   ⚙  Config        (right-side rotating-gear icon, not numbered)
+ *   ?  About         (right-side ?↔! icon, not numbered)
+ *
+ * Every retired URL (/graph, /flow, /routes, /risks, /credentials,
+ * /vulnerabilities, /library, /dag) still resolves — see `activeTab` —
+ * and SubViewTabs reads the pathname to pre-select the right sub-view,
+ * so old bookmarks land exactly where they used to.
  */
 import { RoutePattern } from 'remix/route-pattern';
 import { createHref } from 'remix/route-pattern/href';
 
-/* `RoutePattern.parse(source)` is the canonical factory in beta.2.
- * The old `new RoutePattern(source)` direct constructor is now
- * reserved for pre-parsed parts (see RoutePattern.d.ts) — passing a
- * source string to `new RoutePattern` is a type error now. The
- * parse-method form is what every demo uses. */
 export const tabPatterns = {
   overview: RoutePattern.parse('/'),
-  /* /graph absorbed /dag in v0.4 — three view modes (heatmap, diagram,
-   * layers) live behind one tab now. The /dag route still resolves to
-   * the Graph tab via the `dagAlias` matcher in `activeTab` so old
-   * deep links don't 404. */
-  graph:    RoutePattern.parse('/graph'),
-  /* /flow added in v0.5 — architectural data-flow + entity relationships.
-   * Sits between graph and files because the narrative is: see the
-   * structure (graph), see what flows through it (flow), then drill
-   * into individual files. */
-  flow:     RoutePattern.parse('/flow'),
-  files:    RoutePattern.parse('/files'),
-  library:  RoutePattern.parse('/library'),
-  routes:   RoutePattern.parse('/routes'),
-  risks:    RoutePattern.parse('/risks'),
-  /* /credentials added in v0.6 — surfaces secrets-scanner findings
-     from data.risks (category === 'secret') with a rule-reference
-     card so the user knows what we DID check, not just what fired. */
-  credentials: RoutePattern.parse('/credentials'),
-  /* /vulnerabilities added in v0.6 — CVE scanner backed by OSV.dev.
-     Lazy-loads the osvScanner client on click to keep main bundle
-     under cap. */
-  vulnerabilities: RoutePattern.parse('/vulnerabilities'),
-  tests:    RoutePattern.parse('/tests'),
-  history:  RoutePattern.parse('/history'),
-  about:    RoutePattern.parse('/about'),
-  config:   RoutePattern.parse('/config'),
+  architecture: RoutePattern.parse('/architecture'),
+  files: RoutePattern.parse('/files'),
+  docs: RoutePattern.parse('/docs'),
+  review: RoutePattern.parse('/review'),
+  security: RoutePattern.parse('/security'),
+  tests: RoutePattern.parse('/tests'),
+  history: RoutePattern.parse('/history'),
+  /* Meta destinations — reachable by URL and by the right-side header
+     icons (ConfigIcon / AboutIcon), but NOT part of the numbered nav. */
+  config: RoutePattern.parse('/config'),
+  about: RoutePattern.parse('/about'),
 } as const;
 
 export type TabKey = keyof typeof tabPatterns;
@@ -60,39 +51,59 @@ export interface TabMeta {
   /**
    * `true` when the route renders the actual feature. `false` flips on
    * the "porting" amber dot in the Header so users see the work in
-   * progress.
+   * progress. All routes are ported as of v0.9.
    */
   ported: boolean;
 }
 
+/** The numbered nav — 7 primary tabs. Config + About are rendered as
+ *  right-side icons by the Header, not here. */
 export const TABS: readonly TabMeta[] = [
-  { key: 'overview', label: 'Overview', href: createHref(tabPatterns.overview), ported: true  },
-  { key: 'graph',    label: 'Graph',    href: createHref(tabPatterns.graph),    ported: true  },
-  { key: 'flow',     label: 'Flow',     href: createHref(tabPatterns.flow),     ported: true  },
-  { key: 'files',    label: 'Files',    href: createHref(tabPatterns.files),    ported: true  },
-  { key: 'library',  label: 'Library',  href: createHref(tabPatterns.library),  ported: true  },
-  { key: 'routes',   label: 'Routes',   href: createHref(tabPatterns.routes),   ported: true  },
-  { key: 'risks',    label: 'Risks',    href: createHref(tabPatterns.risks),    ported: true  },
-  { key: 'credentials',    label: 'Credentials',    href: createHref(tabPatterns.credentials),    ported: true  },
-  { key: 'vulnerabilities', label: 'Vulnerabilities', href: createHref(tabPatterns.vulnerabilities), ported: true },
-  { key: 'tests',    label: 'Tests',    href: createHref(tabPatterns.tests),    ported: true  },
-  { key: 'history',  label: 'History',  href: createHref(tabPatterns.history),  ported: true  },
-  { key: 'about',    label: 'About',    href: createHref(tabPatterns.about),    ported: true  },
-  { key: 'config',   label: 'Config',   href: createHref(tabPatterns.config),   ported: true  },
+  { key: 'overview',     label: 'Overview',     href: createHref(tabPatterns.overview),     ported: true },
+  { key: 'architecture', label: 'Architecture', href: createHref(tabPatterns.architecture), ported: true },
+  { key: 'files',        label: 'Files',        href: createHref(tabPatterns.files),        ported: true },
+  { key: 'docs',         label: 'Docs',         href: createHref(tabPatterns.docs),         ported: true },
+  { key: 'review',       label: 'Review',       href: createHref(tabPatterns.review),       ported: true },
+  { key: 'security',     label: 'Security',     href: createHref(tabPatterns.security),     ported: true },
+  { key: 'tests',        label: 'Tests',        href: createHref(tabPatterns.tests),        ported: true },
+  { key: 'history',      label: 'History',      href: createHref(tabPatterns.history),      ported: true },
+] as const;
+
+/** Right-side icon destinations (Config gear, About ?↔!). */
+export const ICON_TABS: readonly TabMeta[] = [
+  { key: 'config', label: 'Config', href: createHref(tabPatterns.config), ported: true },
+  { key: 'about',  label: 'About',  href: createHref(tabPatterns.about),  ported: true },
 ] as const;
 
 /**
+ * Aliases: retired URLs → the tab that now hosts them. SubViewTabs uses
+ * the original pathname to pick the sub-view, so these only need to map
+ * to the parent tab for nav-highlight + routing purposes.
+ */
+const ALIASES: Record<string, TabKey> = {
+  '/dag': 'architecture',
+  '/graph': 'architecture',
+  '/flow': 'architecture',
+  '/routes': 'architecture',
+  '/risks': 'security',
+  '/credentials': 'security',
+  '/vulnerabilities': 'security',
+  '/library': 'files',
+};
+
+/**
  * Match the current pathname to a tab key. Falls back to `overview` for
- * anything unrecognized — same behavior as React Router's `<Navigate />`
- * fallback in the previous version.
+ * anything unrecognized.
  */
 export function activeTab(pathname: string): TabKey {
   // Strip trailing slash (except for root)
   const p = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
-  /* /dag was the layered DAG tab in v0.3 — merged into /graph in v0.4.
-     Old links + bookmarks resolve to the Graph tab so they don't 404. */
-  if (p === '/dag') return 'graph';
+  const alias = ALIASES[p];
+  if (alias) return alias;
   for (const t of TABS) {
+    if (t.href === p) return t.key;
+  }
+  for (const t of ICON_TABS) {
     if (t.href === p) return t.key;
   }
   return 'overview';

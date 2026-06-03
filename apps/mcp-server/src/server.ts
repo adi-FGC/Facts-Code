@@ -31,7 +31,7 @@
  */
 
 import * as path from 'node:path';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -43,6 +43,7 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   analyze,
+  buildChangeVerdict,
   buildMemory,
   buildDiagram,
   executeQuery,
@@ -50,6 +51,7 @@ import {
   parseLearningsJsonl,
   proposalEvent,
   queryLearnings,
+  renderVerdictMarkdown,
   selfCalibrateEvent,
   since as buildSinceReport,
   type DiagramView,
@@ -420,6 +422,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: 'review_change',
+      description: 'Change Verdict: compares the current analysis (head) against the most recent .facts/snapshots/ baseline and returns ONE opinionated risk verdict — severity + headline + grounded findings (new secrets, new CVEs, new dependency cycles, blast radius). Structured JSON by default; pass format:"markdown" for a PR-comment-ready block. When no baseline snapshot exists, returns {ok:false} advising to run `factstack analyze` again to create one. Cheaper + more decisive than walking the diff yourself.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          format: { type: 'string', enum: ['json', 'markdown'], description: 'Response shape (default json).', default: 'json' },
+        },
+      },
+    },
   ],
 }));
 
@@ -691,22 +703,67 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: JSON.stringify(config) }] };
   }
 
+  // Change Verdict: head (current analysis) vs latest snapshot baseline.
+  if (name === 'review_change') {
+    if (!cached) await ensureAnalyzed();
+    // Exclude the head's own snapshot (analyze writes one each run) so we
+    // compare against the PRIOR state, not head-vs-head.
+    const baseline = readLatestSnapshot(cached!.agent.generatedAt, true);
+    if (!baseline) {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'No baseline snapshot in .facts/snapshots/ to compare against. Run `factstack analyze` after a change to create one, then retry.' }) }],
+      };
+    }
+    const verdict = buildChangeVerdict(baseline, cached!.agent);
+    if (args.format === 'markdown') {
+      return { content: [{ type: 'text', text: renderVerdictMarkdown(verdict) }] };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(verdict) }] };
+  }
+
   throw new Error(`Unknown tool: ${name}`);
 });
 
 /* ─── v0.3.2 / v0.3.4 helpers ───────────────────────────────────── */
 
-function readLatestSnapshot(): import('@factstack/spec').AgentArtifact | null {
+type SnapshotArtifact = import('@factstack/spec').AgentArtifact;
+
+/** Load a single snapshot entry: a flat `<ts>.json` file (the format CLI
+ *  `analyze` writes) OR a legacy `<ts>/agent.json` directory. Returns null
+ *  on anything unreadable. */
+function loadSnapshotEntry(snapDir: string, entry: string): SnapshotArtifact | null {
+  const candidate = entry.endsWith('.json')
+    ? path.join(snapDir, entry)
+    : path.join(snapDir, entry, 'agent.json');
+  if (!existsSync(candidate)) return null;
+  try {
+    return JSON.parse(readFileSync(candidate, 'utf8')) as SnapshotArtifact;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Newest snapshot artifact, scanning timestamp-sorted entries from the end.
+ * `excludeGeneratedAt` skips a snapshot whose generatedAt matches it — used
+ * by review_change so it compares the head against the PRIOR state, not the
+ * snapshot `analyze` just wrote for this same head (which would always read
+ * as "no change").
+ */
+function readLatestSnapshot(excludeGeneratedAt?: string, requireFull = false): SnapshotArtifact | null {
   try {
     const snapDir = path.join(root, '.facts', 'snapshots');
     if (!existsSync(snapDir)) return null;
-    const dirs = readdirSyncSafe(snapDir).sort();
-    for (let i = dirs.length - 1; i >= 0; i--) {
-      const candidate = path.join(snapDir, dirs[i]!, 'agent.json');
-      if (existsSync(candidate)) {
-        const text = readFileSync(candidate, 'utf8');
-        return JSON.parse(text);
-      }
+    const entries = readdirSyncSafe(snapDir).sort();
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const art = loadSnapshotEntry(snapDir, entries[i]!);
+      if (!art) continue;
+      if (excludeGeneratedAt && art.generatedAt === excludeGeneratedAt) continue;
+      // review_change needs a FULL artifact (files[] + graph) to diff +
+      // compute blast radius. Snapshots can be rolled-up stat summaries
+      // without files[]; skip those so we land on a usable baseline.
+      if (requireFull && (!Array.isArray(art.files) || !art.graph)) continue;
+      return art;
     }
     return null;
   } catch {
@@ -715,13 +772,12 @@ function readLatestSnapshot(): import('@factstack/spec').AgentArtifact | null {
 }
 
 function readdirSyncSafe(p: string): string[] {
+  // The server is ESM ("type":"module"), so `require` is not defined here —
+  // the previous require('node:fs') threw on every call, silently returning
+  // [] and breaking snapshot-baseline discovery for both `since` and
+  // `review_change`. Use the static import instead.
   try {
-    /* Avoid a top-level node:fs import we don't actually need
-       elsewhere — inline the fs.readdirSync via require. The MCP server
-       is Node-only by design, so this is fine. */
-    // eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-require-imports
-    const fs = require('node:fs') as typeof import('node:fs');
-    return fs.readdirSync(p);
+    return readdirSync(p);
   } catch { return []; }
 }
 

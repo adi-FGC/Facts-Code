@@ -29,10 +29,12 @@ import open from 'open';
 import chokidar, { type FSWatcher } from 'chokidar';
 import {
   analyze,
+  buildChangeVerdict,
   buildDiagram,
   buildMemory,
   diffArtifacts,
   executeQuery,
+  renderVerdictMarkdown,
   formatLearningEvent,
   selfCalibrateEvent,
   type DiagramView,
@@ -783,6 +785,66 @@ program
   });
 
 program
+  .command('review [base] [head]')
+  .description('Change Verdict: fuse diff + blast radius + structural deltas into one PR-ready risk verdict (Markdown or JSON).')
+  .option('--json', 'Emit the verdict as JSON instead of Markdown')
+  .option('--fail-on <severity>', 'Exit non-zero when verdict severity is >= this (low|medium|high|critical)')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .action(async (baseArg: string | undefined, headArg: string | undefined, opts: { json?: boolean; failOn?: string; root: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(opts.root);
+    const factsDir = path.join(root, '.facts');
+    const snapDir = path.join(factsDir, 'snapshots');
+
+    let from: DiffEndpoint | null;
+    let to: DiffEndpoint | null;
+    if (baseArg && headArg) {
+      from = resolveDiffEndpointArg(baseArg, snapDir);
+      to = resolveDiffEndpointArg(headArg, snapDir);
+    } else if (baseArg) {
+      from = resolveDiffEndpointArg(baseArg, snapDir);
+      to = loadDiffEndpoint(path.join(factsDir, 'agent.json'));
+    } else {
+      // Zero-arg: PREVIOUS snapshot vs current agent.json (same rationale
+      // as `diff` — the most recent snapshot was written by this analyze
+      // run, so pick the second-to-last to surface real change).
+      from = existsSync(snapDir)
+        ? (() => {
+            const files = statSync(snapDir).isDirectory() ? readdirSnapshotList(snapDir) : [];
+            if (!files.length) return null;
+            const pick = files[files.length - 2] ?? files[files.length - 1]!;
+            return resolveDiffEndpointArg(pick, snapDir);
+          })()
+        : null;
+      to = loadDiffEndpoint(path.join(factsDir, 'agent.json'));
+    }
+
+    if (!from || !to) {
+      process.stderr.write(kleur.red('factstack review: ') + 'need two analyzable endpoints.\n');
+      if (!to) process.stderr.write(kleur.dim('  run factstack analyze to produce .facts/agent.json\n'));
+      process.exit(1);
+    }
+
+    const verdict = buildChangeVerdict(from.artifact, to.artifact);
+
+    if (opts.json) process.stdout.write(JSON.stringify(verdict, null, 2) + '\n');
+    else process.stdout.write(renderVerdictMarkdown(verdict) + '\n');
+
+    if (opts.failOn) {
+      const RANK: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3, critical: 4 };
+      const threshold = RANK[opts.failOn];
+      if (threshold === undefined) {
+        process.stderr.write(kleur.red('factstack review: ') + `invalid --fail-on "${opts.failOn}" (use low|medium|high|critical)\n`);
+        process.exit(2);
+      }
+      if (RANK[verdict.severity]! >= threshold) {
+        process.stderr.write(kleur.yellow('\nfactstack review: ') + `verdict severity "${verdict.severity}" >= --fail-on "${opts.failOn}"\n`);
+        process.exit(1);
+      }
+    }
+  });
+
+program
   .command('query <verb> [target]')
   .description('Query the dependency graph. Verbs: callers <path> | imports <path> | cycles | orphans')
   .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
@@ -1335,6 +1397,7 @@ function loadDiffEndpoint(p: string): DiffEndpoint | null {
       routes: [],
       scripts: {},
       capabilities: [],
+      docs: [],
       /* Clamp risk-count synthesis: snapshots are on-disk data we
          don't fully trust (corrupted file, mis-written by an older
          FACTS, etc.). `new Array(1e9).fill(...)` would OOM the CLI

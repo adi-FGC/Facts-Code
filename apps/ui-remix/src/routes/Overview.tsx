@@ -27,6 +27,7 @@ import { Section } from '../ui/Section.tsx';
 import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
+import { TokenRoiPanel } from '../ui/TokenRoiPanel.tsx';
 
 interface OverviewProps {
   data: Dataset;
@@ -326,6 +327,12 @@ export function Overview(handle: Handle<OverviewProps>) {
               last
             />
           </LabelNumberRow>
+
+          {/* Token economics — the quantified FACTS pitch. Sits right
+              under the headline figures so the Tokens number above flows
+              straight into "here's what that costs an agent, and what
+              FACTS saves." */}
+          <TokenRoiPanel data={data} />
 
           {/* Stack — language list as agate column */}
           <Section label="Stack" title="What it's made of">

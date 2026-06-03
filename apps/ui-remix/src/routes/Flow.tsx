@@ -41,6 +41,7 @@ import { SwimlanesDiagram } from '../ui/flow/SwimlanesDiagram.tsx';
 import { EntityList } from '../ui/flow/EntityList.tsx';
 import { FlowText } from '../ui/flow/FlowText.tsx';
 import { SequenceDiagram } from '../ui/flow/SequenceDiagram.tsx';
+import { DiagramGuide } from '../ui/flow/DiagramGuide.tsx';
 import { buildSequenceFlow, pickDefaultEntryPoint } from '../lib/sequenceFlow.ts';
 
 interface FlowProps {
@@ -350,6 +351,7 @@ export function Flow(handle: Handle<FlowProps>) {
           {viewMode === 'swimlanes' && (
             <Section label="Swimlanes" title={`${activeTiers.length} tiers, ${fmt(crossEdges)} edges`}>
               <SwimlanesDiagram result={result} />
+              <DiagramGuide mode="swimlanes" />
             </Section>
           )}
 
@@ -358,12 +360,14 @@ export function Flow(handle: Handle<FlowProps>) {
           {viewMode === 'entities' && (
             <Section label="Entities" title={`${entityCount} data-tier file${entityCount === 1 ? '' : 's'}`}>
               <EntityList entities={result.entities} />
+              <DiagramGuide mode="entities" />
             </Section>
           )}
 
           {viewMode === 'text' && (
             <Section label="Text breakdown" title="Copy-pasteable">
               <FlowText result={result} />
+              <DiagramGuide mode="text" />
             </Section>
           )}
         </div>
@@ -467,6 +471,7 @@ export function Flow(handle: Handle<FlowProps>) {
             </select>
           </div>
           <SequenceDiagram result={seqResult} />
+          <DiagramGuide mode="sequence" />
         </Section>
       );
     }

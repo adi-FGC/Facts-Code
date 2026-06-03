@@ -238,6 +238,14 @@ export function About(handle: Handle<AboutProps>) {
         </div>
 
         <MarginColumn>
+          <FootnoteChip label="Briefing" tone="accent">
+            <a href="/briefing.html" mix={link} target="_blank" rel="noopener noreferrer">
+              Executive briefing ↗
+            </a>
+            <span mix={css({ display: 'block', marginTop: '4px', color: 'var(--fg-faint)', fontSize: 'var(--fs-11)' })}>
+              plain-English tour for a CXO / new CTO
+            </span>
+          </FootnoteChip>
           <FootnoteChip label="Generated">
             {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}
           </FootnoteChip>

@@ -12,6 +12,7 @@ import { ThemeToggle } from '../ui/ThemeToggle.tsx';
 import { ReanalyzeButton } from '../ui/ReanalyzeButton.tsx';
 import { OpenButton } from '../ui/OpenButton.tsx';
 import { SourceChip } from '../ui/SourceChip.tsx';
+import { ConfigIcon, AboutIcon } from '../ui/NavIcons.tsx';
 
 interface HeaderProps {
   data: Dataset;
@@ -92,6 +93,10 @@ export function Header(handle: Handle<HeaderProps>) {
               ordered by reach. */}
           <OpenButton />
           <ReanalyzeButton />
+          {/* Config + About: demoted from the numbered nav to animated
+              right-side icons (rotating gear · ?↔! morph). */}
+          <ConfigIcon />
+          <AboutIcon />
           <ThemeToggle />
         </div>
       </header>

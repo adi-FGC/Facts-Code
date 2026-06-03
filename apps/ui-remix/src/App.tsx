@@ -22,19 +22,17 @@ import { Header } from './components/Header.tsx';
 import { TreePanel } from './components/TreePanel.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Overview } from './routes/Overview.tsx';
-import { Risks } from './routes/Risks.tsx';
-import { Credentials } from './routes/Credentials.tsx';
-import { Vulnerabilities } from './routes/Vulnerabilities.tsx';
-import { History } from './routes/History.tsx';
-import { GraphRoute } from './routes/GraphRoute.tsx';
-import { Flow } from './routes/Flow.tsx';
-import { Files } from './routes/Files.tsx';
-import { Library } from './routes/Library.tsx';
-import { RoutesTab } from './routes/RoutesTab.tsx';
+import { Architecture } from './routes/Architecture.tsx';
+import { FilesTab } from './routes/FilesTab.tsx';
+import { Docs } from './routes/Docs.tsx';
+import { Review } from './routes/Review.tsx';
+import { Security } from './routes/Security.tsx';
 import { Tests } from './routes/Tests.tsx';
+import { History } from './routes/History.tsx';
 import { About } from './routes/About.tsx';
 import { Config } from './routes/Config.tsx';
 import { CommandPalette } from './ui/CommandPalette.tsx';
+import { CssSuggestionsPanel } from './ui/CssSuggestionsPanel.tsx';
 import { OpenModal } from './components/OpenModal.tsx';
 
 interface AppProps {
@@ -165,6 +163,9 @@ function Shell(handle: Handle<{ data: Dataset }>) {
             button dispatches `factstack:open`. Owns its own state and
             cleanup; no wiring needed beyond mounting. */}
         <OpenModal />
+        {/* CSS audit drawer: a collapsible RHS panel whose handle badge is a
+            live suggestion ticker. Hides when the scanned project has no CSS. */}
+        <CssSuggestionsPanel data={data} />
       </>
     );
   };
@@ -174,18 +175,15 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   // Hand-rolled switch — small + obvious, no router needed beyond the
   // pathname → tab mapping in lib/routes.ts.
   switch (tab) {
-    case 'overview': return <Overview data={data} />;
-    case 'graph':    return <GraphRoute data={data} />;
-    case 'flow':     return <Flow data={data} />;
-    case 'files':    return <Files data={data} />;
-    case 'library':  return <Library data={data} />;
-    case 'routes':   return <RoutesTab data={data} />;
-    case 'risks':    return <Risks data={data} />;
-    case 'credentials':    return <Credentials data={data} />;
-    case 'vulnerabilities': return <Vulnerabilities data={data} />;
-    case 'tests':    return <Tests data={data} />;
-    case 'history':  return <History data={data} />;
-    case 'about':    return <About data={data} />;
-    case 'config':   return <Config data={data} />;
+    case 'overview':     return <Overview data={data} />;
+    case 'architecture': return <Architecture data={data} />;
+    case 'files':        return <FilesTab data={data} />;
+    case 'docs':         return <Docs data={data} />;
+    case 'review':       return <Review data={data} />;
+    case 'security':     return <Security data={data} />;
+    case 'tests':        return <Tests data={data} />;
+    case 'history':      return <History data={data} />;
+    case 'config':       return <Config data={data} />;
+    case 'about':        return <About data={data} />;
   }
 }

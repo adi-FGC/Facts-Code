@@ -25,8 +25,13 @@
 import type { Handle } from 'remix/ui';
 import { css, on, ref } from 'remix/ui';
 import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
-import { TABS } from '../lib/routes.ts';
+import { TABS, ICON_TABS } from '../lib/routes.ts';
 import { navigate } from '../lib/navigate.ts';
+
+/* Quick-jump targets: the 7 numbered tabs plus the right-side icon
+   routes (Config, About) so ⌘K still reaches them after they left the
+   numbered nav. */
+const NAV_TARGETS = [...TABS, ...ICON_TABS];
 
 interface PaletteProps {
   data: Dataset;
@@ -70,8 +75,8 @@ function score(query: string, text: string, basename?: string): number {
 
 function rank(query: string, data: Dataset): Result[] {
   if (!query.trim()) {
-    // Default suggestions: every tab.
-    return TABS.map((t) => ({
+    // Default suggestions: every tab + icon route.
+    return NAV_TARGETS.map((t) => ({
       type: 'tab' as const,
       label: t.label,
       detail: t.href,
@@ -81,7 +86,7 @@ function rank(query: string, data: Dataset): Result[] {
   }
   const out: Result[] = [];
   // Tabs
-  for (const t of TABS) {
+  for (const t of NAV_TARGETS) {
     const s = score(query, t.label, t.label);
     if (s >= 0) out.push({ type: 'tab', label: t.label, detail: t.href, href: t.href, score: s + 25 /* slight tab boost */ });
   }

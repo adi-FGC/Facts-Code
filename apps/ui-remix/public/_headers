@@ -1,0 +1,13 @@
+# Cloudflare Pages cache + security headers. Mirrors netlify.toml so the two
+# hosts behave identically.
+#
+# HTML (incl. the inline-baked dataset in index.html) must revalidate every
+# load so a fresh `factstack analyze` + redeploy ships instantly. Hashed assets
+# under /assets/ are content-addressed (index-<hash>.js) so they're immutable.
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer-when-downgrade

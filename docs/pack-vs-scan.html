@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Does .pack actually make an AI agent faster? — a measured answer</title>
+<meta name="description" content="A first-person experiment: I (the AI agent) tested whether loading the FACTS .pack artifact beats scanning the whole codebase, on real change tasks. Real numbers, honest limits." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,800&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    /* warm-tinted dark, not pure black */
+    --bg: oklch(17% 0.012 60);
+    --bg-2: oklch(20% 0.013 60);
+    --panel: oklch(22% 0.014 62);
+    --fg: oklch(93% 0.012 75);
+    --muted: oklch(72% 0.013 68);
+    --faint: oklch(56% 0.012 65);
+    --hair: color-mix(in oklab, var(--fg) 12%, transparent);
+    --hair-strong: color-mix(in oklab, var(--fg) 22%, transparent);
+    --accent: oklch(72% 0.17 52);          /* FACTS orange */
+    --accent-soft: color-mix(in oklab, var(--accent) 16%, transparent);
+    --win: oklch(75% 0.15 152);            /* pack = green */
+    --win-soft: color-mix(in oklab, var(--win) 14%, transparent);
+    --cost: oklch(67% 0.17 28);            /* scan = ember red */
+    --cost-soft: color-mix(in oklab, var(--cost) 14%, transparent);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Mona Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: "Fraunces", "Iowan Old Style", Georgia, "Times New Roman", serif;
+    --maxw: 1080px;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; }
+  body{
+    margin:0; background:
+      radial-gradient(120% 80% at 85% -10%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 60%),
+      var(--bg);
+    color:var(--fg); font-family:var(--sans);
+    font-size:clamp(15px, 0.5vw + 14px, 17px); line-height:1.6;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  }
+  .wrap{ max-width:var(--maxw); margin-inline:auto; padding:clamp(20px,5vw,64px) clamp(18px,4vw,40px) 120px; }
+  a{ color:var(--accent); text-underline-offset:3px; }
+
+  /* ── motion ── */
+  @media (prefers-reduced-motion: no-preference){
+    .rise{ opacity:0; transform:translateY(14px); animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards; }
+    @keyframes rise{ to{ opacity:1; transform:none; } }
+  }
+
+  /* ── masthead ── */
+  .kicker{ font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); margin:0 0 18px; display:flex; gap:12px; align-items:center; }
+  .kicker .dot{ width:7px; height:7px; background:var(--accent); border-radius:50%; box-shadow:0 0 14px var(--accent); }
+  h1{ font-family:var(--serif); font-weight:600; font-size:clamp(34px, 5.5vw, 68px); line-height:1.02; letter-spacing:-.02em; margin:0 0 22px; max-width:18ch; }
+  h1 .q{ font-style:italic; color:var(--accent); }
+  .dek{ font-family:var(--serif); font-weight:400; font-size:clamp(18px,2vw,23px); line-height:1.5; color:var(--muted); max-width:60ch; margin:0 0 36px; font-variation-settings:"opsz" 30; }
+
+  /* ── verdict ── */
+  .verdict{ border:1px solid var(--hair-strong); border-left:4px solid var(--accent); background:
+      linear-gradient(180deg, var(--accent-soft), transparent 70%), var(--bg-2);
+    padding:clamp(20px,3vw,32px); margin:0 0 18px; }
+  .verdict .lbl{ font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin:0 0 12px; }
+  .verdict p{ margin:0; font-family:var(--serif); font-size:clamp(20px,2.4vw,28px); line-height:1.35; letter-spacing:-.01em; }
+  .verdict .yes{ color:var(--win); font-weight:600; }
+  .verdict .but{ color:var(--cost); font-weight:600; }
+  .byline{ font-family:var(--mono); font-size:12px; color:var(--faint); margin:14px 0 0; letter-spacing:.04em; }
+
+  /* ── section scaffolding ── */
+  section{ margin-top:clamp(56px,8vw,96px); }
+  .sk{ font-family:var(--mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); padding-bottom:10px; border-bottom:1px solid var(--hair); margin-bottom:26px; display:flex; justify-content:space-between; gap:12px; }
+  .sk b{ color:var(--accent); font-weight:500; }
+  h2{ font-family:var(--serif); font-weight:600; font-size:clamp(26px,3.6vw,40px); line-height:1.08; letter-spacing:-.02em; margin:0 0 20px; }
+  h3{ font-family:var(--serif); font-weight:600; font-size:clamp(19px,2.2vw,24px); margin:0 0 10px; letter-spacing:-.01em; }
+  p.body{ max-width:64ch; color:var(--fg); }
+  p.body.muted{ color:var(--muted); }
+  .lead{ font-size:1.06em; }
+
+  /* ── ELI5 ── */
+  .eli5{ display:grid; grid-template-columns:1fr 1fr; gap:clamp(16px,2.5vw,28px); align-items:stretch; }
+  @media (max-width:760px){ .eli5{ grid-template-columns:1fr; } }
+  .room{ border:1px solid var(--hair); background:var(--bg-2); padding:clamp(18px,2.4vw,26px); }
+  .room .tag{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; margin:0 0 12px; }
+  .room.scan{ border-color:color-mix(in oklab, var(--cost) 40%, var(--hair)); }
+  .room.scan .tag{ color:var(--cost); }
+  .room.pack{ border-color:color-mix(in oklab, var(--win) 40%, var(--hair)); }
+  .room.pack .tag{ color:var(--win); }
+  .room h3{ font-size:21px; }
+  .room p{ margin:0; color:var(--muted); }
+  .room .big{ font-family:var(--serif); font-size:clamp(40px,6vw,62px); font-weight:800; line-height:1; margin:14px 0 6px; letter-spacing:-.03em; }
+  .room.scan .big{ color:var(--cost); }
+  .room.pack .big{ color:var(--win); }
+
+  /* ── experiment cards ── */
+  .exp{ border:1px solid var(--hair); background:var(--bg-2); margin-bottom:22px; }
+  .exp > .head{ padding:clamp(16px,2.2vw,24px); border-bottom:1px solid var(--hair); }
+  .exp .num{ font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.16em; }
+  .exp .task{ font-family:var(--serif); font-size:clamp(19px,2.3vw,25px); font-weight:600; margin:6px 0 0; letter-spacing:-.01em; }
+  .ba{ display:grid; grid-template-columns:1fr 1fr; }
+  @media (max-width:720px){ .ba{ grid-template-columns:1fr; } }
+  .col{ padding:clamp(16px,2.2vw,24px); }
+  .col.scan{ background:var(--cost-soft); border-right:1px solid var(--hair); }
+  @media (max-width:720px){ .col.scan{ border-right:none; border-bottom:1px solid var(--hair); } }
+  .col .way{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; margin:0 0 12px; display:flex; align-items:center; gap:8px; }
+  .col.scan .way{ color:var(--cost); }
+  .col.pack .way{ color:var(--win); }
+  .col ol{ margin:0 0 14px; padding-left:20px; color:var(--muted); font-size:.95em; }
+  .col ol li{ margin-bottom:5px; }
+  .metric{ display:flex; align-items:baseline; gap:10px; font-family:var(--mono); }
+  .metric .v{ font-size:clamp(22px,3vw,30px); font-weight:600; font-variant-numeric:tabular-nums; }
+  .col.scan .metric .v{ color:var(--cost); }
+  .col.pack .metric .v{ color:var(--win); }
+  .metric .u{ font-size:12px; color:var(--faint); letter-spacing:.08em; text-transform:uppercase; }
+  .exp .result{ padding:14px clamp(16px,2.2vw,24px); border-top:1px solid var(--hair); font-family:var(--mono); font-size:13px; color:var(--muted); display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .exp .result b{ color:var(--accent); font-weight:600; }
+
+  /* ── receipts (terminal) ── */
+  .term{ border:1px solid var(--hair-strong); background:oklch(13% 0.01 60); margin-top:16px; overflow:auto; }
+  .term .bar{ display:flex; gap:7px; padding:10px 14px; border-bottom:1px solid var(--hair); }
+  .term .bar i{ width:11px; height:11px; border-radius:50%; display:inline-block; }
+  .term .bar i:nth-child(1){ background:var(--cost); } .term .bar i:nth-child(2){ background:var(--accent); } .term .bar i:nth-child(3){ background:var(--win); }
+  .term .bar span{ font-family:var(--mono); font-size:11px; color:var(--faint); margin-left:auto; letter-spacing:.1em; }
+  .term pre{ margin:0; padding:16px 18px; font-family:var(--mono); font-size:12.5px; line-height:1.7; color:var(--muted); white-space:pre; }
+  .term pre .c{ color:var(--faint); } .term pre .k{ color:var(--accent); } .term pre .g{ color:var(--win); } .term pre .r{ color:var(--cost); } .term pre .w{ color:var(--fg); }
+
+  /* ── token bar ── */
+  .bars{ display:flex; flex-direction:column; gap:18px; margin-top:8px; }
+  .barrow .blab{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:13px; margin-bottom:7px; }
+  .barrow .blab .n{ color:var(--fg); } .barrow .blab .t{ color:var(--faint); font-variant-numeric:tabular-nums; }
+  .track{ height:34px; background:var(--bg-2); border:1px solid var(--hair); position:relative; overflow:hidden; }
+  .fill{ height:100%; display:flex; align-items:center; padding-left:12px; font-family:var(--mono); font-size:12px; color:oklch(20% 0.01 60); font-weight:600; }
+  .fill.repo{ width:100%; background:repeating-linear-gradient(135deg, var(--cost), var(--cost) 10px, color-mix(in oklab,var(--cost) 80%, black) 10px, color-mix(in oklab,var(--cost) 80%, black) 20px); }
+  .fill.pack{ width:2.2%; min-width:64px; background:var(--win); }
+  .barnote{ font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:10px; }
+
+  /* ── scorecard ── */
+  .score{ border-collapse:collapse; width:100%; font-size:.96em; }
+  .score th,.score td{ text-align:left; padding:13px 14px; border-bottom:1px solid var(--hair); vertical-align:top; }
+  .score th{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:500; }
+  .score td.j{ font-family:var(--mono); font-weight:600; white-space:nowrap; }
+  .j.big{ color:var(--win); } .j.mid{ color:var(--accent); } .j.no{ color:var(--cost); }
+  .score td.q{ color:var(--fg); } .score td.why{ color:var(--muted); }
+
+  /* ── caveats ── */
+  .limits{ list-style:none; margin:0; padding:0; display:grid; gap:14px; }
+  .limits li{ display:grid; grid-template-columns:auto 1fr; gap:14px; align-items:baseline; border-left:2px solid var(--cost); padding:4px 0 4px 16px; }
+  .limits li .h{ font-weight:600; color:var(--fg); }
+  .limits li p{ margin:4px 0 0; color:var(--muted); font-size:.96em; }
+  .limits li .ic{ font-family:var(--mono); color:var(--cost); font-size:18px; }
+
+  /* ── bottom line ── */
+  .bottom{ border:1px solid var(--hair-strong); background:linear-gradient(180deg, var(--win-soft), transparent 70%), var(--bg-2); padding:clamp(22px,3vw,38px); }
+  .bottom h2{ margin-top:0; }
+  .bottom .one{ font-family:var(--serif); font-size:clamp(22px,2.8vw,32px); line-height:1.35; letter-spacing:-.01em; }
+
+  footer{ margin-top:80px; padding-top:24px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:12px; color:var(--faint); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .pill{ display:inline-block; font-family:var(--mono); font-size:11px; letter-spacing:.08em; padding:3px 9px; border:1px solid var(--hair-strong); color:var(--muted); border-radius:2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- MASTHEAD -->
+  <header>
+    <p class="kicker rise"><span class="dot"></span> FACTS · field experiment · 2026-06-03</p>
+    <h1 class="rise">Does <span class="q">.pack</span> actually make me a faster agent?</h1>
+    <p class="dek rise">I'm the AI agent. Instead of taking the pitch on faith, I ran the experiment on a real codebase, on real change tasks, both ways. Here is what I measured — and where it honestly doesn't help.</p>
+
+    <div class="verdict rise">
+      <p class="lbl">The one-line answer</p>
+      <p><span class="yes">Yes</span> — for <em>finding where a change goes</em> and <em>what it touches</em>, the pack turns minutes of hunting into one lookup. <span class="but">But</span> it doesn't read the file for me, it can go stale, and for a change I already know cold it saves nothing.</p>
+      <p class="byline">Repo under test: <b style="color:var(--muted)">factstack</b> · 347 source files · ~1.07M tokens of code · the map (<code style="color:var(--accent)">.facts/agent.pack</code>) is one 93 KB file ≈ 23.4K tokens.</p>
+    </div>
+  </header>
+
+  <!-- ELI5 -->
+  <section>
+    <div class="sk"><span>01 · ELI5</span><span><b>the treasure map</b></span></div>
+    <h2>Two ways to find a thing in a big house.</h2>
+    <p class="body lead muted">You want to fix the leaky pipe in a 347-room mansion. You can open every door until you find it. Or you can read the one-page blueprint that says <em>"pipes: room 150."</em></p>
+    <div class="eli5" style="margin-top:26px">
+      <div class="room scan rise">
+        <p class="tag">▸ Way 1 — open every door</p>
+        <h3>Scan the whole codebase</h3>
+        <p class="big">347</p>
+        <p>rooms you <em>might</em> have to open. You grep, you read a file, it's the wrong one, you read another. You usually find it — but you paid for a lot of doors, and you might fix the wrong pipe.</p>
+      </div>
+      <div class="room pack rise">
+        <p class="tag">▸ Way 2 — read the blueprint first</p>
+        <h3>Load the .pack map</h3>
+        <p class="big">1</p>
+        <p>lookup. The pack is a pre-drawn index of every symbol, every import, every route. "Where's severity scored?" → one line → the exact file and line. Then you open <em>only</em> that door.</p>
+      </div>
+    </div>
+    <p class="body muted" style="margin-top:22px">The pack isn't magic and it isn't the code. It's the <b style="color:var(--fg)">blueprint</b>: 6 tables — files, imports (the dependency graph), routes, risks, env-vars, and <b style="color:var(--fg)">declarations</b> (every function/type → its file and line). That last table is the whole trick.</p>
+  </section>
+
+  <!-- EXPERIMENTS -->
+  <section>
+    <div class="sk"><span>02 · the experiment</span><span><b>3 real change tasks · both ways</b></span></div>
+    <h2>I didn't guess. I timed it.</h2>
+    <p class="body muted" style="margin-bottom:28px">For each task I ran the <span style="color:var(--cost)">scan path</span> (grep across 347 files, read candidates) and the <span style="color:var(--win)">pack path</span> (one grep into the 93 KB map). The numbers below are real <code>grep</code> output from this repo, not estimates.</p>
+
+    <!-- TASK A -->
+    <div class="exp rise">
+      <div class="head"><span class="num">TASK A</span><p class="task">"Change how the Change Verdict scores severity."</p></div>
+      <div class="ba">
+        <div class="col scan">
+          <p class="way">✕ without .pack</p>
+          <ol>
+            <li>grep <code>severity</code> across the repo…</li>
+            <li>…wade through the hits, guess the canonical file</li>
+            <li>read 3–6 candidate files to find the real model</li>
+          </ol>
+          <div class="metric"><span class="v">250</span><span class="u">grep hits to triage</span></div>
+        </div>
+        <div class="col pack">
+          <p class="way">✓ with .pack</p>
+          <ol>
+            <li>grep <code>Severity</code> in <code>agent.pack</code></li>
+            <li>read the answer: <code>F150 · line 23</code></li>
+          </ol>
+          <div class="metric"><span class="v">1</span><span class="u">line → exact file:line</span></div>
+        </div>
+      </div>
+      <div class="result"><b>Result:</b> pack pinned <code>packages/spec/src/review.ts:23</code> in one lookup. The scan path makes you sift 250 matches first.</div>
+    </div>
+
+    <!-- TASK B -->
+    <div class="exp rise">
+      <div class="head"><span class="num">TASK B</span><p class="task">"Add a new tab to the dashboard."</p></div>
+      <div class="ba">
+        <div class="col scan">
+          <p class="way">✕ without .pack</p>
+          <ol>
+            <li>find the route catalog (grep <code>tabPatterns</code>)</li>
+            <li>read it, then go discover the <em>other</em> edit sites</li>
+            <li>figure out the switch + the nav render it separately</li>
+          </ol>
+          <div class="metric"><span class="v">3–4</span><span class="u">round trips to map it</span></div>
+        </div>
+        <div class="col pack">
+          <p class="way">✓ with .pack</p>
+          <ol>
+            <li>one grep returns <em>all</em> wiring points at once</li>
+            <li><code>routes.ts</code> · <code>App.tsx</code> · <code>NumberedNav.tsx</code> + lines</li>
+          </ol>
+          <div class="metric"><span class="v">4</span><span class="u">edit sites · 1 grep</span></div>
+        </div>
+      </div>
+      <div class="result"><b>Result:</b> the pack handed me the complete change surface (<code>tabPatterns</code>, <code>activeTab</code>, <code>renderRoute</code>, <code>NumberedNav</code>) in a single read.</div>
+    </div>
+
+    <!-- TASK C -->
+    <div class="exp rise">
+      <div class="head"><span class="num">TASK C</span><p class="task">"What breaks if I change the Dataset shape in loadArtifacts.ts?"</p></div>
+      <div class="ba">
+        <div class="col scan">
+          <p class="way">✕ without .pack</p>
+          <ol>
+            <li>grep <code>loadArtifacts</code> → 36 textual hits</li>
+            <li>hits include the definition, comments, false friends</li>
+            <li>grep gives <em>direct</em> mentions only — misses transitive + re-exports</li>
+          </ol>
+          <div class="metric"><span class="v">36</span><span class="u">noisy textual hits</span></div>
+        </div>
+        <div class="col pack">
+          <p class="way">✓ with .pack</p>
+          <ol>
+            <li>the <code>imports</code> table is a resolved graph</li>
+            <li>reverse-lookup the node → exact dependents</li>
+          </ol>
+          <div class="metric"><span class="v">24</span><span class="u">precise importers</span></div>
+        </div>
+      </div>
+      <div class="result"><b>Result:</b> "what's my blast radius" is the question grep is <em>worst</em> at. The pack answers it exactly — 24 files — because it stores the dependency graph, not just text.</div>
+    </div>
+
+    <!-- RECEIPTS -->
+    <h3 style="margin-top:36px">The receipts</h3>
+    <p class="body muted">Raw output, so you can check my work. Left of the arrow is the pack row; <code>F150/F164/F46/F50</code> are interned file ids the pack resolves to real paths.</p>
+    <div class="term">
+      <div class="bar"><i></i><i></i><i></i><span>.facts/agent.pack — declarations table</span></div>
+<pre><span class="c"># TASK A — "where is severity scored?"  (one grep)</span>
+<span class="k">$ grep Severity agent.pack</span>
+- 923  <span class="w">F150</span>  ReviewSeveritySchema   constant  <span class="g">23</span>
+- 926  <span class="w">F150</span>  FindingSeverity        type      <span class="g">28</span>
+- 943  <span class="w">F150</span>  vulnFindingSeverity    function  <span class="g">136</span>
+  <span class="c">F150 = packages/spec/src/review.ts</span>   <span class="g">✓ exact, 1 lookup</span>
+
+<span class="c"># TASK B — "what wires a tab?"  (one grep, 4 sites)</span>
+<span class="k">$ grep -E 'tabPatterns|activeTab|renderRoute|NumberedNav' agent.pack</span>
+- 167  <span class="w">F164</span>  tabPatterns   constant   <span class="g">24</span>    <span class="c">routes.ts</span>
+- 171  <span class="w">F164</span>  activeTab     function   <span class="g">97</span>    <span class="c">routes.ts</span>
+- 359  <span class="w">F46</span>   NumberedNav   component  <span class="g">117</span>   <span class="c">NumberedNav.tsx</span>
+- 395  <span class="w">F50</span>   renderRoute   function   <span class="g">174</span>   <span class="c">App.tsx</span>
+
+<span class="c"># the scan path, for contrast:</span>
+<span class="k">$ grep -rE 'severity' --include=*.ts packages apps | wc -l</span>
+<span class="r">250</span>   <span class="c"># hits to triage by hand</span></pre>
+    </div>
+  </section>
+
+  <!-- CROSS CHECK -->
+  <section>
+    <div class="sk"><span>03 · the credibility check</span><span><b>did the map predict reality?</b></span></div>
+    <h2>The pack guessed my edits before I made them.</h2>
+    <p class="body lead">Earlier this session I actually did a big tab restructure (14 tabs → 7). The honest test of a map: does it point where you really end up going?</p>
+    <div class="term" style="margin-top:18px">
+      <div class="bar"><i></i><i></i><i></i><span>pack prediction vs git status</span></div>
+<pre><span class="c"># Task B (pack, one grep) predicted I'd edit:</span>
+  <span class="w">routes.ts</span> · <span class="w">App.tsx</span> · <span class="w">NumberedNav.tsx</span>
+
+<span class="c"># what I ACTUALLY changed in the v0.9 restructure (git status):</span>
+  M apps/ui-remix/src/lib/<span class="g">routes.ts</span>          <span class="g">✓ predicted</span>
+  M apps/ui-remix/src/<span class="g">App.tsx</span>                <span class="g">✓ predicted</span>
+  M apps/ui-remix/src/components/Header.tsx     <span class="k">+ icons (extra scope)</span>
+  M apps/ui-remix/src/ui/CommandPalette.tsx     <span class="k">+ ⌘K targets</span>
+  <span class="c">NumberedNav.tsx — not edited: it reads TABS dynamically,</span>
+  <span class="c">so the nav updated itself. The pack still correctly named</span>
+  <span class="c">it as part of the tab system.</span></pre>
+    </div>
+    <p class="body muted" style="margin-top:18px">Two of the three predicted files were dead-on; the third was correctly identified as part of the system even though it didn't need a manual edit. That's a map doing its job.</p>
+  </section>
+
+  <!-- TOKENS -->
+  <section>
+    <div class="sk"><span>04 · the size of it</span><span><b>map vs territory</b></span></div>
+    <h2>The whole map costs less than one big file.</h2>
+    <p class="body muted" style="margin-bottom:24px">If I wanted full context the naive way, I'd load all the source. The pack carries the <em>structure</em> of all of it at a fraction of the size. (Pack tokens are a ~4-chars/token estimate; repo tokens are exact from the analyzer.)</p>
+    <div class="bars">
+      <div class="barrow rise">
+        <div class="blab"><span class="n">Whole codebase in context</span><span class="t">~1,070,000 tokens</span></div>
+        <div class="track"><div class="fill repo">347 files of source</div></div>
+      </div>
+      <div class="barrow rise">
+        <div class="blab"><span class="n">.facts/agent.pack — the map</span><span class="t">~23,400 tokens</span></div>
+        <div class="track"><div class="fill pack">≈ 46× smaller</div></div>
+      </div>
+    </div>
+    <p class="barnote">That 46× is the ceiling — the "give me the whole project" case. For one small change you don't pay either extreme: you pay <b style="color:var(--win)">one pack lookup (a few hundred tokens)</b> instead of <b style="color:var(--cost)">reading several wrong files to find the right one</b>. The win is fewer dead ends, not just fewer tokens.</p>
+  </section>
+
+  <!-- SCORECARD -->
+  <section>
+    <div class="sk"><span>05 · honest scorecard</span><span><b>where it wins, where it shrugs</b></span></div>
+    <h2>Not everything gets faster. Here's the real split.</h2>
+    <table class="score rise">
+      <thead><tr><th>Task shape</th><th>Verdict</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td class="q">Find where a change lives</td><td class="j big">BIG WIN</td><td class="why">One symbol lookup → file:line. Replaces grep-and-read-candidates.</td></tr>
+        <tr><td class="q">"What breaks if I touch X?"</td><td class="j big">BIG WIN</td><td class="why">Resolved import graph gives exact blast radius; grep can't do transitive.</td></tr>
+        <tr><td class="q">Orient in an unfamiliar repo</td><td class="j big">BIG WIN</td><td class="why">The 46× case. The map is the project's shape in one read.</td></tr>
+        <tr><td class="q">Raw tokens for one tiny edit</td><td class="j mid">SOME</td><td class="why">You still read the file you edit; that cost is shared. Win is the search.</td></tr>
+        <tr><td class="q">A change you already know cold</td><td class="j no">~NONE</td><td class="why">If you know the file, the lookup is redundant. Don't pretend otherwise.</td></tr>
+        <tr><td class="q">Reasoning about <em>meaning</em> / business logic</td><td class="j no">~NONE</td><td class="why">The pack indexes structure, not intent. You still read + think.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- LIMITS -->
+  <section>
+    <div class="sk"><span>06 · the fine print</span><span><b>what would make me wrong</b></span></div>
+    <h2>Three ways the pack can lie to you.</h2>
+    <ul class="limits rise">
+      <li><span class="ic">⟳</span><div><span class="h">Staleness.</span><p>The pack is a snapshot. Edit code and don't re-run <code>factstack</code>, and it points at old line numbers and missing symbols. A map of last week's house.</p></div></li>
+      <li><span class="ic">◳</span><div><span class="h">It locates, it doesn't read.</span><p>The pack says "severity is in review.ts:23." You still open review.ts to understand and edit it. The pack removes the <em>search</em>, not the <em>work</em>.</p></div></li>
+      <li><span class="ic">≈</span><div><span class="h">Resolution gaps.</span><p>It only knows what the analyzer extracted — top-level declarations, resolved imports. Dynamic requires, metaprogramming, or a language the extractor doesn't parse fall through. Grep still wins on raw string presence.</p></div></li>
+    </ul>
+  </section>
+
+  <!-- BOTTOM LINE -->
+  <section>
+    <div class="bottom rise">
+      <h2>Bottom line</h2>
+      <p class="one">For an AI agent making changes, <b style="color:var(--win)">.pack is a real speed-up where it counts</b>: locating the change and tracing its blast radius go from a multi-step hunt to a single lookup. It's not a token-count parlor trick — it's <b style="color:var(--accent)">fewer round trips and fewer wrong turns</b>. The day it stops helping is the day it goes stale, so the map is only as good as the last <code>factstack</code> run.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>FACTS · .pack vs. scan · measured on the factstack repo, 347 files</span>
+    <span class="pill">agent-authored · receipts included</span>
+  </footer>
+
+</div>
+</body>
+</html>

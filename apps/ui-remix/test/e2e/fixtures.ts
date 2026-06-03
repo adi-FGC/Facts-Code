@@ -47,6 +47,8 @@ export const ROUTES: readonly RouteSpec[] = [
     interactiveSelector: 'h1',
   },
   { path: '/about',           name: 'About',           headlines: ['FACTS — Fun AI Coding Tools.'] },
+  /* v0.9 canonical merged tab — defaults to the Graph sub-view. */
+  { path: '/architecture',    name: 'Architecture',    headlines: ['Where the dependency lives.'], interactiveSelector: 'h1' },
   { path: '/config',          name: 'Config',          headlines: ['What this codebase needs from its environment.'] },
   { path: '/credentials',     name: 'Credentials',     headlines: ['Nothing leaked.', 'Rotate these now.'] },
   { path: '/files',           name: 'Files',           headlines: ["That path isn't in the index.", 'Every file, ranked by weight.'] },
@@ -54,8 +56,11 @@ export const ROUTES: readonly RouteSpec[] = [
   { path: '/graph',           name: 'Graph',           headlines: ['Where the dependency lives.'] },
   { path: '/history',         name: 'History',         headlines: ['One snapshot so far.', 'Trends over time.'] },
   { path: '/library',         name: 'Library',         headlines: ["The project's table of contents."] },
+  { path: '/review',          name: 'Review',          headlines: [] /* H1 is the dynamic verdict headline; assert h1 exists */, interactiveSelector: 'h1' },
   { path: '/risks',           name: 'Risks',           headlines: ['Nothing to flag today.', 'What to look at first.'] },
   { path: '/routes',          name: 'Routes',          headlines: ['No routes surfaced.', 'What this thing does.'] },
+  /* v0.9 canonical merged tab — defaults to the Risks sub-view. */
+  { path: '/security',        name: 'Security',        headlines: ['Nothing to flag today.', 'What to look at first.'] },
   { path: '/tests',           name: 'Tests',           headlines: ['No test files detected.', "What's actually tested."] },
   { path: '/vulnerabilities', name: 'Vulnerabilities', headlines: [] /* H1 is dataset-driven; assert on h1 existing */, interactiveSelector: 'h1' },
 ];

@@ -34,6 +34,10 @@ import {
   scanSecrets,
   scanTodos,
   scanDependencyManifest,
+  analyzeCss,
+  cssOrigin,
+  extractStyleBlocks,
+  type CssSource,
   type TodoEntry,
 } from '@factstack/scanners';
 import {
@@ -61,9 +65,12 @@ import {
   resolveSpecifier,
   type ResolverContext,
 } from '@factstack/graph';
+import { buildDocFile, isDocFile } from './docs.js';
 
 export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
+export { buildChangeVerdict, renderVerdictMarkdown } from './review.js';
+export { buildDocFile, isDocFile, parseMarkdownStructure, DOC_CONTENT_CAP } from './docs.js';
 export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
 export {
@@ -147,6 +154,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
      Vulnerabilities page + the MCP server's list_vulnerabilities tool
      + the CLI's scan-vulns subcommand. */
   const dependencyManifests: DependencyManifest[] = [];
+  /* v0.8 — flagged documentation files with parsed structure. A raw-content
+     budget keeps the artifact JSON bounded when a repo has many large docs. */
+  const docs: AgentArtifact['docs'] = [];
+  let docContentChars = 0;
+  const DOC_TOTAL_BUDGET = 2_500_000;
+  /* v0.8 — CSS sources for the styling audit (.css/.scss/.less + <style>
+     blocks from HTML/SFCs). Audited in one pass after the walk. */
+  const cssSources: CssSource[] = [];
   const allTodos: Array<{ file: string; entries: TodoEntry[] }> = [];
   const secrets: AgentArtifact['risks'] = [];
   const frameworksFromManifests: string[][] = [];
@@ -199,6 +214,32 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     const text = f.text ?? '';
     const tokens = approximateTokens(text);
     const gzip = opts.gzip && isCompressibleExt(f.ext) ? opts.gzip(text) : null;
+
+    // v0.8 — flag documentation/spec files + parse their structure once.
+    if (isDocFile(f.path, f.ext, f.name)) {
+      const storeContent = docContentChars < DOC_TOTAL_BUDGET;
+      const doc = buildDocFile({
+        path: f.path,
+        name: f.name,
+        ext: f.ext,
+        text,
+        bytes: f.size,
+        loc: f.loc,
+        lastModifiedMs: opts.gitStats?.get(f.path)?.lastModifiedMs ?? f.mtimeMs ?? null,
+        storeContent,
+      });
+      docs.push(doc);
+      if (doc.content) docContentChars += doc.content.length;
+    }
+
+    // v0.8 — collect CSS sources for the styling audit.
+    const cssOrig = cssOrigin(f.path, f.ext);
+    if (cssOrig) {
+      const cssText = cssOrig === 'html-style' || cssOrig === 'sfc-style'
+        ? extractStyleBlocks(text)
+        : text;
+      if (cssText.trim()) cssSources.push({ path: f.path, css: cssText, origin: cssOrig });
+    }
 
     // Scanners
     const todoEntries = scanTodos(text);
@@ -533,6 +574,17 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
      reads). Mixed access ⇒ primaryAccess = null so the UI can flag it. */
   const config = aggregateEnvVars(envVarReadsByFile);
 
+  // v0.8 — CSS / styling audit over every collected stylesheet source.
+  let styleAudit: AgentArtifact['styles'];
+  if (cssSources.length > 0) {
+    const cssDeps = new Set<string>();
+    for (const dm of dependencyManifests) {
+      for (const k of Object.keys(dm.dependencies)) cssDeps.add(k.toLowerCase());
+      for (const k of Object.keys(dm.devDependencies)) cssDeps.add(k.toLowerCase());
+    }
+    styleAudit = analyzeCss(cssSources, { deps: cssDeps, frameworks });
+  }
+
   // Build agent artifact
   const agent: AgentArtifact = {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
@@ -569,6 +621,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        and writes findings back. */
     dependencyManifests,
     vulnerabilities: [],
+    docs,
+    ...(styleAudit ? { styles: styleAudit } : {}),
   };
 
   // Build human artifact (dashboard).
