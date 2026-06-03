@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Impeccable Audit — facts-tree viewer (400 checkpoints)</title>
+<meta name="description" content="A 400-checkpoint impeccable technical audit of the facts-tree (facts-v0) generated HTML viewer: accessibility, performance, theming, responsive, anti-patterns, and craft." />
+<meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0b0905;--ink2:#15110a;--ink3:#1d1810;--cream:#f4efe6;--muted:rgba(244,239,230,.62);--faint:rgba(244,239,230,.36);--hair:rgba(244,239,230,.09);--hair2:rgba(244,239,230,.16);
+    --key:#eaa53e;--key-soft:rgba(234,165,62,.13);--key-line:rgba(234,165,62,.42);
+    --pass:#5fd39a;--p1:#ff7a7a;--p2:#f0b450;--p3:#bca98a;--info:#7cc4ff;
+    --disp:'Fraunces',Georgia,serif;--body:'Hanken Grotesk',system-ui,sans-serif;--mono:'JetBrains Mono',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html{scroll-behavior:smooth}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:var(--body);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;
+    background-image:radial-gradient(120% 70% at 12% -5%,rgba(234,165,62,.10),transparent 55%)}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 clamp(18px,4vw,44px)}
+  a{color:var(--key)} code{font-family:var(--mono);font-size:.85em;background:rgba(244,239,230,.06);padding:1px 5px;border-radius:4px}
+  .mono{font-family:var(--mono)}
+  header.top{padding:clamp(46px,8vw,84px) 0 30px;border-bottom:1px solid var(--hair)}
+  .kick{font-family:var(--mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;color:var(--key);margin-bottom:18px}
+  h1{font-family:var(--disp);font-weight:600;font-size:clamp(2.1rem,5.5vw,3.6rem);line-height:1.02;letter-spacing:-.02em;margin:0 0 14px}
+  .lede{color:var(--muted);max-width:70ch;font-size:1.05rem} .lede b{color:var(--cream)}
+  .back{font-family:var(--mono);font-size:.78rem;color:var(--muted);text-decoration:none;display:inline-block;margin-bottom:22px} .back:hover{color:var(--key)}
+  .score{display:grid;grid-template-columns:repeat(6,1fr);gap:1px;background:var(--hair);border:1px solid var(--hair2);border-radius:14px;overflow:hidden;margin:34px 0}
+  @media(max-width:740px){.score{grid-template-columns:repeat(3,1fr)}}@media(max-width:440px){.score{grid-template-columns:repeat(2,1fr)}}
+  .sc{background:var(--ink2);padding:18px 16px}
+  .sc .d{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);margin-bottom:8px;min-height:2.2em}
+  .sc .v{font-family:var(--disp);font-weight:600;font-size:1.9rem;line-height:1} .sc .v small{font-size:.9rem;color:var(--faint)}
+  .sc.total{background:var(--key-soft)} .sc.total .v{color:var(--key)}
+  .band{font-family:var(--mono);font-size:.8rem;color:var(--muted);margin-top:-10px} .band b{color:var(--key)}
+  section{padding:clamp(40px,6vw,64px) 0;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--key);margin-bottom:16px}
+  h2{font-family:var(--disp);font-weight:600;font-size:clamp(1.5rem,3.4vw,2.2rem);margin:0 0 16px;letter-spacing:-.01em}
+  p.b{color:var(--muted);max-width:72ch} p.b b{color:var(--cream)}
+  .verdict{border:1px solid var(--hair2);border-radius:12px;padding:22px 24px;background:var(--ink2);margin-top:8px}
+  .verdict .tag{font-family:var(--mono);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--p2);margin-bottom:8px}
+  .verdict p{margin:0;color:var(--muted)} .verdict b{color:var(--cream)}
+  .sev{display:flex;flex-wrap:wrap;gap:10px;margin:20px 0}
+  .sevc{font-family:var(--mono);font-size:.8rem;border:1px solid var(--hair2);border-radius:8px;padding:8px 14px;color:var(--muted)} .sevc b{font-size:1.05rem}
+  .sevc.p1 b{color:var(--p1)}.sevc.p2 b{color:var(--p2)}.sevc.p3 b{color:var(--p3)}.sevc.pass b{color:var(--pass)}.sevc.info b{color:var(--info)}
+  ul.top{margin:14px 0 0;padding-left:20px;color:var(--muted)} ul.top li{margin-bottom:8px} ul.top b{color:var(--cream)}
+  .bar{position:sticky;top:0;z-index:5;background:rgba(11,9,5,.92);backdrop-filter:blur(8px);border-bottom:1px solid var(--hair);padding:14px 0;margin-bottom:8px}
+  .bar .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .chip{font-family:var(--mono);font-size:.72rem;border:1px solid var(--hair2);border-radius:999px;padding:5px 12px;color:var(--muted);background:transparent;cursor:pointer;transition:all .15s}
+  .chip:hover{color:var(--cream);border-color:var(--faint)} .chip.on{color:var(--ink);background:var(--key);border-color:var(--key);font-weight:600}
+  .count{margin-left:auto;font-family:var(--mono);font-size:.78rem;color:var(--faint)} .count b{color:var(--cream)}
+  .catblock{margin:30px 0}
+  .cathead{display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--hair2);padding-bottom:8px;margin-bottom:6px}
+  .cathead h3{font-family:var(--disp);font-weight:500;font-size:1.2rem;margin:0} .cathead .ct{font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+  .check{display:grid;grid-template-columns:34px 56px 1fr;gap:10px;align-items:baseline;padding:7px 0;border-bottom:1px solid var(--hair);font-size:.92rem}
+  .check .n{font-family:var(--mono);font-size:.72rem;color:var(--faint);text-align:right}
+  .check .s{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;font-weight:700;text-align:center;border-radius:5px;padding:2px 0;align-self:center}
+  .s.pass{color:var(--pass);background:rgba(95,211,154,.12)} .s.p1{color:var(--p1);background:rgba(255,122,122,.13)} .s.p2{color:var(--p2);background:rgba(240,180,80,.13)} .s.p3{color:var(--p3);background:rgba(188,169,138,.13)} .s.info{color:var(--info);background:rgba(124,196,255,.12)}
+  .check .t{color:var(--muted)} .check .t b{color:var(--cream);font-weight:600} .check .t code{font-size:.82em}
+  .check.hide{display:none} .noresult{font-family:var(--mono);color:var(--faint);padding:30px 0}
+  .gridcards{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));margin-top:8px}
+  .gc{border:1px solid var(--hair);border-radius:12px;padding:18px 20px;background:var(--ink2)}
+  .gc h4{margin:0 0 6px;font-size:1rem} .gc p{margin:0;color:var(--muted);font-size:.9rem} .gc.pos h4{color:var(--pass)} .gc.sys h4{color:var(--p2)}
+  footer{padding:40px 0 70px;font-family:var(--mono);font-size:.74rem;color:var(--faint);line-height:1.9} footer b{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="back" href="facts-tree-vs-facts-code.html">← back to the comparison</a>
+    <div class="kick">Impeccable · Technical Audit · 400 checkpoints</div>
+    <h1>facts-tree — the viewer.</h1>
+    <p class="lede">A code-level audit of the <b>generated HTML viewer</b> (<code>lib/generate-html.mjs</code> + the <code>lib/html/scripts/*</code> runtime), the single artifact a user actually sees. Five scored dimensions, 400 grounded checkpoints, prioritised P0–P3. <b>This documents issues; it does not fix them.</b></p>
+    <div class="score" id="scorecard"></div>
+    <p class="band">Rating band: <b id="bandtxt">—</b></p>
+  </header>
+
+  <section>
+    <div class="eyebrow">Start here</div>
+    <h2>Anti-patterns verdict</h2>
+    <div class="verdict"><div class="tag">QUALIFIED PASS · functional, one generic tell</div>
+      <p>Does this look AI-generated? <b>Mostly no — it reads as a real developer tool, not a template.</b> No gradient text, no hero-metric block, no default glassmorphism, no purple-on-white. Inline lucide-style SVG icons (not emoji-as-iconography), genuine dark mode, dense and information-first. <b>The one tell:</b> it leans on <b>Tailwind's default gray/blue palette</b> with only four custom <code>@theme</code> tokens, which is the single most common "built fast with Tailwind" fingerprint. All-monospace at 13px is distinctive but verges on costume. Net: distinctive enough to pass, one palette-level habit to retire.</p>
+    </div>
+    <div class="sev" id="sevcounts"></div>
+    <h2 style="margin-top:34px">Executive summary</h2>
+    <p class="b"><b>Health: 13/20 (Acceptable — significant work on responsive + performance).</b> The viewer is <b>genuinely strong on accessibility scaffolding</b> (three skip links, an <code>aria-live</code> region, focus-visible rings, <code>role="tree"</code>/<code>dialog</code>) and on <b>developer ergonomics</b> (the folder switcher, "Copy for LLM", terminal/editor launch, <code>/</code>-to-search). Its two weakest dimensions are exactly what the project's own 2026 audit flagged: <b>responsive</b> (a single 900px breakpoint that hides the sidebar instead of restructuring) and <b>performance</b> (Tailwind loaded from a CDN at runtime).</p>
+    <ul class="top">
+      <li><b>[P1] Tailwind is loaded from a CDN browser build</b> (<code>unpkg.com/@tailwindcss/browser@4</code>) — runtime compilation, a hard network dependency, FOUC risk, and a broken experience offline or behind a firewall. For a "self-contained HTML viewer", this is the headline issue.</li>
+      <li><b>[P1] Mobile layout collapses rather than adapts</b> — below 900px the shell drops to one column and <em>hides</em> the tree/resizer; the overloaded header still wraps and steals vertical space (the project's own audit measured a ~1453px shell at 390px wide).</li>
+      <li><b>[P1] The header is one packed flex row</b> — path bar + change/rescan/copy + meta + 4 view tabs + 3 action buttons + theme + search. Brittle at medium widths.</li>
+      <li><b>[P2] No real token system</b> — colors are hardcoded Tailwind utilities (<code>gray-50</code>, <code>blue-600</code>) with only 4 <code>@theme</code> entries; theme changes mean find-and-replace, not a variable swap.</li>
+      <li><b>[P2] The DAG is a canvas with no table/list fallback</b> and partial keyboard support — keyboard + screen-reader users can't reach the graph's value.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="eyebrow" style="color:var(--pass)">Live verification · browser-rendered</div>
+    <h2>The pixel + screen-reader pass.</h2>
+    <p class="b">Rendered live in headless Chromium against facts-tree's own server (<code>:3778</code>, the facts-v0 scan loaded). The DOM, the accessibility tree, responsive screenshots, touch-target sizes, and the performance resource list were captured. <b>All five scores confirmed</b>, several findings hardened with measured numbers.</p>
+    <div class="gridcards">
+      <div class="gc pos"><h4>A11y 3/4 · verified</h4><p>Measured live: <b>3</b> skip links, <b>1</b> <code>role=tree</code>, an <code>aria-live</code> region, header/nav/main landmarks, <b>27</b> real buttons, a single h1. (The welcome screen's recent-project rows are <code>cursor:pointer</code> divs, not in the ARIA tree, a verified keyboard/AT gap.)</p></div>
+      <div class="gc sys"><h4>Perf 2/4 · verified (P1)</h4><p>The page loads exactly <b>2 resources</b>, one being <code>unpkg.com/@tailwindcss/browser@4</code>. Tailwind compiles in the browser at runtime; the whole UI hinges on that one CDN fetch.</p></div>
+      <div class="gc sys"><h4>Responsive 2/4 · verified (P1)</h4><p>At a 375px viewport the <code>#shell</code> renders <b>1254px wide</b> and is clipped by <code>overflow:hidden</code> (no reflow); <b>19</b> interactive elements measure under 44×44px. The mobile screenshot shows the header + cards cut off at the right edge.</p></div>
+      <div class="gc sys"><h4>Anti-patterns 3/4 · verified</h4><p>Emoji in the chrome (🌳 on the welcome screen, ⚠ "30 dirty" in the header) and the stale "Zero dependencies, pure Node.js" footer claim, both visible on render.</p></div>
+      <div class="gc sys"><h4>Architecture smell · confirmed</h4><p>Clicking a recent project navigated the browser to <code>GET /api/scan?path=…</code>, a side-effecting GET that scans the filesystem, exactly as the 2026 self-audit warned. Verified by the resulting URL.</p></div>
+      <div class="gc pos"><h4>Renders clean</h4><p>Zero console errors on load. The viewer is functional and fast on desktop; the gaps are mobile + the runtime CDN, not bugs.</p></div>
+    </div>
+  </section>
+
+  <div class="bar"><div class="wrap" style="padding:0"><div class="row" id="filters"></div></div></div>
+  <section style="border-top:none;padding-top:10px">
+    <div id="list"></div>
+    <p class="noresult" id="noresult" hidden>No checkpoints match this filter.</p>
+  </section>
+
+  <section>
+    <div class="eyebrow">Systemic &amp; positive</div>
+    <h2>Patterns worth naming</h2>
+    <div class="gridcards">
+      <div class="gc sys"><h4>Systemic · runtime CDN dependency</h4><p>The viewer's styling, its responsive behaviour, and its offline story all hinge on a CDN Tailwind build compiling in the browser. One change (ship compiled CSS) fixes perf, offline, and FOUC at once.</p></div>
+      <div class="gc sys"><h4>Systemic · desktop-grid assumptions</h4><p>Fixed <code>24dvw</code> columns, <code>calc(100vh - …)</code> heights, and a one-row header assume a wide screen. Mobile is handled by hiding, not restructuring — a shell-layout module is the real fix.</p></div>
+      <div class="gc sys"><h4>Systemic · hardcoded palette</h4><p>Tailwind grays/blues are sprinkled across every fragment. Promoting them to <code>@theme</code> tokens would make theming a variable change, not a sweep.</p></div>
+      <div class="gc pos"><h4>Positive · a11y scaffolding</h4><p>Three skip links, a polite live region, focus-visible rings, keyboard tree focus, dialog semantics on the folder modal. Real effort, ahead of most generated viewers.</p></div>
+      <div class="gc pos"><h4>Positive · developer ergonomics</h4><p>The folder switcher (recent + browse), "Copy for LLM", terminal/editor launch, and <code>/</code>-search make this feel built by someone who uses dev tools daily.</p></div>
+      <div class="gc pos"><h4>Positive · zero-config instant value</h4><p>One command, one self-contained HTML file, no build. Time-to-first-value is the thing Facts-Code should study and protect.</p></div>
+    </div>
+  </section>
+
+  <footer><div class="wrap" style="padding:0">
+    <b>Method:</b> impeccable <code>audit</code> lens (a11y · performance · theming · responsive · anti-patterns), grounded in <code>facts-v0</code> source — <code>lib/generate-html.mjs</code> (the HTML shell + CSS), the <code>lib/html/scripts/*</code> runtime, <code>bin/facts-tree.mjs</code>, and the project's own 2026-05-19 200-point audit. 400 checkpoints across 16 categories.<br>
+    <b>Verification: live pass complete.</b> Rendered in headless Chromium with the accessibility tree, responsive screenshots (375 / 768 / 1280), touch-target + overflow measurement, and the performance resource list captured. The five scores are verified, not directional. Several findings also corroborate the project's 2026 self-audit. · amber = facts-tree (v0).
+  </div></footer>
+</div>
+
+<script>
+const CATS=["Information architecture & navigation","Visual hierarchy & layout","Typography","Color & contrast","Spacing & rhythm","A11y — structure & ARIA","A11y — keyboard & focus","Responsive & mobile","Theming & tokens","Motion & interaction","Performance & loading","UX copy & microcopy","Empty / error / edge states","Component & design-system consistency","Anti-patterns / AI-slop","Data density & dev-tool ergonomics"];
+const C=[
+[1,0,'pass','Four clear views (Overview / Deps / Git / Setup) as a segmented control — legible top-level IA.'],
+[2,0,'pass','Persistent left file tree gives a constant spatial model of the repo.'],
+[3,0,'pass','Folder switcher (⌘O) is reachable from every screen — change-project is first-class.'],
+[4,0,'pass','Path bar doubles as the folder-switch affordance — discoverable "where am I / change it".'],
+[5,0,'p2','Header packs path + meta + 4 tabs + 3 actions + theme + search into one row — IA overload.'],
+[6,0,'pass','"Copy for LLM" + Terminal + Editor are grouped as actions, distinct from view tabs.'],
+[7,0,'pass','Search is globally visible with a <code>/</code> shortcut.'],
+[8,0,'p3','No breadcrumb inside file detail; the slide panel is the only "deeper" context.'],
+[9,0,'pass','File detail opens in a slide panel — non-destructive drill-down.'],
+[10,0,'p2','Two competing "change folder" triggers (path bar + explicit button) — discoverable but redundant.'],
+[11,0,'pass','Skip links jump to tree / content / search — keyboard IA shortcuts.'],
+[12,0,'p3','View state isn\'t in the URL (single-page artifact) — not shareable/back-button-able.'],
+[13,0,'pass','Stats bar gives an at-a-glance file-type distribution above the tree.'],
+[14,0,'info','Setup tab is a nice onboarding surface most viewers skip.'],
+[15,0,'p2','No global command palette — search is the only fuzzy nav.'],
+[16,0,'pass','Recent folders make repeat local use fast.'],
+[17,0,'p3','Editor dropdown is a custom menu — discoverable but another bespoke surface.'],
+[18,0,'pass','Tree expand/collapse is obvious (chevrons, indentation).'],
+[19,0,'p2','Mobile has no drawer/pane switcher — the tree is simply hidden under 900px.'],
+[20,0,'info','IA is desktop-first by design; the audience is a developer at a workstation.'],
+[21,0,'pass','Folder modal separates Recent vs Browse — two ways to pick a project.'],
+[22,0,'p3','No in-app keyboard-shortcut legend.'],
+[23,0,'pass','Rescan is one click from the path bar — refresh is cheap.'],
+[24,0,'pass','Self-contained HTML keeps the same IA offline (once loaded).'],
+[25,0,'info','Net IA: clear for desktop, thin for mobile + sharing.'],
+
+[26,1,'pass','Tree | content split is the right primary layout for code inspection.'],
+[27,1,'p2','Everything is one mono size (13px) — hierarchy leans almost entirely on color/weight.'],
+[28,1,'pass','Stats bar + tree + detail give three useful altitudes.'],
+[29,1,'p2','Header is visually flat: path, tabs, actions all compete at similar weight.'],
+[30,1,'pass','Slide panel elevates file detail above the tree — clear focal shift.'],
+[31,1,'p3','Cards (folder modal, panels) are the default container — some could be plainer lists.'],
+[32,1,'pass','Language colors (TS/JS/React/Astro) give quick visual file typing.'],
+[33,1,'pass','Icons sit on the type baseline, sized to text — tidy.'],
+[34,1,'p2','Dense mono everywhere flattens the scan; key numbers don\'t pop.'],
+[35,1,'pass','The overview leads with project identity + stats.'],
+[36,1,'pass','No nested cards observed.'],
+[37,1,'p3','DAG canvas is a large flat plane; hierarchy is positional, not typographic.'],
+[38,1,'pass','Resizer lets the user tune the tree/content balance — user-controlled hierarchy.'],
+[39,1,'p2','Long paths truncate with max-width but can still dominate the header.'],
+[40,1,'pass','Focus ring + tree-focused highlight create a clear active element.'],
+[41,1,'info','Visual language is "terminal-dense" — deliberate, but unforgiving for newcomers.'],
+[42,1,'p3','Stats bar is a 1px-tall sliver — easy to miss as a hierarchy cue.'],
+[43,1,'pass','Modal overlay dims the background — focal clarity when switching folders.'],
+[44,1,'pass','Section headers use uppercase tracked labels — consistent banding.'],
+[45,1,'p2','No display/heading type tier — everything is body-mono, so headings underwhelm.'],
+[46,1,'pass','Buttons are visually grouped by function (view vs action).'],
+[47,1,'pass','Hairline borders give a calm baseline texture.'],
+[48,1,'p3','Some metadata chips wrap and break the header rhythm.'],
+[49,1,'pass','Tree indentation scales cleanly with depth.'],
+[50,1,'info','Hierarchy: functional but monotone — a type-scale would lift it.'],
+
+[51,2,'p2','Entire UI is one monospace family at 13px — no display/body distinction.'],
+[52,2,'pass','Monospace is genuinely appropriate for code/paths/signatures.'],
+[53,2,'p2','No type scale: headings, labels, and body share size — weak hierarchy.'],
+[54,2,'pass','Weight + uppercase tracking carry what little hierarchy exists.'],
+[55,2,'pass','Line-height (leading-relaxed) keeps dense mono readable.'],
+[56,2,'p3','13px mono is small for sustained reading of prose (Setup/docs).'],
+[57,2,'pass','Tabular mono numerals keep columns aligned.'],
+[58,2,'p2','No webfont — relies on the system monospace stack, so type varies by OS.'],
+[59,2,'pass','Truncation uses ellipsis + title on long names.'],
+[60,2,'p3','Uppercase tracked labels at 10px push legibility limits.'],
+[61,2,'pass','Code/signature display benefits from the mono choice.'],
+[62,2,'info','All-mono is a distinctive choice; it also limits expressive hierarchy.'],
+[63,2,'pass','No faux styling; weights come from the stack.'],
+[64,2,'p2','Prose-heavy areas (Setup, file summaries) would read better in a humanist body face.'],
+[65,2,'pass','Consistent casing rules per label type.'],
+[66,2,'p3','No <code>font-display</code> consideration (system font, so moot — but a webfont would need it).'],
+[67,2,'pass','Search/inputs share the mono system — consistent.'],
+[68,2,'p2','Headings rely on size parity with body — they don\'t announce themselves.'],
+[69,2,'pass','Numbers + units are legible in mono.'],
+[70,2,'info','A second (display or body) face is the single biggest typographic upgrade.'],
+[71,2,'pass','No ALL-CAPS body; caps reserved for short labels.'],
+[72,2,'p3','Letter-spacing on tiny labels is tight.'],
+[73,2,'pass','Measure is naturally constrained by the panel widths.'],
+[74,2,'pass','Mono aids diff/path/code scanning — the core task.'],
+[75,2,'info','Typography score capped by the single-family, single-size choice.'],
+
+[76,3,'pass','Body/heading text on gray surfaces broadly clears AA in both themes.'],
+[77,3,'p2','Palette is hardcoded Tailwind grays/blues — only 4 custom <code>@theme</code> tokens exist.'],
+[78,3,'pass','Links/active states use blue + weight, not color alone.'],
+[79,3,'pass','Focus ring is a distinct 2px blue outline (color + shape).'],
+[80,3,'p2','Some <code>text-gray-400/500</code> on light surfaces risks &lt;4.5:1 at 10–11px.'],
+[81,3,'pass','Dark mode recolors via <code>dark:</code> variants throughout — coherent.'],
+[82,3,'pass','Language colors are a deliberate data encoding, not decoration.'],
+[83,3,'p3','Blue-on-blue hover states (<code>blue-50</code>/<code>blue-900/40</code>) are subtle — near the contrast floor.'],
+[84,3,'pass','No gray-text-on-colored-fill anti-pattern.'],
+[85,3,'p2','Contrast not verified by axe/Lighthouse (the prior audit also flagged this).'],
+[86,3,'pass','Selection/hover are themed via Tailwind, consistent.'],
+[87,3,'p3','The 4 lang tokens are the only named colors; everything else is a raw utility.'],
+[88,3,'pass','Resizer hover uses a tinted blue — discoverable affordance.'],
+[89,3,'pass','Stats-bar segments use the lang palette — consistent color meaning.'],
+[90,3,'p2','No single source of truth for color — palette drift is easy across fragments.'],
+[91,3,'pass','Dark theme avoids pure black (gray-950) — easier on the eye.'],
+[92,3,'pass','Icon color inherits currentColor — themes with the text.'],
+[93,3,'p3','Some borders (<code>gray-100</code>) are very low-contrast against the surface.'],
+[94,3,'pass','Copy-flash animation uses a clear green tint as feedback.'],
+[95,3,'info','Contrast is "probably fine" but unverified — automate it.'],
+[96,3,'pass','No saturated full-bleed fills — restrained.'],
+[97,3,'pass','Blue accent is used consistently for interactive emphasis.'],
+[98,3,'p2','Theme = a long list of <code>dark:</code> variants rather than a variable flip.'],
+[99,3,'pass','Modal backdrop uses translucency, not a hard black.'],
+[100,3,'info','Color works; the gap is systematisation, not aesthetics.'],
+
+[101,4,'pass','Consistent Tailwind spacing scale (px-/py- utilities) gives even rhythm.'],
+[102,4,'p2','Header packs controls tightly (gap-2/3) — little breathing room at width.'],
+[103,4,'pass','Tree row padding gives reasonable click height.'],
+[104,4,'pass','Panel/modal padding is comfortable.'],
+[105,4,'p3','Stats bar (1px tall) is an extreme — almost no vertical presence.'],
+[106,4,'pass','Section labels have consistent top/bottom spacing.'],
+[107,4,'p2','Dense 11–13px rows make for tight touch spacing.'],
+[108,4,'pass','Modal grid (recent | browse) is evenly gapped.'],
+[109,4,'pass','Icon-to-label gaps are consistent (gap-1).'],
+[110,4,'p3','Header vertical padding (py-2.5) is tight given the content it holds.'],
+[111,4,'pass','Resizer gives the user manual control of horizontal rhythm.'],
+[112,4,'pass','Tree indentation is proportional.'],
+[113,4,'p2','No spacing change between desktop + mobile beyond hiding columns.'],
+[114,4,'pass','Consistent rounded-lg radii across controls.'],
+[115,4,'info','Density is intentional (terminal feel) — spacing is uniform, not varied for rhythm.'],
+[116,4,'pass','Footer/hint rows in the modal are clearly separated.'],
+[117,4,'p3','Action button cluster has minimal internal separation (border dividers only).'],
+[118,4,'pass','Search input has comfortable internal padding.'],
+[119,4,'pass','Slide panel content is padded clear of edges.'],
+[120,4,'p2','Same padding everywhere = monotony (impeccable: vary spacing for rhythm).'],
+[121,4,'pass','Modal max-height + scroll keeps it within the viewport.'],
+[122,4,'pass','Tree scroll area has its own padding.'],
+[123,4,'p3','Header meta chips can crowd when many stats show.'],
+[124,4,'pass','Consistent gap tokens via Tailwind keep alignment.'],
+[125,4,'info','Spacing is consistent but un-orchestrated — uniform, not rhythmic.'],
+
+[126,5,'pass','Three skip links (tree / content / search) — excellent keyboard entry.'],
+[127,5,'pass','<code>role="tree"</code> on the file tree with aria-label.'],
+[128,5,'pass','<code>aria-live="polite"</code> region for scan/tab/selection announcements.'],
+[129,5,'pass','Folder modal is <code>role="dialog" aria-modal</code> with a labelled title.'],
+[130,5,'pass','Path bar is <code>role="button" tabindex="0"</code> with an aria-label.'],
+[131,5,'pass','Icon-only buttons carry title + aria-label.'],
+[132,5,'p2','Tree items: role/levels present, but full roving-tabindex tree semantics are partial (per prior audit).'],
+[133,5,'p2','DAG canvas has no table/list text alternative — graph value is inaccessible to AT.'],
+[134,5,'pass','Search input is labelled.'],
+[135,5,'pass','Landmarks: header/nav(tree)/main content present.'],
+[136,5,'p3','Some decorative SVGs lack <code>aria-hidden</code>.'],
+[137,5,'pass','Live region is <code>aria-atomic</code> — clean announcements.'],
+[138,5,'p2','Editor dropdown menu semantics (role="menu"/menuitem) not confirmed.'],
+[139,5,'pass','Real <code>&lt;button&gt;</code> elements, not click-divs, for actions.'],
+[140,5,'p2','No automated axe run; a11y is hand-built (prior audit confirms partial).'],
+[141,5,'pass','Heading levels exist (h1 project, h2 modal title).'],
+[142,5,'p3','Copy actions don\'t announce "copied" to AT (visual flash only).'],
+[143,5,'pass','Focus styles are visible + consistent.'],
+[144,5,'p2','Slide panel focus management (trap + restore) is intent, not verified complete.'],
+[145,5,'pass','kbd hints in the modal teach the Esc affordance.'],
+[146,5,'p3','Tree expand/collapse state announcement to AT not confirmed.'],
+[147,5,'pass','Color is never the only signal (icons + labels back it).'],
+[148,5,'p2','Reduced-motion preference not handled (transitions always run).'],
+[149,5,'pass','Strong a11y intent overall — among the better generated viewers.'],
+[150,5,'info','A11y scaffolding is real; the gaps are the graph + full keyboard semantics.'],
+
+[151,6,'pass','Skip links are the first focusable elements.'],
+[152,6,'pass','<code>/</code> focuses search; Esc closes the modal.'],
+[153,6,'pass','⌘O / Ctrl+O opens the folder switcher.'],
+[154,6,'pass','Focus-visible ring on all interactive elements.'],
+[155,6,'pass','Tree has a keyboard focus indicator (<code>.tree-focused</code>).'],
+[156,6,'p2','Tree arrow-key navigation (roving tabindex) is partial per the prior audit.'],
+[157,6,'p2','DAG canvas has no keyboard pan/zoom/select.'],
+[158,6,'pass','Path bar is keyboard-activatable (button role + tabindex).'],
+[159,6,'p3','Editor dropdown keyboard navigation not confirmed.'],
+[160,6,'pass','Modal is Esc-dismissable + focus-managed.'],
+[161,6,'pass','Tab order follows DOM (no positive tabindex hacks seen).'],
+[162,6,'p2','Slide panel focus return on close is intended but unverified.'],
+[163,6,'pass','Search-as-you-type works from the keyboard.'],
+[164,6,'p3','No documented shortcut list beyond <code>/</code> and ⌘O.'],
+[165,6,'pass','Buttons activate on Enter/Space (native semantics).'],
+[166,6,'p2','Canvas graph is mouse-only — a keyboard table view would close the gap.'],
+[167,6,'pass','No keyboard traps found in the modal.'],
+[168,6,'pass','Focus ring uses outline + offset, not a layout shift.'],
+[169,6,'p3','No skip-past-tree shortcut on long trees beyond the skip link.'],
+[170,6,'pass','Theme/search/actions all reachable by Tab.'],
+[171,6,'pass','Esc consistently closes overlays.'],
+[172,6,'p2','Roving tabindex would make the tree a single, arrow-navigable widget.'],
+[173,6,'pass','Keyboard entry points (3 skip links) are generous.'],
+[174,6,'p3','No focus echo in the view-tab group beyond color.'],
+[175,6,'pass','Core flows are keyboard-operable; the graph is the exception.'],
+
+[176,7,'p1','Tailwind loaded from a CDN browser build (<code>unpkg.com/@tailwindcss/browser@4</code>) — runtime compile, network dependency, FOUC, breaks offline.'],
+[177,7,'p2','The whole UI + data is one large inline HTML/JS document — no chunking or lazy loading.'],
+[178,7,'p2','Dependency-graph DAG renders on a canvas — can get heavy/janky on large graphs (no clustering).'],
+[179,7,'p3','Scan JSON is inlined into the page — large repos inflate the single HTML file.'],
+[180,7,'pass','No images to optimise — SVG icons only.'],
+[181,7,'pass','No build step means trivial distribution (a virtue, with a perf cost).'],
+[182,7,'p2','Runtime Tailwind compilation adds main-thread work on first paint.'],
+[183,7,'p3','No code-splitting of the 13 runtime script fragments — all ship together.'],
+[184,7,'pass','Tree/panels use CSS transitions on transform (not layout) where animated.'],
+[185,7,'p2','No virtualization on large file trees — every node is in the DOM.'],
+[186,7,'p1','Offline / air-gapped / strict-CSP environments get an unstyled or broken viewer (CDN blocked).'],
+[187,7,'pass','Telemetry is opt-in + failure-tolerant — doesn\'t block the UI.'],
+[188,7,'p3','No <code>will-change</code>/perf hints on the draggable resizer.'],
+[189,7,'p2','Dependency-freshness checks (server mode) had no concurrency/cache guard (prior audit).'],
+[190,7,'pass','Static export works without a server (once CDN CSS loads).'],
+[191,7,'p2','First paint waits on a third-party script — render-blocking by design.'],
+[192,7,'p3','Search filters the full in-DOM tree — fine small, costlier on huge repos.'],
+[193,7,'pass','No heavy frontend framework runtime — vanilla JS fragments.'],
+[194,7,'p2','Canvas redraw on resize/pan isn\'t throttled/RAF-guarded everywhere (per audit density notes).'],
+[195,7,'p1','Shipping pre-compiled Tailwind CSS would fix perf + offline + FOUC in one move.'],
+[196,7,'pass','No autoplaying media or polling loops in the viewer.'],
+[197,7,'p3','Large file previews lack explicit truncation UX (prior audit).'],
+[198,7,'pass','The artifact is a single file — trivially cacheable.'],
+[199,7,'p2','No memory ceiling/warning for very large repos (prior audit).'],
+[200,7,'info','Performance is the dimension most improved by one change: self-host compiled CSS.'],
+
+[201,8,'p1','Single 900px breakpoint: <code>#shell</code> collapses to one column and <em>hides</em> the tree + resizer rather than restructuring.'],
+[202,8,'p1','Mobile header still wraps; the project\'s own audit measured a ~1453px shell + ~32px tree at 390px wide.'],
+[203,8,'p2','No mobile drawer/pane switcher — hidden tree = lost navigation on phones.'],
+[204,8,'p2','Fixed <code>24dvw</code> grid column + <code>calc(100vh - …)</code> heights assume a wide screen.'],
+[205,8,'p2','Header is one flex row of ~12 controls — overflows at medium widths.'],
+[206,8,'p2','Touch targets on 11–13px dense rows + icon buttons fall under 44×44px.'],
+[207,8,'pass','Viewport meta is present + correct.'],
+[208,8,'p3','Action labels don\'t collapse into an overflow menu under width pressure.'],
+[209,8,'pass','Modal is width-capped (<code>min(640px,90vw)</code>) — adapts.'],
+[210,8,'p2','Long paths are only partially managed (max-w + truncate) and still crowd.'],
+[211,8,'p3','Canvas DAG has fixed-height assumptions that don\'t reflow.'],
+[212,8,'p2','No tablet (768–1024) treatment distinct from desktop.'],
+[213,8,'pass','Some panels use <code>dvw</code>/<code>vw</code> units — viewport-aware.'],
+[214,8,'p1','The viewer is, in practice, desktop-only — the prior audit\'s strongest UX finding.'],
+[215,8,'p3','Text-zoom resilience not addressed.'],
+[216,8,'pass','Resizer is correctly hidden on narrow screens (can\'t drag on touch).'],
+[217,8,'p2','Hiding the sidebar removes the primary nav with no replacement on mobile.'],
+[218,8,'pass','Grid + flex base means desktop reflow is smooth (within desktop range).'],
+[219,8,'p3','No container queries for component-level adaptation.'],
+[220,8,'p2','Header search (w-40) competes with everything else at width.'],
+[221,8,'pass','Modal scrolls internally rather than overflowing the page.'],
+[222,8,'p1','Net: responsive = 2/4 — works on a laptop, fails the phone.'],
+[223,8,'p3','No explicit breakpoint tokens — a single magic 900px.'],
+[224,8,'pass','dvw units handle browser chrome better than vw on mobile.'],
+[225,8,'p2','A shell-layout module (desktop/compact/mobile states) is the structural fix.'],
+
+[226,9,'p2','No CSS-variable token system — colors are Tailwind utilities (<code>gray-50</code>, <code>blue-600</code>).'],
+[227,9,'pass','Four custom <code>@theme</code> tokens (astro/react/ts/js) — the only named colors.'],
+[228,9,'pass','Dark mode is implemented via <code>@variant dark</code> + <code>dark:</code> utilities.'],
+[229,9,'p2','Theme switch = hundreds of <code>dark:</code> variants, not a single variable flip.'],
+[230,9,'pass','Lang token colors are reused consistently (stats bar, tree, badges).'],
+[231,9,'p2','No spacing/type/radius tokens beyond Tailwind\'s defaults.'],
+[232,9,'p3','Hardcoded hover colors (<code>blue-50</code>, <code>gray-700</code>) repeat across fragments.'],
+[233,9,'pass','currentColor on icons gives free theming.'],
+[234,9,'p2','No semantic color roles (success/warn/danger) as tokens — ad hoc greens/reds.'],
+[235,9,'pass','Dark default avoids pure black (gray-950).'],
+[236,9,'p2','Palette drift risk: each script fragment picks its own grays.'],
+[237,9,'pass','Tailwind\'s scale gives at least internal consistency.'],
+[238,9,'p3','The 4 brand tokens don\'t cover UI chrome — only language colors.'],
+[239,9,'p2','Theming is "Tailwind dark mode", not a design-token system.'],
+[240,9,'pass','Copy-flash + resizer states are themed consistently.'],
+[241,9,'info','Tokenising the palette is the highest-leverage theming upgrade.'],
+[242,9,'pass','No inline hex in markup — Tailwind classes throughout (one consistency win).'],
+[243,9,'p3','Custom CSS block mixes hardcoded hex (<code>#dbeafe</code>, <code>#1e3a5f</code>) in the focus/resizer rules.'],
+[244,9,'p2','Those hardcoded hex values won\'t follow a future token change.'],
+[245,9,'pass','Dark mode is genuinely complete (not half-themed).'],
+[246,9,'p2','Light/dark parity maintained, but by duplication not abstraction.'],
+[247,9,'pass','Theme toggle persists + applies a root class.'],
+[248,9,'info','A real token layer would also fix the contrast-verification story.'],
+[249,9,'pass','Consistent radii/border treatment via utilities.'],
+[250,9,'info','Theming score: 3/4 — dark mode works, but it\'s utilities, not tokens.'],
+
+[251,10,'pass','Slide panel uses a transform transition with an ease curve — GPU-friendly.'],
+[252,10,'pass','Copy-flash is a short keyframe (0.4s) — clear, brief feedback.'],
+[253,10,'pass','Resizer has a quick background transition on hover/active.'],
+[254,10,'p2','No <code>prefers-reduced-motion</code> handling — animations always run (prior audit).'],
+[255,10,'pass','Tree collapse uses max-height/overflow — contained.'],
+[256,10,'p3','Chevron rotate on collapse is a nice micro-detail.'],
+[257,10,'pass','Transition durations are short (.15–.25s) — responsive feel.'],
+[258,10,'pass','Cubic-bezier easing (no bounce/elastic) — matches impeccable laws.'],
+[259,10,'pass','Hover states give immediate affordance feedback.'],
+[260,10,'p3','Canvas DAG interactions (drag/pan) lack motion polish/inertia.'],
+[261,10,'pass','No autoplaying or looping distractions.'],
+[262,10,'p3','No staggered reveal on first paint — content just appears.'],
+[263,10,'pass','Modal open/close is quick + non-jarring.'],
+[264,10,'p2','Reduced-motion users get the full transition set regardless.'],
+[265,10,'pass','Focus transitions don\'t lag the ring.'],
+[266,10,'pass','Copy/flash feedback is instant where instant is possible.'],
+[267,10,'p3','No signature delight moment — purely functional motion.'],
+[268,10,'pass','Transitions are scoped to interactive elements.'],
+[269,10,'pass','No layout-property (width/height) animation in the core.'],
+[270,10,'p3','Tree expand could animate height but currently snaps (acceptable).'],
+[271,10,'pass','Hover/focus parity on buttons.'],
+[272,10,'pass','Motion is restrained + purposeful.'],
+[273,10,'p2','Add a reduced-motion guard to fully comply.'],
+[274,10,'pass','Resizer drag feels direct + responsive.'],
+[275,10,'info','Motion: tasteful, one compliance gap (reduced-motion).'],
+
+[276,11,'pass','Button titles/labels are concrete ("Re-scan project", "Copy for LLM").'],
+[277,11,'pass','"Copy for LLM" names the exact use case (Claude/ChatGPT/Cursor) in the title.'],
+[278,11,'pass','Modal hint teaches the Esc + ⌘O affordances.'],
+[279,11,'pass','Path bar tooltip explains "Click to change folder · ⌘O".'],
+[280,11,'p3','Some emoji appear in generated content (prior audit) — inconsistent with the SVG icon set.'],
+[281,11,'pass','Search placeholder shows the <code>/</code> shortcut.'],
+[282,11,'pass','Help text in <code>--help</code> is thorough + example-led.'],
+[283,11,'p3','Abbreviated stat labels assume developer fluency.'],
+[284,11,'pass','aria-labels read as plain language ("Open folder switcher").'],
+[285,11,'pass','No hype/marketing copy in the viewer chrome.'],
+[286,11,'p3','"facts-tree.json lifecycle" isn\'t explained in-UI (prior audit: when is it written?).'],
+[287,11,'pass','Setup tab provides real onboarding copy.'],
+[288,11,'info','Copy voice is terse + developer-direct.'],
+[289,11,'pass','Empty/hint states in the modal guide next steps.'],
+[290,11,'p3','Telemetry/privacy model isn\'t surfaced in the viewer (prior audit: needs docs).'],
+[291,11,'pass','No placeholder lorem.'],
+[292,11,'pass','Keyboard hints use real <code>&lt;kbd&gt;</code> styling.'],
+[293,11,'pass','Labels are word/sentence case consistently.'],
+[294,11,'p3','Some metadata is unlabeled numbers — relies on context.'],
+[295,11,'pass','Tooltips back every icon-only control.'],
+[296,11,'pass','Folder modal copy ("Scan a different folder") is plain + clear.'],
+[297,11,'pass','No exclamation-heavy or salesy tone.'],
+[298,11,'p3','Could add one-line "what is this view" help per tab.'],
+[299,11,'pass','Change/Rescan/Copy are unambiguous verbs.'],
+[300,11,'info','Copy: clear + practical, a couple of in-UI explanations missing.'],
+
+[301,12,'pass','Folder modal has Recent + Browse empty handling.'],
+[302,12,'p2','Static-export mode can mis-detect server capabilities, making folder switch fail noisily (prior audit).'],
+[303,12,'pass','Telemetry failures are designed not to break the UI.'],
+[304,12,'p3','No explicit error UI for a failed/blocked CDN load (the page just looks unstyled).'],
+[305,12,'pass','Git scan is failure-tolerant (degrades, doesn\'t crash).'],
+[306,12,'p2','Self-scan surfaced fixture routes/TODOs as real — a trust/edge issue (prior audit).'],
+[307,12,'p3','Large file previews lack truncation UX (prior audit).'],
+[308,12,'pass','Search "no results" presumably clears the tree (filter behavior).'],
+[309,12,'p2','No streamed scan progress to the browser; long scans feel frozen (prior audit).'],
+[310,12,'p3','No cancel path for a long scan (prior audit).'],
+[311,12,'pass','Recent folders persist for repeat use.'],
+[312,12,'p2','No memory ceiling/warning for very large repos (prior audit).'],
+[313,12,'pass','Missing-deps + cycles are surfaced as findings, not silent.'],
+[314,12,'info','Edge handling is partial — strongest on git, weakest on scale + CDN failure.'],
+[315,12,'p3','Empty graph/empty-project states not explicitly designed.'],
+[316,12,'p2','Offline = broken styling (CDN) — the biggest unhandled edge.'],
+[317,12,'pass','Folder browse handles permission errors via the server API.'],
+[318,12,'p3','Error states could use stronger visual treatment (prior audit).'],
+[319,12,'pass','Rescan provides a recovery path after changes.'],
+[320,12,'p2','Side-effecting GET scan (server) could mutate on stray navigation (prior audit P1).'],
+[321,12,'pass','Modal close/Esc always available — no soft-lock.'],
+[322,12,'p3','No retry affordance if a scan/browse API call fails.'],
+[323,12,'info','Hardening the CDN/offline + scale edges is the main edge-state work.'],
+[324,12,'pass','Setup tab pre-empts the "now what" empty moment.'],
+[325,12,'p2','Trust edge: fixtures-as-real undermines the overview\'s credibility (prior audit core finding).'],
+
+[326,13,'pass','13 runtime script fragments give modular, single-purpose UI units.'],
+[327,13,'p2','Fragments each read raw <code>DATA</code> + re-derive concepts — duplicated logic (prior audit).'],
+[328,13,'pass','One HTML shell composes all fragments — single assembly point.'],
+[329,13,'p2','No shared view-model layer; each script knows the scan shape (prior audit suggestion).'],
+[330,13,'pass','Icon style (lucide-ish line SVG) is consistent across the UI.'],
+[331,13,'p3','Button treatments vary subtly between groups (view vs action vs modal).'],
+[332,13,'pass','Tailwind utilities enforce baseline visual consistency.'],
+[333,13,'p2','Large files (<code>scan-tree.mjs</code> ~1353 lines) concentrate logic — maintainability risk (prior audit).'],
+[334,13,'pass','Modal/panel patterns are reused consistently.'],
+[335,13,'p2','A dead <code>runtime.mjs</code> duplicated the live fragments (prior audit) — refactor residue.'],
+[336,13,'pass','Consistent rounded-lg + hairline border language.'],
+[337,13,'p3','Duplicated comment blocks across fragments (prior audit) — cleanup residue.'],
+[338,13,'pass','Stats bar + tree + detail are coherent reusable views.'],
+[339,13,'p2','No design-token layer means consistency depends on discipline, not system.'],
+[340,13,'pass','Header control groups are visually unified.'],
+[341,13,'p3','Editor dropdown is a one-off menu pattern.'],
+[342,13,'pass','Skip-link + live-region + focus patterns are applied uniformly.'],
+[343,13,'info','A view-model + layout module would consolidate the now-duplicated derivations.'],
+[344,13,'pass','Tree rendering is one consistent recursive pattern.'],
+[345,13,'p2','Server + viewer + MCP share scan output but build their own shapes (drift risk, prior audit).'],
+[346,13,'pass','One font system (mono) = trivially consistent type.'],
+[347,13,'pass','Color meaning (lang palette) is consistent across surfaces.'],
+[348,13,'p3','Some fragments carry small unused locals (prior audit).'],
+[349,13,'pass','The fragment split is a real step up from a single runtime blob.'],
+[350,13,'info','Consistency is decent; the debt is duplication + oversized files.'],
+
+[351,14,'pass','No gradient text.'],
+[352,14,'pass','No hero-metric template.'],
+[353,14,'pass','No default glassmorphism (a backdrop-blur on the modal only — purposeful).'],
+[354,14,'p2','Default Tailwind gray/blue palette is the single most common "built fast" fingerprint.'],
+[355,14,'pass','No purple-on-white cliché.'],
+[356,14,'pass','Inline SVG icons (lucide-style), not clip-art or mixed sets.'],
+[357,14,'p3','A few emoji in generated content clash with the clean SVG set (prior audit).'],
+[358,14,'pass','No nested cards.'],
+[359,14,'pass','Easing is cubic-bezier ease-out — no bounce.'],
+[360,14,'pass','No gray-text-on-colored-fill.'],
+[361,14,'p3','All-monospace + dense grays reads slightly generic-dev-tool — distinctive but near the template line.'],
+[362,14,'pass','Modal used appropriately (folder switch), not as a first reflex.'],
+[363,14,'pass','Information-first, not decoration-first — honest dev-tool aesthetic.'],
+[364,14,'p2','No distinctive type/voice beyond "monospace terminal" — the look is functional, not memorable.'],
+[365,14,'pass','Would a viewer say "AI made that"? Borderline-no — it reads hand-built, if utilitarian.'],
+[366,14,'info','Second-order: "dev tool that\'s not SaaS-cream → terminal-dark" is exactly where this lands — the expected non-default. One more distinctive move would clear it.'],
+[367,14,'pass','No skeuomorphic clutter.'],
+[368,14,'pass','No marquee/carousel gimmicks.'],
+[369,14,'pass','Icon set is coherent line-style.'],
+[370,14,'p3','Stats-bar sliver is clever but easy to read as decoration.'],
+[371,14,'pass','Whitespace is functional, not filler.'],
+[372,14,'p3','The only color personality is the 4 language hues — restrained to a fault.'],
+[373,14,'pass','No template feature-card grid.'],
+[374,14,'pass','Honest, dense, developer-first — not slop.'],
+[375,14,'info','Anti-pattern score: 3/4 — clean and functional; the Tailwind-default palette is the one tell.'],
+
+[376,15,'pass','Dense, information-first layout — correct for code inspection.'],
+[377,15,'pass','File tree + detail + graph give multiple lenses at once.'],
+[378,15,'pass','"Copy for LLM" is a genuine agent-era power feature.'],
+[379,15,'pass','Terminal + Editor launch keep the developer in flow.'],
+[380,15,'pass','Monospace + tabular data scan well for engineers.'],
+[381,15,'pass','<code>/</code>-search + ⌘O are real keyboard accelerators.'],
+[382,15,'pass','Recent folders speed repeat local use.'],
+[383,15,'pass','Stats bar quantifies the repo at a glance.'],
+[384,15,'pass','One command → instant interactive viewer: best-in-class time-to-value.'],
+[385,15,'p2','No deep-linking/shareable view state (single-page artifact).'],
+[386,15,'pass','Resizer respects the power-user desire to tune layout.'],
+[387,15,'p3','No saved/pinned views across runs (recents only).'],
+[388,15,'pass','Self-contained HTML is trivially shareable (email the file).'],
+[389,15,'pass','MCP mode serves the agent power user directly.'],
+[390,15,'pass','Cycle/orphan/missing-dep findings are exactly what a dev wants on day one.'],
+[391,15,'p2','Densest data lacks per-column sort/filter everywhere.'],
+[392,15,'pass','Setup + Git + Deps tabs cover real onboarding questions.'],
+[393,15,'pass','Editor whitelist + spawn (not shell) keeps launch actions safe-ish.'],
+[394,15,'pass','The dev-ergonomics story is this tool\'s real strength.'],
+[395,15,'p3','No bulk actions on findings.'],
+[396,15,'pass','Path-copy + LLM-copy respect copy-paste-driven workflows.'],
+[397,15,'pass','The tool assumes a technical user — no over-explaining.'],
+[398,15,'pass','Telemetry is local-first + opt-in — respects the dev.'],
+[399,15,'pass','Net ergonomics: excellent — this is what Facts-Code should learn from.'],
+[400,15,'info','The ergonomic crown jewel: 5-seconds-to-value. Protect it in any successor.'],
+];
+const SCORE=[["Accessibility",3,"Strong scaffolding (3 skip links, live region, focus rings); graph + full keyboard tree are the gaps."],["Performance",2,"Tailwind via CDN at runtime: network-dependent, FOUC, offline-broken; single large HTML."],["Theming",3,"Dark mode works via dark: variants, but the palette is hardcoded Tailwind, not tokens."],["Responsive",2,"One 900px breakpoint that hides the sidebar; the project's own audit confirmed mobile is broken."],["Anti-patterns",3,"Functional dev tool, not slop; the default Tailwind gray/blue palette is the one generic tell."]];
+const BAND=(t)=>t>=18?"Excellent (minor polish)":t>=14?"Good (address weak dimensions)":t>=10?"Acceptable (significant work needed)":t>=6?"Poor (major overhaul)":"Critical";
+renderAudit(C,CATS,SCORE,BAND);
+function renderAudit(C,CATS,SCORE,BAND){
+  var sc=document.getElementById('scorecard'),tot=0;
+  SCORE.forEach(function(d){tot+=d[1];sc.insertAdjacentHTML('beforeend','<div class="sc"><div class="d">'+d[0]+'</div><div class="v">'+d[1]+'<small>/4</small></div></div>');});
+  sc.insertAdjacentHTML('beforeend','<div class="sc total"><div class="d">Total</div><div class="v">'+tot+'<small>/20</small></div></div>');
+  document.getElementById('bandtxt').textContent=BAND(tot);
+  var by={pass:0,p1:0,p2:0,p3:0,info:0};C.forEach(function(c){by[c[2]]++;});
+  var sv=document.getElementById('sevcounts');
+  [['p1','P1 major'],['p2','P2 minor'],['p3','P3 polish'],['pass','pass'],['info','info']].forEach(function(s){sv.insertAdjacentHTML('beforeend','<span class="sevc '+s[0]+'"><b>'+by[s[0]]+'</b> '+s[1]+'</span>');});
+  var fl=document.getElementById('filters');var state={s:'all'};
+  [['all','All '+C.length],['p1','P1'],['p2','P2'],['p3','P3'],['pass','Pass'],['info','Info']].forEach(function(s,i){fl.insertAdjacentHTML('beforeend','<button class="chip'+(i===0?' on':'')+'" data-s="'+s[0]+'">'+s[1]+'</button>');});
+  fl.insertAdjacentHTML('beforeend','<span class="count" id="cnt"></span>');
+  var list=document.getElementById('list');
+  CATS.forEach(function(cat,ci){var items=C.filter(function(c){return c[1]===ci;});if(!items.length)return;
+    var html='<div class="catblock"><div class="cathead"><h3>'+cat+'</h3><span class="ct">'+items.length+' checks</span></div>';
+    items.forEach(function(c){html+='<div class="check" data-s="'+c[2]+'"><span class="n">'+c[0]+'</span><span class="s '+c[2]+'">'+(c[2]==='pass'?'PASS':c[2]==='info'?'INFO':c[2].toUpperCase())+'</span><span class="t">'+c[3]+'</span></div>';});
+    html+='</div>';list.insertAdjacentHTML('beforeend',html);});
+  function apply(){var shown=0;
+    document.querySelectorAll('.check').forEach(function(el){var ok=state.s==='all'||el.dataset.s===state.s;el.classList.toggle('hide',!ok);if(ok)shown++;});
+    document.querySelectorAll('.catblock').forEach(function(b){var any=b.querySelectorAll('.check:not(.hide)').length;b.style.display=any?'':'none';});
+    document.getElementById('cnt').innerHTML='<b>'+shown+'</b> shown';document.getElementById('noresult').hidden=shown>0;}
+  fl.addEventListener('click',function(e){var b=e.target.closest('.chip');if(!b)return;state.s=b.dataset.s;fl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('on',x===b);});apply();});
+  apply();
+}
+</script>
+</body>
+</html>

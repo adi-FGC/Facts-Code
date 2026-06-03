@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark" />
+<title>Two Generations of FACTS — facts-tree vs Facts-Code</title>
+<meta name="description" content="An ELI5 engineering dossier for a new CTO: how facts-tree (v0, the prototype) became Facts-Code (v2, the platform). Grounded in the 2026-05-19 audit, the architecture proposal, and both codebases." />
+<meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0a0b0e; --ink-2:#101218; --ink-3:#161922;
+    --cream:#f3efe6; --muted:rgba(243,239,230,.62); --faint:rgba(243,239,230,.36); --hair:rgba(243,239,230,.10); --hair-2:rgba(243,239,230,.16);
+    /* duotone: amber = v0 / the sketch · cyan = v2 / the build */
+    --amber:#eaa53e; --amber-soft:rgba(234,165,62,.14); --amber-line:rgba(234,165,62,.42);
+    --cyan:#46d6e6; --cyan-soft:rgba(70,214,230,.13); --cyan-line:rgba(70,214,230,.42);
+    --ok:#7ee0a3; --warn:#f0b450; --bad:#ff7a7a;
+    --disp:'Fraunces',Georgia,serif; --body:'Hanken Grotesk',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace;
+    --r:14px;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
+  body{margin:0;background:var(--ink);color:var(--cream);font-family:var(--body);font-size:16px;line-height:1.65;
+    -webkit-font-smoothing:antialiased;overflow-x:hidden;
+    background-image:
+      radial-gradient(120% 80% at 82% -5%,rgba(70,214,230,.10),transparent 55%),
+      radial-gradient(90% 70% at 8% 4%,rgba(234,165,62,.09),transparent 55%);
+    background-attachment:fixed;}
+  /* blueprint grid + grain atmosphere */
+  body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+    background-image:linear-gradient(var(--hair) 1px,transparent 1px),linear-gradient(90deg,var(--hair) 1px,transparent 1px);
+    background-size:54px 54px;mask-image:radial-gradient(130% 100% at 50% 0%,#000,transparent 80%);}
+  body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.04;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+  .wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:0 clamp(20px,5vw,56px)}
+  a{color:inherit}
+  ::selection{background:rgba(70,214,230,.28)}
+  code,.mono{font-family:var(--mono)}
+  code{font-size:.86em;background:rgba(243,239,230,.06);padding:1px 6px;border-radius:5px;border:1px solid var(--hair)}
+
+  .kick{font-family:var(--mono);font-size:.72rem;letter-spacing:.28em;text-transform:uppercase;color:var(--faint)}
+  .amber{color:var(--amber)} .cyan{color:var(--cyan)}
+
+  /* reveal */
+  .rv{opacity:0;transform:translateY(22px);transition:opacity .8s cubic-bezier(.2,.8,.2,1),transform .8s cubic-bezier(.2,.8,.2,1)}
+  .rv.in{opacity:1;transform:none}
+  .rv[data-d="1"]{transition-delay:.08s}.rv[data-d="2"]{transition-delay:.16s}.rv[data-d="3"]{transition-delay:.24s}.rv[data-d="4"]{transition-delay:.32s}
+
+  /* ───── hero ───── */
+  header.hero{position:relative;padding:clamp(70px,12vh,150px) 0 clamp(40px,7vw,80px);border-bottom:1px solid var(--hair)}
+  .hero .kick{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:26px}
+  .hero .kick b{color:var(--amber);font-weight:500} .hero .kick i{color:var(--cyan);font-style:normal;font-weight:500}
+  .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(2.6rem,8vw,6rem);line-height:.97;letter-spacing:-.02em;margin:0 0 28px;
+    font-variation-settings:"opsz" 144}
+  .hero h1 .o{color:var(--amber)} .hero h1 .n{color:var(--cyan)}
+  .hero .lede{font-size:clamp(1.05rem,2.1vw,1.4rem);color:var(--muted);max-width:64ch;line-height:1.5;font-weight:400}
+  .hero .lede em{color:var(--cream);font-style:italic;font-family:var(--disp)}
+  .ribbon{display:flex;flex-wrap:wrap;gap:10px;margin-top:38px}
+  .pill{font-family:var(--mono);font-size:.72rem;color:var(--muted);border:1px solid var(--hair-2);border-radius:999px;padding:7px 13px;background:rgba(16,18,24,.5)}
+  .pill b{color:var(--cream)}
+
+  /* split nameplate */
+  .nameplate{display:grid;grid-template-columns:1fr auto 1fr;gap:0;margin-top:54px;border:1px solid var(--hair-2);border-radius:var(--r);overflow:hidden;background:rgba(16,18,24,.45)}
+  @media(max-width:680px){.nameplate{grid-template-columns:1fr}}
+  .np{padding:26px 28px}
+  .np.o{border-right:1px solid var(--hair)} .np.o .tag{color:var(--amber)} .np.o::before{background:var(--amber)}
+  .np.n .tag{color:var(--cyan)} .np.n::before{background:var(--cyan)}
+  .np{position:relative} .np::before{content:"";position:absolute;top:0;left:0;width:100%;height:3px;opacity:.85}
+  @media(max-width:680px){.np.o{border-right:none;border-bottom:1px solid var(--hair)}}
+  .np .tag{font-family:var(--mono);font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;margin-bottom:8px}
+  .np h3{font-family:var(--disp);font-weight:500;font-size:1.5rem;margin:0 0 4px;letter-spacing:-.01em}
+  .np p{margin:0;color:var(--muted);font-size:.92rem}
+  .seam{display:grid;place-items:center;padding:0 6px;font-family:var(--mono);font-size:.8rem;color:var(--faint);background:
+    linear-gradient(var(--amber-line),var(--cyan-line))}
+  @media(max-width:680px){.seam{padding:10px;background:linear-gradient(90deg,var(--amber-line),var(--cyan-line))}}
+
+  /* ───── sections ───── */
+  section{padding:clamp(56px,9vw,104px) 0;border-bottom:1px solid var(--hair)}
+  .eyebrow{font-family:var(--mono);font-size:.72rem;letter-spacing:.22em;text-transform:uppercase;color:var(--cyan);display:flex;align-items:center;gap:14px;margin-bottom:22px}
+  .eyebrow::before{content:"";width:34px;height:1px;background:var(--cyan-line)}
+  h2{font-family:var(--disp);font-weight:600;font-size:clamp(1.9rem,4.4vw,3rem);line-height:1.05;letter-spacing:-.02em;margin:0 0 18px;max-width:20ch;font-variation-settings:"opsz" 96}
+  .sub{font-size:1.05rem;color:var(--muted);max-width:70ch;margin:0 0 38px}
+  .sub em{color:var(--cream);font-family:var(--disp);font-style:italic}
+
+  /* tldr */
+  .tldr{border:1px solid var(--hair-2);border-radius:var(--r);background:rgba(16,18,24,.55);padding:clamp(24px,4vw,40px);max-width:none}
+  .tldr h2{font-size:clamp(1.5rem,3vw,2rem);margin-bottom:24px}
+  .tldr ul{list-style:none;margin:0;padding:0;display:grid;gap:18px}
+  .tldr li{display:grid;grid-template-columns:130px 1fr;gap:20px;align-items:start}
+  @media(max-width:600px){.tldr li{grid-template-columns:1fr;gap:6px}}
+  .tldr .lab{font-family:var(--mono);font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);padding-top:5px}
+  .tldr .lab.o{color:var(--amber)}
+  .tldr li p{margin:0;color:var(--muted)} .tldr li b{color:var(--cream);font-weight:600}
+
+  /* timeline spine */
+  .spine{position:relative;margin-top:20px;padding-left:34px}
+  .spine::before{content:"";position:absolute;left:9px;top:6px;bottom:6px;width:2px;background:linear-gradient(var(--amber-line),var(--cyan-line))}
+  .node{position:relative;padding:0 0 34px}
+  .node:last-child{padding-bottom:0}
+  .node::before{content:"";position:absolute;left:-34px;top:4px;width:20px;height:20px;border-radius:50%;background:var(--ink);border:2px solid var(--cyan);box-shadow:0 0 0 4px var(--ink)}
+  .node.o::before{border-color:var(--amber)}
+  .node .when{font-family:var(--mono);font-size:.72rem;color:var(--faint);letter-spacing:.08em}
+  .node h4{font-family:var(--disp);font-weight:500;font-size:1.3rem;margin:3px 0 5px}
+  .node p{margin:0;color:var(--muted);font-size:.95rem;max-width:66ch}
+  .node .score{display:inline-block;font-family:var(--mono);font-weight:700;color:var(--amber);border:1px solid var(--amber-line);border-radius:8px;padding:2px 10px;font-size:.85rem;margin-left:6px}
+
+  /* ledger */
+  .ledger{border:1px solid var(--hair-2);border-radius:var(--r);overflow:hidden;background:rgba(16,18,24,.4)}
+  .lhead,.lrow{display:grid;grid-template-columns:150px 1fr 1fr}
+  @media(max-width:760px){.lhead{display:none}.lrow{grid-template-columns:1fr;gap:0}}
+  .lhead{background:rgba(243,239,230,.03);border-bottom:1px solid var(--hair-2);font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase}
+  .lhead>div{padding:14px 20px}
+  .lhead .ho{color:var(--amber)} .lhead .hn{color:var(--cyan)}
+  .lrow{border-bottom:1px solid var(--hair);transition:background .2s}
+  .lrow:last-child{border-bottom:none}
+  .lrow:hover{background:rgba(243,239,230,.025)}
+  .lrow>div{padding:16px 20px}
+  .ldim{font-family:var(--mono);font-size:.74rem;letter-spacing:.04em;color:var(--faint);text-transform:uppercase;align-self:center}
+  .lo{border-left:2px solid var(--amber-line)} .ln{border-left:2px solid var(--cyan-line)}
+  @media(max-width:760px){.ldim{padding-bottom:2px;color:var(--cream)}.lo,.ln{padding-top:8px}.lo::before{content:"v0 · ";color:var(--amber);font-family:var(--mono);font-size:.72rem}.ln::before{content:"v2 · ";color:var(--cyan);font-family:var(--mono);font-size:.72rem}}
+  .lo b,.ln b{color:var(--cream);font-weight:600} .lrow .e{display:block;color:var(--muted);font-size:.9rem}
+  .lrow .t{display:block;font-family:var(--mono);font-size:.72rem;color:var(--faint);margin-top:5px}
+
+  /* audit→rewrite mapping */
+  .maps{display:grid;gap:14px;margin-top:8px}
+  .map{display:grid;grid-template-columns:1fr 44px 1fr;gap:0;align-items:stretch;border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:rgba(16,18,24,.4)}
+  @media(max-width:720px){.map{grid-template-columns:1fr;}}
+  .map .from{padding:16px 18px;background:var(--amber-soft);border-right:1px solid var(--hair)}
+  .map .to{padding:16px 18px;background:var(--cyan-soft)}
+  .map .arrow{display:grid;place-items:center;font-family:var(--mono);color:var(--faint);background:linear-gradient(90deg,var(--amber-soft),var(--cyan-soft))}
+  @media(max-width:720px){.map .from{border-right:none;border-bottom:1px solid var(--hair)}.map .arrow{padding:6px;background:linear-gradient(90deg,var(--amber-soft),var(--cyan-soft))}}
+  .map .ml{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .map .from .ml{color:var(--amber)} .map .to .ml{color:var(--cyan)}
+  .map h4{margin:0 0 3px;font-size:1rem;font-weight:600;color:var(--cream)}
+  .map p{margin:0;font-size:.88rem;color:var(--muted)}
+  .map code{font-size:.8em}
+
+  /* feature cards */
+  .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(248px,1fr));margin-top:8px}
+  .card{border:1px solid var(--hair);border-radius:12px;padding:22px;background:rgba(16,18,24,.5);transition:transform .25s,border-color .25s}
+  .card:hover{transform:translateY(-3px);border-color:var(--cyan-line)}
+  .card .ic{font-size:1.3rem;display:block;margin-bottom:10px}
+  .card h4{margin:0 0 6px;font-size:1.05rem;font-weight:600}
+  .card p{margin:0;color:var(--muted);font-size:.9rem}
+  .card .ny{font-family:var(--mono);font-size:.66rem;color:var(--cyan);letter-spacing:.1em;text-transform:uppercase;display:block;margin-top:12px}
+
+  /* two-col balance */
+  .balance{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:740px){.balance{grid-template-columns:1fr}}
+  .bcard{border:1px solid var(--hair-2);border-radius:var(--r);padding:26px;background:rgba(16,18,24,.5)}
+  .bcard.o{border-top:3px solid var(--amber)} .bcard.n{border-top:3px solid var(--cyan)}
+  .bcard h3{font-family:var(--disp);font-weight:500;font-size:1.35rem;margin:0 0 4px}
+  .bcard .who{font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;margin-bottom:14px}
+  .bcard.o .who{color:var(--amber)} .bcard.n .who{color:var(--cyan)}
+  .bcard ul{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+  .bcard li{padding-left:20px;position:relative;color:var(--muted);font-size:.92rem}
+  .bcard li::before{content:"→";position:absolute;left:0;color:var(--faint)}
+  .bcard.o li::before{color:var(--amber)} .bcard.n li::before{color:var(--cyan)}
+  .bcard li b{color:var(--cream);font-weight:600}
+
+  /* pull quote */
+  .pull{font-family:var(--disp);font-weight:500;font-size:clamp(1.5rem,3.6vw,2.4rem);line-height:1.28;letter-spacing:-.01em;max-width:24ch;margin:0;color:var(--cream)}
+  .pull .amber{font-style:italic} .pull .cyan{font-style:italic}
+
+  /* verdict */
+  .verdict{display:grid;gap:14px}
+  .vrow{display:grid;grid-template-columns:42px 1fr;gap:18px;align-items:start;border:1px solid var(--hair);border-radius:12px;padding:20px 22px;background:rgba(16,18,24,.5)}
+  .vrow .n{font-family:var(--disp);font-weight:600;font-size:1.6rem;color:var(--cyan);line-height:1}
+  .vrow h4{margin:0 0 5px;font-size:1.08rem;font-weight:600}
+  .vrow p{margin:0;color:var(--muted);font-size:.94rem}
+  .callout{border:1px solid var(--hair-2);border-left:3px solid var(--warn);border-radius:12px;background:rgba(240,180,80,.06);padding:20px 24px;color:var(--muted);font-size:.94rem;margin-top:22px}
+  .callout b{color:var(--cream)}
+
+  footer{padding:54px 0 80px}
+  footer .src{font-family:var(--mono);font-size:.74rem;color:var(--faint);line-height:1.9;max-width:80ch}
+  footer .src b{color:var(--muted)}
+  .scrollbar{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--amber),var(--cyan));z-index:50;width:0}
+
+  /* metrics table */
+  .mtable{border:1px solid var(--hair2);border-radius:var(--r);overflow:hidden;margin-top:8px;font-size:.92rem;background:rgba(16,18,24,.4)}
+  .mrow{display:grid;grid-template-columns:1.5fr 1fr 1fr 70px;border-bottom:1px solid var(--hair)}
+  .mrow:last-child{border-bottom:none}
+  @media(max-width:640px){.mrow{grid-template-columns:1fr 1fr 1fr}.mrow .dlt{display:none}}
+  .mrow>div{padding:11px 16px}
+  .mhead{background:rgba(243,239,230,.03);font-family:var(--mono);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase}
+  .mhead .ho{color:var(--amber)} .mhead .hn{color:var(--cyan)}
+  .mrow:hover:not(.mhead){background:rgba(243,239,230,.02)}
+  .mrow .m{color:var(--muted)} .mrow .mo{color:var(--cream);font-family:var(--mono);font-size:.85rem;border-left:1px solid var(--amber-line)}
+  .mrow .mn{color:var(--cream);font-family:var(--mono);font-size:.85rem;border-left:1px solid var(--cyan-line)}
+  .mrow .dlt{font-family:var(--mono);color:var(--cyan);font-size:.76rem;text-align:right;align-self:center}
+  .mnote{display:flex;flex-wrap:wrap;gap:12px;margin-top:18px}
+  .mbig{flex:1 1 230px;border:1px solid var(--hair);border-radius:12px;padding:18px 20px;background:rgba(16,18,24,.5)}
+  .mbig .x{font-family:var(--disp);font-weight:600;font-size:1.9rem;color:var(--cyan);line-height:1}
+  .mbig .x.amber{color:var(--amber)} .mbig p{margin:6px 0 0;color:var(--muted);font-size:.9rem} .mbig p b{color:var(--cream)}
+
+  /* adoption */
+  .adopt{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));margin-top:8px}
+  .acard{border:1px solid var(--hair2);border-radius:12px;padding:20px 22px;background:rgba(16,18,24,.5)}
+  .acard.now{border-top:3px solid var(--amber)} .acard.next{border-top:3px solid var(--cyan)} .acard.later{border-top:3px solid var(--hair2)}
+  .acard .ah{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:9px}
+  .acard .when{font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
+  .acard.now .when{color:var(--amber)} .acard.next .when{color:var(--cyan)}
+  .acard .ui{font-family:var(--mono);font-size:.58rem;letter-spacing:.08em;color:var(--cyan);border:1px solid var(--cyan-line);border-radius:999px;padding:2px 7px;flex:0 0 auto}
+  .acard h4{margin:0 0 6px;font-size:1.04rem}
+  .acard p{margin:0;color:var(--muted);font-size:.9rem} .acard b{color:var(--cream)} .acard code{font-size:.8em}
+
+  /* audits */
+  .auds{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:640px){.auds{grid-template-columns:1fr}}
+  .aud{display:block;text-decoration:none;border:1px solid var(--hair2);border-radius:14px;padding:22px 24px;background:rgba(16,18,24,.5);transition:transform .2s,border-color .2s}
+  .aud:hover{transform:translateY(-3px)}
+  .aud.o{border-top:3px solid var(--amber)} .aud.o:hover{border-color:var(--amber-line)}
+  .aud.n{border-top:3px solid var(--cyan)} .aud.n:hover{border-color:var(--cyan-line)}
+  .aud .at{font-family:var(--mono);font-size:.7rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+  .aud .asc{font-family:var(--disp);font-weight:600;font-size:2.5rem;margin:2px 0 14px;line-height:1}
+  .aud.o .asc{color:var(--amber)} .aud.n .asc{color:var(--cyan)} .aud .asc small{font-size:1rem;color:var(--faint);font-family:var(--body)}
+  .aud .dim{display:grid;gap:7px}
+  .aud .dr{display:grid;grid-template-columns:90px 1fr 24px;gap:8px;align-items:center;font-size:.74rem;color:var(--muted);font-family:var(--mono)}
+  .aud .track{height:6px;background:rgba(243,239,230,.08);border-radius:999px;overflow:hidden}
+  .aud .fill{height:100%;border-radius:999px}
+  .aud.o .fill{background:var(--amber)} .aud.n .fill{background:var(--cyan)}
+  .aud .go{font-family:var(--mono);font-size:.74rem;margin-top:16px;display:block}
+  .aud.o .go{color:var(--amber)} .aud.n .go{color:var(--cyan)}
+  .findings{border:1px solid var(--hair2);border-radius:14px;padding:24px 26px;background:rgba(16,18,24,.45);margin-top:16px}
+  .findings h4{font-family:var(--disp);font-weight:500;font-size:1.2rem;margin:0 0 14px}
+  .findings ul{list-style:none;margin:0;padding:0;display:grid;gap:11px}
+  .findings li{padding-left:22px;position:relative;color:var(--muted);font-size:.95rem;line-height:1.5}
+  .findings li::before{content:"▸";position:absolute;left:0;color:var(--faint)}
+  .findings li b{color:var(--cream)} .findings li .a{color:var(--amber)} .findings li .c{color:var(--cyan)}
+</style>
+</head>
+<body>
+<div class="scrollbar" id="sb"></div>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="kick rv in"><span>Engineering Dossier</span><span>·</span><span><b>facts-tree v0</b> → <i>Facts-Code v2</i></span><span>·</span><span>ELI5 for a new CTO</span></div>
+    <h1 class="rv in" data-d="1">The concept car,<br>and the <span class="n">production line</span>.</h1>
+    <p class="lede rv in" data-d="2">Two codebases. One idea: <em>turn a repository into trustworthy, agent-ready architectural context.</em> <span class="amber">facts-tree</span> proved the idea works in a single afternoon-sized CLI. <span class="cyan">Facts-Code</span> is the ground-up rebuild that turned a brutal code audit into a real platform. Here's what changed, why, and what it means for the team you're inheriting.</p>
+    <div class="ribbon rv in" data-d="3">
+      <span class="pill"><b>1</b> shared idea</span>
+      <span class="pill"><b>2</b> generations</span>
+      <span class="pill">v0 → <b>1</b> package · 1 HTML file</span>
+      <span class="pill">v2 → <b>19</b> packages · 3 apps</span>
+      <span class="pill">bridge → a <b>123/200</b> audit</span>
+    </div>
+
+    <div class="nameplate rv" data-d="1">
+      <div class="np o">
+        <div class="tag">Generation 0 · the sketch</div>
+        <h3>facts-tree</h3>
+        <p>A zero-fuss Node CLI: scan a folder, open one interactive dependency-tree viewer in the browser. Acorn parser, ~10 files, a single HTML artifact + an AI JSON snapshot.</p>
+      </div>
+      <div class="seam">VS</div>
+      <div class="np n">
+        <div class="tag">Generation 2 · the build</div>
+        <h3>Facts-Code</h3>
+        <p>A TypeScript monorepo: one isomorphic engine feeding a CLI, an MCP server, and a Remix dashboard. Two-audience artifacts, token-cheap context, and a growing suite of intelligence features.</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- TLDR -->
+  <section>
+    <div class="tldr rv">
+      <div class="eyebrow">If you read one thing</div>
+      <h2>The 90-second version.</h2>
+      <ul>
+        <li><span class="lab">Same DNA</span><p>Both tools answer the same question: <b>"what is this codebase, and can an AI safely act on it?"</b> v0 already had a dependency graph, cycle &amp; orphan detection, route &amp; secret &amp; TODO scanning, a docs index, and a "Copy&nbsp;for&nbsp;LLM" button. The <em>concept</em> didn't change.</p></li>
+        <li><span class="lab o">v0 · facts-tree</span><p>A brilliant, <b>working prototype</b> — one command, one self-contained HTML viewer, one AI-readable <code>project-tree.json</code>, almost no dependencies. It proved the value in the simplest possible form. A 2026 audit then scored it <b>123/200</b>: great bones, real debt.</p></li>
+        <li><span class="lab">v2 · Facts-Code</span><p>A <b>ground-up re-architecture</b> into a 19-package TypeScript monorepo: typed contracts, an engine that runs in Node <em>and</em> the browser, two separate artifacts (one for humans, one for AI), an ~80%-cheaper "FactsPack" context format, a 13-tool MCP server, and a real dashboard.</p></li>
+        <li><span class="lab">The bridge</span><p>Not a whim. A formal <b>code audit + an architecture proposal</b> (10 "deepening" modules) sit between the two. Facts-Code is, almost line-for-line, <b>that proposal executed.</b></p></li>
+        <li><span class="lab">The irony</span><p>facts-tree calls itself <b>"v1.0.0"</b> (but scored 123/200). Facts-Code calls itself <b>"v0.1, alpha"</b> — yet it's far more mature. <em>Version numbers lie; architecture tells the truth.</em></p></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- LINEAGE -->
+  <section>
+    <div class="eyebrow rv">The lineage</div>
+    <h2 class="rv">How a viewer became a platform.</h2>
+    <p class="sub rv">The two projects aren't rivals — they're <em>parent and child</em>. Reading the audit artifacts left inside facts-tree, the storyline is unmistakable.</p>
+    <div class="spine rv">
+      <div class="node o">
+        <div class="when">ORIGIN</div>
+        <h4>"Project Tree Viewer" — the original</h4>
+        <p>A local-first Node CLI + browser viewer + <span class="amber">MCP server</span>. It scanned source, docs, routes, imports, exports, TODOs, git, and dependencies, then served an interactive viewer and wrote an AI snapshot. The ambition was already "agent-ready context," not just "show files."</p>
+      </div>
+      <div class="node o">
+        <div class="when">2026-05-19 · THE AUDIT</div>
+        <h4>A 200-point design &amp; code audit<span class="score">123 / 200</span></h4>
+        <p>No fatal bugs — but real cracks: test-fixture routes leaking in as "real" app routes, a symlink path-bypass in the local server, a side-effecting <code>GET /api/scan</code>, a mobile-broken UI, and 1,000+ line files. The verdict: <b>strong product shape, fragile trust &amp; structure.</b></p>
+      </div>
+      <div class="node o">
+        <div class="when">2026-05-19 · THE PROPOSAL</div>
+        <h4>Ten "deepening" modules</h4>
+        <p>An <code>improve-codebase-architecture</code> pass proposed concentrating scattered logic behind real seams: a Path-Access module, File-Role classification, a Scan Session, Finding Views, shared MCP read-models, a Release Surface, and more. A blueprint for a rebuild.</p>
+      </div>
+      <div class="node">
+        <div class="when">NOW · THE REBUILD</div>
+        <h4>Facts-Code — the proposal, executed</h4>
+        <p>Rather than patch the prototype, the team rebuilt the idea as a <span class="cyan">typed, isomorphic monorepo</span>. Every "deepening" recommendation became a package or a contract. (facts-tree lives on as the lean line, still a full CLI + server + MCP + viewer, just flat and untyped.)</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEDGER -->
+  <section>
+    <div class="eyebrow rv">Side by side</div>
+    <h2 class="rv">The same job, two engineering philosophies.</h2>
+    <p class="sub rv">Each row: the plain-English difference, then the technical hook. <span class="amber">Amber = v0</span>. <span class="cyan">Cyan = v2</span>.</p>
+    <div class="ledger rv">
+      <div class="lhead"><div>Dimension</div><div class="ho">facts-tree · v0</div><div class="hn">Facts-Code · v2</div></div>
+
+      <div class="lrow"><div class="ldim">Shape</div>
+        <div class="lo"><b>One package, ~10 files.</b><span class="e">A flat <code>lib/</code> of <code>.mjs</code> scripts; a couple grew past 1,000 lines.</span></div>
+        <div class="ln"><b>19 packages + 3 apps.</b><span class="e">A Turborepo monorepo with one-directional layers, all resolving to a tiny type contract.</span><span class="t">spec → fs → primitives → core → emit → apps</span></div></div>
+
+      <div class="lrow"><div class="ldim">Language</div>
+        <div class="lo"><b>Plain JavaScript.</b><span class="e">ESM, no type system. Fast to write; nothing catches a wrong shape.</span></div>
+        <div class="ln"><b>TypeScript + Zod schemas.</b><span class="e">The data shapes are a single source of truth, validated at the edges.</span><span class="t">@factstack/spec — additive-only contracts</span></div></div>
+
+      <div class="lrow"><div class="ldim">Parser</div>
+        <div class="lo"><b>Acorn.</b><span class="e">acorn + JSX + TypeScript plugins, per-extension, graceful fallback.</span></div>
+        <div class="ln"><b>Babel (today).</b><span class="e">Parse each file once, reuse the AST across every extractor; a tree-sitter path is planned.</span></div></div>
+
+      <div class="lrow"><div class="ldim">Output</div>
+        <div class="lo"><b>1 HTML + 1 JSON.</b><span class="e">A self-contained viewer page, plus an AI-oriented snapshot blending both audiences.</span></div>
+        <div class="ln"><b>Four artifacts, two audiences.</b><span class="e">A human dashboard file + a dense agent file + a token-cheap pack + a "read-me-first" brief.</span><span class="t">human.json · agent.json · agent.pack · MEMORY.md</span></div></div>
+
+      <div class="lrow"><div class="ldim">Where it runs</div>
+        <div class="lo"><b>Node, three ways.</b><span class="e">A CLI, a local HTTP server (the viewer), and an MCP server (<code>--mcp</code>) — all in one flat package, all Node-only.</span></div>
+        <div class="ln"><b>Isomorphic.</b><span class="e">The <em>same</em> engine runs in your terminal, your CI, and a browser tab (via a Web Worker) — file access is injected.</span><span class="t">FactsFS interface · constraint "C1"</span></div></div>
+
+      <div class="lrow"><div class="ldim">Agent context</div>
+        <div class="lo"><b>"Copy for LLM" + a live MCP server.</b><span class="e">A one-click context-copy button in the viewer, plus stdio MCP tools (<code>--mcp</code>) agents call — both shipping today.</span></div>
+        <div class="ln"><b>FactsPack + MEMORY.md + 13 MCP tools.</b><span class="e">A wire format ~80% cheaper than JSON, a 2–10&nbsp;KB cold-start brief, and a typed tool surface agents call.</span></div></div>
+
+      <div class="lrow"><div class="ldim">UI</div>
+        <div class="lo"><b>Generated HTML viewer.</b><span class="e">Tree, DAG, overview, search, tabs — assembled from script fragments. (Audit: desktop-only.)</span></div>
+        <div class="ln"><b>Remix dashboard.</b><span class="e">A React-free SPA, a consolidated 7-tab IA, responsive — now with Docs &amp; CSS-audit surfaces.</span></div></div>
+
+      <div class="lrow"><div class="ldim">Trust / safety</div>
+        <div class="lo"><b>Audit-flagged gaps.</b><span class="e">Fixture routes leaked as real; symlink path bypass; side-effecting GET.</span></div>
+        <div class="ln"><b>Safe by design.</b><span class="e">Analysis makes zero network calls; secrets are redacted at the type level; structured, role-aware findings.</span></div></div>
+
+      <div class="lrow"><div class="ldim">Tests</div>
+        <div class="lo"><b>~37 node tests.</b><span class="e">Strong on extractors; no server/browser/CI coverage (per audit).</span></div>
+        <div class="ln"><b>45 test suites + a bundle gate.</b><span class="e">Deterministic, byte-identical outputs; first-paint budget enforced in CI.</span></div></div>
+
+      <div class="lrow"><div class="ldim">Maturity badge</div>
+        <div class="lo"><b>"v1.0.0"</b><span class="e">…but the audit said 123/200.</span></div>
+        <div class="ln"><b>"v0.1 · alpha"</b><span class="e">…but architecturally a generation ahead.</span></div></div>
+    </div>
+  </section>
+
+  <!-- METRICS -->
+  <section>
+    <div class="eyebrow rv">By the numbers</div>
+    <h2 class="rv">The "concept-car vs production-line" tax, counted.</h2>
+    <p class="sub rv">Measured directly from both trees this session. Source counts exclude tests, <code>node_modules</code>, and build output. The Δ column is v2 ÷ v0.</p>
+    <div class="mtable rv">
+      <div class="mrow mhead"><div>Metric</div><div class="ho">facts-tree v0</div><div class="hn">Facts-Code v2</div><div class="dlt">Δ</div></div>
+      <div class="mrow"><div class="m">Workspace packages</div><div class="mo">1</div><div class="mn">19</div><div class="dlt">19×</div></div>
+      <div class="mrow"><div class="m">Source files</div><div class="mo">30</div><div class="mn">178</div><div class="dlt">5.9×</div></div>
+      <div class="mrow"><div class="m">Source LOC</div><div class="mo">~8,300</div><div class="mn">~35,300</div><div class="dlt">4.3×</div></div>
+      <div class="mrow"><div class="m">Test files</div><div class="mo">1</div><div class="mn">46</div><div class="dlt">46×</div></div>
+      <div class="mrow"><div class="m">Test LOC</div><div class="mo">~950</div><div class="mn">~8,240</div><div class="dlt">8.7×</div></div>
+      <div class="mrow"><div class="m">Test : source LOC</div><div class="mo">~11%</div><div class="mn">~23%</div><div class="dlt">2×</div></div>
+      <div class="mrow"><div class="m">External dependencies</div><div class="mo">5</div><div class="mn">28</div><div class="dlt">5.6×</div></div>
+      <div class="mrow"><div class="m">Language</div><div class="mo">JavaScript (ESM)</div><div class="mn">TypeScript + Zod</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">Parser</div><div class="mo">acorn (+jsx/ts)</div><div class="mn">@babel/parser</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">UI styling</div><div class="mo">Tailwind (CDN build)</div><div class="mn">CSS-var tokens + lightningcss</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">Build step</div><div class="mo">none</div><div class="mn">Vite + Turborepo + tsc</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">Surfaces</div><div class="mo">CLI · server · MCP · viewer · telemetry</div><div class="mn">CLI · MCP · Remix dashboard (isomorphic)</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">Artifacts</div><div class="mo">facts-tree.json + 1 HTML</div><div class="mn">agent · human · pack · MEMORY.md</div><div class="dlt">—</div></div>
+      <div class="mrow"><div class="m">Impeccable UI audit</div><div class="mo">13 / 20</div><div class="mn">17 / 20</div><div class="dlt">+4</div></div>
+      <div class="mrow"><div class="m">Self-declared version</div><div class="mo">1.0.0</div><div class="mn">0.1.x · alpha</div><div class="dlt">—</div></div>
+    </div>
+    <div class="mnote rv">
+      <div class="mbig"><div class="x amber">¼</div><p>v0 does the same core job in roughly <b>a quarter of the code</b> with <b>1/5th the dependencies</b>. Legible, but lightly guarded.</p></div>
+      <div class="mbig"><div class="x">2×</div><p>v2 invests <b>twice the test density</b> (23% vs 11% test-to-source LOC) and <b>46×</b> the test files. That ratio <em>is</em> the maturity story.</p></div>
+      <div class="mbig"><div class="x">+4</div><p>On the impeccable UI audit, v2 leads <b>17 vs 13</b>, entirely on theming and anti-patterns, not on the things v0 already does well.</p></div>
+    </div>
+  </section>
+
+  <!-- AUDIT → REWRITE -->
+  <section>
+    <div class="eyebrow rv">The bridge, made literal</div>
+    <h2 class="rv">The audit said <span class="amber">X</span>. The rebuild shipped <span class="cyan">Y</span>.</h2>
+    <p class="sub rv">This is the part a CTO should weigh most: Facts-Code isn't a vanity rewrite. The 2026 architecture proposal recommended ten "deepening" modules — concentrate scattered logic behind real seams. Here's how the recommendations map onto the new codebase.</p>
+    <div class="maps rv">
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>One Path-Access module</h4><p>Symlink-safe, platform-aware file permission decisions in <em>one</em> place — not re-implemented in every caller.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>The isomorphic <code>FactsFS</code> seam</h4><p>All file access flows through one injected interface — which also made the engine portable to the browser.</p></div>
+      </div>
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>File-Role classification first</h4><p>Tag each file (source / test / fixture / docs) <em>before</em> extraction, so fixtures stop leaking in as real findings.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>Typed, role-aware artifacts</h4><p>The <code>spec</code> contract carries status &amp; category on every finding; CXO-readable rewrites separate noise from signal.</p></div>
+      </div>
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>Finding-Views + shared MCP read-models</h4><p>Turn raw scan output into named views so the viewer, snapshot, and agent tools stop inventing their own filtering.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>Two-audience artifacts + FactsPack</h4><p>One analysis projects into <code>human.json</code> and <code>agent.json</code> via a single function — they can't drift.</p></div>
+      </div>
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>A Viewer View-Model module</h4><p>Stop every UI fragment re-deriving facts from raw scan data; prepare normalized read-models once.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>The <code>humanToViz</code> projection</h4><p>One typed transform feeds the whole dashboard — the same data in the CLI, the browser, and static exports.</p></div>
+      </div>
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>A Viewer Shell-Layout module</h4><p>Fix the mobile break by owning responsive shell states in one place instead of scattered magic heights.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>The v0.9 IA consolidation</h4><p>14 ad-hoc tabs collapsed to 7 + responsive sub-view tabs — a deliberate, coherent information architecture.</p></div>
+      </div>
+      <div class="map">
+        <div class="from"><div class="ml">Audit recommended</div><h4>A Release-Surface module</h4><p>One maintained seam for what the package is "allowed to promise" — stop docs, roadmap, and metadata drifting apart.</p></div>
+        <div class="arrow">→</div>
+        <div class="to"><div class="ml">Facts-Code shipped</div><h4>Additive-only versioned schemas</h4><p>The contract can only grow, never break, within a version — and the analyzer documents itself.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PULL -->
+  <section style="text-align:center">
+    <p class="pull rv">A prototype proves the <span class="amber">idea</span>.<br>An architecture proves the <span class="cyan">team</span>.</p>
+  </section>
+
+  <!-- WHAT V2 GAINED -->
+  <section>
+    <div class="eyebrow rv">Net-new in v2</div>
+    <h2 class="rv">Capabilities the prototype never had.</h2>
+    <p class="sub rv">Beyond the re-architecture, Facts-Code grew genuinely new muscle — including two features added in the most recent work.</p>
+    <div class="grid rv">
+      <div class="card"><span class="ic">⚖️</span><h4>Change Verdict</h4><p>One opinionated risk headline per code change — new secrets, CVEs, cycles, and blast radius fused into a severity, for a PR or an AI reviewer.</p></div>
+      <div class="card"><span class="ic">📚</span><h4>Docs intelligence</h4><p>Flags every doc/spec file and parses it — headings, checklists, diagrams — into a Docs tab with todos, verifiable roadmaps, and rendered previews.<span class="ny">new this cycle</span></p></div>
+      <div class="card"><span class="ic">🎨</span><h4>CSS / styling audit</h4><p>Audits the scanned project's CSS — specificity, conflicts, responsive device coverage, lightningcss fallbacks — in a collapsible suggestions panel with a live ticker.<span class="ny">new this cycle</span></p></div>
+      <div class="card"><span class="ic">📦</span><h4>FactsPack</h4><p>A line-oriented wire format that hands an AI the same facts at roughly one-fifth the token cost of JSON — then ships only deltas.</p></div>
+      <div class="card"><span class="ic">🛡️</span><h4>Supply-chain &amp; secrets</h4><p>Dependency manifests matched against OSV/CVE data, license risk, and an entropy-gated secret scanner that never emits a raw key.</p></div>
+      <div class="card"><span class="ic">🧠</span><h4>Memory &amp; calibration</h4><p>A 2–10&nbsp;KB cold-start brief, plus an append-only ledger that can measure whether an AI agent is actually trustworthy in your repo.</p></div>
+    </div>
+  </section>
+
+  <!-- BALANCE -->
+  <section>
+    <div class="eyebrow rv">An honest balance</div>
+    <h2 class="rv">What each generation still does best.</h2>
+    <p class="sub rv">Newer isn't strictly better. A sharp CTO keeps the prototype's virtues in view.</p>
+    <div class="balance rv">
+      <div class="bcard o">
+        <div class="who">facts-tree still wins on</div>
+        <h3>Simplicity &amp; time-to-value</h3>
+        <ul>
+          <li><b>One command, one file.</b> Scan → an interactive HTML you can email. No build, no monorepo, no install friction.</li>
+          <li><b>Near-zero dependencies.</b> Three parser libs; the output runtime ships no framework.</li>
+          <li><b>Tiny surface.</b> ~10K lines a single engineer holds in their head in an afternoon.</li>
+          <li><b>Legible.</b> When it breaks, you read ten files, not nineteen packages.</li>
+        </ul>
+      </div>
+      <div class="bcard n">
+        <div class="who">Facts-Code wins on</div>
+        <h3>Correctness, reach &amp; extensibility</h3>
+        <ul>
+          <li><b>Trustworthy by construction.</b> Typed contracts + role-aware findings fix the audit's leakage class of bug.</li>
+          <li><b>Runs everywhere.</b> One engine across CLI, CI, browser, and MCP — no parallel implementations to drift.</li>
+          <li><b>Built to grow.</b> New features (Change Verdict, Docs, CSS) snap onto one contract additively.</li>
+          <li><b>AI-economical.</b> FactsPack + MEMORY.md make agent usage cheap at scale.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="callout rv"><b>The one risk worth naming:</b> the rebuild's power has a cost — a monorepo, a build step, an alpha version, and docs that lag the code. The audit's warning to <em>not lose the "five-seconds-to-value" simplicity</em> is the thing to keep watching. Facts-Code is more capable; it must stay as easy to <em>start</em> as facts-tree was.</div>
+  </section>
+
+  <!-- ADOPTION -->
+  <section>
+    <div class="eyebrow rv">Reverse lessons · the path back</div>
+    <h2 class="rv">What Facts-Code should steal back from facts-tree.</h2>
+    <p class="sub rv">The rebuild won on architecture. But the prototype still beats it on the one metric that decides adoption: <em>the first thirty seconds.</em> v0's audit scored higher than v2's on nothing except instinct, yet its ergonomics are a masterclass. Here is the concrete, prioritised path to porting its virtues into the platform, UI included.</p>
+    <div class="adopt rv">
+      <div class="acard now">
+        <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">UI</span></div>
+        <h4>1 · A "5-second" instant mode</h4>
+        <p>v0's crown jewel: one command, an interactive viewer, no build, no monorepo. v2's first-value path is heavier. <b>Path:</b> ship <code>factstack quick [path]</code> that scans and opens the existing single-file HTML export with zero config, the "try it now" on-ramp that graduates into the full dashboard. The plumbing (static export) already exists; this is packaging, not new engine work.</p>
+      </div>
+      <div class="acard now">
+        <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">UI</span></div>
+        <h4>2 · A one-click "Copy for agent"</h4>
+        <p>v0 puts a prominent <b>Copy for LLM</b> button in the chrome; v2 has the superior payload (FactsPack, MEMORY.md) but no one-click way to grab it from the dashboard. <b>Path:</b> add a "Copy context" action to the header + file detail that emits the pack/MEMORY for the current scope (whole repo, current tab, or selected file). Closes the loop between the analyzer and the chat window.</p>
+      </div>
+      <div class="acard next">
+        <div class="ah"><span class="when">Next</span><span class="ui">UI</span></div>
+        <h4>3 · Open-in-editor / terminal</h4>
+        <p>v0's viewer launches your editor or a terminal at any file via a whitelisted <code>spawn</code> (no shell). It keeps a developer in flow. <b>Path:</b> when the dashboard is served by the CLI, expose the same safe launch action from file rows, reusing v0's editor whitelist + path-canonicalisation lessons (and the audit's symlink-safety fix).</p>
+      </div>
+      <div class="acard next">
+        <div class="ah"><span class="when">Next</span><span class="ui">UI</span></div>
+        <h4>4 · The folder switcher, properly</h4>
+        <p>v0's <code>⌘O</code> modal is a genuinely good dual pane: <b>recents + browse</b>, keyboard-driven. <b>Path:</b> enrich the dashboard's OpenModal with a recents list + server-backed directory browse, and make the path bar itself the change-folder affordance (v0's most discoverable pattern).</p>
+      </div>
+      <div class="acard next">
+        <div class="ah"><span class="when">Next</span><span class="ui">DX</span></div>
+        <h4>5 · Local-first, opt-in telemetry</h4>
+        <p>v0 records local usage metrics (durations, counts) with an explicit remote opt-in. v2 flies blind on which surfaces actually get used. <b>Path:</b> port the local-first telemetry module so the IA can be tuned with evidence, not guesses, while keeping the privacy posture v2 already promises.</p>
+      </div>
+      <div class="acard later">
+        <div class="ah"><span class="when">Later · guardrail</span><span class="ui">UX</span></div>
+        <h4>6 · A "simple mode" + a setup tab</h4>
+        <p>v0 has a Setup tab and a dense-by-default viewer that nonetheless feels approachable. v2 risks the "platform tax", more power, slower start. <b>Path:</b> a guided first-run + a density/simple toggle, and a standing rule: every new v2 feature is measured against "did time-to-first-value get worse?" Treat v0's 5-second start as a regression test, not a memory.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- AUDITS -->
+  <section>
+    <div class="eyebrow rv">The 400-point UI audits</div>
+    <h2 class="rv">Both interfaces, run through the impeccable lens.</h2>
+    <p class="sub rv">Each UI audited across five dimensions, accessibility, performance, theming, responsive, anti-patterns, at 400 checkpoints apiece. The full interactive reports:</p>
+    <div class="auds rv">
+      <a class="aud o" href="impeccable-audit-facts-tree.html">
+        <div class="at">facts-tree · the viewer</div>
+        <div class="asc">13<small> / 20 · Acceptable</small></div>
+        <div class="dim">
+          <div class="dr"><span>A11y</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+          <div class="dr"><span>Performance</span><span class="track"><span class="fill" style="width:50%"></span></span><span>2</span></div>
+          <div class="dr"><span>Theming</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+          <div class="dr"><span>Responsive</span><span class="track"><span class="fill" style="width:50%"></span></span><span>2</span></div>
+          <div class="dr"><span>Anti-pattern</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+        </div>
+        <span class="go">Open the facts-tree audit →</span>
+      </a>
+      <a class="aud n" href="impeccable-audit-facts-code.html">
+        <div class="at">Facts-Code · the dashboard</div>
+        <div class="asc">17<small> / 20 · Good</small></div>
+        <div class="dim">
+          <div class="dr"><span>A11y</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+          <div class="dr"><span>Performance</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+          <div class="dr"><span>Theming</span><span class="track"><span class="fill" style="width:100%"></span></span><span>4</span></div>
+          <div class="dr"><span>Responsive</span><span class="track"><span class="fill" style="width:75%"></span></span><span>3</span></div>
+          <div class="dr"><span>Anti-pattern</span><span class="track"><span class="fill" style="width:100%"></span></span><span>4</span></div>
+        </div>
+        <span class="go">Open the Facts-Code audit →</span>
+      </a>
+    </div>
+    <div class="findings rv">
+      <h4>What the two audits agree on</h4>
+      <ul>
+        <li><b>They tie on the human stuff.</b> Both score <span class="a">3/4 accessibility</span> (real skip links, ARIA, focus) and pass the anti-slop test. Neither is a generated template, both are hand-built developer tools.</li>
+        <li><b>v2's lead is entirely "systematisation."</b> It wins <span class="c">theming 4 vs 3</span> (a real CSS-variable token system vs v0's hardcoded Tailwind utilities) and edges anti-patterns, the dividends of types and tokens, not of taste.</li>
+        <li><b>Both have a mobile weak spot, for opposite reasons.</b> <span class="amber">v0 is desktop-only</span> (live: a 900px breakpoint that <em>hides</em> the sidebar; the shell renders <b>1254px clipped</b> inside a 375px viewport, 19 sub-44px touch targets), while <span class="cyan">v2 reflows its content fine but hides its 8-tab nav on mobile with no menu</span>. Mobile is the shared homework: navigation for v2, the whole layout for v0. <em>(The live pass corrected an earlier guess that v2's tables overflow, they don't.)</em></li>
+        <li><b>Performance splits on root cause.</b> <span class="a">v0 loads Tailwind from a CDN at runtime</span> (FOUC, offline-broken, network-bound), a P1 for a "self-contained" viewer; <span class="c">v2 ships every tab in the first-paint bundle</span> (~96&nbsp;KB gz, no route splitting). Different fixes, same symptom: it could be faster.</li>
+        <li><b>The irony holds at the pixel level.</b> v0 ("v1.0.0") and v2 ("v0.1 alpha") are <b>only 4 points apart</b> on UI quality, yet a generation apart on the architecture beneath the pixels.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- VERDICT -->
+  <section>
+    <div class="eyebrow rv">The CTO read</div>
+    <h2 class="rv">What this evolution tells you.</h2>
+    <div class="verdict rv">
+      <div class="vrow"><div class="n">1</div><div><h4>The team can self-critique and rebuild.</h4><p>They commissioned a 200-point audit on their own work, accepted a 123/200, and acted on the architecture proposal rather than defending the prototype. That's a strong engineering-culture signal.</p></div></div>
+      <div class="vrow"><div class="n">2</div><div><h4>The bet is sound, the maturity is early.</h4><p>The concept is validated (v0 worked; people used it). The v2 architecture is genuinely good. But it's <em>alpha</em> — expect rough edges, doc/code drift, and unfinished surfaces. Fund it like an early platform, not a finished product.</p></div></div>
+      <div class="vrow"><div class="n">3</div><div><h4>The moat is the contract, not the UI.</h4><p>The durable asset is the typed <code>spec</code> + the isomorphic engine + FactsPack — the things that let one analysis serve humans, CI, and AI without drift. UIs are replaceable; that core is the leverage.</p></div></div>
+      <div class="vrow"><div class="n">4</div><div><h4>The trajectory is "act," not just "describe."</h4><p>v0 described a repo. v2 is moving toward <em>acting</em> on it — the Change Verdict reviews a PR; the roadmap points at a bug-to-PR pipeline. That's the line from "viewer" to "agent platform."</p></div></div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap" style="padding:0">
+      <p class="src">
+        <b>Sources (primary, read directly):</b><br>
+        v0 — <code>facts.old/facts-v0</code>: package.json ("facts-tree" 1.0.0), lib/ast.mjs (acorn), lib/html/index.mjs (runtime composition), facts.json (schemaVersion 3, "AI-oriented snapshot"), and the audit artifacts dated 2026-05-19 (<code>audit-report.md</code> — 123/200; <code>architecture-suggestions.md</code> — 10 deepening modules).<br>
+        v2 — <code>claude/factstack</code>: the live monorepo (spec / core / scanners / emit / apps), verified this session by typecheck, build, bundle gate, and end-to-end analyze runs.<br><br>
+        <b>ELI5 dossier · amber = v0 / cyan = v2 ·</b> a comparison for a new CTO. Figures counted directly from both trees. Correction worth noting: facts-tree is <em>not</em> a slimmed prototype, it still ships the full set today, a CLI, a local HTTP server, an MCP server (<code>--mcp</code>), a self-contained HTML viewer, "Copy for LLM", and opt-in telemetry. The gap to Facts-Code is architecture and types, not feature count.
+      </p>
+    </div>
+  </footer>
+
+</div>
+<script>
+  // scroll progress
+  var sb=document.getElementById('sb');
+  function onScroll(){var h=document.documentElement;var p=h.scrollTop/(h.scrollHeight-h.clientHeight||1);sb.style.width=(p*100)+'%';}
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  // staggered reveals
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{rootMargin:'0px 0px -10% 0px',threshold:.05});
+  document.querySelectorAll('.rv:not(.in)').forEach(function(el){io.observe(el);});
+</script>
+</body>
+</html>
