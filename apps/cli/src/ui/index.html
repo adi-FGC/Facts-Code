@@ -1155,6 +1155,16 @@
           <span class="hidden sm:inline">Scan</span>
         </button>
 
+        <!-- Set up FACTS for agents — installs/refreshes the per-project
+             skill files (Claude SKILL.md, .cursorrules, AGENTS.md,
+             copilot-instructions.md) so AI coding agents read the FACTS
+             pack instead of re-scanning. CLI-served only; in static mode
+             the click points the user at `factstack export-skills`. -->
+        <button id="setup-agents" class="h-8 rounded-md px-3 text-xs font-medium hover:bg-[var(--surface-2)] border border-[var(--border)] flex items-center gap-1.5 whitespace-nowrap" aria-label="Set up FACTS for AI agents" title="Install/refresh the agent skill files so agents read the FACTS pack">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
+          <span class="hidden sm:inline">Set up agents</span>
+        </button>
+
         <!-- Font-size slider -->
         <details class="relative">
           <summary class="list-none rounded-md p-1.5 hover:bg-[var(--surface-2)] cursor-pointer" aria-label="Font size">
@@ -5427,6 +5437,64 @@
           } finally {
             reanalyzeBtn.disabled = false;
             if (label) label.textContent = orig || 'Re-analyze';
+          }
+        });
+      }
+
+      // Set up FACTS for agents — install/refresh the per-project skill
+      // files so AI coding agents read the FACTS pack instead of
+      // re-scanning. Mirrors the Scan button's served/static guards.
+      // POSTs to /api/setup-agents (Layer 3); the freshness-hook install
+      // (Layer 2) is reported back via result.hookInstalled.
+      const setupBtn = $('#setup-agents');
+      if (setupBtn) {
+        setupBtn.addEventListener('click', async () => {
+          const served = location.protocol.startsWith('http');
+          if (!served) {
+            alert(
+              'Setting up agents only works when the UI is served by the CLI.\n\n' +
+              'Run this from the project directory:\n\n' +
+              '    factstack ui .\n\n' +
+              'Or install the skill files directly:\n\n' +
+              '    factstack export-skills .',
+            );
+            return;
+          }
+          if (window.__STATIC_MODE === true) {
+            alert(
+              "This is the static demo — there's no analyzer server behind it.\n\n" +
+              "On your own project, run:\n\n" +
+              "    factstack export-skills /path/to/your/project\n\n" +
+              "to install the agent skill files (Claude / Cursor / Copilot / AGENTS.md).",
+            );
+            return;
+          }
+          const label = setupBtn.querySelector('span');
+          const orig = label?.textContent;
+          if (label) label.textContent = 'installing…';
+          setupBtn.disabled = true;
+          try {
+            const res = await fetch('/api/setup-agents', { method: 'POST' });
+            if (!res.ok) throw new Error('HTTP ' + res.status);
+            const result = await res.json();
+            if (!result.ok) throw new Error(result.error || 'setup failed');
+            const n = (result.files || []).length;
+            const msg = 'Agent skills installed · ' + n + ' file' + (n === 1 ? '' : 's') +
+              ' (' + (result.formats || []).join(', ') + ')' +
+              (result.hookInstalled ? ' · refresh hook on' : '');
+            const status = document.getElementById('status-line');
+            if (status) {
+              status.textContent = msg;
+              status.dataset.tone = 'ok';
+            } else {
+              alert(msg);
+            }
+          } catch (e) {
+            console.error(e);
+            alert('Set up agents failed: ' + (e?.message || e));
+          } finally {
+            setupBtn.disabled = false;
+            if (label) label.textContent = orig || 'Set up agents';
           }
         });
       }

@@ -228,6 +228,98 @@ describe('agentToSkillSpec — onboarding + determinism', () => {
   });
 });
 
+describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () => {
+  it('breaks equal in-degree ties alphabetically (determinism guard)', () => {
+    /* The existing keyFiles test uses distinct in-degrees, so it never
+       exercises the `|| a[0].localeCompare(b[0])` tiebreak — the line
+       that keeps .cursorrules / AGENTS.md byte-identical across runs. */
+    const agent = makeAgent({
+      graph: {
+        nodes: [],
+        edges: [
+          { from: 's1', to: 'zebra.ts', kind: 'import' },
+          { from: 's2', to: 'zebra.ts', kind: 'import' },
+          { from: 's3', to: 'apple.ts', kind: 'import' },
+          { from: 's4', to: 'apple.ts', kind: 'import' },
+          { from: 's5', to: 'mango.ts', kind: 'import' },
+          { from: 's6', to: 'mango.ts', kind: 'import' },
+        ],
+        cycles: [],
+      },
+    });
+    // All three share in-degree 2 → ascending path order, not insertion order.
+    expect(agentToSkillSpec(agent, makeHuman()).keyFiles.map((k) => k.path)).toEqual([
+      'apple.ts',
+      'mango.ts',
+      'zebra.ts',
+    ]);
+  });
+
+  it('caps keyFiles at CAPS.keyFiles, keeping the highest in-degree', () => {
+    /* The existing keyFiles test only has 2 hubs (< cap), so the
+       `.slice(0, limit)` on keyFiles is never verified. */
+    const edges: { from: string; to: string; kind: 'import' }[] = [];
+    // hub{i} gets in-degree i+1; build CAPS.keyFiles + 2 hubs so the cap bites.
+    for (let i = 0; i <= CAPS.keyFiles + 1; i++) {
+      for (let j = 0; j <= i; j++) edges.push({ from: `s${i}_${j}`, to: `hub${i}.ts`, kind: 'import' });
+    }
+    const spec = agentToSkillSpec(makeAgent({ graph: { nodes: [], edges, cycles: [] } }), makeHuman());
+    expect(spec.keyFiles).toHaveLength(CAPS.keyFiles);
+    expect(spec.keyFiles[0]).toEqual({ path: `hub${CAPS.keyFiles + 1}.ts`, inDegree: CAPS.keyFiles + 2 });
+  });
+
+  it('sorts routes by framework then path (not insertion order)', () => {
+    /* The existing routes test checks only the cap count, never the sort. */
+    const agent = makeAgent({
+      routes: [
+        { framework: 'express', method: 'GET', path: '/z', handlerFile: 'h', handlerSymbol: null },
+        { framework: 'express', method: 'GET', path: '/a', handlerFile: 'h', handlerSymbol: null },
+        { framework: 'astro', method: 'GET', path: '/m', handlerFile: 'h', handlerSymbol: null },
+      ],
+    });
+    expect(agentToSkillSpec(agent, makeHuman()).routes.map((r) => `${r.framework} ${r.path}`)).toEqual([
+      'astro /m',
+      'express /a',
+      'express /z',
+    ]);
+  });
+
+  it('defaults a route method to GET when absent', () => {
+    const agent = makeAgent({
+      routes: [
+        { framework: 'express', method: undefined as unknown as string, path: '/x', handlerFile: 'h', handlerSymbol: null },
+      ],
+    });
+    expect(agentToSkillSpec(agent, makeHuman()).routes[0]!.method).toBe('GET');
+  });
+
+  it('includes a risk file only when the finding has one', () => {
+    const agent = makeAgent({
+      risks: [
+        { severity: 'high' as const, category: 'secret', rule: 'r1', message: 'has file', file: 'a.ts' },
+        { severity: 'high' as const, category: 'cycle', rule: 'r2', message: 'no file' },
+      ],
+    });
+    const spec = agentToSkillSpec(agent, makeHuman());
+    expect(spec.openRisks[0]).toMatchObject({ file: 'a.ts' });
+    expect(spec.openRisks[1]).not.toHaveProperty('file');
+  });
+
+  it('returns empty intent when both intent and oneLiner are empty', () => {
+    const human = makeHuman({
+      summary: { oneLiner: '', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'ok' } },
+    });
+    expect(agentToSkillSpec(makeAgent(), human).intent).toBe('');
+  });
+
+  it('returns no languages when files exist but total LOC is zero', () => {
+    /* Distinct from the "no source files" case: files are present, but
+       the totalLoc === 0 guard still short-circuits to []. */
+    const spec = agentToSkillSpec(makeAgent({ files: [fakeFile('empty.ts', 'typescript', 0)] }), makeHuman());
+    expect(spec.languages).toEqual([]);
+  });
+});
+
 /* Helper — build a minimal file outline for the topLanguages test. */
 function fakeFile(path: string, language: string, loc: number) {
   return {

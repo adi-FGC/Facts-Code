@@ -18,7 +18,7 @@
  * Output path: `.cursorrules` (single file at root).
  */
 
-import { formatNum } from '../format.js';
+import { formatNum, workflowContract } from '../format.js';
 import type { SkillRenderer, SkillSpec } from '../types.js';
 
 export const cursorRenderer: SkillRenderer = {
@@ -133,21 +133,14 @@ function renderCursorRules(spec: SkillSpec): string {
     );
   }
 
-  /* ── Workflow ─────────────────────────────────────────────────── */
+  /* ── Workflow contract (shared across every skill format) ──────────
+       Reuses the "Workflow conventions" heading so Cursor's section
+       stays where readers expect it; the body is the canonical FACTS
+       operating contract. */
   lines.push('');
-  lines.push('## Workflow conventions');
-  lines.push('');
+  lines.push(...workflowContract(spec, 'Workflow conventions'));
   lines.push(
-    '- Match existing file structure + naming conventions when adding code.',
-  );
-  lines.push(
-    '- Prefer extending existing modules over creating new ones unless the seam is justified by 2+ adapters.',
-  );
-  lines.push(
-    "- Re-read this rules file via `cat .cursorrules` if you're uncertain about project context.",
-  );
-  lines.push(
-    '- If the FACTS MCP server is connected, prefer its tools (`read_memory`, `query_graph`, `list_risks`, `list_vulnerabilities`) over re-walking the filesystem.',
+    '5. **Match the codebase.** Follow existing structure + naming; prefer extending a module over adding one unless a real seam (2+ adapters) justifies it.',
   );
 
   /* ── Footer ───────────────────────────────────────────────────── */

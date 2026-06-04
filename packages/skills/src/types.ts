@@ -32,7 +32,7 @@
  * validated upstream; this tier just shapes + renders.
  */
 
-import type { Risk } from '@factstack/spec';
+import type { Risk, ShippedMcpToolName } from '@factstack/spec';
 
 /* The spec doesn't export a standalone Severity type — Risk's severity
  * is an inline z.enum. Project it as a named alias so SkillRisk consumers
@@ -138,7 +138,7 @@ export interface SkillRenderer {
   render(spec: SkillSpec): Record<string, string>;
 }
 
-export type SkillFormatId = 'claude' | 'cursor' | 'copilot';
+export type SkillFormatId = 'claude' | 'cursor' | 'copilot' | 'agents';
 
 /* ─────────── caps ─────────── */
 
@@ -177,7 +177,7 @@ export const CAPS = {
  * skill teaches the 80% path; full tool list lives in the MCP server
  * description that the client already shows.
  */
-export const ONBOARDING_SEQUENCE: readonly string[] = [
+export const ONBOARDING_SEQUENCE: readonly ShippedMcpToolName[] = [
   'read_memory',
   'analyze',
   'query_graph',

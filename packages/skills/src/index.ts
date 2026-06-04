@@ -22,3 +22,4 @@ export * from './orchestrator.js';
 export { claudeRenderer } from './renderers/claude.js';
 export { cursorRenderer } from './renderers/cursor.js';
 export { copilotRenderer } from './renderers/copilot.js';
+export { agentsRenderer } from './renderers/agents.js';

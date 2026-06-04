@@ -20,7 +20,7 @@
  * Output path: `.github/copilot-instructions.md`
  */
 
-import { formatNum } from '../format.js';
+import { formatNum, workflowContract } from '../format.js';
 import type { SkillRenderer, SkillSpec } from '../types.js';
 
 export const copilotRenderer: SkillRenderer = {
@@ -51,6 +51,10 @@ function renderCopilotInstructions(spec: SkillSpec): string {
     lines.push('');
     lines.push(spec.intent);
   }
+
+  /* ── Workflow contract (shared across every skill format) ───────── */
+  lines.push('');
+  lines.push(...workflowContract(spec));
 
   /* ── Scale + stack ────────────────────────────────────────────── */
   lines.push('');

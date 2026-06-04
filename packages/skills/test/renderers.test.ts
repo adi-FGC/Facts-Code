@@ -17,6 +17,7 @@ import {
   claudeRenderer,
   copilotRenderer,
   cursorRenderer,
+  agentsRenderer,
   agentToSkillSpec,
   SKILL_REGISTRY,
   type SkillSpec,
@@ -95,12 +96,16 @@ describe('claudeRenderer', () => {
     expect(fm).toMatch(/^description: "/m);
   });
 
-  it('embeds the Mandatory preparation onboarding sequence', () => {
+  it('embeds the FACTS operating contract + onboarding tools', () => {
     const body = Object.values(claudeRenderer.render(representativeSpec()))[0]!;
-    expect(body).toContain('## Mandatory preparation');
-    /* The 6 onboarding tools should all appear (in order) as backticked
-       items. Asserting each one rather than the whole block keeps the
-       test resilient to small wording changes. */
+    /* The MCP-only "Mandatory preparation" block was replaced by the
+       shared, pack-first operating contract (workflowContract): read the
+       pack for context, keep it fresh via the hook. */
+    expect(body).toContain('## How to work in this project');
+    expect(body).toContain('.facts/agent.pack');
+    expect(body).toContain('factstack analyze --minimal');
+    /* The 6 onboarding tools still appear — MCP is now the live-query
+       enhancement, listed inline rather than as a mandatory checklist. */
     expect(body).toContain('`read_memory`');
     expect(body).toContain('`analyze`');
     expect(body).toContain('`query_graph`');
@@ -179,15 +184,36 @@ describe('copilotRenderer', () => {
   });
 });
 
+/* ─────────── AGENTS.md renderer ─────────── */
+
+describe('agentsRenderer', () => {
+  it('is exported from the package barrel with id "agents"', () => {
+    /* Importing agentsRenderer by name in this file's header is itself
+       the lock: if index.ts stops re-exporting it, this test file fails
+       to load. The id assertion just makes the intent explicit. */
+    expect(agentsRenderer.id).toBe('agents');
+  });
+
+  it('emits exactly one file at AGENTS.md', () => {
+    expect(Object.keys(agentsRenderer.render(representativeSpec()))).toEqual(['AGENTS.md']);
+  });
+
+  it("leads with the \"use the pack, don't scan\" directive", () => {
+    const body = agentsRenderer.render(representativeSpec())['AGENTS.md']!;
+    expect(body).toContain('## Before you scan: use the FACTS map');
+    expect(body).toContain('.facts/agent.pack');
+  });
+});
+
 /* ─────────── orchestrator + registry ─────────── */
 
 describe('SKILL_REGISTRY + ALL_FORMATS', () => {
-  it('registers all three renderers', () => {
-    expect(Object.keys(SKILL_REGISTRY).sort()).toEqual(['claude', 'copilot', 'cursor']);
+  it('registers all four renderers', () => {
+    expect(Object.keys(SKILL_REGISTRY).sort()).toEqual(['agents', 'claude', 'copilot', 'cursor']);
   });
 
   it('ALL_FORMATS matches the registry keys', () => {
-    expect([...ALL_FORMATS].sort()).toEqual(['claude', 'copilot', 'cursor']);
+    expect([...ALL_FORMATS].sort()).toEqual(['agents', 'claude', 'copilot', 'cursor']);
   });
 
   it('each renderer exposes its own id matching the registry key', () => {
@@ -195,18 +221,32 @@ describe('SKILL_REGISTRY + ALL_FORMATS', () => {
       expect(renderer.id).toBe(key);
     }
   });
+
+  it('every format teaches the pack-first + hook-fresh contract', () => {
+    /* The whole point of ft-1: whichever agent tool reads its skill file,
+       it's told to (B) read .facts/agent.pack for context and (A) keep it
+       fresh via the `analyze --minimal` hook. Locks the contract across
+       all four renderers so a future format can't ship without it. */
+    const spec = representativeSpec();
+    for (const [id, renderer] of Object.entries(SKILL_REGISTRY)) {
+      const body = Object.values(renderer.render(spec)).join('\n');
+      expect(body, `${id} must point the agent at the pack`).toContain('.facts/agent.pack');
+      expect(body, `${id} must teach the refresh hook`).toContain('factstack analyze --minimal');
+    }
+  });
 });
 
 describe('buildSkillsTo', () => {
-  it('writes all three formats by default', async () => {
+  it('writes all four formats by default', async () => {
     const writer = new MemoryFileWriter();
     const agent = makeAgent({ project: { ...makeAgent().project, name: 'x' } });
     const result = await buildSkillsTo(writer, agent, makeHuman());
 
-    expect(result.formats).toEqual(['claude', 'cursor', 'copilot']);
+    expect(result.formats).toEqual(['claude', 'cursor', 'copilot', 'agents']);
     expect(writer.has('.claude/skills/factstack-x/SKILL.md')).toBe(true);
     expect(writer.has('.cursorrules')).toBe(true);
     expect(writer.has('.github/copilot-instructions.md')).toBe(true);
+    expect(writer.has('AGENTS.md')).toBe(true);
     expect(result.bytesWritten).toBeGreaterThan(0);
   });
 

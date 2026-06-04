@@ -22,6 +22,7 @@ import { agentToSkillSpec } from './extract.js';
 import { claudeRenderer } from './renderers/claude.js';
 import { cursorRenderer } from './renderers/cursor.js';
 import { copilotRenderer } from './renderers/copilot.js';
+import { agentsRenderer } from './renderers/agents.js';
 import type { SkillFormatId, SkillRenderer, SkillSpec } from './types.js';
 
 /* Single source of truth: every registered renderer keyed by SkillFormatId.
@@ -31,6 +32,7 @@ export const SKILL_REGISTRY: Record<SkillFormatId, SkillRenderer> = {
   claude: claudeRenderer,
   cursor: cursorRenderer,
   copilot: copilotRenderer,
+  agents: agentsRenderer,
 };
 
 /** Convenience accessor for the full set of registered format IDs.

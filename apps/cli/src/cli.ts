@@ -55,6 +55,7 @@ import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skill
 import type { AgentArtifact, DiffArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
 import { renderCiReport } from './emitters/ci-report.js';
+import { installFreshnessHook } from './agentHook.js';
 
 const program = new Command();
 
@@ -298,6 +299,44 @@ program
             res.writeHead(500, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
           });
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/setup-agents') {
+        // "Set up FACTS for agents" (ft-1, Layer 3): install/refresh the
+        // per-project skill files (Claude SKILL.md, .cursorrules, AGENTS.md,
+        // .github/copilot-instructions.md) so AI coding agents read the FACTS
+        // pack instead of re-scanning. Renders from the on-disk artifact
+        // (kept fresh by reanalyze/watch), reusing the same buildSkillsTo path
+        // as `factstack export-skills`.
+        void (async () => {
+          try {
+            const a = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+            const h = loadAndValidate<HumanArtifact>(humanPath, 'human');
+            const writer = new NodeFileWriter(root, '');
+            const result = await buildSkillsTo(writer, a, h);
+            // ft-1 Layer 2: install the PostToolUse freshness hook into
+            // .claude/settings.local.json so the pack re-renders after every
+            // agent edit. Non-fatal — the skills still install if this fails.
+            let hookInstalled = false;
+            try {
+              installFreshnessHook(root);
+              hookInstalled = true;
+            } catch {
+              hookInstalled = false;
+            }
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({
+              ok: true,
+              formats: result.formats,
+              files: Object.keys(result.files),
+              bytesWritten: result.bytesWritten,
+              hookInstalled,
+            }));
+          } catch (err) {
+            res.writeHead(500, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+          }
+        })();
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/events') {

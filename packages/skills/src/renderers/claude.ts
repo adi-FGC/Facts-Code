@@ -23,7 +23,7 @@
  * keys in the returned record.
  */
 
-import { formatNum } from '../format.js';
+import { formatNum, workflowContract } from '../format.js';
 import type { SkillRenderer, SkillSpec } from '../types.js';
 
 export const claudeRenderer: SkillRenderer = {
@@ -62,25 +62,14 @@ function renderSkillMd(spec: SkillSpec, slug: string): string {
   sections.push('---');
   sections.push('');
 
-  /* ── Mandatory preparation ────────────────────────────────────────
+  /* ── How to work here (shared operating contract) ─────────────────
    *
-   * Tells the agent EXACTLY which MCP tool sequence to follow on first
-   * contact. This is the highest-leverage section — it converts the
-   * skill from "passive context dump" to "operational checklist." */
-  sections.push('## Mandatory preparation');
-  sections.push('');
-  sections.push(
-    'Before answering any question about this project, call these MCP tools in order:',
-  );
-  sections.push('');
-  for (let i = 0; i < spec.onboardingSequence.length; i++) {
-    sections.push(`${i + 1}. \`${spec.onboardingSequence[i]}\``);
-  }
-  sections.push('');
-  sections.push(
-    'If the FACTS MCP server is not connected, the rest of this skill is a stale snapshot — ' +
-      'verify any factual claim against current source.',
-  );
+   * The highest-leverage section — converts the skill from "passive
+   * context dump" to "operate from the pack." Identical across all four
+   * skill formats via workflowContract(): pack-first context, a
+   * PostToolUse hook keeps it fresh, navigate by the graph, and the MCP
+   * is the live-query enhancement when connected (not a prerequisite). */
+  sections.push(...workflowContract(spec));
 
   /* ── At a glance ──────────────────────────────────────────────── */
   sections.push('');
@@ -202,7 +191,7 @@ function buildDescription(spec: SkillSpec): string {
     : 'this codebase';
   const frameworks = spec.frameworks.length ? ` with ${spec.frameworks.slice(0, 3).join('/')}` : '';
   const intent = spec.intent ? ` — ${spec.intent}` : '';
-  return `Project context for ${spec.name} (${stack}${frameworks})${intent}. Use when answering questions about this codebase; reads from the FACTS MCP server for live data.`;
+  return `Project context for ${spec.name} (${stack}${frameworks})${intent}. Use when working in this codebase; read the FACTS pack (.facts/agent.pack) first, with the FACTS MCP for live queries.`;
 }
 
 function slugify(s: string): string {
