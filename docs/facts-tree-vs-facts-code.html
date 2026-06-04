@@ -481,37 +481,62 @@
   <section>
     <div class="eyebrow rv">Reverse lessons · the path back</div>
     <h2 class="rv">What Facts-Code should steal back from facts-tree.</h2>
-    <p class="sub rv">The rebuild won on architecture. But the prototype still beats it on the one metric that decides adoption: <em>the first thirty seconds.</em> v0's audit scored higher than v2's on nothing except instinct, yet its ergonomics are a masterclass. Here is the concrete, prioritised path to porting its virtues into the platform, UI included.</p>
+    <p class="sub rv">The rebuild won on architecture. But the prototype still beats it on the one metric that decides adoption: <em>the first thirty seconds.</em> Reading v0's real source — <code>server.mjs</code>, <code>telemetry.mjs</code>, <code>copy-llm.mjs</code> — turned up <b>eleven</b> concrete things worth porting, from one-click agent context to a hardened local-server security posture (and a telemetry module v0's own roadmap still lists as "todo"). Grouped <span class="amber">now</span> · <span class="cyan">next</span> · later, with the engineering lift noted on each.</p>
     <div class="adopt rv">
       <div class="acard now">
         <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">UI</span></div>
-        <h4>1 · A "5-second" instant mode</h4>
-        <p>v0's crown jewel: one command, an interactive viewer, no build, no monorepo. v2's first-value path is heavier. <b>Path:</b> ship <code>factstack quick [path]</code> that scans and opens the existing single-file HTML export with zero config, the "try it now" on-ramp that graduates into the full dashboard. The plumbing (static export) already exists; this is packaging, not new engine work.</p>
+        <h4>1 · Beat v0's copy button: a self-refreshing agent skill</h4>
+        <p>v0 puts a prominent <b>Copy for LLM</b> button in the chrome (<code>copy-llm.mjs</code>) — two modes, a live <b>token + KB estimate</b>, a toast — but it's a one-shot blob pasted into a chat. v2 should go <em>further</em> than copying. <b>Path:</b> a one-click <b>"Set up FACTS for agents"</b> that installs the skill if absent (<code>export-skills</code> → <code>SKILL.md</code> / <code>.cursorrules</code> / <code>AGENTS.md</code> / <code>copilot-instructions.md</code>) and ships a contract telling the agent to keep <code>.facts/agent.pack</code> fresh on every edit (<code>factstack watch</code> / a hook), read that pack for context, and edit <em>from</em> it instead of re-scanning. <b>Lift:</b> ~1–1.5 days — the skill emitter + watch already ship; this wires them into one action and upgrades the skill's instructions.</p>
       </div>
       <div class="acard now">
         <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">UI</span></div>
-        <h4>2 · A one-click "Copy for agent"</h4>
-        <p>v0 puts a prominent <b>Copy for LLM</b> button in the chrome; v2 has the superior payload (FactsPack, MEMORY.md) but no one-click way to grab it from the dashboard. <b>Path:</b> add a "Copy context" action to the header + file detail that emits the pack/MEMORY for the current scope (whole repo, current tab, or selected file). Closes the loop between the analyzer and the chat window.</p>
+        <h4>2 · A "5-second" instant mode</h4>
+        <p>v0's crown jewel: <code>facts-tree .</code> pre-scans, caches the rendered HTML, and serves it on the first request (<code>cachedHtml</code> handed from <code>bin</code> into <code>server.mjs</code>); <code>--html</code> skips the server entirely — self-contained file to temp, browser opens, process exits. v2's first-value path drags the monorepo behind it. <b>Path:</b> ship <code>factstack quick [path]</code> over the existing static export — the "try it now" on-ramp that graduates into the full dashboard. <b>Lift:</b> small–medium — packaging, not engine work.</p>
+      </div>
+      <div class="acard now">
+        <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">DX</span></div>
+        <h4>3 · Idle auto-shutdown</h4>
+        <p>v0's server kills itself when idle: <code>resetIdle()</code> re-arms a timer on every request (5 min when launched at a path, 30 min as a picker) and calls <code>process.exit(0)</code>. No orphaned <code>localhost</code> servers — ever. <b>Path:</b> copy the idle timer into any <code>factstack serve</code> mode. <b>Lift:</b> small — ~15 lines that retire the "did I leave a server running?" tax (we left one on <code>:5055</code> mid-audit).</p>
+      </div>
+      <div class="acard now">
+        <div class="ah"><span class="when">Now · highest leverage</span><span class="ui">API</span></div>
+        <h4>4 · Dependency freshness</h4>
+        <p>v0's <code>/api/deps-outdated</code> checks every dependency against the npm registry's <code>latest</code> dist-tag and returns <code>{current, latest, isOutdated}</code> — 3-second timeout, offline-tolerant. v2 maps the dependency <em>graph</em> but never asks "how far behind are we?" <b>Path:</b> a freshness scanner feeding an "N&nbsp;outdated" chip on the dashboard. <b>Lift:</b> medium — a genuinely new capability with high executive signal.</p>
       </div>
       <div class="acard next">
         <div class="ah"><span class="when">Next</span><span class="ui">UI</span></div>
-        <h4>3 · Open-in-editor / terminal</h4>
-        <p>v0's viewer launches your editor or a terminal at any file via a whitelisted <code>spawn</code> (no shell). It keeps a developer in flow. <b>Path:</b> when the dashboard is served by the CLI, expose the same safe launch action from file rows, reusing v0's editor whitelist + path-canonicalisation lessons (and the audit's symlink-safety fix).</p>
+        <h4>5 · Open in editor / Claude / Codex / terminal</h4>
+        <p>v0's <code>/api/exec</code> launches a whitelisted editor or a terminal at any file — <code>spawn</code> with arg-arrays (never a shell string), per-OS terminal fallback ladders, shell-metachar rejection. The whitelist <b>already ships <code>claude</code> and <code>codex</code> entries.</b> <b>Path:</b> when the dashboard is CLI-served, expose the same safe launch from file rows — and lead with one-click <em>"Open in Claude / Codex."</em> <b>Lift:</b> medium; reuse v0's whitelist plus the audit's symlink-safety fix verbatim.</p>
       </div>
       <div class="acard next">
         <div class="ah"><span class="when">Next</span><span class="ui">UI</span></div>
-        <h4>4 · The folder switcher, properly</h4>
-        <p>v0's <code>⌘O</code> modal is a genuinely good dual pane: <b>recents + browse</b>, keyboard-driven. <b>Path:</b> enrich the dashboard's OpenModal with a recents list + server-backed directory browse, and make the path bar itself the change-folder affordance (v0's most discoverable pattern).</p>
+        <h4>6 · The folder switcher, properly</h4>
+        <p>v0 pairs <code>/api/recent</code> (last 10 in <code>~/.facts-tree/recent.json</code>) with <code>/api/browse</code> — a server-backed directory walker that skips <code>node_modules</code>/<code>dist</code>/<code>.git</code>, detects project roots (<code>package.json</code>, <code>Cargo.toml</code>, <code>go.mod</code>…), and offers parent/home nav. <b>Path:</b> enrich the dashboard's <code>OpenModal</code> with recents + server browse, and make the path bar itself the change-folder affordance (v0's most discoverable pattern). <b>Lift:</b> medium.</p>
+      </div>
+      <div class="acard next">
+        <div class="ah"><span class="when">Next</span><span class="ui">API</span></div>
+        <h4>7 · Per-file git history</h4>
+        <p>v0's <code>/api/file-history</code> runs <code>git log --follow -10</code> for one file (<code>execFile</code>, 5-second timeout, traversal-guarded) and returns the commits that touched it. v2 already does a repo-level git scan — this is the on-demand, per-file depth. <b>Path:</b> a "Recent commits" strip in the file detail panel. <b>Lift:</b> small–medium.</p>
       </div>
       <div class="acard next">
         <div class="ah"><span class="when">Next</span><span class="ui">DX</span></div>
-        <h4>5 · Local-first, opt-in telemetry</h4>
-        <p>v0 records local usage metrics (durations, counts) with an explicit remote opt-in. v2 flies blind on which surfaces actually get used. <b>Path:</b> port the local-first telemetry module so the IA can be tuned with evidence, not guesses, while keeping the privacy posture v2 already promises.</p>
+        <h4>8 · A local-server security template</h4>
+        <p>Whatever ends up serving the dashboard, steal v0's <code>server.mjs</code> posture wholesale: <b>127.0.0.1-only</b> bind, an Origin/Host allowlist on <em>every</em> request (DNS-rebind / CSRF defense), a <code>validatePath()</code> blocklist (<code>/etc</code>, <code>C:\Windows</code>…), shell-metachar rejection, and a 1&nbsp;MB body cap. <b>Path:</b> make this the baseline of <code>factstack serve</code>, not an afterthought — it's the precondition for cards 5–7. <b>Lift:</b> small — copy, don't reinvent.</p>
+      </div>
+      <div class="acard later">
+        <div class="ah"><span class="when">Later · evidence</span><span class="ui">DX</span></div>
+        <h4>9 · Local-first, opt-in telemetry</h4>
+        <p><b>v0's roadmap lists this as "todo" — but the code already ships it</b> (doc-rot of exactly the kind FACTS exists to catch). <code>telemetry.mjs</code> keeps always-local metrics — event counts, last-100 scan durations + file counts, error categories, a UUID installId — at <code>~/.facts-tree/metrics.json</code>, with remote pingback gated behind <code>TELEMETRY_URL</code> + explicit opt-in and a hard rule to <b>never record paths or names</b>. v2 flies blind on which surfaces get used. <b>Path:</b> port the privacy contract verbatim; tune the IA with evidence. <b>Lift:</b> medium.</p>
+      </div>
+      <div class="acard later">
+        <div class="ah"><span class="when">Later · hygiene</span><span class="ui">API</span></div>
+        <h4>10 · Always-fresh artifact on disk</h4>
+        <p>Every v0 scan auto-writes <code>facts-tree.json</code> next to the project — a machine-readable snapshot that's always current without a separate command. <b>Path:</b> have the serve/dashboard mode re-emit agent.json + the pack on each scan so the in-repo artifact never goes stale. <b>Lift:</b> small.</p>
       </div>
       <div class="acard later">
         <div class="ah"><span class="when">Later · guardrail</span><span class="ui">UX</span></div>
-        <h4>6 · A "simple mode" + a setup tab</h4>
-        <p>v0 has a Setup tab and a dense-by-default viewer that nonetheless feels approachable. v2 risks the "platform tax", more power, slower start. <b>Path:</b> a guided first-run + a density/simple toggle, and a standing rule: every new v2 feature is measured against "did time-to-first-value get worse?" Treat v0's 5-second start as a regression test, not a memory.</p>
+        <h4>11 · "Simple mode" + first-value as a regression test</h4>
+        <p>v0 is dense yet starts in five seconds; v2 risks the "platform tax" — more power, slower start. <b>Path:</b> a guided first-run + a density/simple toggle, and a standing rule: every new v2 feature is measured against "did time-to-first-value get worse?" Treat v0's 5-second start as a regression test, not a memory. <b>Lift:</b> ongoing — a discipline, not a ticket.</p>
       </div>
     </div>
   </section>

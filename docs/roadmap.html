@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
   <title>Roadmap — FACTS</title>
-  <meta name="description" content="Post-ship roadmap with persistent-checkbox todos. Path A (security tier deepening) before Path B (VS Code extension). Last updated 2026-05-26." />
+  <meta name="description" content="Post-ship roadmap with persistent-checkbox todos. Path A (security tier deepening) before Path B (VS Code extension); Phase 6 reverse-ports facts-tree ergonomics. Last updated 2026-06-04." />
   <meta name="robots" content="noindex, nofollow" />
   <style>
     /* ─────────── design tokens (mirror docs/handoff.html) ─────────── */
@@ -312,6 +312,7 @@
         <li><a href="#phase-3">3 · Outstanding cleanup</a></li>
         <li><a href="#phase-4">4 · Cross-cutting hygiene</a></li>
         <li><a href="#phase-5">5 · Longer term</a></li>
+        <li><a href="#phase-6">6 · facts-tree adoption</a></li>
         <li><a href="#open">Open questions</a></li>
       </ul>
       <div class="toc__progress">
@@ -824,6 +825,133 @@
         </label>
       </div>
 
+      <!-- Phase 6 -->
+      <h2 id="phase-6">6 · facts-tree adoption (ergonomics) <span class="phase-status phase-status--now">sprint 1 · now</span></h2>
+      <p class="phase-meta">
+        <strong>Source</strong> <a href="facts-tree-vs-facts-code.html">facts-tree comparison</a>
+        <strong>Effort</strong> ~2 weeks for all 11
+        <strong>Sequence</strong> decided 2026-06-04
+      </p>
+      <p>
+        Eleven ergonomics + surface lessons reverse-ported from <a href="facts-tree-vs-facts-code.html">facts-tree (v0)</a>, each verified against its real source (<code>server.mjs</code>, <code>telemetry.mjs</code>, <code>copy-llm.mjs</code>). v2 already out-classes v0 on the engine — this phase is about the <em>first thirty seconds</em>. Build order decided 2026-06-04 (below): all four standalone "Now" wins first, the evidence + hygiene track second, the serve-mode surfaces last.
+      </p>
+
+      <div class="callout callout--ok">
+        <div class="callout__label">Build order — decided 2026-06-04</div>
+        <p style="margin: 0;">
+          <strong>Sprint 1 · now:</strong> ft-1 FACTS agent-skill → ft-2 <code>factstack quick</code> → ft-3 idle-shutdown → ft-4 dependency-freshness.
+          <strong>Sprint 2 · evidence + hygiene:</strong> ft-9 local telemetry → ft-10 always-fresh artifact → ft-11 simple-mode.
+          <strong>Sprint 3 · deferred (needs a serve mode):</strong> ft-8 security base → ft-5 Open-in-Claude/Codex → ft-6 folder switcher → ft-7 per-file history.
+          <br>The four sprint-1 items are independent — buildable in any order or in parallel; listed by leverage ÷ effort (Copy first: ½ day, zero deps).
+        </p>
+      </div>
+
+      <h3>6.1 — Sprint 1 · build now (standalone wins)</h3>
+      <div class="todo-list" data-phase="6-now">
+        <label class="todo" data-todo-id="ft-1-copy">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">"Set up FACTS for agents" — install the self-refreshing skill</span>
+            <span class="todo__body"><strong>Supersedes a plain clipboard copy.</strong> A one-click action that <strong>(1)</strong> installs the skill if absent — runs <code>export-skills</code> to emit <code>SKILL.md</code> · <code>.cursorrules</code> · <code>AGENTS.md</code> · <code>copilot-instructions.md</code> (skip if present, offer refresh if stale); and <strong>(2)</strong> ships an upgraded skill contract (edit the renderers in <code>packages/skills/src/renderers/</code>, not the generated files) telling the agent to: <strong>(a)</strong> keep <code>.facts/agent.pack</code> + <code>MEMORY.md</code> fresh via a <strong>PostToolUse hook</strong> running <code>factstack analyze --minimal</code> after each edit (the shipped <code>factstack watch</code> is the human-editing equivalent); <strong>(b)</strong> get context <strong>pack-file-first</strong> — read <code>.facts/agent.pack</code> + <code>MEMORY.md</code>, hitting the FACTS MCP only when connected; <strong>(c)</strong> edit <em>from</em> that context (locate files via the import graph) instead of scanning the whole repo. Turns "copy a blob into chat" into "the agent works from FACTS, and FACTS stays current as it edits."</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1–1.5 days</span><span class="todo__tag todo__tag--priority">priority</span></span>
+            <span class="todo__deps">decided 2026-06-04 · PostToolUse hook (<code>analyze --minimal</code>) for freshness · pack-file-first context (MCP when up) · builds on @factstack/skills + watch (shipped)</span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-2-quick">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title"><code>factstack quick [path]</code> — 5-second instant mode</span>
+            <span class="todo__body">v0 pre-scans, caches the rendered HTML, and serves it on first request; <code>--html</code> skips the server entirely. Package a <code>quick</code> verb over v2's existing static export — the "try it now" on-ramp that graduates into the full dashboard. Packaging, not engine work.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1–2 days</span></span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-3-idle">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Idle auto-shutdown for any server mode</span>
+            <span class="todo__body">v0's <code>resetIdle()</code> re-arms a timer on every request (5 min at a path, 30 min as a picker) and calls <code>process.exit(0)</code> — no orphaned <code>localhost</code> servers. ~15 lines that retire the "did I leave a server running?" tax.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">~1 hour</span></span>
+            <span class="todo__deps">applies to any server mode — pairs with #2 / a serve mode</span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-4-deps">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Dependency freshness ("N outdated")</span>
+            <span class="todo__body">v0's <code>/api/deps-outdated</code> checks every dep against the npm registry's <code>latest</code> dist-tag (3s timeout, offline-tolerant). v2 maps the dependency graph but never asks "how far behind are we?" Ship a freshness check (build-time scanner or endpoint) feeding an "N outdated" chip. Genuinely new capability; high exec signal.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+          </div>
+        </label>
+      </div>
+
+      <h3>6.2 — Sprint 2 · next (evidence + hygiene)</h3>
+      <div class="todo-list" data-phase="6-later">
+        <label class="todo" data-todo-id="ft-9-telemetry">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Local-first, opt-in telemetry</span>
+            <span class="todo__body">v0's <em>roadmap lists this as "todo" — but the code ships it</em> (the exact doc-rot FACTS catches). <code>telemetry.mjs</code> keeps always-local metrics at <code>~/.facts-tree/metrics.json</code>, remote pingback gated behind <code>TELEMETRY_URL</code> + explicit opt-in, never recording paths or names. v2 flies blind on which surfaces get used — port the privacy contract verbatim and tune the IA with evidence.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-10-artifact">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Always-fresh artifact on disk</span>
+            <span class="todo__body">Every v0 scan auto-writes <code>facts-tree.json</code> next to the project. Have v2's serve/dashboard mode re-emit <code>agent.json</code> + the pack on each scan so the in-repo artifact never goes stale.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">2 hours</span></span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-11-simple">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">"Simple mode" + first-value as a regression test</span>
+            <span class="todo__body">v0 is dense yet starts in five seconds; v2 risks the "platform tax." Add a guided first-run + a density/simple toggle, and a standing rule: every new feature is measured against "did time-to-first-value get worse?" Treat v0's 5-second start as a regression test, not a memory.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--blocked">ongoing · discipline</span></span>
+          </div>
+        </label>
+      </div>
+
+      <h3>6.3 — Sprint 3 · deferred (needs a <code>factstack serve</code> mode)</h3>
+      <div class="todo-list" data-phase="6-next">
+        <label class="todo" data-todo-id="ft-8-security">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">A local-server security template (the serve foundation)</span>
+            <span class="todo__body">Steal v0's <code>server.mjs</code> posture wholesale: 127.0.0.1-only bind, an Origin/Host allowlist on every request (DNS-rebind / CSRF defense), a <code>validatePath()</code> blocklist, shell-metachar rejection, a 1&nbsp;MB body cap, <code>spawn</code> with arg-arrays. Make this the baseline of <code>factstack serve</code>, not an afterthought.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">½ day</span><span class="todo__tag todo__tag--priority">priority</span></span>
+            <span class="todo__deps">foundation — precondition for the three below</span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-5-exec">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Open in Claude / Codex / editor / terminal</span>
+            <span class="todo__body">v0's <code>/api/exec</code> launches a whitelisted editor or terminal at any file (<code>spawn</code>, arg-arrays, per-OS fallback ladders). The whitelist already ships <code>claude</code> and <code>codex</code> entries — lead with one-click "Open in Claude / Codex" from file rows. Reuse v0's whitelist + the audit's symlink-safety fix verbatim.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+            <span class="todo__deps">depends on ft-8-security (serve mode)</span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-6-switcher">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">The folder switcher, properly (recents + browse)</span>
+            <span class="todo__body">v0 pairs <code>/api/recent</code> (last 10 in <code>~/.facts-tree/recent.json</code>) with <code>/api/browse</code> — a server-backed directory walker that skips <code>node_modules</code>/<code>dist</code>/<code>.git</code> and detects project roots. Enrich v2's <code>OpenModal</code> with recents + server browse; make the path bar itself the change-folder affordance.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+            <span class="todo__deps">depends on ft-8-security (serve mode)</span>
+          </div>
+        </label>
+        <label class="todo" data-todo-id="ft-7-history">
+          <input type="checkbox" class="todo__check" />
+          <div class="todo__main">
+            <span class="todo__title">Per-file git history</span>
+            <span class="todo__body">v0's <code>/api/file-history</code> runs <code>git log --follow -10</code> for one file (traversal-guarded, 5s timeout). v2 already does a repo-level git scan — add the on-demand, per-file depth as a "Recent commits" strip in the file detail panel.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">½ day</span></span>
+            <span class="todo__deps">depends on ft-8-security (serve mode)</span>
+          </div>
+        </label>
+      </div>
+
       <!-- Open questions -->
       <h2 id="open">Open questions</h2>
       <p>Decisions you'll need to make as Phase 2A progresses. None of these are blockers today but each will land naturally during the work.</p>
@@ -870,6 +998,7 @@
           <strong>Next week:</strong> Phase 2B (VS Code extension).
           <strong>Background:</strong> Phase 4 hygiene as drift becomes painful.
           <strong>Strategic:</strong> Phase 5 surfaces once the platform carries the security tier end-to-end.
+          <strong>Adoption:</strong> Phase 6 (facts-tree ergonomics) — build order being decided now.
         </p>
       </div>
 
