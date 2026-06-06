@@ -260,6 +260,36 @@ describe('buildSkillsTo', () => {
     expect(writer.files.size).toBe(1);
   });
 
+  it('preserves an existing AGENTS.md when preserveExisting=[agents]', async () => {
+    /* AGENTS.md is a cross-tool standard a team may hand-author. With
+       preserveExisting it's left untouched (and reported), while the
+       FACTS-managed rules files still refresh. Guards Codex finding #3. */
+    const writer = new MemoryFileWriter();
+    const handAuthored = '# AGENTS.md\nHand-written team policy — do not clobber.\n';
+    await writer.writeText('AGENTS.md', handAuthored);
+
+    const result = await buildSkillsTo(writer, makeAgent(), makeHuman(), undefined, {
+      preserveExisting: ['agents'],
+    });
+
+    expect(writer.get('AGENTS.md')).toBe(handAuthored); // untouched
+    expect(result.preserved).toContain('AGENTS.md');
+    expect(result.files).not.toHaveProperty('AGENTS.md');
+    expect(writer.has('.cursorrules')).toBe(true); // others still refresh
+    expect(writer.has('.github/copilot-instructions.md')).toBe(true);
+  });
+
+  it('still writes AGENTS.md when none exists, even with preserveExisting', async () => {
+    /* The universal feature must survive: a repo WITHOUT an AGENTS.md
+       still gets one. Preserve only fires when a file is already there. */
+    const writer = new MemoryFileWriter();
+    const result = await buildSkillsTo(writer, makeAgent(), makeHuman(), undefined, {
+      preserveExisting: ['agents'],
+    });
+    expect(writer.has('AGENTS.md')).toBe(true);
+    expect(result.preserved).toEqual([]);
+  });
+
   it('silently drops unknown format IDs', async () => {
     /* Caller is responsible for surfacing typos; orchestrator stays
        pure. Asserts the documented behavior. */

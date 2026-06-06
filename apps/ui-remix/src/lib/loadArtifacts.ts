@@ -140,8 +140,18 @@ const INLINE_PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
 
 export async function loadArtifacts(): Promise<Dataset> {
   // 1. Inline (static deploy / exported single-file HTML)
+  //
+  // Detect "baked" by EXACT match against the bare placeholder, not a
+  // substring `includes()`. The baked dataset can legitimately *contain*
+  // the placeholder string — e.g. a project doc that documents this very
+  // bake pipeline (apps/ui-remix/test/e2e/README.md does). A substring
+  // check would mistake that contaminated-but-valid payload for an
+  // un-baked template and fall through to the (404/502) dev fetch,
+  // blanking the whole app. The un-baked template's textContent IS the
+  // bare token; anything else is real data, so try to parse it. The
+  // try/catch still covers a genuinely malformed inline blob.
   const inline = document.getElementById(INLINE_ID);
-  if (inline && inline.textContent && !inline.textContent.includes(INLINE_PLACEHOLDER)) {
+  if (inline && inline.textContent && inline.textContent.trim() !== INLINE_PLACEHOLDER) {
     try {
       return JSON.parse(inline.textContent) as Dataset;
     } catch (err) {

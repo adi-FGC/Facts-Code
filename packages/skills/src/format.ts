@@ -36,7 +36,7 @@ export function formatNum(n: number): string {
  * Encodes the two adoption decisions (roadmap Phase 6, 2026-06-04):
  *   - Freshness → a PostToolUse hook re-runs `factstack analyze --minimal`
  *     after each edit (fallback: the agent runs it itself).
- *   - Context  → read `.facts/agent.pack` + MEMORY.md FIRST; the FACTS MCP
+ *   - Context  → read `.facts/agent.pack` + `.facts/MEMORY.md` FIRST; the FACTS MCP
  *     server's live tools are the enhancement when connected, not the
  *     prerequisite (the old skill went "stale snapshot" whenever the MCP
  *     was down).
@@ -51,41 +51,41 @@ export function formatNum(n: number): string {
 export function workflowContract(
   spec: SkillSpec,
   heading = 'How to work in this project',
+  extraSteps: string[] = [],
 ): string[] {
   const tools = spec.onboardingSequence.map((t) => `\`${t}\``).join(', ');
   const mcpClause = tools
     ? ` When the FACTS MCP server is connected, its live tools (${tools}) are the` +
       ' preferred query path; the pack files are the always-available fallback.'
     : '';
-  const out: string[] = [];
-  out.push(`## ${heading}`);
-  out.push('');
-  out.push(
-    'This repo ships a **FACTS context pack**. Work *from* it — do not re-derive' +
-      ' the codebase by grepping or listing the whole tree.',
-  );
-  out.push('');
-  out.push(
-    '1. **Orient from the pack, not a scan.** Before any broad search, read' +
+  /* Steps are numbered programmatically so a renderer can append its own
+     (e.g. Cursor's "match the codebase") via `extraSteps` without
+     hardcoding the next ordinal. Change the base list and every renderer
+     renumbers. Each entry omits its leading "N." — it gets numbered below. */
+  const steps: string[] = [
+    '**Orient from the pack, not a scan.** Before any broad search, read' +
       ' `.facts/agent.pack` (token-lean: every file, top-level symbol, import' +
-      ' edge, route, and risk) and `MEMORY.md` (the cold-start brief) — the' +
+      ' edge, route, and risk) and `.facts/MEMORY.md` (the cold-start brief) — the' +
       ' source of truth for *where things are*.' + mcpClause,
-  );
-  out.push(
-    '2. **Navigate by the graph.** "Where is `X`?" → the pack\'s declarations' +
+    '**Navigate by the graph.** "Where is `X`?" → the pack\'s declarations' +
       ' (symbol → file:line). "What breaks if I change `Y`?" → the imports table' +
       " (a resolved graph; grep can't do transitive). Open only the files the" +
       ' pack points you to.',
-  );
-  out.push(
-    '3. **Keep the pack fresh.** A `PostToolUse` hook re-runs `factstack analyze' +
-      ' --minimal` after each edit, so the pack + `MEMORY.md` track your changes.' +
+    '**Keep the pack fresh.** A `PostToolUse` hook re-runs `factstack analyze' +
+      ' --minimal` after each edit, so the pack + `.facts/MEMORY.md` track your changes.' +
       ' If the hook is not installed, run that command yourself after editing —' +
       ' then re-read the pack before planning the next change.',
-  );
-  out.push(
-    '4. **Verify load-bearing claims against source.** The pack is generated; if' +
+    '**Verify load-bearing claims against source.** The pack is generated; if' +
       ' a fact decides your change, confirm it in the file the pack cites.',
-  );
+    ...extraSteps,
+  ];
+  const out: string[] = [
+    `## ${heading}`,
+    '',
+    'This repo ships a **FACTS context pack**. Work *from* it — do not re-derive' +
+      ' the codebase by grepping or listing the whole tree.',
+    '',
+  ];
+  steps.forEach((step, i) => out.push(`${i + 1}. ${step}`));
   return out;
 }

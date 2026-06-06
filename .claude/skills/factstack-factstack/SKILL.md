@@ -9,9 +9,9 @@ user-invocable: true
 
 This repo ships a **FACTS context pack**. Work *from* it — do not re-derive the codebase by grepping or listing the whole tree.
 
-1. **Orient from the pack, not a scan.** Before any broad search, read `.facts/agent.pack` (token-lean: every file, top-level symbol, import edge, route, and risk) and `MEMORY.md` (the cold-start brief) — the source of truth for *where things are*. When the FACTS MCP server is connected, its live tools (`read_memory`, `analyze`, `query_graph`, `list_risks`, `list_credentials`, `list_vulnerabilities`) are the preferred query path; the pack files are the always-available fallback.
+1. **Orient from the pack, not a scan.** Before any broad search, read `.facts/agent.pack` (token-lean: every file, top-level symbol, import edge, route, and risk) and `.facts/MEMORY.md` (the cold-start brief) — the source of truth for *where things are*. When the FACTS MCP server is connected, its live tools (`read_memory`, `analyze`, `query_graph`, `list_risks`, `list_credentials`, `list_vulnerabilities`) are the preferred query path; the pack files are the always-available fallback.
 2. **Navigate by the graph.** "Where is `X`?" → the pack's declarations (symbol → file:line). "What breaks if I change `Y`?" → the imports table (a resolved graph; grep can't do transitive). Open only the files the pack points you to.
-3. **Keep the pack fresh.** A `PostToolUse` hook re-runs `factstack analyze --minimal` after each edit, so the pack + `MEMORY.md` track your changes. If the hook is not installed, run that command yourself after editing — then re-read the pack before planning the next change.
+3. **Keep the pack fresh.** A `PostToolUse` hook re-runs `factstack analyze --minimal` after each edit, so the pack + `.facts/MEMORY.md` track your changes. If the hook is not installed, run that command yourself after editing — then re-read the pack before planning the next change.
 4. **Verify load-bearing claims against source.** The pack is generated; if a fact decides your change, confirm it in the file the pack cites.
 
 ## At a glance

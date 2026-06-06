@@ -220,7 +220,7 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
                 {/* Audit H2 fix: 80px first column so "Method" header
                     doesn't truncate to "ME…" under the uppercase 0.14em
                     tracking the RuledCell header style applies. */}
-                <RuledTable cols="80px 1fr 2fr">
+                <RuledTable minWidth="24rem" cols="80px 1fr 2fr">
                   <RuledRow header>
                     <RuledCell header>Method</RuledCell>
                     <RuledCell header>Path</RuledCell>

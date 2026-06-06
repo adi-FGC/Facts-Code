@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>The .pack playbook — FACTS · agent integration, full context</title>
+<meta name="description" content="Everything figured out this session about FACTS's .pack artifact: does it help an agent vs scanning (measured), how to make an agent prefer it, how to keep it fresh, and how to make it universal through the web app. Self-contained handoff." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,800;1,9..144,400&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg: oklch(16% 0.013 58);
+    --bg-2: oklch(19% 0.014 60);
+    --panel: oklch(21.5% 0.015 62);
+    --fg: oklch(93% 0.012 75);
+    --muted: oklch(73% 0.013 68);
+    --faint: oklch(57% 0.012 65);
+    --hair: color-mix(in oklab, var(--fg) 11%, transparent);
+    --hair-2: color-mix(in oklab, var(--fg) 22%, transparent);
+    --accent: oklch(73% 0.17 52);
+    --accent-soft: color-mix(in oklab, var(--accent) 15%, transparent);
+    --win: oklch(77% 0.15 152);
+    --win-soft: color-mix(in oklab, var(--win) 13%, transparent);
+    --cost: oklch(68% 0.17 28);
+    --cost-soft: color-mix(in oklab, var(--cost) 13%, transparent);
+    --steel: oklch(72% 0.05 235);
+    --steel-soft: color-mix(in oklab, var(--steel) 14%, transparent);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: "Mona Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --serif: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --maxw: 1180px;
+    --read: 66ch;
+  }
+  *{ box-sizing:border-box; }
+  html{ scroll-behavior:smooth; scroll-padding-top:84px; }
+  body{
+    margin:0; color:var(--fg); font-family:var(--sans);
+    font-size:clamp(15px,.45vw+14px,17px); line-height:1.62;
+    -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+    background:
+      radial-gradient(130% 90% at 88% -8%, color-mix(in oklab, var(--accent) 8%, transparent), transparent 55%),
+      radial-gradient(120% 90% at 8% 102%, color-mix(in oklab, var(--win) 6%, transparent), transparent 55%),
+      var(--bg);
+  }
+  /* grain */
+  body::before{ content:""; position:fixed; inset:0; pointer-events:none; z-index:1; opacity:.025;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  a{ color:var(--accent); text-underline-offset:3px; text-decoration-color:color-mix(in oklab,var(--accent) 40%, transparent); }
+  code{ font-family:var(--mono); font-size:.9em; color:var(--accent); background:color-mix(in oklab,var(--accent) 9%, transparent); padding:.05em .35em; border-radius:3px; }
+
+  /* top bar */
+  .topbar{ position:fixed; inset:0 0 auto 0; height:52px; z-index:40; display:flex; align-items:center; gap:14px;
+    padding:0 clamp(16px,3vw,30px); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+    background:color-mix(in oklab, var(--bg) 72%, transparent); border-bottom:1px solid var(--hair); }
+  .topbar .mark{ font-family:var(--serif); font-weight:800; letter-spacing:-.02em; font-size:18px; }
+  .topbar .mark b{ color:var(--accent); }
+  .topbar .sub{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
+  .topbar .prog{ margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:.1em; }
+
+  .shell{ position:relative; z-index:2; max-width:var(--maxw); margin-inline:auto; padding:clamp(74px,8vw,110px) clamp(16px,4vw,40px) 130px;
+    display:grid; grid-template-columns:1fr; gap:0; }
+  @media (min-width:1080px){ .shell{ grid-template-columns:minmax(0,1fr) 210px; column-gap:48px; align-items:start; } }
+
+  /* floating TOC */
+  nav.toc{ display:none; }
+  @media (min-width:1080px){
+    nav.toc{ display:block; position:sticky; top:84px; grid-column:2; font-family:var(--mono); font-size:12px; }
+    nav.toc .lbl{ letter-spacing:.18em; text-transform:uppercase; color:var(--faint); margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--hair); }
+    nav.toc a{ display:flex; gap:9px; padding:6px 0; color:var(--muted); text-decoration:none; line-height:1.3; border-left:2px solid transparent; padding-left:12px; margin-left:-2px; transition:color .2s, border-color .2s; }
+    nav.toc a .n{ color:var(--faint); }
+    nav.toc a:hover{ color:var(--fg); }
+    nav.toc a.on{ color:var(--accent); border-left-color:var(--accent); }
+    nav.toc a.on .n{ color:var(--accent); }
+  }
+  main{ grid-column:1; min-width:0; max-width:var(--read); }
+
+  /* masthead */
+  .kick{ font-family:var(--mono); font-size:12px; letter-spacing:.22em; text-transform:uppercase; color:var(--accent); display:flex; align-items:center; gap:11px; margin:0 0 20px; }
+  .kick .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 14px var(--accent); }
+  h1.title{ font-family:var(--serif); font-weight:600; font-size:clamp(38px,6.4vw,76px); line-height:.98; letter-spacing:-.025em; margin:0 0 24px; }
+  h1.title .pk{ font-style:italic; color:var(--accent); }
+  .dek{ font-family:var(--serif); font-weight:400; font-size:clamp(18px,2.1vw,24px); line-height:1.5; color:var(--muted); max-width:62ch; margin:0; font-variation-settings:"opsz" 32; }
+  .meta-row{ display:flex; flex-wrap:wrap; gap:8px; margin-top:28px; }
+  .chip{ font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--muted); border:1px solid var(--hair-2); padding:5px 11px; border-radius:2px; }
+  .chip b{ color:var(--accent); font-weight:600; }
+
+  /* tldr */
+  .tldr{ margin-top:38px; border:1px solid var(--hair-2); border-left:4px solid var(--accent); background:linear-gradient(180deg,var(--accent-soft),transparent 72%),var(--bg-2); padding:clamp(20px,3vw,30px); }
+  .tldr .l{ font-family:var(--mono); font-size:11px; letter-spacing:.2em; text-transform:uppercase; color:var(--accent); margin:0 0 12px; }
+  .tldr p{ margin:0; font-family:var(--serif); font-size:clamp(19px,2.3vw,26px); line-height:1.38; letter-spacing:-.01em; }
+  .yes{ color:var(--win); font-weight:600; } .no{ color:var(--cost); font-weight:600; }
+
+  /* sections */
+  section{ margin-top:clamp(60px,9vw,104px); scroll-margin-top:80px; }
+  .sk{ display:flex; justify-content:space-between; align-items:baseline; gap:14px; font-family:var(--mono); font-size:12px; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); padding-bottom:11px; border-bottom:1px solid var(--hair); margin-bottom:26px; }
+  .sk .n{ color:var(--accent); }
+  h2{ font-family:var(--serif); font-weight:600; font-size:clamp(27px,3.7vw,42px); line-height:1.06; letter-spacing:-.022em; margin:0 0 18px; }
+  h3{ font-family:var(--serif); font-weight:600; font-size:clamp(19px,2.1vw,23px); margin:30px 0 10px; letter-spacing:-.01em; }
+  p.b{ color:var(--fg); } p.b.m{ color:var(--muted); } .lead{ font-size:1.05em; }
+  ul.clean{ list-style:none; margin:14px 0; padding:0; display:grid; gap:11px; }
+  ul.clean li{ display:grid; grid-template-columns:auto 1fr; gap:12px; align-items:baseline; color:var(--muted); }
+  ul.clean li .b{ color:var(--accent); font-family:var(--mono); font-size:.8em; }
+  strong{ color:var(--fg); font-weight:600; }
+
+  /* full-bleed widen for wide elements */
+  .wide{ max-width:none; }
+  @media (min-width:1080px){ .wide{ width:calc(100% + 258px); } }
+
+  /* table-ish format card */
+  .tablecard{ border:1px solid var(--hair); background:var(--bg-2); margin-top:18px; overflow:hidden; }
+  .tablecard .row{ display:grid; grid-template-columns:130px 1fr; gap:16px; padding:13px 18px; border-bottom:1px solid var(--hair); }
+  .tablecard .row:last-child{ border-bottom:none; }
+  .tablecard .row .t{ font-family:var(--mono); font-size:12px; color:var(--accent); letter-spacing:.04em; }
+  .tablecard .row .d{ color:var(--muted); font-size:.96em; }
+  .tablecard .row .d b{ color:var(--fg); }
+
+  /* experiments */
+  .exp{ border:1px solid var(--hair); background:var(--bg-2); margin-bottom:20px; }
+  .exp .h{ padding:15px 20px; border-bottom:1px solid var(--hair); }
+  .exp .num{ font-family:var(--mono); font-size:11px; color:var(--accent); letter-spacing:.16em; }
+  .exp .task{ font-family:var(--serif); font-size:clamp(18px,2.1vw,23px); font-weight:600; margin:5px 0 0; letter-spacing:-.01em; }
+  .ba{ display:grid; grid-template-columns:1fr 1fr; }
+  @media (max-width:640px){ .ba{ grid-template-columns:1fr; } }
+  .cell{ padding:16px 20px; }
+  .cell.s{ background:var(--cost-soft); border-right:1px solid var(--hair); }
+  @media (max-width:640px){ .cell.s{ border-right:none; border-bottom:1px solid var(--hair); } }
+  .cell .w{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; margin:0 0 10px; }
+  .cell.s .w{ color:var(--cost); } .cell.p .w{ color:var(--win); }
+  .cell .m{ display:flex; align-items:baseline; gap:9px; font-family:var(--mono); }
+  .cell .m .v{ font-size:clamp(22px,3vw,30px); font-weight:600; font-variant-numeric:tabular-nums; }
+  .cell.s .m .v{ color:var(--cost); } .cell.p .m .v{ color:var(--win); }
+  .cell .m .u{ font-size:11px; color:var(--faint); letter-spacing:.06em; text-transform:uppercase; }
+  .cell p{ margin:0 0 12px; font-size:.92em; color:var(--muted); }
+  .exp .res{ padding:13px 20px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:12.5px; color:var(--muted); }
+  .exp .res b{ color:var(--accent); }
+
+  /* terminal */
+  .term{ border:1px solid var(--hair-2); background:oklch(12.5% 0.01 60); margin-top:16px; overflow:auto; }
+  .term .bar{ display:flex; gap:7px; align-items:center; padding:9px 13px; border-bottom:1px solid var(--hair); }
+  .term .bar i{ width:10px; height:10px; border-radius:50%; }
+  .term .bar i:nth-child(1){ background:var(--cost); } .term .bar i:nth-child(2){ background:var(--accent); } .term .bar i:nth-child(3){ background:var(--win); }
+  .term .bar span{ margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); letter-spacing:.1em; }
+  .term pre{ margin:0; padding:15px 18px; font-family:var(--mono); font-size:12.5px; line-height:1.7; color:var(--muted); white-space:pre; }
+  .term pre .c{ color:var(--faint); } .term pre .k{ color:var(--accent); } .term pre .g{ color:var(--win); } .term pre .r{ color:var(--cost); } .term pre .w{ color:var(--fg); }
+
+  /* legs (instruct/tool/refresh) */
+  .legs{ display:grid; gap:14px; margin-top:18px; }
+  @media (min-width:760px){ .legs{ grid-template-columns:repeat(3,1fr); } }
+  .leg{ border:1px solid var(--hair); background:var(--bg-2); padding:20px; position:relative; }
+  .leg .ix{ font-family:var(--mono); font-size:11px; letter-spacing:.16em; color:var(--accent); }
+  .leg h4{ font-family:var(--serif); font-size:20px; font-weight:600; margin:8px 0 8px; letter-spacing:-.01em; }
+  .leg p{ margin:0; font-size:.92em; color:var(--muted); }
+  .leg .tag{ display:inline-block; margin-top:12px; font-family:var(--mono); font-size:10.5px; letter-spacing:.08em; padding:3px 8px; border:1px solid var(--hair-2); color:var(--muted); }
+  .leg.strong{ border-color:color-mix(in oklab,var(--win) 40%, var(--hair)); }
+  .leg.strong .ix{ color:var(--win); }
+
+  /* cadence table */
+  .ctab{ width:100%; border-collapse:collapse; margin-top:16px; font-size:.95em; }
+  .ctab th,.ctab td{ text-align:left; padding:13px 14px; border-bottom:1px solid var(--hair); vertical-align:top; }
+  .ctab th{ font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); font-weight:500; }
+  .ctab td.c{ font-family:var(--mono); font-weight:600; color:var(--fg); white-space:nowrap; }
+  .ctab td.cmd code{ white-space:nowrap; }
+  .ctab td.j{ font-family:var(--mono); font-size:.85em; }
+  .ctab tr.rec td.c{ color:var(--win); }
+  .ctab .pillrec{ font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:var(--win); border:1px solid color-mix(in oklab,var(--win) 45%,transparent); padding:1px 6px; margin-left:7px; }
+
+  /* architecture flow */
+  .flow{ display:grid; gap:0; margin-top:20px; border:1px solid var(--hair); background:var(--bg-2); }
+  .flow .stage{ display:grid; grid-template-columns:170px 1fr; gap:18px; padding:20px 22px; border-bottom:1px solid var(--hair); align-items:start; }
+  .flow .stage:last-child{ border-bottom:none; }
+  @media (max-width:640px){ .flow .stage{ grid-template-columns:1fr; gap:6px; } }
+  .flow .role{ font-family:var(--mono); font-size:11px; letter-spacing:.13em; text-transform:uppercase; padding-top:3px; }
+  .flow .role.prod{ color:var(--win); } .flow .role.store{ color:var(--accent); } .flow .role.cons{ color:var(--steel); }
+  .flow .node h4{ margin:0 0 5px; font-family:var(--serif); font-size:19px; font-weight:600; letter-spacing:-.01em; }
+  .flow .node p{ margin:0; font-size:.92em; color:var(--muted); }
+  .flow .node .files{ font-family:var(--mono); font-size:11.5px; color:var(--faint); margin-top:7px; }
+  .flow .arrow{ grid-column:1 / -1; display:flex; align-items:center; gap:10px; color:var(--faint); font-family:var(--mono); font-size:11px; letter-spacing:.08em; padding:2px 0 2px 188px; }
+  @media (max-width:640px){ .flow .arrow{ padding-left:0; } }
+  .flow .arrow .ln{ flex:1; height:1px; background:linear-gradient(90deg,var(--hair-2),transparent); }
+
+  /* gap callouts */
+  .gap{ border:1px solid var(--hair); border-left:3px solid var(--cost); background:var(--bg-2); padding:18px 20px; margin-top:14px; }
+  .gap .g{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--cost); margin:0 0 8px; }
+  .gap h4{ margin:0 0 7px; font-family:var(--serif); font-size:19px; font-weight:600; letter-spacing:-.01em; }
+  .gap p{ margin:0; color:var(--muted); font-size:.95em; }
+  .build{ border-left-color:var(--win); }
+  .build .g{ color:var(--win); }
+
+  /* limits */
+  .lims{ list-style:none; margin:14px 0 0; padding:0; display:grid; gap:13px; }
+  .lims li{ display:grid; grid-template-columns:auto 1fr; gap:13px; align-items:baseline; border-left:2px solid var(--cost); padding:3px 0 3px 15px; }
+  .lims li .h{ color:var(--fg); font-weight:600; }
+  .lims li p{ margin:3px 0 0; color:var(--muted); font-size:.95em; }
+  .lims li .ic{ font-family:var(--mono); color:var(--cost); }
+
+  /* ledger */
+  .ledger{ border:1px solid var(--hair); background:var(--bg-2); margin-top:18px; }
+  .ledger dl{ margin:0; }
+  .ledger .grp{ border-bottom:1px solid var(--hair); padding:16px 20px; }
+  .ledger .grp:last-child{ border-bottom:none; }
+  .ledger dt{ font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin-bottom:10px; }
+  .ledger dd{ margin:0 0 6px; font-family:var(--mono); font-size:12.5px; color:var(--muted); display:grid; grid-template-columns:minmax(0,1fr) auto; gap:14px; align-items:baseline; }
+  .ledger dd:last-child{ margin-bottom:0; }
+  .ledger dd .v{ color:var(--fg); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .ledger dd .k{ color:var(--muted); }
+
+  .bottom{ margin-top:clamp(60px,9vw,104px); border:1px solid var(--hair-2); background:linear-gradient(180deg,var(--win-soft),transparent 72%),var(--bg-2); padding:clamp(24px,3.4vw,40px); }
+  .bottom h2{ margin-top:0; }
+  .bottom .one{ font-family:var(--serif); font-size:clamp(21px,2.6vw,30px); line-height:1.36; letter-spacing:-.01em; }
+
+  footer{ grid-column:1 / -1; margin-top:80px; padding-top:22px; border-top:1px solid var(--hair); font-family:var(--mono); font-size:12px; color:var(--faint); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+
+  /* reveal */
+  @media (prefers-reduced-motion: no-preference){
+    .rv{ opacity:0; transform:translateY(16px); transition:opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+    .rv.in{ opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="mark"><b>FACTS</b></span>
+  <span class="sub">.pack playbook</span>
+  <span class="prog" id="prog">agent-authored · full context</span>
+</div>
+
+<div class="shell">
+  <main>
+    <!-- MASTHEAD -->
+    <header class="rv in">
+      <p class="kick"><span class="dot"></span> Context handoff · 2026-06-03 · agent-authored</p>
+      <h1 class="title">The <span class="pk">.pack</span> playbook.</h1>
+      <p class="dek">Everything worked out this session about FACTS's agent artifact: whether it actually makes an AI agent faster, how to make an agent prefer it over scanning, how to keep it fresh after every change, and how to make all of that universal through the web app. Written so a fresh agent can pick up the thread cold.</p>
+      <div class="meta-row">
+        <span class="chip">repo: <b>factstack</b></span>
+        <span class="chip">347 files · ~1.07M tokens</span>
+        <span class="chip">.pack: <b>93 KB</b> ≈ 23.4K tok</span>
+        <span class="chip">map/territory: <b>~46×</b></span>
+      </div>
+
+      <div class="tldr">
+        <p class="l">The whole thing in one breath</p>
+        <p><span class="yes">Yes</span>, the pack makes an agent faster at <em>locating</em> a change and tracing what it touches — one lookup instead of a grep-hunt. The reliable way to make an agent <em>use</em> it is three legs: <strong>instruct + tool + refresh</strong>. <span class="no">But</span> a stale pack lies, and the only <em>universal</em>, zero-install delivery is the <strong>web app writing the pack + rules files into any folder you open</strong>.</p>
+      </div>
+    </header>
+
+    <!-- 1 · WHAT -->
+    <section id="what">
+      <div class="sk"><span><span class="n">01</span> · what .pack is</span><span>the map, not the territory</span></div>
+      <h2>A 93 KB index of a 1.07M-token codebase.</h2>
+      <p class="b lead m">FACTS analyzes a project and emits <code>.facts/agent.pack</code> — a token-lean, columnar text format (schema <code>agent-v1</code>) built for an AI agent to read instead of the source. Six tables, fixed order:</p>
+      <div class="tablecard">
+        <div class="row"><span class="t">files</span><span class="d">every file → language, LOC, <b>token cost</b>, bytes, status, churn, read-time</span></div>
+        <div class="row"><span class="t">imports</span><span class="d">the <b>resolved dependency graph</b> (from → to → kind). Forward + reverse. This is what grep can't give you.</span></div>
+        <div class="row"><span class="t">routes</span><span class="d">URL/path → framework → method → <b>handler file</b> → symbol</span></div>
+        <div class="row"><span class="t">risks</span><span class="d">severity, category, rule, <b>file:line</b>, message — secrets, broken imports, TODOs, stale</span></div>
+        <div class="row"><span class="t">envs</span><span class="d">every env var → each read site (file:line, access kind, default)</span></div>
+        <div class="row"><span class="t">declarations</span><span class="d"><b>every top-level symbol → file, start/end line, exported?</b> The table that makes "where is X" a one-liner.</span></div>
+      </div>
+      <p class="b m" style="margin-top:18px">Sizes that matter: the whole codebase is <strong>~1.07M tokens</strong> of source across <strong>347 files</strong>. The pack carries the structure of all of it in <strong>~23.4K tokens</strong> — about <strong>46× smaller</strong>. That 46× is the ceiling (the "load everything" case); the per-change win is more about precision than raw tokens.</p>
+    </section>
+
+    <!-- 2 · EVIDENCE -->
+    <section id="evidence">
+      <div class="sk"><span><span class="n">02</span> · the evidence</span><span>3 real change tasks · measured</span></div>
+      <h2>Does it actually help? I timed it.</h2>
+      <p class="b m">For each task: the <span style="color:var(--cost)">scan path</span> (grep across 347 files, read candidates) vs the <span style="color:var(--win)">pack path</span> (one grep into the 93 KB map). Numbers are real grep output from this repo.</p>
+
+      <div class="exp rv">
+        <div class="h"><span class="num">TASK A</span><p class="task">"Change how the Change Verdict scores severity."</p></div>
+        <div class="ba">
+          <div class="cell s"><p class="w">✕ scan</p><p>grep <code>severity</code> → wade the hits → read several candidate files.</p><div class="m"><span class="v">250</span><span class="u">hits to triage</span></div></div>
+          <div class="cell p"><p class="w">✓ pack</p><p>grep <code>Severity</code> in <code>agent.pack</code> → the answer line.</p><div class="m"><span class="v">1</span><span class="u">line → file:line</span></div></div>
+        </div>
+        <div class="res"><b>Result:</b> pinned <code>packages/spec/src/review.ts:23</code> in one lookup.</div>
+      </div>
+
+      <div class="exp rv">
+        <div class="h"><span class="num">TASK B</span><p class="task">"Add a new tab to the dashboard."</p></div>
+        <div class="ba">
+          <div class="cell s"><p class="w">✕ scan</p><p>find the route catalog, then go discover the other edit sites separately.</p><div class="m"><span class="v">3–4</span><span class="u">round trips</span></div></div>
+          <div class="cell p"><p class="w">✓ pack</p><p>one grep returns every wiring point at once, with lines.</p><div class="m"><span class="v">4</span><span class="u">sites · 1 grep</span></div></div>
+        </div>
+        <div class="res"><b>Result:</b> <code>routes.ts</code> (tabPatterns:24, activeTab:97) · <code>App.tsx</code> (renderRoute:174) · <code>NumberedNav.tsx</code> (:117).</div>
+      </div>
+
+      <div class="exp rv">
+        <div class="h"><span class="num">TASK C</span><p class="task">"What breaks if I change the Dataset shape in loadArtifacts.ts?"</p></div>
+        <div class="ba">
+          <div class="cell s"><p class="w">✕ scan</p><p>grep gives direct textual mentions only — misses transitive + re-exports.</p><div class="m"><span class="v">36</span><span class="u">noisy hits</span></div></div>
+          <div class="cell p"><p class="w">✓ pack</p><p>reverse-lookup the node in the resolved imports graph.</p><div class="m"><span class="v">24</span><span class="u">exact importers</span></div></div>
+        </div>
+        <div class="res"><b>Result:</b> "what's my blast radius" is the question grep is worst at; the pack answers it exactly.</div>
+      </div>
+
+      <h3>The credibility check: the pack predicted my real edits</h3>
+      <p class="b m">Earlier this session I actually did the v0.9 tab restructure (14 → 7 tabs). A map is only good if it points where you really end up going.</p>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i><span>pack prediction vs git status</span></div>
+<pre><span class="c"># Task-B pack lookup predicted I'd edit:</span>
+  <span class="w">routes.ts</span> · <span class="w">App.tsx</span> · <span class="w">NumberedNav.tsx</span>
+
+<span class="c"># what I ACTUALLY changed (git status, v0.9):</span>
+  M src/lib/<span class="g">routes.ts</span>            <span class="g">✓ predicted</span>
+  M src/<span class="g">App.tsx</span>                  <span class="g">✓ predicted</span>
+  M src/components/Header.tsx       <span class="k">+ icons (extra scope)</span>
+  M src/ui/CommandPalette.tsx       <span class="k">+ ⌘K targets</span>
+  <span class="c">NumberedNav.tsx — not edited: reads TABS dynamically,</span>
+  <span class="c">so it self-updated. Pack still named it correctly.</span></pre>
+      </div>
+    </section>
+
+    <!-- 3 · MAKE IT PREFER -->
+    <section id="prefer">
+      <div class="sk"><span><span class="n">03</span> · make the agent prefer it</span><span>three legs, not one</span></div>
+      <h2>A rules file is a nudge. A tool is a pull.</h2>
+      <p class="b m">Prose like "prefer the pack" can be ignored. The reliable enforcement is three legs together — and the third is the one everyone forgets.</p>
+      <div class="legs">
+        <div class="leg"><span class="ix">LEG 1</span><h4>Instruct</h4><p>Agent-rules files at the project root tell the agent to query the pack before scanning. FACTS generates them.</p><span class="tag">factstack export-skills .</span></div>
+        <div class="leg strong"><span class="ix">LEG 2</span><h4>Tool</h4><p>Connect the FACTS MCP so the agent <em>reaches for</em> <code>get_outline</code>/<code>query_graph</code> instead of grep. Tools beat prose. This is the strong lever.</p><span class="tag">.mcp.json → factstack-mcp</span></div>
+        <div class="leg"><span class="ix">LEG 3</span><h4>Refresh</h4><p>Regenerate the pack on a trigger so it's trustworthy. A stale pack is worse than none — see below.</p><span class="tag">analyze --minimal / watch / hook</span></div>
+      </div>
+
+      <h3>The staleness proof — live, in this repo</h3>
+      <p class="b m">This repo's <code>.cursorrules</code> was generated <strong>2026-05-26</strong> and never refreshed. It now lies to the agent: it says <strong>308 files</strong> and lists pre-v0.9 routes (<code>/flow</code>, <code>/credentials</code>) that no longer exist. Reality is 347 files and <code>/architecture</code>, <code>/security</code>. That is exactly why Leg 3 isn't optional.</p>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i><span>leg 2 · wire the MCP (the strong lever)</span></div>
+<pre><span class="c">// .mcp.json at the project root</span>
+{ <span class="w">"mcpServers"</span>: { <span class="k">"factstack"</span>: {
+    <span class="w">"command"</span>: <span class="g">"factstack-mcp"</span>, <span class="w">"args"</span>: [<span class="g">"."</span>] } } }
+
+<span class="c"># MCP tools the agent then reaches for (all read the pack):</span>
+<span class="k">get_outline  query_graph  list_risks  review_change</span>
+<span class="k">read_memory  list_vulnerabilities  get_diagram  since</span></pre>
+      </div>
+    </section>
+
+    <!-- 4 · KEEP FRESH -->
+    <section id="fresh">
+      <div class="sk"><span><span class="n">04</span> · keep it fresh</span><span>after each change</span></div>
+      <h2>Regenerate on a trigger, not on a whim.</h2>
+      <p class="b m"><code>factstack analyze --minimal</code> is the fast path — it writes only <code>agent.pack + human.json + MEMORY.md</code> and skips the heavy artifacts. Pick a cadence by who's driving:</p>
+      <table class="ctab">
+        <thead><tr><th>Cadence</th><th>How</th><th>Best for</th></tr></thead>
+        <tbody>
+          <tr><td class="c">On save</td><td class="cmd"><code>factstack watch .</code></td><td class="j">solo dev editing live (chokidar, debounced)</td></tr>
+          <tr class="rec"><td class="c">Per agent turn <span class="pillrec">REC</span></td><td class="cmd"><code>.claude/settings.json</code> Stop hook → <code>analyze --minimal</code></td><td class="j">agent loops — regenerates once per turn, not per edit</td></tr>
+          <tr><td class="c">Per commit</td><td class="cmd">git <code>pre-commit</code> → <code>analyze --minimal &amp;&amp; git add .facts/agent.pack</code></td><td class="j">teams / CI / PR review — pack rides the diff</td></tr>
+        </tbody>
+      </table>
+      <p class="b m" style="margin-top:16px"><strong>Don't</strong> fire on every tool call — a <code>PostToolUse</code> hook on <code>Edit|Write</code> re-walks all 347 files on every save. Refresh at a logical boundary. The real scaling fix (not built yet) is <strong>incremental analysis</strong>: re-walk only changed files.</p>
+      <div class="term">
+        <div class="bar"><i></i><i></i><i></i><span>.claude/settings.json · the per-turn Stop hook</span></div>
+<pre>{ <span class="w">"hooks"</span>: { <span class="k">"Stop"</span>: [ { <span class="w">"hooks"</span>: [
+  { <span class="w">"type"</span>: <span class="g">"command"</span>,
+    <span class="w">"command"</span>: <span class="g">"factstack analyze --minimal . &gt;/dev/null 2&gt;&amp;1 || true"</span> }
+] } ] } }</pre>
+      </div>
+    </section>
+
+    <!-- 5 · UNIVERSAL WEB APP -->
+    <section id="universal">
+      <div class="sk"><span><span class="n">05</span> · the universal path</span><span>any project, no install</span></div>
+      <h2>The web app is the zero-install delivery vehicle.</h2>
+      <p class="b lead m">A CLI/MCP/hook works only where someone installed the toolchain. The FACTS web app analyzes <em>in the browser</em> and writes <code>.facts/</code> straight into any folder you grant it via the File System Access API. That's what makes "any project you open" possible with no per-repo setup. Producer and consumer are split:</p>
+
+      <div class="flow wide">
+        <div class="stage">
+          <div class="role prod">producer</div>
+          <div class="node"><h4>Web app · analyze in browser</h4><p>Open a local folder (FSA) or a GitHub repo. The scanner worker builds the artifacts client-side. No server, no CLI.</p><p class="files">apps/ui-remix/src/scanner.worker.ts · scannerBridge.ts</p></div>
+        </div>
+        <div class="arrow"><span>writes via FSA →</span><span class="ln"></span></div>
+        <div class="stage">
+          <div class="role store">on disk</div>
+          <div class="node"><h4>project/.facts/agent.pack</h4><p>The Save flow writes the pack (default <code>minimal</code>: agent.pack + human.json + MEMORY.md) into the opened folder. <strong>This already works for any project.</strong></p><p class="files">packages/emit-browser/src/write.ts · fsa-writer.ts · lib/emitProfile.ts</p></div>
+        </div>
+        <div class="arrow"><span>read by →</span><span class="ln"></span></div>
+        <div class="stage">
+          <div class="role cons">consumer</div>
+          <div class="node"><h4>The external AI agent</h4><p>Claude Code / Cursor / Copilot working in that folder reads <code>.facts/agent.pack</code> + obeys the root rules files. The web app can't push to it — it keeps the artifacts present and fresh.</p></div>
+        </div>
+      </div>
+
+      <h3>Two gaps to close for "any opened project"</h3>
+      <div class="gap">
+        <p class="g">Gap A — writes the data, not the "use it" instructions</p>
+        <h4>The Save flow drops <code>.facts/*</code> but not the root rules files.</h4>
+        <p>An agent opening a web-app-saved folder <em>finds</em> the pack but isn't <em>told</em> to prefer it — <code>buildSkillsTo</code> (.cursorrules / AGENTS.md / copilot) is still CLI-only.</p>
+      </div>
+      <div class="gap">
+        <p class="g">Gap B — no auto-refresh trigger</p>
+        <h4>The browser can't watch the filesystem like <code>factstack watch</code>.</h4>
+        <p>It holds the FSA handle for the session, so it can re-scan + rewrite on demand — but not on literal keystroke.</p>
+      </div>
+
+      <h3>The proposed build (reuses existing machinery)</h3>
+      <div class="gap build">
+        <p class="g">Build #1 — keystone, contained</p>
+        <h4>Wire <code>buildSkillsTo</code> into the browser Save.</h4>
+        <p>Call the existing writer-agnostic <code>buildSkillsTo(writer, agent, human)</code> with the same <code>FsaFileWriter</code>, so every opened project also gets <code>AGENTS.md</code> + per-tool rules pointing at the fresh pack. Small add: an <code>AGENTS.md</code> format in <code>@factstack/skills</code> (today: Claude/Cursor/Copilot only) so it covers any agent.</p>
+      </div>
+      <div class="gap build">
+        <p class="g">Build #2 — auto-refresh</p>
+        <h4>A "Keep .pack fresh" toggle.</h4>
+        <p>Re-scan + rewrite on tab <code>focus</code>/<code>visibilitychange</code> (when you return from your IDE) and an optional interval, via the retained FSA handle. The web-native <code>factstack watch</code>.</p>
+      </div>
+      <p class="b m" style="margin-top:18px"><strong>The honest boundary:</strong> live MCP <em>tools</em> (Leg 2, the strongest pull) need a local <code>factstack-mcp</code> — that can't come from a web tab. So the universal path is <strong>rules-file + fresh-pack-on-disk</strong>, which any folder-reading agent can use. MCP stays the opt-in power-up for local setups.</p>
+    </section>
+
+    <!-- 6 · LIMITS -->
+    <section id="limits">
+      <div class="sk"><span><span class="n">06</span> · honest limits</span><span>what would make this wrong</span></div>
+      <h2>Where the pack shrugs.</h2>
+      <ul class="lims">
+        <li><span class="ic">⟳</span><div><span class="h">Staleness.</span><p>A snapshot. Edit without re-analyzing and it points at old lines and missing symbols. The whole of Leg 3 / Build #2 exists to fight this.</p></div></li>
+        <li><span class="ic">◳</span><div><span class="h">It locates, it doesn't read.</span><p>"Severity is in review.ts:23" — you still open and reason about the file. The pack removes the search, not the work.</p></div></li>
+        <li><span class="ic">≈</span><div><span class="h">Resolution gaps.</span><p>Only what the analyzer extracted: top-level declarations, resolved imports. Dynamic <code>require</code>, metaprogramming, or an unparsed language fall through. Grep still wins on raw string presence.</p></div></li>
+        <li><span class="ic">⌱</span><div><span class="h">No incremental analysis yet.</span><p>Every refresh re-walks the repo. <code>--minimal</code> is the fast path, but on huge repos per-edit refresh is too costly until incremental lands.</p></div></li>
+        <li><span class="ic">⚇</span><div><span class="h">Web-app caveats.</span><p>The FACTS tab must stay open and the folder permission granted; it refreshes on focus/interval, not on every keystroke.</p></div></li>
+      </ul>
+    </section>
+
+    <!-- 7 · LEDGER -->
+    <section id="ledger">
+      <div class="sk"><span><span class="n">07</span> · context ledger</span><span>pick up the thread cold</span></div>
+      <h2>Everything a fresh agent needs.</h2>
+      <div class="ledger">
+        <div class="grp">
+          <dt>Commands</dt>
+          <dd><span class="k"><code>factstack analyze .</code></span><span class="v">full artifacts → .facts/</span></dd>
+          <dd><span class="k"><code>factstack analyze --minimal .</code></span><span class="v">fast: agent.pack + human.json + MEMORY.md</span></dd>
+          <dd><span class="k"><code>factstack watch .</code></span><span class="v">chokidar live refresh</span></dd>
+          <dd><span class="k"><code>factstack export-skills .</code></span><span class="v">root rules files (.cursorrules, copilot, SKILL.md)</span></dd>
+          <dd><span class="k"><code>factstack query &lt;verb&gt;</code></span><span class="v">callers / imports / cycles / orphans</span></dd>
+          <dd><span class="k"><code>factstack-mcp .</code></span><span class="v">MCP server (stdio) over the artifacts</span></dd>
+        </div>
+        <div class="grp">
+          <dt>Key files</dt>
+          <dd><span class="k">.facts/agent.pack</span><span class="v">the 6-table pack · 93 KB</span></dd>
+          <dd><span class="k">packages/emit/src/pack.ts</span><span class="v">encodeAgentPack — the format</span></dd>
+          <dd><span class="k">packages/emit-browser/src/write.ts</span><span class="v">browser Save → writeArtifactsTo</span></dd>
+          <dd><span class="k">packages/emit-browser/src/fsa-writer.ts</span><span class="v">FsaFileWriter (FSA + permission)</span></dd>
+          <dd><span class="k">apps/ui-remix/src/lib/emitProfile.ts</span><span class="v">minimal/legacy · default minimal</span></dd>
+          <dd><span class="k">packages/skills/src/*</span><span class="v">buildSkillsTo (CLI-only today → Build #1)</span></dd>
+          <dd><span class="k">apps/mcp-server/src/server.ts</span><span class="v">MCP tools</span></dd>
+        </div>
+        <div class="grp">
+          <dt>Numbers</dt>
+          <dd><span class="k">whole repo</span><span class="v">~1,070,000 tokens · 347 files</span></dd>
+          <dd><span class="k">agent.pack</span><span class="v">93,485 bytes ≈ 23,400 tokens</span></dd>
+          <dd><span class="k">map / territory</span><span class="v">~46×</span></dd>
+          <dd><span class="k">Task A scan noise</span><span class="v">250 "severity" hits → pack: 1 line</span></dd>
+          <dd><span class="k">Task C blast radius</span><span class="v">pack: 24 exact · grep: 36 noisy</span></dd>
+          <dd><span class="k">dashboard ROI panel</span><span class="v">18× / 95% / $3.03 Sonnet · $0.81 Haiku · $15.15 Opus</span></dd>
+        </div>
+        <div class="grp">
+          <dt>Repo state (now)</dt>
+          <dd><span class="k">.cursorrules + copilot-instructions.md</span><span class="v">exist · STALE (2026-05-26, 308 files)</span></dd>
+          <dd><span class="k">.claude/skills/factstack-factstack/SKILL.md</span><span class="v">installed</span></dd>
+          <dd><span class="k">CLAUDE.md / AGENTS.md / .mcp.json</span><span class="v">absent</span></dd>
+          <dd><span class="k">.claude/settings.json (hooks)</span><span class="v">absent — no auto-refresh</span></dd>
+        </div>
+        <div class="grp">
+          <dt>Open decisions</dt>
+          <dd><span class="k">Build #1 — skills emit in browser</span><span class="v">proposed · contained · not started</span></dd>
+          <dd><span class="k">Build #2 — auto-refresh on focus/interval</span><span class="v">proposed · UX choices open</span></dd>
+          <dd><span class="k">AGENTS.md format in @factstack/skills</span><span class="v">missing · small add</span></dd>
+          <dd><span class="k">incremental analysis</span><span class="v">the real scaling lever · not built</span></dd>
+        </div>
+      </div>
+      <p class="b m" style="margin-top:16px">Companion doc: <code>docs/pack-vs-scan.html</code> — the ELI5 argument with the same experiment, for a non-builder audience.</p>
+    </section>
+
+    <div class="bottom">
+      <h2>Bottom line</h2>
+      <p class="one">The pack is a real speed-up where it counts — <strong>locating a change and its blast radius go from a hunt to a lookup</strong>. Make an agent use it with <strong>instruct + tool + refresh</strong>. Make it universal by having the <strong>web app write the pack <em>and</em> the rules files into any folder you open</strong>, and keep them fresh on focus. The day it stops helping is the day it goes stale — so the map is only ever as good as the last analyze.</p>
+    </div>
+
+    <footer>
+      <span>FACTS · .pack playbook · self-contained context handoff · 2026-06-03</span>
+      <span>agent-authored · receipts + ledger included</span>
+    </footer>
+  </main>
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="Contents">
+    <div class="lbl">Contents</div>
+    <a href="#what"><span class="n">01</span> What .pack is</a>
+    <a href="#evidence"><span class="n">02</span> The evidence</a>
+    <a href="#prefer"><span class="n">03</span> Make it prefer it</a>
+    <a href="#fresh"><span class="n">04</span> Keep it fresh</a>
+    <a href="#universal"><span class="n">05</span> Universal path</a>
+    <a href="#limits"><span class="n">06</span> Honest limits</a>
+    <a href="#ledger"><span class="n">07</span> Context ledger</a>
+  </nav>
+</div>
+
+<script>
+  // Scroll reveal + active TOC (progressive enhancement, reduced-motion aware)
+  (function(){
+    var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var revs = [].slice.call(document.querySelectorAll('.rv'));
+    if(!reduce && 'IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(es){
+        es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } });
+      }, { rootMargin:'0px 0px -12% 0px' });
+      revs.forEach(function(el){ io.observe(el); });
+    } else { revs.forEach(function(el){ el.classList.add('in'); }); }
+
+    var secs = [].slice.call(document.querySelectorAll('section[id]'));
+    var links = {}; [].slice.call(document.querySelectorAll('nav.toc a')).forEach(function(a){ links[a.getAttribute('href').slice(1)] = a; });
+    var prog = document.getElementById('prog');
+    if('IntersectionObserver' in window){
+      var io2 = new IntersectionObserver(function(es){
+        es.forEach(function(e){
+          if(e.isIntersecting){
+            Object.values(links).forEach(function(l){ l.classList.remove('on'); });
+            var id = e.target.id; if(links[id]) links[id].classList.add('on');
+            var n = e.target.querySelector('.sk .n'); if(n && prog) prog.textContent = 'section ' + n.textContent.trim() + ' / 07';
+          }
+        });
+      }, { rootMargin:'-45% 0px -50% 0px' });
+      secs.forEach(function(s){ io2.observe(s); });
+    }
+  })();
+</script>
+</body>
+</html>

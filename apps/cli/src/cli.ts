@@ -20,9 +20,11 @@
 
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, lstatSync, realpathSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, lstatSync, realpathSync, readdirSync, type Dirent } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { createServer } from 'node:http';
+import { tmpdir, homedir } from 'node:os';
+import { createServer, type IncomingMessage } from 'node:http';
+import { spawn, execFile } from 'node:child_process';
 import { Command } from 'commander';
 import kleur from 'kleur';
 import open from 'open';
@@ -49,13 +51,136 @@ import {
   osvResultsToVulnerabilities,
   normalizeNpmVersion,
   noopCache,
+  checkOutdated,
+  summarizeOutdated,
   type OsvQuery,
+  type OutdatedQuery,
 } from '@factstack/scanners';
 import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skills';
 import type { AgentArtifact, DiffArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
 import { renderCiReport } from './emitters/ci-report.js';
-import { installFreshnessHook } from './agentHook.js';
+import { installFreshnessHook, FRESHNESS_HOOK_COMMAND } from './agentHook.js';
+import { createTelemetry } from './telemetry.js';
+
+/**
+ * Cheap staleness check (ft-10): is `.facts/agent.json` older than the
+ * newest source file? Walks the tree (skipping .facts, node_modules, build
+ * outputs, and ALL dotfiles — notably .gitignore, which analyze itself
+ * rewrites), returning true on the first source file newer than the
+ * artifact. Bounded so it can't hang on a giant tree. Lets `factstack ui`
+ * re-emit a fresh artifact instead of serving a stale dashboard.
+ */
+function isArtifactStale(root: string, agentPath: string): boolean {
+  let artifactMtime: number;
+  try {
+    artifactMtime = statSync(agentPath).mtimeMs;
+  } catch {
+    return true; // missing/unreadable artifact → treat as stale
+  }
+  const IGNORE = new Set([
+    '.facts', 'node_modules', '.git', 'dist', 'build', '.next', '.turbo',
+    '.cache', '.svelte-kit', '.output', 'coverage', '.vercel', '.netlify',
+  ]);
+  const stack: string[] = [root];
+  let checked = 0;
+  const CAP = 20_000; // give up rather than hang on a pathological tree
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    // withFileTypes:true → Dirent[]. Annotate explicitly: under newer
+    // @types/node `ReturnType<typeof readdirSync>` resolves to the Buffer[]
+    // overload, which loses `.name`/`.isDirectory()`.
+    let entries: Dirent[];
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue; // skip dotfiles + dot-dirs (incl. .gitignore)
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (!IGNORE.has(e.name)) stack.push(full);
+      } else {
+        if (++checked > CAP) return false;
+        try {
+          if (statSync(full).mtimeMs > artifactMtime) return true;
+        } catch {
+          /* unreadable file — ignore */
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Read a request body with a hard size cap (ft-8). POST handlers (exec,
+ * folder browse) use this so a malicious or runaway client can't stream an
+ * unbounded body into memory. Default 1 MB — far above any real payload.
+ */
+function readBody(req: IncomingMessage, limit = 1_048_576): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk: Buffer | string) => {
+      body += chunk;
+      if (body.length > limit) {
+        req.destroy();
+        reject(new Error('request body too large'));
+      }
+    });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+// ───────── ft-6: server-backed folder browser + recents ─────────
+
+/** Recently-served projects, at ~/.factstack/recent.json (last 10). */
+const RECENT_FILE = path.join(homedir(), '.factstack', 'recent.json');
+
+function loadRecent(): Array<{ path: string; name: string; scannedAt: string }> {
+  try {
+    const parsed = JSON.parse(readFileSync(RECENT_FILE, 'utf8'));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function addRecent(folderPath: string): void {
+  try {
+    const entry = { path: folderPath, name: path.basename(folderPath), scannedAt: new Date().toISOString() };
+    const list = [entry, ...loadRecent().filter((r) => r.path !== folderPath)].slice(0, 10);
+    mkdirSync(path.dirname(RECENT_FILE), { recursive: true });
+    writeFileSync(RECENT_FILE, JSON.stringify(list, null, 2));
+  } catch {
+    // best-effort — recents are a convenience, never load-bearing
+  }
+}
+
+/**
+ * Blocklist guard for /api/browse (ft-6). Unlike the project-confined
+ * endpoints, the folder browser walks OUTSIDE the project root, so it can't
+ * use safeResolveInside; it denies system directories instead (the
+ * facts-tree validatePath model). Returns an error string when blocked, or
+ * null when the path is allowed.
+ */
+function validateBrowsePath(p: string): string | null {
+  const resolved = path.resolve(p);
+  const lower = resolved.toLowerCase();
+  const blocked = [
+    '/etc', '/usr', '/bin', '/sbin', '/var', '/root', '/boot', '/proc', '/sys',
+    '/dev', '/system', '/private/var',
+    'c:\\windows', 'c:\\program files', 'c:\\program files (x86)', 'c:\\programdata',
+  ];
+  for (const b of blocked) {
+    if (lower === b || lower.startsWith(b + '\\') || lower.startsWith(b + '/')) {
+      return `access denied: ${b}`;
+    }
+  }
+  return null;
+}
 
 const program = new Command();
 
@@ -166,6 +291,13 @@ program
       // Quiet — calibration is not load-bearing.
     }
 
+    // ft-9: local-first telemetry — numbers only (duration + file count),
+    // never throws, and sends nothing remote unless opted in + URL set.
+    await createTelemetry().recordEvent('analyze.complete', {
+      durationMs: Math.round(elapsed),
+      fileCount: result.agent.stats.fileCount,
+    });
+
     if (machine) {
       process.stdout.write(JSON.stringify({
         ok: true,
@@ -210,17 +342,29 @@ program
   .option('--no-open', "Don't auto-open the browser")
   .option('--reanalyze', 'Re-run analysis before starting the server')
   .option('-w, --watch', 'Watch source files and push live updates via SSE')
-  .action(async (target: string | undefined, opts: { port: string; open: boolean; reanalyze?: boolean; watch?: boolean }) => {
+  .option('--idle-timeout <min>', 'Auto-shutdown after N minutes with no activity (0 disables)', '30')
+  .option('--no-stale-check', 'Skip the startup staleness check (serve the existing .facts/ as-is)')
+  .action(async (target: string | undefined, opts: { port: string; open: boolean; reanalyze?: boolean; watch?: boolean; idleTimeout?: string; staleCheck?: boolean }) => {
     const root = path.resolve(target ?? '.');
     const factsDir = path.join(root, '.facts');
     const agentPath = path.join(factsDir, 'agent.json');
     const humanPath = path.join(factsDir, 'human.json');
 
-    if (opts.reanalyze || !existsSync(humanPath) || !existsSync(agentPath)) {
+    const stale =
+      !opts.reanalyze &&
+      opts.staleCheck !== false &&
+      existsSync(agentPath) &&
+      existsSync(humanPath) &&
+      isArtifactStale(root, agentPath);
+    if (opts.reanalyze || !existsSync(humanPath) || !existsSync(agentPath) || stale) {
       process.stderr.write(
-        kleur.dim(!existsSync(humanPath)
-          ? '  no existing .facts/ — running analysis first…\n'
-          : '  re-analyzing before serving…\n'),
+        kleur.dim(
+          !existsSync(humanPath)
+            ? '  no existing .facts/ — running analysis first…\n'
+            : stale
+              ? '  source changed since the last analyze — refreshing artifact…\n'
+              : '  re-analyzing before serving…\n',
+        ),
       );
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
@@ -243,12 +387,32 @@ program
     viz.project.root = root;
     viz.history = await readSnapshots(root);
 
+    // ft-6: remember this project so the picker can offer it as a recent.
+    addRecent(root);
+
     const template = readUiTemplate();
     let cached = injectInlineData(template, viz);
 
     // Serialize concurrent re-analyze calls so two overlapping POSTs can't
     // both race into writeArtifacts and leave a torn agent.json on disk.
     let reanalyzeChain: Promise<unknown> = Promise.resolve();
+
+    // Idle auto-shutdown (ft-3): if the server sees no HTTP request and no
+    // watcher reanalyze for N minutes, exit so `factstack ui` never lingers
+    // as an orphan. Reset from the request handler + reanalyzeAndPush below;
+    // `--idle-timeout 0` disables it. `stop()` is declared further down — it's
+    // only referenced inside the deferred timer, by which point it exists.
+    const idleMinutes = Number(opts.idleTimeout) || 0;
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    function resetIdle(): void {
+      if (idleMinutes <= 0) return;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        process.stderr.write(kleur.dim(`\n  idle for ${idleMinutes}m with no activity — shutting down.\n`));
+        stop();
+      }, idleMinutes * 60_000);
+      idleTimer.unref();
+    }
 
     // Live SSE subscribers. Each is a function that formats + writes
     // one event chunk to its client's response stream. Broadcast happens
@@ -264,6 +428,7 @@ program
     // Shared analyze-and-push used by both user clicks and the watcher.
     // Returns the freshly-written stats so callers can send a confirmation.
     async function reanalyzeAndPush(reason: 'user' | 'watch'): Promise<AgentArtifact['stats']> {
+      resetIdle();
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human) });
@@ -277,7 +442,34 @@ program
     }
 
     const port = Number(opts.port) || 4747;
+
+    // ft-8 security base: reject cross-origin requests (CSRF / DNS-rebind
+    // defense). The dashboard only ever calls its own origin; a malicious
+    // page that hits this localhost server gets a 403. Origin is present on
+    // POSTs + cross-origin requests; Host is present on every HTTP/1.1 request.
+    const allowedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`, `[::1]:${port}`]);
+    function isOriginAllowed(r: IncomingMessage): boolean {
+      const origin = r.headers.origin;
+      if (origin === 'null') return false; // opaque origin (file://, data:, sandboxed iframe)
+      if (origin) {
+        try {
+          return allowedHosts.has(new URL(origin).host);
+        } catch {
+          return false;
+        }
+      }
+      const host = r.headers.host;
+      if (host) return allowedHosts.has(host);
+      return true; // no Host header (HTTP/1.0) — vanishingly rare
+    }
+
     const server = createServer((req, res) => {
+      resetIdle();
+      if (!isOriginAllowed(req)) {
+        res.writeHead(403, { 'content-type': 'text/plain' });
+        res.end('Forbidden: cross-origin request rejected');
+        return;
+      }
       const url = new URL(req.url ?? '/', 'http://localhost');
       if (req.method === 'POST' && url.pathname === '/api/reanalyze') {
         // Two promise flows:
@@ -289,11 +481,12 @@ program
         //      run ahead of the user click would hold the browser for both.
         const thisRun: Promise<AgentArtifact['stats']> = reanalyzeChain
           .then(() => reanalyzeAndPush('user'));
-        reanalyzeChain = thisRun.catch(() => undefined);
+        reanalyzeChain = thisRun.catch(() => {});
         thisRun
           .then((stats) => {
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: true, stats }));
+            return stats; // satisfy promise/always-return; value is unused (terminal chain)
           })
           .catch((err: unknown) => {
             res.writeHead(500, { 'content-type': 'application/json' });
@@ -310,19 +503,26 @@ program
         // as `factstack export-skills`.
         void (async () => {
           try {
+            await readBody(req).catch(() => {}); // drain the POST body so the socket can't stall
             const a = loadAndValidate<AgentArtifact>(agentPath, 'agent');
             const h = loadAndValidate<HumanArtifact>(humanPath, 'human');
             const writer = new NodeFileWriter(root, '');
-            const result = await buildSkillsTo(writer, a, h);
+            /* Silent auto-export — never clobber a hand-authored AGENTS.md. */
+            const result = await buildSkillsTo(writer, a, h, undefined, {
+              preserveExisting: ['agents'],
+            });
             // ft-1 Layer 2: install the PostToolUse freshness hook into
             // .claude/settings.local.json so the pack re-renders after every
             // agent edit. Non-fatal — the skills still install if this fails.
             let hookInstalled = false;
+            let hookError: string | undefined;
             try {
-              installFreshnessHook(root);
+              installFreshnessHook(root, process.env.FACTSTACK_HOOK_COMMAND || undefined);
               hookInstalled = true;
-            } catch {
-              hookInstalled = false;
+            } catch (e) {
+              // Skills installed fine; surface WHY the (non-fatal) hook write
+              // failed (EACCES/EROFS/…) instead of silently dropping it.
+              hookError = e instanceof Error ? e.message : String(e);
             }
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify({
@@ -331,12 +531,226 @@ program
               files: Object.keys(result.files),
               bytesWritten: result.bytesWritten,
               hookInstalled,
+              ...(hookError ? { hookError } : {}),
             }));
           } catch (err) {
             res.writeHead(500, { 'content-type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
           }
         })();
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/deps-outdated') {
+        // ft-4: dependency freshness for the dashboard chip. Reads deps from
+        // the on-disk artifact, checks each npm dep against the registry
+        // `latest`, returns counts + the outdated list. Read-only (queries the
+        // registry, writes nothing) — a GET is appropriate.
+        void (async () => {
+          try {
+            const a = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+            const flat = flattenManifests(a.dependencyManifests);
+            const queries: OutdatedQuery[] = [];
+            let skipped = 0;
+            for (const entry of flat) {
+              if (entry.ecosystem !== 'npm') { skipped += 1; continue; }
+              const concrete = normalizeNpmVersion(entry.version);
+              if (!concrete) { skipped += 1; continue; }
+              queries.push({ ecosystem: 'npm', name: entry.name, current: concrete });
+            }
+            const results = await checkOutdated(queries, { concurrency: 8 });
+            const { total, outdated, errored } = summarizeOutdated(results);
+            res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+            res.end(JSON.stringify({
+              ok: true,
+              total,
+              outdatedCount: outdated.length,
+              errored,
+              skipped,
+              outdated: outdated.map((r) => ({ name: r.name, current: r.current, latest: r.latest })),
+            }));
+          } catch (err) {
+            res.writeHead(500, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : String(err) }));
+          }
+        })();
+        return;
+      }
+      if (req.method === 'POST' && url.pathname === '/api/exec') {
+        // ft-5: open a file (or the project) in a whitelisted editor — incl.
+        // `claude` and `codex`. Security is defense-in-depth (the layer v0's
+        // audit lacked): Origin-checked above, body-capped via readBody, file
+        // paths confined to the project via safeResolveInside, shell
+        // metacharacters rejected, and spawned with an ARG ARRAY — never a shell.
+        void (async () => {
+          const sendJson = (status: number, obj: unknown): void => {
+            if (res.headersSent) return;
+            res.writeHead(status, { 'content-type': 'application/json' });
+            res.end(JSON.stringify(obj));
+          };
+          try {
+            const body = JSON.parse(await readBody(req)) as { action?: string; editor?: string; file?: string };
+            if (body.action !== 'editor') { sendJson(400, { ok: false, error: 'unknown action' }); return; }
+
+            // Editors open a specific file (or the project root); the agent
+            // CLIs (claude/codex) always open the project DIRECTORY.
+            let fileTarget = root;
+            if (typeof body.file === 'string' && body.file.length > 0) {
+              const rel = body.file.replaceAll('\\', '/').replace(/^\.\//, '');
+              const abs = safeResolveInside(root, rel);
+              if (!abs) { sendJson(403, { ok: false, error: 'path outside project' }); return; }
+              fileTarget = abs;
+            }
+            // Belt + suspenders: reject shell metacharacters in any path we
+            // pass, even though spawn() below never uses a shell.
+            const META = /[`$;&|\n\r%^<>!"]/;
+            if (META.test(root) || META.test(fileTarget)) { sendJson(400, { ok: false, error: 'invalid characters in path' }); return; }
+
+            const EDITORS: Record<string, { bin: string; args: string[] }> = {
+              code: { bin: 'code', args: [fileTarget] },
+              cursor: { bin: 'cursor', args: [fileTarget] },
+              webstorm: { bin: 'webstorm', args: [fileTarget] },
+              subl: { bin: 'subl', args: [fileTarget] },
+              idea: { bin: 'idea', args: [fileTarget] },
+              vim: { bin: 'vim', args: [fileTarget] },
+              // Agent CLIs take a directory, not a single file → always the root.
+              claude: { bin: 'claude', args: ['--directory', root] },
+              codex: { bin: 'codex', args: ['--dir', root] },
+            };
+            const ed = String(body.editor ?? '');
+            if (!Object.prototype.hasOwnProperty.call(EDITORS, ed)) { sendJson(400, { ok: false, error: 'unknown editor' }); return; }
+            const cfg = EDITORS[ed]!;
+
+            let responded = false;
+            try {
+              const child = spawn(cfg.bin, cfg.args, { detached: true, stdio: 'ignore' });
+              child.on('error', (e: Error) => { if (!responded) { responded = true; sendJson(200, { ok: false, error: e.message, bin: cfg.bin }); } });
+              // A binary that exists but bails immediately (wrong args, not
+              // authenticated, a wrapper that exits) fires `exit` with a
+              // non-zero code, never `error`. Catch it within the window so we
+              // don't report a false success for an editor that never opened.
+              child.on('exit', (code: number | null) => {
+                if (code && !responded) { responded = true; sendJson(200, { ok: false, error: '`' + cfg.bin + '` exited with code ' + code, bin: cfg.bin }); }
+              });
+              child.unref();
+              // No error / early-exit within the window → treat as launched (a
+              // GUI editor stays alive, so we can't wait for it to finish).
+              setTimeout(() => { if (!responded) { responded = true; sendJson(200, { ok: true, bin: cfg.bin }); } }, 250);
+            } catch (e) {
+              sendJson(200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+            }
+          } catch (err) {
+            sendJson(500, { ok: false, error: err instanceof Error ? err.message : String(err) });
+          }
+        })();
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/recent') {
+        // ft-6: recently-served projects (read-only).
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ ok: true, recent: loadRecent() }));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/browse') {
+        // ft-6: server-backed directory browser for the project picker. Walks
+        // OUTSIDE the project root (so no safeResolveInside) — guarded by a
+        // system-dir blocklist + Origin (ft-8). Lists directory names only;
+        // hidden + heavy dirs (node_modules, dist, .git…) are filtered out.
+        let requested = url.searchParams.get('path') || homedir();
+        if (requested.startsWith('~')) requested = path.join(homedir(), requested.slice(1));
+        let resolved = path.resolve(requested);
+        const blockErr = validateBrowsePath(resolved);
+        if (blockErr) {
+          res.writeHead(403, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: blockErr }));
+          return;
+        }
+        // path.resolve is lexical — it normalizes `..` but does NOT follow
+        // symlinks, so a link like ~/proj/escape -> /etc would slip past the
+        // blocklist above. Resolve the real path and re-check before reading it.
+        try { resolved = realpathSync(resolved); } catch { /* missing → 404 below */ }
+        const realBlockErr = validateBrowsePath(resolved);
+        if (realBlockErr) {
+          res.writeHead(403, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: realBlockErr }));
+          return;
+        }
+        try {
+          if (!statSync(resolved).isDirectory()) {
+            res.writeHead(400, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'not a directory' }));
+            return;
+          }
+        } catch {
+          res.writeHead(404, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'path not found' }));
+          return;
+        }
+        const SKIP = new Set([
+          'node_modules', '.git', '.next', '.nuxt', '.svelte-kit', '.output',
+          '.astro', '.pnpm-store', '.vercel', '.netlify', 'dist', 'build', 'out', 'coverage',
+        ]);
+        let entries: Array<{ name: string; isDir: boolean }> = [];
+        try {
+          entries = readdirSync(resolved, { withFileTypes: true })
+            .filter((e) => !e.name.startsWith('.') && !SKIP.has(e.name))
+            .map((e) => ({ name: e.name, isDir: e.isDirectory() }))
+            .sort((a, b) => (a.isDir === b.isDir ? a.name.localeCompare(b.name) : a.isDir ? -1 : 1));
+        } catch (e) {
+          res.writeHead(403, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'cannot read directory: ' + (e instanceof Error ? e.message : String(e)) }));
+          return;
+        }
+        const isProjectRoot = entries.some(
+          (e) => !e.isDir && ['package.json', 'Cargo.toml', 'go.mod', 'pyproject.toml', 'Gemfile', 'composer.json'].includes(e.name),
+        );
+        const parentDir = path.dirname(resolved);
+        res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({
+          ok: true,
+          path: resolved,
+          parent: parentDir === resolved ? null : parentDir,
+          home: homedir(),
+          isProjectRoot,
+          entries,
+        }));
+        return;
+      }
+      if (req.method === 'GET' && url.pathname === '/api/file-history') {
+        // ft-7: the last 10 commits that touched a file. Read-only `git log`
+        // with `--follow` (tracks renames), run via execFile (arg array, no
+        // shell), cwd-pinned to the project, with a timeout. The file param is
+        // confined — no `..`, no absolute path — and failure is tolerated
+        // (no git / not a repo / untracked file → empty list, never a 500).
+        const rel = (url.searchParams.get('file') || '').replaceAll('\\', '/').replace(/^\.\//, '');
+        if (!rel || rel.includes('..') || rel.startsWith('/')) {
+          res.writeHead(400, { 'content-type': 'application/json' });
+          res.end(JSON.stringify({ ok: false, error: 'invalid file path' }));
+          return;
+        }
+        execFile(
+          'git',
+          ['log', '--format=%H|%h|%an|%aI|%s', '-10', '--follow', '--', rel],
+          { cwd: root, timeout: 5000, windowsHide: true },
+          (err, stdout) => {
+            if (res.headersSent) return;
+            if (err) {
+              // Not a repo / no git / untracked → no history, not an error.
+              res.writeHead(200, { 'content-type': 'application/json' });
+              res.end(JSON.stringify({ ok: true, file: rel, commits: [] }));
+              return;
+            }
+            const commits = String(stdout)
+              .trim()
+              .split('\n')
+              .filter(Boolean)
+              .map((line) => {
+                const [hash, short, author, date, ...msg] = line.split('|');
+                return { hash, short, author, date, message: msg.join('|') };
+              });
+            res.writeHead(200, { 'content-type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, file: rel, commits }));
+          },
+        );
         return;
       }
       if (req.method === 'GET' && url.pathname === '/api/events') {
@@ -374,7 +788,7 @@ program
       }
       if (req.method === 'GET' && url.pathname === '/api/outline') {
         const relRaw = url.searchParams.get('path') || '';
-        const rel = relRaw.replace(/\\/g, '/').replace(/^\.\//, '');
+        const rel = relRaw.replaceAll('\\', '/').replace(/^\.\//, '');
         const abs = safeResolveInside(root, rel);
         if (!abs) {
           res.writeHead(403, { 'content-type': 'text/plain' }); res.end('forbidden'); return;
@@ -404,7 +818,7 @@ program
       }
       if (req.method === 'GET' && url.pathname === '/api/file') {
         const relRaw = url.searchParams.get('path') || '';
-        const rel = relRaw.replace(/\\/g, '/').replace(/^\.\//, '');
+        const rel = relRaw.replaceAll('\\', '/').replace(/^\.\//, '');
         // Empty path → 400 instead of falling through to read root and
         // crashing with EISDIR. Also reject paths that resolve to the
         // project root itself (it's a directory, not a file).
@@ -463,13 +877,14 @@ program
       process.exit(1);
     });
 
-    server.listen(port, () => {
-      const url = `http://localhost:${port}/`;
+    server.listen(port, '127.0.0.1', () => {
+      const url = `http://127.0.0.1:${port}/`;
       const mode = opts.watch ? ' (watch)' : '';
       process.stderr.write(kleur.bold().green('FACTS UI' + mode) + kleur.dim(' · serving ') + kleur.cyan(url) + '\n');
       process.stderr.write(kleur.dim('  project: ') + agent.project.name + kleur.dim(' · ') + kleur.dim(root) + '\n');
-      process.stderr.write(kleur.dim('  press Ctrl-C to stop') + '\n');
+      process.stderr.write(kleur.dim('  press Ctrl-C to stop') + (idleMinutes > 0 ? kleur.dim(` · idle shutdown ${idleMinutes}m`) : '') + '\n');
       if (opts.open !== false) open(url).catch(() => { /* ignore */ });
+      resetIdle();
     });
 
     // Watch mode: chokidar → 500ms debounce → reanalyzeChain → SSE push.
@@ -578,6 +993,185 @@ program
     const size = statSync(outPath).size;
     process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · exported ') + kleur.cyan(relativize(outPath, process.cwd())) + kleur.dim(` (${formatBytes(size)})`) + '\n');
     process.stderr.write(kleur.dim('  open the file directly in a browser — no server required (CDN deps stripped).\n'));
+  });
+
+program
+  .command('quick [target]')
+  .description('Scan a project and open a self-contained viewer in your browser — no server, no setup. The 5-second look.')
+  .option('--reanalyze', 'Force a fresh analysis even if .facts/ already exists')
+  .option('--no-open', "Write the HTML but don't auto-open the browser")
+  .action(async (target: string | undefined, opts: { reanalyze?: boolean; open: boolean }) => {
+    const root = path.resolve(target ?? '.');
+    const factsDir = path.join(root, '.facts');
+    const agentPath = path.join(factsDir, 'agent.json');
+    const humanPath = path.join(factsDir, 'human.json');
+
+    const t0 = performance.now();
+    // Analyze if there's nothing to show yet (or --reanalyze). On an already
+    // analyzed repo this is instant — the "5-second look" is for first contact.
+    if (opts.reanalyze || !existsSync(humanPath) || !existsSync(agentPath)) {
+      process.stderr.write(kleur.dim('  scanning ') + kleur.reset(path.basename(root)) + kleur.dim('…\n'));
+      const fs = nodeFS(root);
+      const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
+    }
+
+    let agent: AgentArtifact;
+    let human: HumanArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+      human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack quick: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` to regenerate, or `factstack quick --reanalyze`.\n'));
+      process.exit(1);
+    }
+
+    const viz = humanToViz(agent, human);
+    viz.project.root = root;
+    viz.history = await readSnapshots(root);
+
+    // Self-contained HTML (CDN deps stripped so file:// opens offline-clean),
+    // written to a temp file and opened. No server → nothing left running.
+    const html = injectInlineData(stripCdnDeps(readUiTemplate()), viz);
+    const safeName =
+      (agent.project.name || 'project').replaceAll(/[^a-zA-Z0-9_-]+/g, '-').slice(0, 40) || 'project';
+    const outPath = path.join(tmpdir(), `factstack-quick-${safeName}.html`);
+    writeFileSync(outPath, html, 'utf8');
+
+    const elapsed = ((performance.now() - t0) / 1000).toFixed(1);
+    const size = statSync(outPath).size;
+    process.stderr.write(
+      kleur.bold().green('FACTS') + kleur.dim(' · quick ') + kleur.dim(`(${elapsed}s · ${formatBytes(size)})`) + '\n',
+    );
+    process.stderr.write(kleur.dim('  ') + kleur.cyan(outPath) + '\n');
+    if (opts.open !== false) {
+      open(outPath).catch(() => { /* ignore */ });
+    } else {
+      process.stderr.write(kleur.dim('  open it in a browser — no server required.\n'));
+    }
+  });
+
+program
+  .command('outdated [target]')
+  .description('Check declared npm dependencies against the registry — how many are behind the latest published version')
+  .option('--fail-on <n>', 'Exit non-zero when at least N dependencies are outdated (CI gate)')
+  .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
+  .action(async (target: string | undefined, opts: { failOn?: string; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const agentPath = path.join(root, '.facts', 'agent.json');
+
+    // Network step, like scan-vulns — never auto-analyze; keep "analyze
+    // happened" explicit.
+    if (!existsSync(agentPath)) {
+      process.stderr.write(kleur.red('factstack outdated: ') + 'no .facts/agent.json found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first; then re-run outdated.\n'));
+      process.exit(1);
+    }
+    let agent: AgentArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack outdated: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    // npm deps with a registry-resolvable version. flattenManifests dedupes
+    // across workspace packages; normalizeNpmVersion drops workspace:/file:/
+    // git: protocols the registry can't answer for.
+    const flat = flattenManifests(agent.dependencyManifests);
+    const queries: OutdatedQuery[] = [];
+    let skipped = 0;
+    for (const entry of flat) {
+      if (entry.ecosystem !== 'npm') {
+        skipped += 1;
+        continue;
+      }
+      const concrete = normalizeNpmVersion(entry.version);
+      if (!concrete) {
+        skipped += 1;
+        continue;
+      }
+      queries.push({ ecosystem: 'npm', name: entry.name, current: concrete });
+    }
+
+    if (queries.length === 0) {
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · outdated: ') + 'no registry-resolvable npm deps found.\n');
+      if (skipped > 0) process.stderr.write(kleur.dim(`  ${skipped} non-npm / non-registry deps skipped.\n`));
+      if (opts.json) process.stdout.write(JSON.stringify({ ok: true, total: 0, outdatedCount: 0, outdated: [], skipped }, null, 2) + '\n');
+      return;
+    }
+
+    process.stderr.write(
+      kleur.bold().green('FACTS') +
+        kleur.dim(' · outdated: checking ') +
+        kleur.cyan(String(queries.length)) +
+        kleur.dim(` npm dep${queries.length === 1 ? '' : 's'} against the registry…\n`),
+    );
+
+    const t0 = performance.now();
+    let results;
+    try {
+      // No explicit fetch → the checker binds Node 18+'s global fetch.
+      results = await checkOutdated(queries, { concurrency: 8 });
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack outdated: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  network error? registry unreachable? Re-run later.\n'));
+      process.exit(1);
+    }
+    const elapsedMs = performance.now() - t0;
+    const { total, outdated, errored } = summarizeOutdated(results);
+
+    if (opts.json) {
+      process.stdout.write(
+        JSON.stringify(
+          {
+            ok: true,
+            total,
+            outdatedCount: outdated.length,
+            errored,
+            skipped,
+            outdated: outdated.map((r) => ({ name: r.name, current: r.current, latest: r.latest })),
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+    } else {
+      const lines: string[] = ['', kleur.bold().green('FACTS') + kleur.dim(' · outdated'), kleur.dim('  ─────────────')];
+      if (outdated.length === 0) {
+        lines.push('  ' + kleur.green('✓') + ` all ${total} npm dep${total === 1 ? '' : 's'} on the latest version`);
+      } else {
+        const sorted = [...outdated].sort((a, b) => a.name.localeCompare(b.name));
+        const w = Math.min(44, Math.max(...sorted.map((r) => r.name.length)));
+        for (const r of sorted) {
+          lines.push('  ' + kleur.yellow('↑') + ' ' + r.name.padEnd(w) + '  ' + kleur.dim(r.current) + kleur.dim(' → ') + kleur.cyan(String(r.latest)));
+        }
+      }
+      lines.push('');
+      lines.push(
+        kleur.dim(
+          `  ${outdated.length}/${total} outdated` +
+            (errored ? ` · ${errored} unresolved` : '') +
+            (skipped ? ` · ${skipped} skipped` : '') +
+            ` · ${(elapsedMs / 1000).toFixed(1)}s`,
+        ),
+      );
+      lines.push('');
+      process.stderr.write(lines.join('\n') + '\n');
+    }
+
+    // CI gate: exit non-zero when the outdated count meets the threshold.
+    if (opts.failOn !== undefined) {
+      const threshold = Number(opts.failOn);
+      if (!Number.isFinite(threshold)) {
+        process.stderr.write(kleur.yellow(`  fail-on: ignoring non-numeric threshold "${opts.failOn}" — no CI gate applied.\n`));
+      } else if (outdated.length >= threshold) {
+        process.stderr.write(kleur.red(`  fail-on: ${outdated.length} outdated ≥ ${threshold}\n`));
+        process.exit(1);
+      }
+    }
   });
 
 program
@@ -770,8 +1364,8 @@ program
       from = existsSync(snapDir)
         ? (() => {
             const files = (statSync(snapDir).isDirectory() ? readdirSnapshotList(snapDir) : []);
-            if (!files.length) return null;
-            const pick = files[files.length - 2] ?? files[files.length - 1]!;
+            if (files.length === 0) return null;
+            const pick = files.at(-2) ?? files.at(-1)!;
             return resolveDiffEndpointArg(pick, snapDir);
           })()
         : null;
@@ -850,8 +1444,8 @@ program
       from = existsSync(snapDir)
         ? (() => {
             const files = statSync(snapDir).isDirectory() ? readdirSnapshotList(snapDir) : [];
-            if (!files.length) return null;
-            const pick = files[files.length - 2] ?? files[files.length - 1]!;
+            if (files.length === 0) return null;
+            const pick = files.at(-2) ?? files.at(-1)!;
             return resolveDiffEndpointArg(pick, snapDir);
           })()
         : null;
@@ -1002,7 +1596,12 @@ program
        Code scans, `.github/copilot-instructions.md` is GitHub's
        convention. The empty-subdir constructor variant gives us that. */
     const writer = new NodeFileWriter(root, '');
-    const result = await buildSkillsTo(writer, agent, human, formats);
+    /* Preserve a hand-authored AGENTS.md (cross-tool standard) on the
+       default path; honor an explicit `--format agents` request as
+       intent to (over)write it. */
+    const result = await buildSkillsTo(writer, agent, human, formats, {
+      preserveExisting: formats === undefined ? ['agents'] : [],
+    });
 
     if (opts.json) {
       process.stdout.write(
@@ -1012,6 +1611,7 @@ program
             formats: result.formats,
             files: Object.keys(result.files),
             bytesWritten: result.bytesWritten,
+            preserved: result.preserved,
           },
           null,
           2,
@@ -1027,6 +1627,110 @@ program
     ];
     for (const filePath of Object.keys(result.files).sort()) {
       lines.push(`  ${kleur.green('✓')} ${filePath}`);
+    }
+    for (const preservedPath of result.preserved.slice().sort()) {
+      lines.push(`  ${kleur.yellow('•')} ${preservedPath} ${kleur.dim('— kept (existing file, not overwritten)')}`);
+    }
+    lines.push('');
+    lines.push(
+      kleur.dim(
+        `  ${result.formats.length} format${result.formats.length === 1 ? '' : 's'} · ` +
+          `${Object.keys(result.files).length} file${Object.keys(result.files).length === 1 ? '' : 's'} · ` +
+          `${formatBytes(result.bytesWritten)} written`,
+      ),
+    );
+    lines.push('');
+    process.stderr.write(lines.join('\n') + '\n');
+  });
+
+program
+  .command('setup-agents [target]')
+  .description('Install/refresh the agent skill files + a PostToolUse freshness hook so AI coding agents read the FACTS pack instead of re-scanning the repo')
+  .option('--format <ids>', `Comma-separated subset of skill formats (default: all). Available: ${ALL_FORMATS.join(', ')}`)
+  .option('--hook-command <cmd>', 'Command the freshness hook runs after each edit (self-hosting repos override the default `npx factstack …`)', FRESHNESS_HOOK_COMMAND)
+  .option('--no-hook', 'Install only the skill files; skip the PostToolUse freshness hook')
+  .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
+  .action(async (target: string | undefined, opts: { format?: string; hookCommand: string; hook: boolean; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    const humanPath = path.join(root, '.facts', 'human.json');
+
+    // Same posture as export-skills: never auto-analyze — setup writes
+    // user-visible files, so the "analyze happened" decision stays explicit.
+    if (!existsSync(agentPath) || !existsSync(humanPath)) {
+      process.stderr.write(kleur.red('factstack setup-agents: ') + 'no .facts/agent.json or human.json found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first; then re-run setup-agents.\n'));
+      process.exit(1);
+    }
+
+    let agent: AgentArtifact;
+    let human: HumanArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+      human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack setup-agents: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    let formats: SkillFormatId[] | undefined;
+    if (opts.format) {
+      const requested = opts.format.split(',').map((s) => s.trim()).filter(Boolean);
+      const known = new Set<string>(ALL_FORMATS);
+      const unknown = requested.filter((id) => !known.has(id));
+      if (unknown.length > 0) {
+        process.stderr.write(kleur.red('factstack setup-agents: ') + `unknown format${unknown.length === 1 ? '' : 's'}: ${unknown.join(', ')}\n`);
+        process.stderr.write(kleur.dim(`  available: ${ALL_FORMATS.join(', ')}\n`));
+        process.exit(1);
+      }
+      formats = requested as SkillFormatId[];
+    }
+
+    const writer = new NodeFileWriter(root, '');
+    /* Preserve a hand-authored AGENTS.md on the default path; an explicit
+       `--format agents` request is treated as intent to (over)write it. */
+    const result = await buildSkillsTo(writer, agent, human, formats, {
+      preserveExisting: formats === undefined ? ['agents'] : [],
+    });
+
+    // Freshness hook (unless --no-hook). The command is configurable so a
+    // self-hosting repo (where `npx factstack` isn't the right invocation,
+    // e.g. this monorepo) can point it at the local CLI instead.
+    let hook: { added: boolean; command: string; settingsPath: string } | null = null;
+    if (opts.hook) {
+      try {
+        const r = installFreshnessHook(root, opts.hookCommand);
+        hook = { added: r.added, command: r.command, settingsPath: r.settingsPath };
+      } catch (err) {
+        process.stderr.write(kleur.yellow('factstack setup-agents: ') + 'skill files written, but the freshness hook failed: ' + (err instanceof Error ? err.message : String(err)) + '\n');
+      }
+    }
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({
+        ok: true,
+        formats: result.formats,
+        files: Object.keys(result.files),
+        bytesWritten: result.bytesWritten,
+        hook,
+      }, null, 2) + '\n');
+      return;
+    }
+
+    const lines: string[] = [
+      '',
+      kleur.bold().green('FACTS') + kleur.dim(' · setup-agents'),
+      kleur.dim('  ─────────────────'),
+    ];
+    for (const filePath of Object.keys(result.files).sort()) {
+      lines.push(`  ${kleur.green('✓')} ${filePath}`);
+    }
+    if (hook) {
+      lines.push(`  ${kleur.green('✓')} ${relativize(hook.settingsPath, root)} ${kleur.dim(hook.added ? '(freshness hook added)' : '(freshness hook already present)')}`);
+      lines.push(kleur.dim(`      runs: ${hook.command}`));
+    } else {
+      lines.push(kleur.dim('  · freshness hook skipped (--no-hook)'));
     }
     lines.push('');
     lines.push(
@@ -1214,7 +1918,7 @@ program
          predict when the diagram will be focal vs package. See
          `pickAutoView` below. */
       const diagram = opts.withDiagram ? buildAutoDiagram(to.artifact, diff) : undefined;
-      process.stdout.write(renderCiReport(diff, { ...(diagram ? { diagram } : {}) }));
+      process.stdout.write(renderCiReport(diff, (diagram ? { diagram } : {})));
     }
 
     /* --fail-on-shift: optional merge gate. Compares against the
@@ -1237,6 +1941,59 @@ program
         process.exit(1);
       }
     }
+  });
+
+program
+  .command('telemetry [action]')
+  .description('Local-first usage metrics. action: status (default) | export | reset | opt-in | opt-out')
+  .option('--json', 'Emit machine-readable JSON to stdout')
+  .action(async (action: string | undefined, opts: { json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const t = createTelemetry();
+    const act = (action ?? 'status').toLowerCase();
+
+    if (act === 'opt-in') {
+      await t.setOptedIn(true);
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · telemetry: ') + 'opted IN to anonymous remote pingback.\n');
+      process.stderr.write(kleur.dim('  remote events are sent only when FACTSTACK_TELEMETRY_URL is also set; data stays local otherwise.\n'));
+      return;
+    }
+    if (act === 'opt-out') {
+      await t.setOptedIn(false);
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · telemetry: ') + 'opted OUT. Local metrics still collected; nothing leaves this machine.\n');
+      return;
+    }
+    if (act === 'reset') {
+      await t.reset();
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · telemetry: ') + 'local metrics + install ID deleted.\n');
+      return;
+    }
+
+    const data = await t.exportData();
+    if (act === 'export' || opts.json) {
+      process.stdout.write(JSON.stringify(data, null, 2) + '\n');
+      return;
+    }
+
+    // status (TTY)
+    const m = data.metrics;
+    const typeCount = Object.keys(m.events).length;
+    const totalEvents = Object.values(m.events).reduce((a, b) => a + b, 0);
+    const avg = m.durationsMs.length > 0 ? Math.round(m.durationsMs.reduce((a, b) => a + b, 0) / m.durationsMs.length) : 0;
+    const lines = [
+      '',
+      kleur.bold().green('FACTS') + kleur.dim(' · telemetry'),
+      kleur.dim('  ─────────────'),
+      `  install ID   ${kleur.dim(data.installId ?? '(none yet)')}`,
+      `  opted in     ${data.optedIn ? kleur.green('yes') : kleur.dim('no (local only)')}`,
+      `  remote URL   ${data.remoteUrl ? kleur.cyan(data.remoteUrl) : kleur.dim('(unset — set FACTSTACK_TELEMETRY_URL)')}`,
+      `  events       ${kleur.cyan(String(totalEvents))} across ${typeCount} type${typeCount === 1 ? '' : 's'}`,
+      `  avg scan     ${avg ? kleur.cyan(avg + ' ms') : kleur.dim('—')} ${kleur.dim(`(last ${m.durationsMs.length})`)}`,
+      '',
+      kleur.dim(`  data: ${t.dir}  ·  opt in: factstack telemetry opt-in  ·  wipe: factstack telemetry reset`),
+      '',
+    ];
+    process.stderr.write(lines.join('\n') + '\n');
   });
 
 program
@@ -1411,7 +2168,7 @@ function buildAutoDiagram(
  * because exposing it through buildDiagram's surface area for one
  * caller wasn't worth the API contract. */
 function packageRoot(p: string): string | null {
-  const norm = p.replace(/\\/g, '/');
+  const norm = p.replaceAll('\\', '/');
   const match = norm.match(/^(packages|apps)\/([^/]+)/);
   if (match) return `${match[1]}/${match[2]}`;
   if (norm.startsWith('docs/')) return 'docs';
@@ -1466,7 +2223,7 @@ function loadDiffEndpoint(p: string): DiffEndpoint | null {
     return {
       artifact: synthetic,
       snapshotFile: p,
-      ...(Object.keys(overrides).length ? { overrides } : {}),
+      ...(Object.keys(overrides).length > 0 ? { overrides } : {}),
     };
   } catch {
     return null;
@@ -1486,7 +2243,7 @@ function formatBytes(n: number): string {
 }
 
 function relativize(p: string, root: string): string {
-  return path.relative(root, p).replace(/\\/g, '/');
+  return path.relative(root, p).replaceAll('\\', '/');
 }
 
 /**
@@ -1576,12 +2333,12 @@ function loadAndValidate<T>(p: string, kind: 'agent' | 'human'): T {
   let raw: string;
   try { raw = readFileSync(p, 'utf8'); }
   catch (err) {
-    throw new Error(`cannot read ${relativize(p, process.cwd())} — ${(err as Error).message}`);
+    throw new Error(`cannot read ${relativize(p, process.cwd())} — ${(err as Error).message}`, { cause: err });
   }
   let parsed: unknown;
   try { parsed = JSON.parse(raw); }
   catch (err) {
-    throw new Error(`${relativize(p, process.cwd())} is not valid JSON (${(err as Error).message}). Re-run factstack analyze.`);
+    throw new Error(`${relativize(p, process.cwd())} is not valid JSON (${(err as Error).message}). Re-run factstack analyze.`, { cause: err });
   }
   const schema = kind === 'agent' ? AgentArtifactSchema : HumanArtifactSchema;
   const result = schema.safeParse(parsed);
@@ -1600,6 +2357,9 @@ function loadAndValidate<T>(p: string, kind: 'agent' | 'human'): T {
  * the sync-ui script has copied the HTML to apps/cli/dist/ui/index.html.
  */
 function readUiTemplate(): string {
+  // NB: deliberately NOT `import.meta.dirname` — that's Node ≥20.11, but this
+  // package's engines floor is `>=20.10.0`. fileURLToPath works on the floor.
+  // oxlint-disable-next-line unicorn/prefer-import-meta-properties -- see above
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     path.join(here, 'ui', 'index.html'),
@@ -1637,9 +2397,9 @@ function readUiTemplate(): string {
 function stripCdnDeps(html: string): string {
   let out = html;
   // Remove <link rel="stylesheet" href="https://..."> (any quote style).
-  out = out.replace(/<link\s+[^>]*?href=["']https?:\/\/[^"']+["'][^>]*?>/gi, '');
+  out = out.replaceAll(/<link\s+[^>]*?href=["']https?:\/\/[^"']+["'][^>]*?>/gi, '');
   // Remove <script src="https://...">…</script> (with or without body).
-  out = out.replace(/<script\s+[^>]*?src=["']https?:\/\/[^"']+["'][^>]*?>\s*<\/script>/gi, '');
+  out = out.replaceAll(/<script\s+[^>]*?src=["']https?:\/\/[^"']+["'][^>]*?>\s*<\/script>/gi, '');
   // Replace any `import('https://...')` call expression with a stub that
   // throws a friendly error. Catches the prototype's lazy `_babelParser`
   // load (`(await import('https://esm.sh/@babel/parser')).parse;`) which
@@ -1647,7 +2407,7 @@ function stripCdnDeps(html: string): string {
   // and any CSP that disallows third-party origins. The Open-folder
   // workflow this powers is incoherent in static export anyway (there
   // is no server to re-analyze against).
-  out = out.replace(
+  out = out.replaceAll(
     /import\(\s*['"]https?:\/\/[^'"]+['"]\s*\)/gi,
     `Promise.reject(new Error('Open-folder requires the served WebUI; static exports cannot dynamically load remote modules.'))`,
   );
@@ -1663,6 +2423,6 @@ function injectInlineData(html: string, data: unknown): string {
   if (end < 0) throw new Error('closing </script> not found after data marker');
   // Escape "</script" inside strings so the inline block stays well-formed
   // (the same trick the CDN-less prototype uses).
-  const safeJson = JSON.stringify(data).replace(/<\/script/gi, '<\\/script');
+  const safeJson = JSON.stringify(data).replaceAll(/<\/script/gi, '<\\/script');
   return html.slice(0, after) + '\n' + safeJson + '\n    ' + html.slice(end);
 }

@@ -214,7 +214,7 @@ export function Files(handle: Handle<FilesProps>) {
       if (!file) {
         return (
           <ContentWithMargin>
-            <div mix={css({ gridColumn: '1' })}>
+            <div mix={css({ gridColumn: '1', minWidth: '0' })}>
               <a href="/files" mix={backLink}>← All files</a>
               <div mix={kicker}>Files · not found</div>
               <h1 mix={headline}>That path isn't in the index.</h1>
@@ -242,7 +242,7 @@ export function Files(handle: Handle<FilesProps>) {
 
       return (
         <ContentWithMargin>
-          <div mix={css({ gridColumn: '1' })}>
+          <div mix={css({ gridColumn: '1', minWidth: '0' })}>
             <a href="/files" mix={backLink}>← All files</a>
             <div mix={kicker}>Files · {file.language?.label ?? 'Unknown'}</div>
             {dir && <div mix={crumbs}>{dir}/</div>}
@@ -402,7 +402,7 @@ export function Files(handle: Handle<FilesProps>) {
 
     return (
       <ContentWithMargin>
-        <div mix={css({ gridColumn: '1' })}>
+        <div mix={css({ gridColumn: '1', minWidth: '0' })}>
           <div mix={kicker}>Files · {fmt(all.length)} {all.length === 1 ? 'file' : 'files'}</div>
           <h1 mix={headline}>Every file, ranked by weight.</h1>
           <p mix={lede}>
@@ -412,14 +412,14 @@ export function Files(handle: Handle<FilesProps>) {
           </p>
 
           <LabelNumberRow>
-            <LabelNumber label="Files"   value={fmt(all.length)} />
+            <LabelNumber label="All files" value={fmt(all.length)} />
             <LabelNumber label="Lines"   value={fmt(totalLoc)} />
             <LabelNumber label="Tokens"  value={fmt(totalTokens)} unit="cl100k" />
             <LabelNumber label="At risk" value={brokenCount + attention.filter(a => a.status === 'stale').length} last />
           </LabelNumberRow>
 
           <Section label="Heaviest" title="Top 25 by token cost">
-            <RuledTable cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto auto">
+            <RuledTable minWidth="38rem" cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto auto">
               <RuledRow header>
                 <RuledCell header>Name</RuledCell>
                 <RuledCell header>Folder</RuledCell>
@@ -450,7 +450,7 @@ export function Files(handle: Handle<FilesProps>) {
 
           {attention.length > 0 && (
             <Section label="Needs attention" title={`${attention.length} ${attention.length === 1 ? 'file' : 'files'} flagged`}>
-              <RuledTable cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto">
+              <RuledTable minWidth="32rem" cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto">
                 <RuledRow header>
                   <RuledCell header>Name</RuledCell>
                   <RuledCell header>Folder</RuledCell>
@@ -482,6 +482,11 @@ export function Files(handle: Handle<FilesProps>) {
         <MarginColumn>
           <FootnoteChip label="Click any row" tone="accent">
             Drills into the file's outline, imports, callers, and TODOs.
+          </FootnoteChip>
+          <FootnoteChip label="Counts">
+            Every file in the tree — configs, docs, and assets included,
+            not just source. That's why this runs higher than the Overview's
+            source-file headline.
           </FootnoteChip>
           <FootnoteChip label="Sort">
             Heaviest first by default. Symbol-level outline lands with v0.4.6.

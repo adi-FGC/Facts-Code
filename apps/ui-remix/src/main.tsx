@@ -12,7 +12,7 @@
  * No React here. No ReactDOM. The build is React-free top to bottom.
  */
 import { createRoot } from 'remix/ui';
-import { App, DATA_READY_EVENT } from './App.tsx';
+import { App } from './App.tsx';
 
 // Design system — must load before app render so first paint is styled.
 import '@factstack/ui-theme/tokens.css';
@@ -23,18 +23,14 @@ import './styles/app.css';
 const container = document.getElementById('root');
 if (!container) throw new Error('#root element missing from index.html');
 
+// Mount the app ONCE. All navigation reactivity lives inside <AppRouter/>
+// (App.tsx), which re-renders via its own `handle.update()` on popstate +
+// `factstack:nav` + data-ready. We deliberately do NOT call root.render()
+// again on those events: repeated `createRoot().render()` is not re-entrant
+// in this VDOM and silently blanks #root on the 2nd+ call (the old
+// "blank on client navigation, fine on refresh" bug).
 const root = createRoot(container);
-const rerender = () => root.render(<App />);
-
-// Re-render on URL changes so the route table picks up navigations.
-// This is the SPA shim for the Frame-less mount: instead of relying on
-// Remix's frame router, we listen for popstate + a custom `factstack:nav`
-// event (dispatched by the in-app `navigate()` helper) and ask the root
-// to render the App again.
-window.addEventListener('popstate', rerender);
-window.addEventListener('factstack:nav', rerender);
-window.addEventListener(DATA_READY_EVENT, rerender);
-rerender();
+root.render(<App />);
 
 // Global click-delegation for internal <a href="..."> links. We do it at
 // the document level instead of via a per-element `on('click', ...)` mixin

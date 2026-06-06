@@ -138,9 +138,10 @@ function renderCursorRules(spec: SkillSpec): string {
        stays where readers expect it; the body is the canonical FACTS
        operating contract. */
   lines.push('');
-  lines.push(...workflowContract(spec, 'Workflow conventions'));
   lines.push(
-    '5. **Match the codebase.** Follow existing structure + naming; prefer extending a module over adding one unless a real seam (2+ adapters) justifies it.',
+    ...workflowContract(spec, 'Workflow conventions', [
+      '**Match the codebase.** Follow existing structure + naming; prefer extending a module over adding one unless a real seam (2+ adapters) justifies it.',
+    ]),
   );
 
   /* ── Footer ───────────────────────────────────────────────────── */

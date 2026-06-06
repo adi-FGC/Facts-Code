@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphify — Knowledge File</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel2:#1c2230; --ink:#e6edf3; --muted:#9aa7b4;
+    --line:#2b3340; --accent:#7c5cff; --accent2:#2ea043; --warn:#e3b341; --danger:#f85149;
+    --code:#0b0f14; --chip:#21262d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:#cdd6e0}
+  p{margin:10px 0}
+  a{color:#9d8bff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 18px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+  .badge{background:var(--chip);border:1px solid var(--line);border-radius:20px;
+    padding:4px 12px;font-size:12.5px;color:#cbd5e1}
+  .badge b{color:#fff}
+  .accent{color:var(--accent)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600}
+  td code,p code,li code{background:var(--code);border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font:12.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#b9c4d0}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    overflow:auto;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c3cdd9}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .callout{background:linear-gradient(180deg,#1a2030,#161b22);border:1px solid #34406b;
+    border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#bcabff}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;background:#2a2150;border:1px solid #4a3aa0;color:#cbbcff;
+    border-radius:6px;padding:1px 7px;font-size:11.5px;margin-left:6px;vertical-align:middle}
+  .pass{color:var(--accent2);font-weight:600}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0}
+  .kv span{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Graphify <span class="tag">3rd-party · knowledge file</span></h1>
+  <p class="lead">“Type <code>/graphify</code> and it maps your entire project — code, docs, PDFs, images, videos — into a queryable knowledge graph you query instead of grepping.” Self-described as <b>“The Memory Layer.”</b></p>
+
+  <div class="badges">
+    <span class="badge">⭐ <b>60,060</b> stars</span>
+    <span class="badge">🍴 <b>6,232</b> forks</span>
+    <span class="badge">License <b>MIT</b></span>
+    <span class="badge">Lang <b>Python</b></span>
+    <span class="badge">Backing <b>YC&nbsp;S26</b></span>
+    <span class="badge">PyPI <b>graphifyy</b></span>
+    <span class="badge">Created <b>2026-04-03</b></span>
+    <span class="badge">Active <b>2026-06-06</b></span>
+  </div>
+  <div class="kv">
+    <span>Repo: github.com/safishamsi/graphify</span>
+    <span>Site: graphifylabs.ai</span>
+    <span>CLI: <code>graphify</code> · Skill: <code>/graphify</code></span>
+    <span>Topics: graphrag, knowledge-graph, leiden, tree-sitter, rag</span>
+  </div>
+
+  <h2>1 · What it is &amp; positioning</h2>
+  <p>Graphify is a <b>knowledge-graph builder distributed as an AI-assistant skill</b>. You run <code>/graphify .</code> inside your coding agent and it turns a folder into a graph of entities and relationships, then your agent <b>queries the graph instead of reading raw files</b>. Its differentiator vs. pure code-graph tools is <b>multi-modality</b>: “app code + database schema + infrastructure in one graph,” plus docs, papers, images, and video/audio.</p>
+  <p>It is the largest and most mature of the three systems (60k+ stars, YC-backed, an accompanying book <i>The Memory Layer</i>, an active commercial entity at graphifylabs.ai). MIT-licensed core, with paid/extra modalities as opt-in installs.</p>
+
+  <h2>2 · Architecture</h2>
+  <p>A clean functional pipeline; each stage is one module communicating via plain dicts + NetworkX graphs, with no side effects outside <code>graphify-out/</code>.</p>
+  <pre>detect() → extract() → build_graph() → cluster() → analyze() → report() → export()</pre>
+  <table>
+    <tr><th>Module</th><th>Responsibility</th></tr>
+    <tr><td><code>detect.py</code></td><td>Collect &amp; filter files from the root</td></tr>
+    <tr><td><code>extract.py</code></td><td>file → <code>{nodes, edges}</code> (tree-sitter AST + call-graph 2nd pass)</td></tr>
+    <tr><td><code>build.py</code></td><td>extraction dicts → <code>nx.Graph</code></td></tr>
+    <tr><td><code>cluster.py</code></td><td>Leiden community detection → <code>community</code> attr per node</td></tr>
+    <tr><td><code>analyze.py</code></td><td>god nodes, surprising connections, suggested questions</td></tr>
+    <tr><td><code>report.py</code></td><td>renders <code>GRAPH_REPORT.md</code></td></tr>
+    <tr><td><code>export.py</code></td><td>graph.json / graph.html / graph.svg / Obsidian vault</td></tr>
+    <tr><td><code>callflow_html.py</code></td><td>Mermaid architecture / call-flow HTML</td></tr>
+    <tr><td><code>serve.py</code></td><td>MCP stdio server over a graph file</td></tr>
+    <tr><td><code>cache.py</code></td><td>SHA256 semantic cache (skip unchanged files)</td></tr>
+    <tr><td><code>security.py</code> / <code>validate.py</code></td><td>input sanitization + extraction-schema validation</td></tr>
+    <tr><td><code>affected.py</code> · <code>dedup.py</code> · <code>scip_ingest.py</code> · <code>global_graph.py</code> · <code>prs.py</code></td><td>blast-radius, ghost-dup merge, SCIP import, cross-project graph, PR tooling</td></tr>
+  </table>
+
+  <h3>The three extraction passes</h3>
+  <div class="grid">
+    <div class="card"><h3><span class="pass">Pass 1 — Code</span></h3><p>Tree-sitter AST, <b>fully local, no API calls</b>. ~25–28 grammars. Classes, functions, imports, call graphs, inline comments. SQL gets special treatment: tables, views, foreign keys, JOIN relationships. A code-only corpus skips Pass 3 entirely &amp; needs no API key.</p></div>
+    <div class="card"><h3><span class="pass">Pass 2 — Video/Audio</span></h3><p>Transcribed locally with <code>faster-whisper</code>. The transcription prompt is <b>seeded with the top god-nodes</b> from the code graph so transcripts focus on your domain. Cached across re-runs.</p></div>
+    <div class="card"><h3><span class="pass">Pass 3 — Docs/Papers/Images</span></h3><p>Claude (or other backend) subagents run <b>in parallel</b> over markdown/PDF/image/transcripts; each emits a JSON fragment of nodes/edges; fragments merge into one graph. This is the only pass that costs tokens.</p></div>
+    <div class="card"><h3>Graph format</h3><p>NetworkX node-link <code>graph.json</code>. Node: <code>id, label, file_type, source_file</code>. Edge: <code>source, target, relation, confidence, confidence_score, source_file</code>. Hyperedges (3+ nodes) live in <code>G.graph["hyperedges"]</code>.</p></div>
+  </div>
+
+  <h2>3 · Signature features</h2>
+  <ul>
+    <li><b>Confidence / provenance tagging</b> on every edge — <code>EXTRACTED</code> (1.0), <code>INFERRED</code> (discrete rubric 0.55–0.95 with a <code>confidence_score</code>), <code>AMBIGUOUS</code> (flagged for human review). You always know what was found vs. guessed.</li>
+    <li><b>Leiden community detection</b> — modules discovered by edge density. <b>No embeddings / no vector DB</b>: the graph structure (incl. <code>semantically_similar_to</code> edges) is the similarity signal.</li>
+    <li><b>God nodes</b> (most-connected concepts), <b>surprising connections</b> (cross-module links ranked by unexpectedness), <b>suggested questions</b> (4–5 the graph is uniquely positioned to answer).</li>
+    <li><b>The “why”</b> — <code># NOTE:</code> / <code># WHY:</code> / <code># HACK:</code> comments, docstrings, and design rationale become <b>first-class nodes</b> linked to the code they explain.</li>
+    <li><b>Multi-modal corpus</b> — code, SQL, Terraform/HCL, MCP configs, docs (md/mdx/rst/html/yaml), Office (docx/xlsx), Google Workspace, PDF, images, video/audio, and YouTube/URLs via <code>graphify add &lt;url&gt;</code>.</li>
+    <li><b>PR intelligence</b> — <code>graphify prs</code> (CI/review/worktree state), <code>prs 42</code> (graph impact of a PR), <code>prs --triage</code> (AI-ranked review queue), <code>prs --conflicts</code> (PRs sharing graph communities = merge-order risk).</li>
+  </ul>
+
+  <h2>4 · Interface &amp; commands</h2>
+  <pre>/graphify .                       # build graph for current folder
+/graphify ./docs --update         # re-extract only changed files
+/graphify . --cluster-only        # rerun clustering without re-extracting
+/graphify . --wiki                # agent-crawlable markdown wiki
+graphify export callflow-html     # Mermaid call-flow HTML
+
+/graphify query "what connects auth to the database?"
+/graphify path "UserService" "DatabasePool"
+/graphify explain "RateLimiter"
+/graphify add https://arxiv.org/abs/1706.03762   # fetch + add a paper
+
+graphify hook install             # auto-rebuild on git commit (AST only, free)
+graphify merge-graphs a.json b.json
+graphify prs --triage             # AI ranks your review queue</pre>
+  <p><b>MCP server</b> (<code>python -m graphify.serve graph.json</code>) exposes: <code>query_graph</code>, <code>get_node</code>, <code>get_neighbors</code>, <code>shortest_path</code>, <code>list_prs</code>, <code>get_pr_impact</code>, <code>triage_prs</code>.</p>
+  <p>Querying is <b>natural-language → subgraph</b>, not fixed verbs: it returns a minimal relevant slice of the graph.</p>
+
+  <h2>5 · Distribution &amp; adoption model</h2>
+  <ul>
+    <li><b>Skill into ~20 assistants</b>: Claude Code, Codex, OpenCode, Kilo, Cursor, Gemini CLI, Copilot (CLI + VS Code), Aider, Amp, OpenClaw, Factory Droid, Trae, Hermes, Kimi, Kiro, Pi, Devin, Google Antigravity. <code>graphify install [--project] [--platform X]</code>.</li>
+    <li><b>One-line install</b>: <code>uv tool install graphifyy</code> / <code>pipx install graphifyy</code> (both manage PATH); optional extras <code>[pdf] [office] [video] [mcp] [neo4j] [sql] [terraform] [all]</code>.</li>
+    <li><b>Always-on “query-first” nudging</b>: persistent instruction files (<code>AGENTS.md</code>, <code>.cursor/rules/*.mdc alwaysApply</code>, <code>CLAUDE.md</code>) <i>plus</i> payload-bearing hooks (Claude Code, Gemini, Kilo plugin) that fire <b>before search/Read/Glob tool calls</b> and push the agent toward <code>graphify query</code> rather than grepping.</li>
+    <li><b>Pluggable backends</b>: Claude, Gemini, OpenAI, DeepSeek, Kimi/Moonshot, <b>Ollama (fully local)</b>, AWS Bedrock (IAM, no key).</li>
+  </ul>
+
+  <h2>6 · Team / VCS workflow</h2>
+  <ul>
+    <li><code>graphify-out/</code> is <b>meant to be committed</b> — one person builds, everyone pulls the map; their assistant reads it immediately.</li>
+    <li><b>Git post-commit hook</b> auto-rebuilds (AST only, no API cost) and installs a <b>git merge driver</b> so <code>graph.json</code> is <b>union-merged</b> — never left with conflict markers.</li>
+    <li><b>Portable <code>manifest.json</code></b> (relative paths, re-anchored on load) so committing avoids a full rebuild on first checkout.</li>
+    <li><code>.graphifyignore</code> (gitignore syntax + <code>!</code> negation); respects <code>.gitignore</code> automatically.</li>
+  </ul>
+
+  <h2>7 · Performance &amp; scale</h2>
+  <table>
+    <tr><th>Mechanism</th><th>Detail</th></tr>
+    <tr><td>SHA256 content cache</td><td>Per-file fingerprint; re-runs skip unchanged files (<code>graphify-out/cache/</code>)</td></tr>
+    <tr><td>Parallel AST</td><td><code>ProcessPoolExecutor</code> (bypasses the GIL) — ~1.66× faster on 84 files; parallel Claude subagents for docs</td></tr>
+    <tr><td>Incremental</td><td><code>--update</code> re-extracts only changed files; <code>--force</code> overwrites smaller rebuilds</td></tr>
+    <tr><td>Big-graph degradation</td><td><code>--no-viz</code> &amp; <code>cluster-only</code> when &gt;5000 nodes (HTML too heavy)</td></tr>
+    <tr><td>Ghost-dup merge</td><td>AST-vs-semantic duplicates auto-merged at build time (<code>dedup.py</code>/<code>semantic_cleanup.py</code>)</td></tr>
+  </table>
+  <p><b>Token benchmark:</b> on a mixed corpus (Karpathy repos + 5 papers + 4 images, 52 files) graphify reports <b>71.5× fewer tokens per query</b> vs reading raw files; savings scale with corpus size (≈1× at 6 files — there the value is structural clarity, not compression). Runnable <code>worked/</code> folders ship the raw inputs + actual outputs to reproduce.</p>
+
+  <h2>8 · Security &amp; privacy</h2>
+  <ul>
+    <li><b>Dedicated security module</b> + documented threat model (<code>SECURITY.md</code>): <code>validate_url()</code> (http/https only, blocks <code>file://</code> redirects), <code>safe_fetch()</code> (size cap + timeout), <code>validate_graph_path()</code> (must resolve inside <code>graphify-out/</code>), <code>sanitize_label()</code> (strip control chars, cap 256, HTML-escape).</li>
+    <li><b>Local by default</b>: code via tree-sitter and audio via faster-whisper never leave the machine; only docs/PDF/image semantic extraction hits a model API. <b>No telemetry.</b></li>
+    <li><b>Query logging</b> (local JSONL at <code>~/.cache/graphify-queries.log</code>; responses off by default; opt-out env vars).</li>
+  </ul>
+
+  <div class="callout">
+    <h3>↳ Relevance to FACTS / FactsPack</h3>
+    <p>Graphify is the “graph-intelligence &amp; reach” benchmark. The pieces most worth borrowing into FACTS:</p>
+    <ul>
+      <li><b>Confidence tagging</b> (<code>EXTRACTED/INFERRED/AMBIGUOUS</code>) — cheap, and perfectly aligned with FACTS’s deterministic/inspectable ethos. Add a <code>confidence</code> column to FactsPack edge tables.</li>
+      <li><b>Leiden clustering + god-nodes + surprising connections + the “why”</b> — turns FACTS’s dependency graph into <i>insight</i>, and feeds the CXO dashboard real material.</li>
+      <li><b>NL query → minimal subgraph</b> — graduate FACTS beyond fixed verbs (callers/imports/cycles/orphans), returning a FactsPack-encoded slice.</li>
+      <li><b>Skill + one-line installer + always-on query-first hooks</b> — the adoption engine FACTS lacks (it is MCP-config-only today).</li>
+      <li><b>Committable graph + merge driver + post-commit hook</b> — make <code>.facts/</code> a team artifact, not a per-machine cache.</li>
+      <li><b>Reproducible, runnable benchmarks</b> — FACTS has spec-level token tables; graphify ships <code>worked/</code> folders. Credibility.</li>
+      <li><b>Multi-modality &amp; SQL/IaC extraction</b> — the “whole-stack in one graph” story; tree-sitter or SCIP ingest to escape JS/TS-only.</li>
+    </ul>
+    <p><b>Where FACTS still differentiates:</b> the <b>FactsPack wire format</b> (graphify ships full <code>graph.json</code>, no token-optimized transport), a <b>human/CXO editorial dashboard</b>, and built-in <b>secrets detection</b>.</p>
+  </div>
+
+  <footer>
+    Knowledge captured 2026-06-06 from <a href="https://github.com/safishamsi/graphify">github.com/safishamsi/graphify</a>
+    (README, ARCHITECTURE.md, docs/how-it-works.md, repo tree &amp; metadata) and <a href="https://graphifylabs.ai">graphifylabs.ai</a>.
+    Star/fork/version figures are point-in-time. Not affiliated; for internal competitive analysis of the FACTS / FactsPack project.
+  </footer>
+
+</div>
+</body>
+</html>

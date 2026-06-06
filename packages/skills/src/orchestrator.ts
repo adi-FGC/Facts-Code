@@ -48,6 +48,30 @@ export interface BuildSkillsResult {
   bytesWritten: number;
   /** Format IDs actually rendered (filtered against the registry). */
   formats: SkillFormatId[];
+  /** Paths skipped because they already existed and their format was in
+   *  `preserveExisting` (e.g. a hand-authored `AGENTS.md`). */
+  preserved: string[];
+}
+
+export interface BuildSkillsOptions {
+  /**
+   * Formats whose output file is left untouched if it already exists on
+   * the writer. The intended use is `['agents']`: `AGENTS.md` is a
+   * cross-tool standard a team often hand-authors, so FACTS must not
+   * silently clobber it. The other rules files (`.cursorrules`, Copilot,
+   * Claude `SKILL.md`) are FACTS-managed config and always refresh.
+   */
+  preserveExisting?: SkillFormatId[];
+}
+
+/** True when `path` already exists on the writer (its dir listing
+ *  contains the basename). Uses only `FileWriter.listKeys` — the read
+ *  capability the interface exposes — so no `readText` is needed. */
+async function fileExists(writer: FileWriter, path: string): Promise<boolean> {
+  const slash = path.lastIndexOf('/');
+  const dir = slash >= 0 ? path.slice(0, slash) : '';
+  const name = slash >= 0 ? path.slice(slash + 1) : path;
+  return (await writer.listKeys(dir)).includes(name);
 }
 
 /**
@@ -64,22 +88,32 @@ export async function buildSkillsTo(
   agent: AgentArtifact,
   human: HumanArtifact,
   formats?: SkillFormatId[],
+  opts?: BuildSkillsOptions,
 ): Promise<BuildSkillsResult> {
   const targetIds = (formats ?? ALL_FORMATS).filter(
     (id): id is SkillFormatId => id in SKILL_REGISTRY,
   );
+  const preserve = new Set<SkillFormatId>(opts?.preserveExisting ?? []);
   const spec: SkillSpec = agentToSkillSpec(agent, human);
 
   const allFiles: Record<string, string> = {};
+  const preserved: string[] = [];
   let bytes = 0;
   for (const id of targetIds) {
     const renderer = SKILL_REGISTRY[id];
     const files = renderer.render(spec);
     for (const [path, body] of Object.entries(files)) {
+      /* Don't clobber a file the user may have hand-authored (e.g.
+         AGENTS.md). Only formats opted into `preserveExisting` are
+         guarded; everything else is FACTS-managed and refreshes. */
+      if (preserve.has(id) && (await fileExists(writer, path))) {
+        preserved.push(path);
+        continue;
+      }
       allFiles[path] = body;
       bytes += await writer.writeText(path, body);
     }
   }
 
-  return { files: allFiles, bytesWritten: bytes, formats: targetIds };
+  return { files: allFiles, bytesWritten: bytes, formats: targetIds, preserved };
 }

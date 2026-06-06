@@ -8,13 +8,36 @@ packages:
 allowBuilds:
   esbuild: true
 
+minimumReleaseAgeExclude:
+  - '@remix-run/assert@0.3.0'
+  - '@remix-run/assets@0.4.3'
+  - '@remix-run/async-context-middleware@0.3.3'
+  - '@remix-run/auth-middleware@0.2.3'
+  - '@remix-run/auth@0.2.5'
+  - '@remix-run/cli@0.3.3'
+  - '@remix-run/compression-middleware@0.1.11'
+  - '@remix-run/cop-middleware@0.1.6'
+  - '@remix-run/cors-middleware@0.1.6'
+  - '@remix-run/csrf-middleware@0.1.6'
+  - '@remix-run/fetch-router@0.20.0'
+  - '@remix-run/form-data-middleware@0.3.3'
+  - '@remix-run/logger-middleware@0.3.3'
+  - '@remix-run/method-override-middleware@0.1.11'
+  - '@remix-run/render-middleware@0.1.3'
+  - '@remix-run/route-pattern@0.22.1'
+  - '@remix-run/session-middleware@0.3.3'
+  - '@remix-run/static-middleware@0.4.12'
+  - '@remix-run/test@0.5.0'
+  - remix@3.0.0-beta.4
+
 # scheduleUpdate queue-fix: the default #scheduleUpdate in @remix-run/ui
 # throws 'scheduleUpdate not implemented', which surfaces as an unhandled
 # rejection when a component calls handle.update() synchronously from its
 # setup body (before renderComponent wires the real scheduler). The patch
 # makes the default queue the request and replay it once setScheduleUpdate
-# installs the real one. Still required as of 0.3.0 (remix beta.3) — the fix
-# was NOT adopted upstream. Re-roll via `pnpm patch @remix-run/ui@<ver>` on
+# installs the real one. Still required as of 0.3.0 (remix beta.4) — @remix-run/ui
+# stayed 0.3.0 across the beta.3→beta.4 bump and the fix was NOT adopted upstream.
+# Re-roll via `pnpm patch @remix-run/ui@<ver>` only when @remix-run/ui itself bumps
 # the next bump if the throw is still present.
 patchedDependencies:
   '@remix-run/ui@0.3.0': patches/@remix-run__ui@0.3.0.patch

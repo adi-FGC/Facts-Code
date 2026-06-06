@@ -28,7 +28,14 @@
 
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 import { humanToViz } from '@factstack/emit/pure';
-import { writeBrowserArtifacts, type BrowserWriteResult, type EmitProfile } from '@factstack/emit-browser';
+import {
+  writeBrowserArtifacts,
+  writeBrowserSkills,
+  type BrowserWriteResult,
+  type BrowserSkillsResult,
+  type EmitProfile,
+  type SkillFormatId,
+} from '@factstack/emit-browser';
 import type { GitHubFetchSpec } from '@factstack/fs-browser';
 import type { ScanRequest, ScanResponse } from '../scanner.worker.ts';
 import type { Dataset } from './loadArtifacts.ts';
@@ -187,6 +194,36 @@ export async function saveArtifacts(
     human,
     ...(opts.profile !== undefined && { profile: opts.profile }),
     ...(opts.memoryBody !== undefined && { memoryBody: opts.memoryBody }),
+  });
+}
+
+/**
+ * Write the agent-instruction / skill files (.cursorrules, AGENTS.md,
+ * .github/copilot-instructions.md, .claude/skills/<name>/SKILL.md …) to
+ * the PROJECT ROOT of the picked directory, so any AI coding agent that
+ * opens this folder is told to prefer `.facts/agent.pack` + the FACTS
+ * MCP over re-scanning. Pairs with `saveArtifacts` (which writes the pack
+ * itself). Same permission upgrade as `saveArtifacts`.
+ *
+ * Kept here (not the main bundle) because scannerBridge is dynamically
+ * imported — `@factstack/skills` rides the lazy scan chunk, not cold
+ * start.
+ */
+export async function saveSkills(
+  destination: FileSystemDirectoryHandle,
+  agent: AgentArtifact,
+  human: HumanArtifact,
+  opts: { formats?: SkillFormatId[] } = {},
+): Promise<BrowserSkillsResult> {
+  const granted = await ensureWritePermission(destination);
+  if (!granted) {
+    throw new Error('Write permission denied for ' + destination.name);
+  }
+  return writeBrowserSkills({
+    root: destination,
+    agent,
+    human,
+    ...(opts.formats !== undefined && { formats: opts.formats }),
   });
 }
 

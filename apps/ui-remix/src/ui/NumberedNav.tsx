@@ -10,7 +10,7 @@
  * as editorial annotation rather than a status badge.
  */
 import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import { css, ref } from 'remix/ui';
 import { TABS, activeTab } from '../lib/routes.ts';
 
 /**
@@ -43,6 +43,12 @@ const wrap = css({
   scrollbarWidth: 'none',     /* Firefox */
   /* WebKit: pseudo-element selector escape hatch for the css() runtime. */
   '&::-webkit-scrollbar': { display: 'none', width: '0', height: '0' },
+  /* Phone: the scrollbar is hidden, so fade both edges to signal the row
+     scrolls. QA ISSUE-2 affordance — pairs with scroll-active-into-view. */
+  '@media (max-width: 599px)': {
+    maskImage: 'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
+    WebkitMaskImage: 'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
+  },
 });
 
 const link = css({
@@ -114,11 +120,49 @@ const portingMark = css({
   flex: 'none',
 });
 
-export function NumberedNav(_h: Handle<{}>) {
+export function NumberedNav(handle: Handle<{}>) {
+  /* Follow client-side navigation so the active-tab number + underline track
+     the URL. The app no longer re-renders from the root on nav (that blanked
+     the tree); instead each pathname-reading component owns its own nav
+     subscription + handle.update(). See App.tsx RouteView. */
+  let navEl: HTMLElement | null = null;
+
+  /* Keep the active tab visible when the row overflows (phones): center
+     it in the scroll container so its neighbours stay one swipe away. On
+     desktop the row fits, so scrollIntoView is a no-op. */
+  function scrollActiveIntoView() {
+    if (!navEl) return;
+    const active = navEl.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!active) return;
+    /* Center the active tab inside the nav's OWN horizontal scroll by
+       setting scrollLeft directly. scrollIntoView() would also scroll the
+       page vertically (it nudges every scrollable ancestor), which pushed
+       the brand + controls row off the top on phones. The browser clamps
+       scrollLeft to its valid range, so no manual bounds needed. */
+    const navRect = navEl.getBoundingClientRect();
+    const tabRect = active.getBoundingClientRect();
+    navEl.scrollLeft += (tabRect.left - navRect.left) - (navRect.width - tabRect.width) / 2;
+  }
+
+  const onNav = () => {
+    void handle.update();
+    /* rAF so the patched DOM (new active tab) exists before we scroll. */
+    requestAnimationFrame(scrollActiveIntoView);
+  };
+  window.addEventListener('popstate', onNav);
+  window.addEventListener('factstack:nav', onNav);
+  handle.signal.addEventListener('abort', () => {
+    window.removeEventListener('popstate', onNav);
+    window.removeEventListener('factstack:nav', onNav);
+  });
   return () => {
     const current = activeTab(location.pathname);
     return (
-      <nav role="tablist" aria-label="Primary navigation" mix={wrap}>
+      <nav
+        role="tablist"
+        aria-label="Primary navigation"
+        mix={[wrap, ref<HTMLElement>((node) => { navEl = node; scrollActiveIntoView(); })]}
+      >
         {TABS.map((t, i) => {
           const isActive = t.key === current;
           const idx = String(i + 1).padStart(2, '0');

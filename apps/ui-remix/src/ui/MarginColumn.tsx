@@ -23,7 +23,12 @@ export function ContentWithMargin(handle: Handle<ContentWithMarginProps>) {
     <div
       mix={css({
         display: 'grid',
-        gridTemplateColumns: '1fr var(--margin-col-w)',
+        /* minmax(0, 1fr) not 1fr: a bare 1fr track's min is min-content,
+           which lets a wide child (e.g. a min-width table on the Files
+           tab) blow the column past the viewport instead of letting an
+           inner scroll container scroll. Identical to 1fr for normal
+           text content; only prevents the blowout. */
+        gridTemplateColumns: 'minmax(0, 1fr) var(--margin-col-w)',
         columnGap: 'var(--gutter)',
         rowGap: 'var(--space-8)',
         maxWidth: 'var(--content-max)',
@@ -35,7 +40,7 @@ export function ContentWithMargin(handle: Handle<ContentWithMarginProps>) {
            column and any `<MarginColumn>` block stacks underneath the
            body chunk it was annotating. */
         '@media (max-width: 1279px)': {
-          gridTemplateColumns: '1fr',
+          gridTemplateColumns: 'minmax(0, 1fr)',
         },
       })}
     >

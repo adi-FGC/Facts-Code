@@ -376,7 +376,7 @@ export function Config(handle: Handle<ConfigProps>) {
                   NAME (mono, headline) → COUNT (how many places it's
                   read) → DEFAULT (literal if any) → ACCESS pattern.
                   Click a row → first read site in /files detail. */}
-              <RuledTable cols="minmax(0, 1.2fr) auto auto auto auto">
+              <RuledTable minWidth="34rem" cols="minmax(0, 1.2fr) auto auto auto auto">
                 <RuledRow header>
                   <RuledCell header>Name</RuledCell>
                   <RuledCell header align="right">Reads</RuledCell>

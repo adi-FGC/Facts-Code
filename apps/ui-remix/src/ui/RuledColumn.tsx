@@ -21,23 +21,44 @@ interface TableProps {
   /** CSS grid-template-columns value, e.g. "120px 1fr auto". */
   cols: string;
   children: RemixNode;
+  /**
+   * Floor width for the grid. When set, the table becomes a
+   * horizontally-scrollable region below this width instead of crushing
+   * its columns — the responsive-table pattern for dense, multi-column
+   * data on narrow screens. Omit it (the default) and the table renders
+   * exactly as before, no wrapper.
+   *
+   * Desktop is unaffected: the content column is wider than any sane
+   * `minWidth`, so the wrapper never scrolls there.
+   */
+  minWidth?: string;
 }
+
+/* The scroll host. A thin native scrollbar IS the affordance here —
+   unlike the nav chrome, we WANT users to discover the table scrolls. */
+const scrollHost = css({
+  overflowX: 'auto',
+  scrollbarWidth: 'thin',
+  WebkitOverflowScrolling: 'touch',
+});
 
 export function RuledTable(handle: Handle<TableProps>) {
   return () => {
-    const { cols, children } = handle.props;
-    return (
+    const { cols, children, minWidth } = handle.props;
+    const grid = (
       <div
         role="table"
         mix={css({
           display: 'grid',
           gridTemplateColumns: cols,
           borderTop: '1px solid var(--hairline)',
+          ...(minWidth ? { minWidth } : {}),
         })}
       >
         {children}
       </div>
     );
+    return minWidth ? <div mix={scrollHost}>{grid}</div> : grid;
   };
 }
 

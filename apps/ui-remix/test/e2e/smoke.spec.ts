@@ -103,28 +103,36 @@ test.describe('global shell', () => {
     await expect(page).toHaveURL(/#main$/);
   });
 
-  test('tab navigation updates the URL and aria-selected state', async ({ page }) => {
+  test('tab + icon navigation updates the URL and active state', async ({ page }) => {
     /* Tests the SPA navigation loop end-to-end:
-     *   click tab → pushState → URL-change event → re-render → tab
-     *   gets aria-selected="true".
+     *   click → pushState → URL-change event → re-render → active state.
      *
-     * We assert on URL + aria-selected (the W3C tablist contract)
-     * rather than the destination route's H1 text. This decouples the
-     * test from editorial wording — a marketing change to the About
-     * page's slogan shouldn't fail a NAVIGATION test that's working
-     * fine. The H1 of each route is already covered by the per-route
-     * smoke loop above. */
+     * v0.9 split navigation into two control types, so this covers both:
+     *   - the numbered tablist (role="tab" + aria-selected), and
+     *   - the right-side meta icons Config/About (role="link" +
+     *     aria-current), demoted from the numbered nav — see NavIcons.tsx.
+     *
+     * We assert URL + the ARIA active flag rather than destination H1
+     * text, so an editorial wording change can't fail a NAVIGATION test.
+     * Per-route H1s are covered by the per-route smoke loop above. */
     await page.goto('/');
     await waitForReady(page);
 
-    /* Nav uses role="tab" inside a tablist (correct ARIA pattern for
-     * single-page tabbed UI, not page-level navigation links). Tab
-     * labels include the numeric prefix from the design system, so
-     * the accessible name is e.g. "13 About" not "About". */
-    const aboutTab = page.getByRole('tab', { name: /\d+\s+About$/ });
-    await aboutTab.click();
+    /* Numbered tab: the accessible name carries a zero-padded index
+     * prefix (e.g. "02 Architecture"), so match the label as a substring
+     * to stay robust to the numbering. */
+    const archTab = page.getByRole('tab', { name: /Architecture/ });
+    await archTab.click();
+    await page.waitForURL('**/architecture');
+    await expect(archTab).toHaveAttribute('aria-selected', 'true');
 
+    /* About is now a right-side icon link (?↔!), not a numbered tab. It
+     * lives in the header banner and signals active state via
+     * aria-current — the link-role analogue of a tab's aria-selected.
+     * Scope to the banner so a stray "About" link elsewhere can't shadow it. */
+    const aboutIcon = page.getByRole('banner').getByRole('link', { name: 'About' });
+    await aboutIcon.click();
     await page.waitForURL('**/about');
-    await expect(aboutTab).toHaveAttribute('aria-selected', 'true');
+    await expect(aboutIcon).toHaveAttribute('aria-current', 'page');
   });
 });

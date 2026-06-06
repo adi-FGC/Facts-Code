@@ -100,7 +100,7 @@ export function EntityList(handle: Handle<EntityListProps>) {
       );
     }
     return (
-      <RuledTable cols="minmax(0, 1.4fr) minmax(0, 1.4fr) auto minmax(0, 2fr)">
+      <RuledTable minWidth="32rem" cols="minmax(0, 1.4fr) minmax(0, 1.4fr) auto minmax(0, 2fr)">
         <RuledRow header>
           <RuledCell header>Entity</RuledCell>
           <RuledCell header>Folder</RuledCell>

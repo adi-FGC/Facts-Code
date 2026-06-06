@@ -1051,6 +1051,41 @@
         'p2a-docs': true,
         /* p2a-handoff-update intentionally NOT pre-checked — the
            handoff doc still needs the new security tier section added. */
+        /* Phase 6 — ft-1 shipped 2026-06-05: pack-first skill contract across
+           all four renderers, `factstack setup-agents` + /api/setup-agents +
+           the dashboard toolbar button, and the PostToolUse freshness hook.
+           61 tests green. */
+        'ft-1-copy': true,
+        /* Sprint 1 — shipped 2026-06-05. ft-2: `factstack quick` (self-
+           contained viewer, no server). ft-3: `factstack ui` idle auto-
+           shutdown (`--idle-timeout`). ft-4: `factstack outdated` checker +
+           CLI/CI gate + /api/deps-outdated + the dashboard "N outdated" chip
+           (now complete). */
+        'ft-2-quick': true,
+        'ft-3-idle': true,
+        'ft-4-deps': true,
+        /* Sprint 2 (evidence + hygiene) — shipped 2026-06-05. ft-9: local-
+           first, opt-in telemetry (`factstack telemetry`; numbers only;
+           remote gated on opt-in + FACTSTACK_TELEMETRY_URL). ft-10: `factstack
+           ui` startup staleness check re-emits a fresh artifact. ft-11: a
+           simple/full density toggle in the dashboard. */
+        'ft-9-telemetry': true,
+        'ft-10-artifact': true,
+        'ft-11-simple': true,
+        /* Sprint 3 (serve-mode) — shipped 2026-06-05. ft-8: ui security base
+           (127.0.0.1 bind + Origin/CSRF allowlist + capped readBody). ft-5:
+           /api/exec opens the project in claude/codex/editor via a whitelisted,
+           no-shell, path-confined spawn (+ header buttons). ft-7: read-only
+           /api/file-history (git log --follow, traversal-guarded) + a "Commits"
+           tab in the file detail. ft-6: /api/recent + /api/browse (system-dir
+           blocklist) + recents-on-start + a "Projects" picker that copies
+           `factstack ui <path>`. All four verified live via /browse. The live
+           re-point of the running server (mutating root + watcher) is an
+           explicit follow-up. Sprint 3 complete. */
+        'ft-8-security': true,
+        'ft-5-exec': true,
+        'ft-7-history': true,
+        'ft-6-switcher': true,
       };
 
       function readState() {

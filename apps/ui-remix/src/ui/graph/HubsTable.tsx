@@ -43,7 +43,7 @@ export function HubsTable(handle: Handle<HubsTableProps>) {
     if (hubs.length === 0) return null;
     return (
       <Section label="Hubs" title="Top files by in + out degree">
-        <RuledTable cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto auto">
+        <RuledTable minWidth="33rem" cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto auto">
           <RuledRow header>
             <RuledCell header>File</RuledCell>
             <RuledCell header>Folder</RuledCell>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FACTS — Competitive Landscape</title>
+<style>
+  :root{
+    --bg:#0c0e15; --panel:#14171f; --panel2:#1b1f2b; --ink:#e7ecf4; --muted:#97a2b4;
+    --line:#283041; --accent:#7c5cff; --facts:#36d39a; --gr:#a855f7; --gf:#2ea043; --sg:#ff5a3c; --n4:#2bb6a3;
+    --code:#090b11; --chip:#1a1f2b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:32px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:40px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  p{margin:10px 0}
+  a{color:#9d8bff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 20px;max-width:760px}
+  .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}
+  .sys{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--line);border-radius:10px;padding:14px;display:block}
+  .sys:hover{background:var(--panel2);text-decoration:none}
+  .sys b{display:block;font-size:15px;color:#fff;margin-bottom:3px}
+  .sys s{display:block;text-decoration:none;color:var(--muted);font-size:12px}
+  .sys.facts{border-top-color:var(--facts)} .sys.gr{border-top-color:var(--gr)}
+  .sys.gf{border-top-color:var(--gf)} .sys.sg{border-top-color:var(--sg)} .sys.n4{border-top-color:var(--n4)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:12.8px}
+  th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600;position:sticky;top:0}
+  th.facts{color:#7ff0c6}th.gr{color:#d3b8ff}th.gf{color:#86e29a}th.sg{color:#ffb09e}
+  td.dim{background:var(--panel2);color:#cdd6e0;font-weight:600;white-space:nowrap}
+  code{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font:11.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#b9c4d0}
+  .wrapx{overflow-x:auto}
+  .callout{background:linear-gradient(180deg,#1a2030,#161b22);border:1px solid #34406b;border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#bcabff}
+  .n4panel{background:linear-gradient(180deg,#10211f,#0e1816);border:1px solid #1f5a52;border-left:4px solid var(--n4);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .n4panel h3{margin-top:0;color:#7fe4d6}
+  ol{padding-left:20px}ol li{margin:6px 0}
+  .star{color:#ffd35a}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:820px){.cards{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>FACTS — Competitive Landscape</h1>
+  <p class="lead">How <b>FACTS / FactsPack</b> (“factsv1”) sits against the tools solving the same problem — giving AI coding agents cheap, complete codebase context — plus where the <b>Neo4j</b> graph database fits as a substrate. Each card opens a full knowledge file. Captured 2026-06-06.</p>
+
+  <div class="cards">
+    <span class="sys facts"><b>FACTS</b><s>factsv1 · the subject</s></span>
+    <a class="sys gr" href="graperoot.html"><b>GrapeRoot</b><s>pre-injection · ~841★</s></a>
+    <a class="sys gf" href="graphify.html"><b>Graphify</b><s>knowledge graph · ~60k★</s></a>
+    <a class="sys sg" href="sourcegraph.html"><b>Sourcegraph</b><s>enterprise · Big Code</s></a>
+    <a class="sys n4" href="neo4j.html"><b>Neo4j</b><s>graph DB · substrate</s></a>
+  </div>
+
+  <div class="callout" style="margin-top:18px">
+    <h3>📊 Broader market landscape (new)</h3>
+    <p>Beyond these five deep-dives, a full CIO scan of <b>~70 adjacent tools</b> across six categories — context/token reduction, coding-agent context engines, semantic code search, code-intelligence infrastructure, AI testing, and engineering dashboards — lives in <a href="landscape/index.html"><b>landscape/index.html</b></a> (executive matrix + methodology taxonomy + build-vs-buy) with six detailed dossiers.</p>
+  </div>
+
+  <h2>The same thesis, five altitudes</h2>
+  <p>All four tools agree on the premise Sourcegraph states outright: <i>“agents see only fragments of the codebase, rebuilding context for each task.”</i> They differ in <b>what they optimize</b> — and they’re largely complementary, because each attacks a different part of the token bill.</p>
+  <ul>
+    <li><b>FACTS</b> optimizes <b>encoding</b> — tokens-per-fact, via the FactsPack wire format — and uniquely serves a <b>human/CXO</b> audience too.</li>
+    <li><b>GrapeRoot</b> optimizes <b>selection &amp; timing</b> — pre-inject the right files so the agent explores less.</li>
+    <li><b>Graphify</b> optimizes <b>graph intelligence &amp; reach</b> — multi-modal knowledge graph, queried instead of grepped, installed everywhere.</li>
+    <li><b>Sourcegraph</b> optimizes <b>scale &amp; completeness</b> — index every repo, feed any agent via an SCIP-powered MCP.</li>
+    <li><b>Neo4j</b> isn’t a tool here — it’s the <b>graph database</b> any of them could store the graph in.</li>
+  </ul>
+
+  <h2>Comparison matrix</h2>
+  <div class="wrapx">
+  <table>
+    <tr>
+      <th>Dimension</th>
+      <th class="facts">FACTS (factsv1)</th>
+      <th class="gr">GrapeRoot</th>
+      <th class="gf">Graphify</th>
+      <th class="sg">Sourcegraph</th>
+    </tr>
+    <tr><td class="dim">Tier / buyer</td><td>Local, solo→team, pre-1.0</td><td>Local, solo, open-core</td><td>Local→team, YC, huge OSS</td><td>Enterprise “Big Code”, server</td></tr>
+    <tr><td class="dim">Core thesis</td><td>Token-cheap wire format + dual audience</td><td>Pre-injection cuts turns &amp; cost</td><td>Query a knowledge graph, not files</td><td>Complete context for humans + agents</td></tr>
+    <tr><td class="dim">Context model</td><td><b>Pull</b> (MCP verbs)</td><td><b>Push</b> (pre-inject before prompt)</td><td>Query-first (skill + hooks)</td><td>Search + MCP (pull) at scale</td></tr>
+    <tr><td class="dim">Distinctive tech</td><td><b>FactsPack</b> (−81/−91% tokens)</td><td>Dual-graph + session memory</td><td>Leiden clusters, confidence tags</td><td>SCIP + zoekt, MCP “tokens count”</td></tr>
+    <tr><td class="dim">Storage</td><td>SQLite + JSON + <code>.pack</code></td><td>JSON files</td><td>NetworkX + <code>graph.json</code> (+opt Neo4j)</td><td>Postgres + zoekt + SCIP (no graph DB)</td></tr>
+    <tr><td class="dim">Query</td><td>Fixed verbs: callers/imports/cycles/orphans</td><td><code>graph_retrieve</code> / neighbors</td><td>NL <code>query</code>, <code>path</code>, <code>explain</code></td><td>Code Search (exact) + Deep Search (NL, cited)</td></tr>
+    <tr><td class="dim">Languages</td><td>JS/TS</td><td>11</td><td>~28 (tree-sitter)</td><td>Many via SCIP indexers</td></tr>
+    <tr><td class="dim">Modalities</td><td>Code (+routes, secrets)</td><td>Code</td><td>Code, SQL, IaC, docs, PDF, image, video</td><td>Code (cross-repo)</td></tr>
+    <tr><td class="dim">Human-facing</td><td><b>CXO editorial dashboard</b></td><td>Token dashboard</td><td><code>graph.html</code>, report, wiki</td><td>Code Insights, Living Docs</td></tr>
+    <tr><td class="dim">Distribution</td><td>MCP config (manual)</td><td>1-line installer, <code>dgc</code> wrapper, self-update</td><td>Skill into ~20 assistants + hooks</td><td>Enterprise platform + MCP</td></tr>
+    <tr><td class="dim">Memory</td><td>Deterministic <code>MEMORY.md</code> + snapshots/diff</td><td>Session + cross-session store</td><td>SHA256 cache, committable graph</td><td>Living Documentation</td></tr>
+    <tr><td class="dim">Proof</td><td>Encoding-level token tables</td><td>$0.46→$0.27, 16.8→10.3 turns</td><td>71.5× tokens/query (runnable)</td><td>CodeScaleBench; 200+ enterprises</td></tr>
+    <tr><td class="dim">Openness</td><td><b>Open spec</b></td><td>Open-core (engine closed)</td><td>MIT core</td><td>Closed product; OSS = SCIP/zoekt</td></tr>
+  </table>
+  </div>
+
+  <div class="n4panel">
+    <h3>Where Neo4j fits</h3>
+    <p>Neo4j is a different category — the <b>graph database</b> (labeled property graph, Cypher, GDS algorithms, vector index/GraphRAG). It’s the <b>optional storage/query backend</b> beneath a code-intelligence tool: Graphify can push to it; <b>Sourcegraph and FACTS deliberately don’t use one</b> (Postgres / SQLite). Lesson for FACTS: <b>borrow the concepts, skip the server</b> — property-graph schema, a Cypher-subset compiled to SQLite CTEs, PageRank for “god nodes”, Leiden for modules, <code>MERGE</code>-style incremental upserts, and GraphRAG-style graph-aware retrieval — while keeping SQLite + FactsPack as the committable, zero-infra substrate. Optionally expose <code>facts export --neo4j</code>. Full detail in <a href="neo4j.html">neo4j.html</a>.</p>
+  </div>
+
+  <h2>What FACTS should borrow (top of the list)</h2>
+  <ol>
+    <li><span class="star">★</span> <b>Push / pre-injection</b> [GrapeRoot] — rank relevant files/symbols and inject a <b>FactsPack-encoded</b> context block before the agent acts. Selection × encoding.</li>
+    <li><span class="star">★</span> <b>Confidence tags</b> [Graphify] — <code>EXTRACTED/INFERRED/AMBIGUOUS</code> on edges; on-brand with FACTS determinism.</li>
+    <li><span class="star">★</span> <b>NL query → minimal subgraph</b> [Graphify + Sourcegraph Deep Search] — beyond fixed verbs; citation-grounded.</li>
+    <li><span class="star">★</span> <b>Ingest SCIP</b> [Sourcegraph] — many languages with compiler-grade precision, no per-language extractor.</li>
+    <li><span class="star">★</span> <b>“Make every token count” MCP framing + reproducible session benchmark</b> [Sourcegraph + both] — prove FactsPack at the task level.</li>
+    <li><b>Graph algorithms</b> [Neo4j GDS] — PageRank importance, Leiden modules, blast-radius paths.</li>
+    <li><b>Skill + 1-line installer + query-first hooks</b> [Graphify/GrapeRoot] — the adoption engine.</li>
+    <li><b>Committable graph + git hooks + PR impact</b> [Graphify] — make <code>.facts/</code> a team artifact.</li>
+  </ol>
+
+  <div class="callout">
+    <h3>FACTS’s moat — keep while borrowing</h3>
+    <p><b>FactsPack wire format</b> (no rival has a token-optimized transport — even Sourcegraph ships JSON/SCIP), the <b>dual-audience CXO dashboard</b> (agent-only rivals have nothing for humans; Sourcegraph validates this with Code Insights), <b>deterministic/committable</b> output, and <b>built-in secrets detection</b>.</p>
+  </div>
+
+  <footer>
+    Knowledge files: <a href="graperoot.html">graperoot.html</a> · <a href="graphify.html">graphify.html</a> · <a href="sourcegraph.html">sourcegraph.html</a> · <a href="neo4j.html">neo4j.html</a>.
+    Sources: GitHub repos via <code>gh</code>; Sourcegraph homepage via headless browse. Figures point-in-time (2026-06-06). Internal competitive analysis for the FACTS / FactsPack project.
+  </footer>
+
+</div>
+</body>
+</html>

@@ -235,7 +235,7 @@ export function Tests(handle: Handle<TestsProps>) {
           </LabelNumberRow>
 
           <Section label="Test suite" title="Each test file with its inferred subject">
-            <RuledTable cols="minmax(0, 1.4fr) minmax(0, 1.6fr) auto auto auto">
+            <RuledTable minWidth="33rem" cols="minmax(0, 1.4fr) minmax(0, 1.6fr) auto auto auto">
               <RuledRow header>
                 <RuledCell header>Test</RuledCell>
                 <RuledCell header>Subject (inferred)</RuledCell>
@@ -288,7 +288,7 @@ export function Tests(handle: Handle<TestsProps>) {
                 the test is fixture-only (read-only data setup), or the
                 analyzer missed the edge. Open the file to confirm.
               </p>
-              <RuledTable cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto">
+              <RuledTable minWidth="28rem" cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto">
                 <RuledRow header>
                   <RuledCell header>Test</RuledCell>
                   <RuledCell header>Folder</RuledCell>
@@ -319,7 +319,7 @@ export function Tests(handle: Handle<TestsProps>) {
               label="Untested"
               title={`${untested.length} production ${untested.length === 1 ? 'file has' : 'files have'} no inbound test edge`}
             >
-              <RuledTable cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto auto">
+              <RuledTable minWidth="33rem" cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto auto">
                 <RuledRow header>
                   <RuledCell header>File</RuledCell>
                   <RuledCell header>Folder</RuledCell>

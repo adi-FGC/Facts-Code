@@ -808,13 +808,30 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   /* After a save, this carries the BrowserWriteResult shape so the
      confirmation row can show "Wrote N files (X KB) to .facts/" with
      real numbers. Reset on every new scan. */
-  let savedSummary: { files: number; bytes: number; destination: string } | null = null;
+  let savedSummary: {
+    files: number;
+    bytes: number;
+    destination: string;
+    /** Count of agent-rules files written at the project root (AGENTS.md, …). */
+    rulesFiles?: number;
+    /** Set when the rules-files write failed (artifacts still saved). */
+    rulesError?: string;
+    /** Existing rules files left untouched (e.g. a hand-authored AGENTS.md),
+     *  surfaced so a preserved file is never silently skipped. */
+    rulesPreserved?: string[];
+  } | null = null;
   /* Emit profile for the post-scan save. Hydrated from per-project
      localStorage on show() (keyed by the active source id) so it
      reflects this project's remembered choice; falls back to the
      minimal default for a never-set project. The Minimal/Legacy toggle
      in the save view mutates it + persists per-project. */
   let emitProfile: EmitProfile = 'minimal';
+  /* v0.10 — also write the agent-rules files (AGENTS.md, .cursorrules,
+     .github/copilot-instructions.md, .claude/skills/<name>/SKILL.md) at the
+     PROJECT ROOT on save, so any AI agent that opens this folder is told to
+     prefer .facts/agent.pack over re-scanning. Default on: that's the
+     universal, zero-CLI "turnkey" path. Unchecked → only .facts/ is written. */
+  let writeAgentRules = true;
   /* Cached recents list. Loaded on first show() and refreshed after every
      successful scan. Empty array (not null) is a meaningful state — it
      means "we tried IDB and it returned nothing" so the renderer hides
@@ -1297,6 +1314,23 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         bytes: written.bytesWritten,
         destination: destination.name + '/.facts',
       };
+
+      /* v0.10 — also write the agent-rules files at the PROJECT ROOT so any
+         AI agent that opens this folder is told to prefer .facts/agent.pack
+         over re-scanning. Best-effort: the artifacts already landed, so a
+         rules-write failure must NOT blank the success — record it as a note
+         and keep the saved state. */
+      if (writeAgentRules) {
+        try {
+          const rules = await bridge.saveSkills(destination, lastResult.agent, lastResult.human);
+          savedSummary.rulesFiles = rules.files.length;
+          if (rules.preserved.length > 0) savedSummary.rulesPreserved = rules.preserved;
+          savedSummary.bytes += rules.bytesWritten;
+        } catch (err) {
+          savedSummary.rulesError = err instanceof Error ? err.message : String(err);
+        }
+      }
+
       phase = 'saved';
       /* After a successful save, the write permission almost certainly
          flipped to 'granted'. Re-probe so the env panel reflects it
@@ -1827,6 +1861,15 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                 <span>
                   Wrote {savedSummary.files} files ({fmtBytes(savedSummary.bytes)}) to{' '}
                   <span class="mono">{savedSummary.destination}</span>
+                  {savedSummary.rulesFiles ? (
+                    <> · plus {savedSummary.rulesFiles} agent-rules file{savedSummary.rulesFiles === 1 ? '' : 's'} at the project root (<span class="mono">AGENTS.md</span>, <span class="mono">.cursorrules</span>, …)</>
+                  ) : null}
+                  {savedSummary.rulesError ? (
+                    <> · <span style="color:var(--warn)">agent-rules files couldn’t be written: {savedSummary.rulesError}</span></>
+                  ) : null}
+                  {savedSummary.rulesPreserved && savedSummary.rulesPreserved.length > 0 ? (
+                    <> · kept your existing <span class="mono">{savedSummary.rulesPreserved.join(', ')}</span> (not overwritten)</>
+                  ) : null}
                 </span>
               </div>
               <div mix={savedHint}>
@@ -1870,6 +1913,29 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
               {emitProfile === 'minimal'
                 ? 'Writes agent.pack + human.json + MEMORY.md. Skips the redundant agent.json, agent.jsonl, and snapshot.'
                 : 'Writes the full set, incl. agent.json + agent.jsonl + a history snapshot — for tooling that reads raw JSON. Remembered for this project.'}
+            </div>
+            {/* v0.10 — agent-rules toggle. When on, the save ALSO writes the
+                root rules files (AGENTS.md, .cursorrules, Copilot, Claude
+                SKILL.md) so any agent that opens this folder prefers
+                .facts/agent.pack over re-scanning. Reuses the profile-toggle
+                visual grammar. */}
+            <div mix={profileRow}>
+              <span mix={profileLabel}>Agent rules</span>
+              <div mix={profileSeg} role="group" aria-label="Write agent-rules files">
+                <button
+                  type="button"
+                  role="checkbox"
+                  aria-checked={writeAgentRules ? 'true' : 'false'}
+                  disabled={phase === 'saving'}
+                  title="Also write AGENTS.md + .cursorrules + .github/copilot-instructions.md + .claude/skills/<name>/SKILL.md at the project root"
+                  mix={[profileSegBtn, writeAgentRules ? profileSegActive : null, on('click', () => { writeAgentRules = !writeAgentRules; void handle.update(); })]}
+                >{writeAgentRules ? '✓ Write' : 'Skip'}</button>
+              </div>
+            </div>
+            <div mix={profileHint}>
+              {writeAgentRules
+                ? 'Also writes AGENTS.md + .cursorrules + Copilot + Claude SKILL.md at the project root — so any AI agent opening this folder is told to prefer .facts/agent.pack over re-scanning.'
+                : 'Skips the agent-rules files; only the .facts/ artifacts are written.'}
             </div>
           </>
         )}

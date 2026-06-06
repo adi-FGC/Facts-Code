@@ -117,6 +117,68 @@ export const ListRisksInputSchema = z.object({
     .optional(),
 });
 
+/* ─────────── canonical MCP tool surface ─────────── */
+
+/**
+ * Every tool the FACTS MCP server ACTUALLY ships, in the order it
+ * advertises them (`ListTools`). This tuple is the single source of
+ * truth for MCP tool *names* across the monorepo:
+ *
+ *   - `apps/mcp-server` dispatches each call via `MCP_TOOL.<name>`, so
+ *     renaming a tool there without updating this list fails `tsc`.
+ *   - `@factstack/skills` types `ONBOARDING_SEQUENCE` as
+ *     `readonly ShippedMcpToolName[]`, so a generated AGENTS.md /
+ *     SKILL.md can never point an agent at a tool that doesn't exist.
+ *
+ * Add / rename / remove a server tool ⇒ edit this tuple; tsc then points
+ * at every site that must change. (Distinct from the legacy `McpTools`
+ * map below, which carries Zod input schemas for a 5-of-13 subset.)
+ */
+export const MCP_TOOL_NAMES = [
+  'analyze',
+  'query_graph',
+  'get_outline',
+  'list_risks',
+  'read_memory',
+  'since',
+  'log_learning',
+  'query_learnings',
+  'get_config',
+  'list_credentials',
+  'list_vulnerabilities',
+  'get_diagram',
+  'review_change',
+] as const;
+
+/** Union of every tool name the FACTS MCP server ships. */
+export type ShippedMcpToolName = (typeof MCP_TOOL_NAMES)[number];
+
+/**
+ * Reference tools by identifier instead of a bare string literal:
+ * `MCP_TOOL.read_memory` is both the value `'read_memory'` AND a
+ * compile-time existence check — remove the tool from `MCP_TOOL_NAMES`
+ * and every `MCP_TOOL.read_memory` site stops compiling. The `satisfies`
+ * clause guarantees this map stays a complete, key-equals-value mirror
+ * of the tuple above (missing key, extra key, or typo'd value all fail tsc).
+ */
+export const MCP_TOOL = {
+  analyze: 'analyze',
+  query_graph: 'query_graph',
+  get_outline: 'get_outline',
+  list_risks: 'list_risks',
+  read_memory: 'read_memory',
+  since: 'since',
+  log_learning: 'log_learning',
+  query_learnings: 'query_learnings',
+  get_config: 'get_config',
+  list_credentials: 'list_credentials',
+  list_vulnerabilities: 'list_vulnerabilities',
+  get_diagram: 'get_diagram',
+  review_change: 'review_change',
+} as const satisfies { [K in ShippedMcpToolName]: K };
+
+/* ─────────── (legacy) partial input-schema catalog ─────────── */
+
 export const McpTools = {
   analyze: {
     name: 'analyze',
@@ -150,4 +212,10 @@ export const McpTools = {
   },
 } as const;
 
+/**
+ * @deprecated Names of the tools that carry a Zod input schema in the
+ * partial `McpTools` catalog above (a 5-of-13 subset). For the complete,
+ * authoritative list of shipped tool names use `ShippedMcpToolName` /
+ * `MCP_TOOL_NAMES`.
+ */
 export type McpToolName = keyof typeof McpTools;

@@ -2,9 +2,16 @@
  * `FsaFileWriter` — `FileWriter` implementation backed by the
  * File System Access API.
  *
- * Scopes itself to `<userPickedDir>/.facts/` — the user picks the
+ * Scopes itself to `<userPickedDir>/<subdir>/` — the user picks the
  * outer directory via `showDirectoryPicker({ mode: 'readwrite' })`,
- * and the adapter creates + writes inside `.facts/` internally.
+ * and the adapter creates + writes inside `<subdir>/` internally.
+ * `subdir` defaults to `.facts` (the artifact set); pass `''` to write
+ * directly at the project root (agent-rules files like `.cursorrules`,
+ * `.github/copilot-instructions.md`, `.claude/skills/…/SKILL.md` live
+ * next to `package.json`, NOT under `.facts/`). Mirrors NodeFileWriter's
+ * `(projectRoot, subdir = '.facts')` so the isomorphic orchestrators
+ * (`writeArtifactsTo`, `buildSkillsTo`) write through either tier
+ * unchanged.
  *
  * Auto-mkdirp: every writeText resolves the path to a sequence of
  * `getDirectoryHandle({create:true})` calls. For `snapshots/X.json`
@@ -23,26 +30,35 @@ import type { FileWriter } from '@factstack/spec';
 
 export class FsaFileWriter implements FileWriter {
   /**
-   * Root handle for the artifact directory (the `.facts/` inside
-   * whatever the user picked). Looked up lazily on first write so
-   * the user gesture that constructed this writer doesn't have to
-   * await anything.
+   * Root handle for the base directory (`<userRoot>/<subdir>`, or
+   * `userRoot` itself when `subdir` is `''`). Looked up lazily on first
+   * write so the user gesture that constructed this writer doesn't have
+   * to await anything.
    */
-  private factsDirPromise: Promise<FileSystemDirectoryHandle> | null = null;
+  private baseDirPromise: Promise<FileSystemDirectoryHandle> | null = null;
 
   /**
    * @param userRoot The directory the user picked via
-   *   showDirectoryPicker. The writer creates `.facts/` inside it
-   *   on first write.
+   *   showDirectoryPicker.
+   * @param subdir Subdirectory under `userRoot` to scope writes to.
+   *   Defaults to `.facts` (every artifact caller relies on that). Pass
+   *   `''` to write at the project root (the agent-rules / skill files).
    */
-  constructor(private readonly userRoot: FileSystemDirectoryHandle) {}
+  constructor(
+    private readonly userRoot: FileSystemDirectoryHandle,
+    private readonly subdir: string = '.facts',
+  ) {}
 
-  /** Lazy single-shot lookup of `.facts/` inside the user's pick. */
-  private factsDir(): Promise<FileSystemDirectoryHandle> {
-    if (!this.factsDirPromise) {
-      this.factsDirPromise = this.userRoot.getDirectoryHandle('.facts', { create: true });
+  /** Lazy single-shot lookup of the base dir inside the user's pick.
+   *  `subdir === ''` resolves to the picked root directly. */
+  private baseDir(): Promise<FileSystemDirectoryHandle> {
+    if (!this.baseDirPromise) {
+      this.baseDirPromise =
+        this.subdir === ''
+          ? Promise.resolve(this.userRoot)
+          : this.userRoot.getDirectoryHandle(this.subdir, { create: true });
     }
-    return this.factsDirPromise;
+    return this.baseDirPromise;
   }
 
   /**
@@ -50,13 +66,13 @@ export class FsaFileWriter implements FileWriter {
    * creating intermediate dirs as needed (mkdirp semantics).
    * Returns the final directory + the leaf name.
    *
-   *   resolveDirAndName('agent.json')        → ['.facts', 'agent.json']
-   *   resolveDirAndName('snapshots/X.json')  → ['.facts/snapshots', 'X.json']
+   *   resolveDirAndName('agent.json')        → ['<base>', 'agent.json']
+   *   resolveDirAndName('snapshots/X.json')  → ['<base>/snapshots', 'X.json']
    */
   private async resolveDirAndName(p: string): Promise<[FileSystemDirectoryHandle, string]> {
     const parts = p.split('/');
     const leaf = parts.pop()!;
-    let dir = await this.factsDir();
+    let dir = await this.baseDir();
     for (const segment of parts) {
       dir = await dir.getDirectoryHandle(segment, { create: true });
     }
@@ -188,7 +204,7 @@ export class FsaFileWriter implements FileWriter {
     opts: { create: boolean },
   ): Promise<FileSystemDirectoryHandle> {
     const parts = p.split('/').filter(Boolean);
-    let cursor = await this.factsDir();
+    let cursor = await this.baseDir();
     for (const segment of parts) {
       cursor = await cursor.getDirectoryHandle(segment, { create: opts.create });
     }
@@ -196,7 +212,11 @@ export class FsaFileWriter implements FileWriter {
   }
 }
 
-/** Convenience factory mirroring `nodeFileWriter(...)` / `memoryFS(...)`. */
-export function fsaFileWriter(userRoot: FileSystemDirectoryHandle): FsaFileWriter {
-  return new FsaFileWriter(userRoot);
+/** Convenience factory mirroring `nodeFileWriter(...)` / `memoryFS(...)`.
+ *  `subdir` defaults to `.facts`; pass `''` to write at the project root. */
+export function fsaFileWriter(
+  userRoot: FileSystemDirectoryHandle,
+  subdir: string = '.facts',
+): FsaFileWriter {
+  return new FsaFileWriter(userRoot, subdir);
 }

@@ -61,11 +61,13 @@ export function ensureFreshnessHook(
   // Shallow-clone the touched path so the caller's object graph is untouched.
   const next: ClaudeSettings = { ...settings, hooks: { ...(settings.hooks ?? {}) } };
   const existing = next.hooks!.PostToolUse;
+  /* Deep-clone each entry's hooks array when present. Conditional spread
+     (not `hooks: e.hooks`) so we never set `hooks: undefined` explicitly,
+     which exactOptionalPropertyTypes rejects against `hooks?: CommandHook[]`. */
   const post: HookEntry[] = Array.isArray(existing)
-    ? existing.map((e) => ({
-        ...e,
-        hooks: Array.isArray(e.hooks) ? [...e.hooks] : e.hooks,
-      }))
+    ? existing.map((e): HookEntry =>
+        Array.isArray(e.hooks) ? { ...e, hooks: [...e.hooks] } : { ...e },
+      )
     : [];
 
   // Already present anywhere in PostToolUse? → no-op (idempotent).

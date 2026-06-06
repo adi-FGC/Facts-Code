@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GrapeRoot (Dual-Graph) — Knowledge File</title>
+<style>
+  :root{
+    --bg:#0d0f14; --panel:#15181f; --panel2:#1b2030; --ink:#e8eef4; --muted:#98a4b3;
+    --line:#2a313d; --accent:#a855f7; --accent2:#22c55e; --grape:#7c3aed; --warn:#eab308;
+    --code:#0a0d12; --chip:#1d232e;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:#cdd6e0}
+  p{margin:10px 0}
+  a{color:#c79bff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 18px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+  .badge{background:var(--chip);border:1px solid var(--line);border-radius:20px;
+    padding:4px 12px;font-size:12.5px;color:#cbd5e1}
+  .badge b{color:#fff}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600}
+  td code,p code,li code{background:var(--code);border:1px solid var(--line);border-radius:5px;
+    padding:1px 6px;font:12.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c2b3df}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+    overflow:auto;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c3cdd9}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .callout{background:linear-gradient(180deg,#1e1830,#16131f);border:1px solid #4a2f80;
+    border-left:4px solid var(--grape);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#d3b8ff}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;background:#2c1a4d;border:1px solid #5a3aa8;color:#d8c4ff;
+    border-radius:6px;padding:1px 7px;font-size:11.5px;margin-left:6px;vertical-align:middle}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0}
+  .kv span{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12px}
+  .metric{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0}
+  .metric .m{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .metric .m b{display:block;font-size:20px;color:#fff}
+  .metric .m s{display:block;color:var(--muted);text-decoration:none;font-size:11.5px;margin-top:2px}
+  .up{color:var(--accent2)}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:640px){.grid,.metric{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>GrapeRoot <span class="tag">3rd-party · knowledge file</span></h1>
+  <p class="lead">“Compounding context for AI coding assistants.” A context engine (a.k.a. <b>Dual-Graph</b>, CLI <code>dgc</code>) that pre-loads the right files into every prompt to make Claude Code / Codex / Gemini <b>30–45% cheaper</b> without losing quality.</p>
+
+  <div class="badges">
+    <span class="badge">⭐ <b>841</b> stars</span>
+    <span class="badge">🍴 <b>103</b> forks</span>
+    <span class="badge">License <b>open-core</b></span>
+    <span class="badge">Lang <b>Python + Shell/PS</b></span>
+    <span class="badge">Version <b>3.9.91</b></span>
+    <span class="badge">Created <b>2026-02-21</b></span>
+    <span class="badge">Active <b>2026-06-04</b></span>
+  </div>
+  <div class="kv">
+    <span>Repo: github.com/kunal12203/Codex-CLI-Compact</span>
+    <span>Site: graperoot.dev</span>
+    <span>CLI: <code>dgc</code> (Claude) · <code>dg</code> (Codex) · <code>--gemini</code></span>
+    <span>Engine pkg: <code>graperoot</code> (PyPI, proprietary)</span>
+  </div>
+
+  <p><b>Important identity note:</b> the GitHub repo <code>kunal12203/codex-cli-compact</code> and the site <code>graperoot.dev</code> are <b>the same product</b> — the repo is the open-source launcher/tooling; “GrapeRoot / Dual-Graph” is the brand.</p>
+
+  <h2>1 · What it is &amp; positioning</h2>
+  <p>GrapeRoot is a <b>retrieval + pre-injection layer</b> that wraps an existing agent CLI. Instead of letting the agent explore the repo with tool calls, it builds a semantic graph, ranks the relevant files for your question, and <b>packs them into the prompt before the model sees it</b> — cutting exploration round-trips, turns, and tokens. Savings <b>compound</b> across a session because the tool remembers what was read/edited/queried.</p>
+  <p>Commercial <b>open-core</b>: the launcher scripts (<code>bin/</code>) are Apache-2.0 and open; the core <code>graperoot</code> graph engine is <b>proprietary</b>, shipped as a PyPI wheel, with a paid <b>Pro</b> tier at graperoot.dev/graperoot-pro.</p>
+
+  <h2>2 · The “Dual-Graph” approach</h2>
+  <div class="grid">
+    <div class="card"><h3>info_graph.json</h3><p>The <b>static semantic graph</b>: files, symbols, import relationships. Built by scanning the project. Answers “what is structurally relevant to this question?”</p></div>
+    <div class="card"><h3>chat_action_graph.json</h3><p>The <b>dynamic session memory</b>: reads, edits, queries, decisions during the conversation. Files you’ve touched get prioritized next turn — this is what makes context “compound.”</p></div>
+    <div class="card"><h3>context-store.json</h3><p><b>Cross-session</b> persistence of decisions/tasks/facts, re-injected at the start of the next session. Optional <code>CONTEXT.md</code> for free-form notes. Continuity across conversations.</p></div>
+    <div class="card"><h3>Wrapper + pre-injection</h3><p>You run <code>dgc</code> instead of <code>claude</code>. It auto-starts &amp; registers an MCP server, then injects ranked files into the prompt. (“Always use <code>dgc</code>, not <code>claude</code>” — bare <code>claude</code> gives MCP-connection errors.)</p></div>
+  </div>
+
+  <h2>3 · Features</h2>
+  <ul>
+    <li><b>Pre-injection (push) context</b> — ranks &amp; packs relevant files into the prompt with no extra tool calls; the headline mechanism.</li>
+    <li><b>Compounding memory</b> — per-turn (action graph) + cross-session (context store).</li>
+    <li><b>MCP tools</b> for deeper agent-driven exploration: <code>graph_read</code>, <code>graph_retrieve</code>, <code>graph_neighbors</code> (and more).</li>
+    <li><b>Token-counter dashboard</b> at <code>localhost:8899</code>, plus in-session <code>count_tokens({text})</code> and <code>get_session_stats()</code> — surfaces live spend (on-brand for a cost tool).</li>
+    <li><b>Undo shield</b> (<code>bin/undo_shield.py</code>) — guardrail around destructive edits.</li>
+    <li><b>Self-updating launcher</b> — checks for a new version on every run and auto-updates.</li>
+    <li><b>Multi-CLI</b>: Claude Code, Codex, Gemini, Cursor, OpenCode, GitHub Copilot. <b>11 languages</b>: TS/JS, Python, Go, Swift, Rust, Java, Kotlin, C#, Ruby, PHP.</li>
+  </ul>
+
+  <h2>4 · Files &amp; configuration</h2>
+  <table>
+    <tr><th>Path</th><th>Purpose</th></tr>
+    <tr><td><code>&lt;project&gt;/.dual-graph/info_graph.json</code></td><td>Semantic graph (files, symbols, edges)</td></tr>
+    <tr><td><code>&lt;project&gt;/.dual-graph/chat_action_graph.json</code></td><td>Session memory: reads/edits/queries/decisions</td></tr>
+    <tr><td><code>&lt;project&gt;/.dual-graph/context-store.json</code></td><td>Cross-session decisions/tasks/facts</td></tr>
+    <tr><td><code>~/.dual-graph/{dgc.ps1,dg.ps1,venv,version.txt}</code></td><td>Launchers, Python venv, version pin</td></tr>
+  </table>
+  <p>All <code>.dual-graph/</code> is auto-gitignored. Config is via env vars:</p>
+  <table>
+    <tr><th>Variable</th><th>Default</th><th>Meaning</th></tr>
+    <tr><td><code>DG_HARD_MAX_READ_CHARS</code></td><td>4000</td><td>Max characters per file read</td></tr>
+    <tr><td><code>DG_TURN_READ_BUDGET_CHARS</code></td><td>18000</td><td>Total read budget per turn</td></tr>
+    <tr><td><code>DG_FALLBACK_MAX_CALLS_PER_TURN</code></td><td>1</td><td>Max fallback grep calls per turn</td></tr>
+    <tr><td><code>DG_RETRIEVE_CACHE_TTL_SEC</code></td><td>900</td><td>Retrieval cache TTL (15 min)</td></tr>
+    <tr><td><code>DG_MCP_PORT</code></td><td>auto 8080–8099</td><td>Force a specific MCP port</td></tr>
+  </table>
+
+  <h2>5 · Install &amp; usage</h2>
+  <pre>curl -sSL https://raw.githubusercontent.com/kunal12203/Codex-CLI-Compact/main/install.sh | bash   # mac/linux
+irm https://raw.githubusercontent.com/kunal12203/Codex-CLI-Compact/main/install.ps1 | iex        # windows
+scoop install dual-graph                                                                          # scoop bucket
+
+dgc .                       # from inside the project
+dgc "D:\projects\my-app"    # any path  ·  dg = Codex  ·  dgc --gemini = Gemini</pre>
+  <p>Prereqs: Python 3.10+, Node 18+, and Claude Code or Codex CLI. Installer can fetch missing tools via winget/homebrew.</p>
+
+  <h2>6 · Published benchmarks</h2>
+  <p>Across 80+ prompts (5 complexity levels) on a real full-stack app; “Dual-Graph” vs. baseline:</p>
+  <div class="metric">
+    <div class="m"><b>$0.46→$0.27</b><s>avg cost / prompt <span class="up">−41%</span></s></div>
+    <div class="m"><b>16.8→10.3</b><s>avg turns <span class="up">−39%</span></s></div>
+    <div class="m"><b>186s→134s</b><s>avg response <span class="up">−28%</span></s></div>
+    <div class="m"><b>82.7→87.1</b><s>quality (regex) <span class="up">+5%</span></s></div>
+  </div>
+  <p>Cost wins on 16 / 20 prompts; quality equal-or-better at every level. (Vendor-run; <code>benchmark/</code> + <code>bench/</code> dirs hold the charts and a restaurant-CRM harness.)</p>
+
+  <h2>7 · Privacy &amp; openness</h2>
+  <ul>
+    <li><b>Local processing</b> — graphs, session data, and code stay on the machine.</li>
+    <li>Only outbound calls: a <b>version check</b> and a <b>heartbeat</b> (random install ID + platform only — no file names, no code). Telemetry was removed in favor of transparency.</li>
+    <li><b>Open-core caveat</b>: launchers are Apache-2.0; the <code>graperoot</code> graph engine is closed and only on PyPI. The intelligence is not inspectable or forkable.</li>
+  </ul>
+
+  <div class="callout">
+    <h3>↳ Relevance to FACTS / FactsPack</h3>
+    <p>GrapeRoot is the “retrieval &amp; cost-delivery” benchmark — it optimizes <i>which</i> files load and <i>when</i>, where FactsPack optimizes <i>how cheaply</i> a fact is encoded. They attack disjoint halves of the token bill, so the pieces worth borrowing combine cleanly with FACTS’s strengths:</p>
+    <ul>
+      <li><b>Pre-injection / push layer</b> — the single highest-leverage borrow. Rank relevant files/symbols and inject a <b>FactsPack-encoded</b> context block <i>before</i> the agent asks. Selection (GrapeRoot) × encoding (FactsPack) beats either alone.</li>
+      <li><b>Compounding memory</b> — a session action-graph + cross-session decision store, on top of FACTS’s existing static <code>MEMORY.md</code> and snapshots/diff.</li>
+      <li><b>Token budgets &amp; read caps</b> (<code>DG_*</code> vars) — predictable per-turn cost.</li>
+      <li><b>Live token accounting</b> (<code>count_tokens</code>, <code>get_session_stats</code>, a dashboard) — FACTS should <i>prove</i> FactsPack’s savings in-session; this is its whole pitch.</li>
+      <li><b>Self-update + one-line installer</b> — frictionless onboarding (FACTS needs a pnpm/tsx dance today).</li>
+    </ul>
+    <p><b>Pitfalls to avoid that GrapeRoot exhibits:</b> a hard wrapper dependency (“always use <code>dgc</code>”), a <b>closed</b> core (FACTS’s edge is an <b>open, documented</b> spec), and vendor-only benchmarks (ship reproducible ones).</p>
+  </div>
+
+  <footer>
+    Knowledge captured 2026-06-06 from <a href="https://github.com/kunal12203/codex-cli-compact">github.com/kunal12203/codex-cli-compact</a>
+    (README, repo tree &amp; metadata) and <a href="https://graperoot.dev">graperoot.dev</a>. Pro-tier pricing lives on the site and was not captured.
+    Figures are point-in-time. Not affiliated; for internal competitive analysis of the FACTS / FactsPack project.
+  </footer>
+
+</div>
+</body>
+</html>

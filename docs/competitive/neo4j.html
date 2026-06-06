@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neo4j — Role &amp; Lessons for FACTS</title>
+<style>
+  :root{
+    --bg:#0b0f12; --panel:#13181c; --panel2:#19222a; --ink:#e7f0f2; --muted:#92a6ad;
+    --line:#243038; --accent:#2bb6a3; --accent2:#4aa3ff; --warn:#eab308;
+    --code:#080c0e; --chip:#172128;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:#cfe0e2}
+  p{margin:10px 0}
+  a{color:#5fded0;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 18px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+  .badge{background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px;color:#cbd5e1}
+  .badge b{color:#fff}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600}
+  td code,p code,li code{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:12.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#7fe4d6}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c3d6d2}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .callout{background:linear-gradient(180deg,#10211f,#0e1816);border:1px solid #1f5a52;border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#7fe4d6}
+  .warn{background:linear-gradient(180deg,#241f12,#181509);border:1px solid #6b551f;border-left:4px solid var(--warn);border-radius:10px;padding:12px 16px;margin:16px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;background:#123029;border:1px solid #2a6a5e;color:#9fe9dd;border-radius:6px;padding:1px 7px;font-size:11.5px;margin-left:6px;vertical-align:middle}
+  .spectrum{display:flex;gap:0;margin:16px 0;border-radius:10px;overflow:hidden;border:1px solid var(--line);font-size:12.5px}
+  .spectrum div{flex:1;padding:10px 12px;text-align:center}
+  .s1{background:#15212a}.s2{background:#16262b}.s3{background:#163029}.s4{background:#1d2a16}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}.spectrum{flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Neo4j <span class="tag">substrate · role &amp; lessons</span></h1>
+  <p class="lead">A <b>graph database</b> — the property-graph storage + query + algorithms engine. Unlike the other four, it is <b>not a code-intelligence tool</b>; it’s the layer a code-intelligence tool could store its graph <i>in</i>. The useful question isn’t “FACTS vs Neo4j” but “what does FACTS borrow from it, and should it ever depend on it?”</p>
+
+  <div class="badges">
+    <span class="badge">Category <b>Graph database</b></span>
+    <span class="badge">Model <b>Labeled property graph</b></span>
+    <span class="badge">Query <b>Cypher</b></span>
+    <span class="badge">Algos <b>GDS library</b></span>
+    <span class="badge">Hybrid <b>vector index (5.x)</b></span>
+    <span class="badge">Viz <b>Bloom</b></span>
+  </div>
+
+  <h2>1 · Where Neo4j fits in this picture</h2>
+  <p>Every system here builds a graph of the codebase; they differ in <b>where that graph lives</b>. Neo4j is one option for the persistence/query tier — the heavyweight, graph-native one:</p>
+  <table>
+    <tr><th>System</th><th>Where the graph is stored / queried</th></tr>
+    <tr><td><b>FACTS</b> (factsv1)</td><td>SQLite (<code>.facts/index.db</code>) + JSON + the FactsPack wire format. Local, file-based, git-committable.</td></tr>
+    <tr><td><b>GrapeRoot</b></td><td>Plain JSON files (<code>info_graph.json</code>, action graph, context store).</td></tr>
+    <tr><td><b>Graphify</b></td><td>NetworkX in-memory + <code>graph.json</code> (node-link). <b>Optional Neo4j push</b> via the <code>[neo4j]</code> extra.</td></tr>
+    <tr><td><b>Sourcegraph</b></td><td>Postgres + zoekt + stored SCIP blobs. <b>Deliberately not a graph DB.</b></td></tr>
+    <tr><td><b>Neo4j</b></td><td>— it <i>is</i> the database. The optional graph-native backend the others can export to.</td></tr>
+  </table>
+  <div class="spectrum">
+    <div class="s1"><b>Embedded / file</b><br>SQLite, JSON (FACTS, GrapeRoot)</div>
+    <div class="s2"><b>In-memory + file</b><br>NetworkX (Graphify)</div>
+    <div class="s3"><b>RDBMS + index</b><br>Postgres+zoekt (Sourcegraph)</div>
+    <div class="s4"><b>Graph DB</b><br>Neo4j (opt-in backend)</div>
+  </div>
+  <p>So Neo4j’s place is the <b>opt-in “power-user / enterprise graph” backend &amp; export target</b> — reach for it when the graph is large, traversals are deep, and you want a declarative query language plus a graph-algorithms catalog. Graphify already supports it; Sourcegraph proves you can run planet-scale code intelligence <i>without</i> it.</p>
+
+  <h2>2 · What it does that’s worth studying</h2>
+  <div class="grid">
+    <div class="card"><h3>Labeled property graph</h3><p>Nodes and relationships <b>both</b> carry typed properties; relationships are first-class and directed with a type. Maps cleanly to code: <code>(:Symbol)</code>, <code>(:File)</code>, <code>[:CALLS]</code>, <code>[:IMPORTS]</code>, <code>[:DEFINED_IN]</code>, each with properties.</p></div>
+    <div class="card"><h3>Cypher query language</h3><p>Declarative pattern matching with <b>variable-length paths</b> — the thing SQL is bad at:</p><pre>MATCH (a:Function {name:'login'})
+      -[:CALLS*1..3]->(b:Function)
+RETURN b</pre><p>“All functions reachable within 3 calls of login” in one line.</p></div>
+    <div class="card"><h3>Graph Data Science (GDS)</h3><p>A catalog of production graph algorithms: <b>PageRank</b> &amp; centrality (importance), <b>Louvain/Leiden</b> community detection (modules), shortest-path, cycle detection, node similarity, weakly/strongly connected components.</p></div>
+    <div class="card"><h3>GraphRAG + vector index</h3><p>Neo4j 5.x added native vector indexes; its flagship pattern is <b>GraphRAG</b> — seed with vector/keyword hits, then <b>expand along relationships</b> to assemble a connected context subgraph for the LLM. Graph-aware retrieval, not flat top-k.</p></div>
+  </div>
+
+  <h2>3 · The lessons for FACTS (adopt concepts, not the server)</h2>
+  <table>
+    <tr><th>Neo4j idea</th><th>What FACTS should take from it</th></tr>
+    <tr><td><b>Property-graph schema</b></td><td>Formalize FACTS’s model as typed nodes + typed, directed, property-bearing edges with labels. It maps 1:1 to FactsPack tables and makes export (Neo4j/GraphML) trivial.</td></tr>
+    <tr><td><b>Cypher variable-length paths</b></td><td>FACTS’s fixed verbs (<code>callers</code>/<code>imports</code>/<code>cycles</code>/<code>orphans</code>) are hardcoded special cases of pattern matching. Ship a <b>tiny Cypher-subset</b> that <b>compiles to SQLite recursive CTEs</b> — arbitrary structural queries, no new database.</td></tr>
+    <tr><td><b>PageRank / centrality</b></td><td>Rank “key files / god nodes” by <b>PageRank over the import/call graph</b>, not raw in-degree (what <code>MEMORY.md</code> uses today). Importance ≠ popularity.</td></tr>
+    <tr><td><b>Louvain / Leiden</b></td><td>Cluster the codebase into <b>modules/communities</b> for the brief and the CXO dashboard (this is exactly what Graphify does). Reference algorithms live in GDS.</td></tr>
+    <tr><td><b><code>MERGE</code> semantics</b></td><td>Model incremental refresh as <b>idempotent upsert-by-stable-id</b> of nodes/edges — the clean fix for ghost-duplicates and partial re-index.</td></tr>
+    <tr><td><b>GraphRAG retrieval</b></td><td>Make FACTS’s pre-injection layer <b>graph-aware</b>: start from entities named in the prompt, expand along edges (callees/callers/imports) to a connected subgraph, emit it as FactsPack. Don’t rank files independently.</td></tr>
+    <tr><td><b>Bloom visualization</b></td><td>Inform the dashboard’s interactive graph exploration (the human/Insights surface).</td></tr>
+  </table>
+
+  <div class="warn">
+    <h3 style="margin:0 0 6px;color:#e9cf86">⚠ Where NOT to follow Neo4j</h3>
+    <p>Do <b>not</b> make a Neo4j server a hard dependency or the default store. It needs a running database, isn’t git-committable, and adds ops weight — which would break FACTS’s core moat: <b>local, zero-infra, deterministic, commit-the-graph</b>. Sourcegraph (Postgres) and FACTS (SQLite) both show graph-native storage is <i>optional</i> for code intelligence. Keep SQLite + FactsPack as the substrate.</p>
+  </div>
+
+  <div class="callout">
+    <h3>↳ Net recommendation</h3>
+    <p><b>Steal the model and the math, skip the server.</b> Adopt the property-graph schema, a Cypher-subset compiled to SQLite CTEs, GDS-style algorithms (PageRank for importance, Leiden for modules), <code>MERGE</code>-style incremental updates, and the GraphRAG retrieval pattern. Then offer Neo4j only as an <b>optional export</b> — <code>facts export --neo4j</code> / GraphML — for teams who already run it and want Cypher/Bloom/GDS on the FACTS graph. That mirrors Graphify’s <code>[neo4j]</code> extra without taking on the dependency.</p>
+  </div>
+
+  <footer>
+    Compiled 2026-06-06 for the FACTS / FactsPack project. Neo4j facts (property graph, Cypher, GDS, vector index, GraphRAG, Bloom) are stable, well-documented platform features summarized from general knowledge; verify version specifics (e.g. vector-index APIs) against current Neo4j docs before implementing. See sibling files: <a href="graphify.html">graphify.html</a> (uses Neo4j export), <a href="sourcegraph.html">sourcegraph.html</a> (avoids graph DBs).
+  </footer>
+
+</div>
+</body>
+</html>

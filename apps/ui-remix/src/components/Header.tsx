@@ -32,6 +32,27 @@ const wrap = css({
     gridTemplateColumns: 'auto minmax(0, 1fr) auto',
     columnGap: 'var(--space-3)',
   },
+  /* Phone: the single row can't hold brand + 8-tab nav + 5 controls, so
+     the nav was crushing to a clipped sliver (QA ISSUE-2). Give it its
+     own full-width row beneath brand + controls — it scrolls there with
+     room to read 3-4 tabs at once. Desktop is untouched: the grid-area
+     names below only bind where this template-areas block applies. */
+  '@media (max-width: 599px)': {
+    gridTemplateColumns: '1fr auto',
+    gridTemplateAreas: '"brand controls" "nav nav"',
+    columnGap: 'var(--space-3)',
+    rowGap: 'var(--space-2)',
+    paddingBlock: 'var(--space-2)',
+  },
+});
+
+/* Cell wrapper so NumberedNav can claim the full-width "nav" row on
+   phones without NumberedNav needing to know the header's layout. */
+const navCell = css({
+  minWidth: '0',
+  '@media (max-width: 599px)': {
+    gridArea: 'nav',
+  },
 });
 
 const rightCluster = css({
@@ -41,6 +62,10 @@ const rightCluster = css({
   '@media (max-width: 899px)': {
     gap: 'var(--space-2)',
   },
+  '@media (max-width: 599px)': {
+    gridArea: 'controls',
+    justifySelf: 'end',
+  },
 });
 
 const brand = css({
@@ -48,6 +73,11 @@ const brand = css({
   alignItems: 'baseline',
   gap: 'var(--space-3)',
   whiteSpace: 'nowrap',
+  /* grid-area only where the phone template-areas exist; unconditional
+     grid-area names scrambled desktop auto-placement into 2 rows. */
+  '@media (max-width: 599px)': {
+    gridArea: 'brand',
+  },
 });
 
 const brandMark = css({
@@ -81,7 +111,9 @@ export function Header(handle: Handle<HeaderProps>) {
         <div mix={brand}>
           <span mix={brandMark}>FACTS</span>
         </div>
-        <NumberedNav />
+        <div mix={navCell}>
+          <NumberedNav />
+        </div>
         <div mix={sourceWrap}>
           <SourceChip projectName={data.project.name} projectRoot={root} />
         </div>

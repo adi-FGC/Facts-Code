@@ -294,7 +294,7 @@ export function Library(handle: Handle<LibraryProps>) {
                 fs-10 with 0.14em letter-spacing, "DOCS" / "OTHER" + the
                 "KIND" header itself need ~85px just for glyphs + padding.
                 The previous narrower column truncated to "DO..." / "KI...". */}
-            <RuledTable cols="88px minmax(0, 1fr) auto auto auto">
+            <RuledTable minWidth="30rem" cols="88px minmax(0, 1fr) auto auto auto">
               <RuledRow header>
                 <RuledCell header>Kind</RuledCell>
                 <RuledCell header>Name</RuledCell>

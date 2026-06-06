@@ -74,6 +74,7 @@ import {
   QUERY_VERBS,
   QueryGraphInputSchema,
   jsonSchemaByKind,
+  MCP_TOOL,
   type AgentArtifact,
   type HumanArtifact,
 } from '@factstack/spec';
@@ -248,7 +249,7 @@ server.setRequestHandler(
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [
     {
-      name: 'analyze',
+      name: MCP_TOOL.analyze,
       description: 'Run a full FACTS analysis of the configured project. Writes .facts/ artifacts and refreshes the server cache. Response includes a `version` block: `facts` (artifact schema version), `schemas` (per-format wire-format names + versions), `producer` (this MCP server\'s identity). Agents SHOULD reject mismatched versions loudly per spec §11.',
       inputSchema: {
         type: 'object',
@@ -258,7 +259,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: 'query_graph',
+      name: MCP_TOOL.query_graph,
       description: 'Query the dependency graph. Verbs: callers (files importing X), imports (files imported BY X), cycles, orphans. Returns FactsPack format by default (line-oriented, ~80% cheaper than JSON; see docs/FACTSPACK_PROMPT.md for the 8-line decoder preamble). Pass format:"json" to fall back to the legacy JSON shape.',
       inputSchema: {
         type: 'object',
@@ -273,7 +274,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: 'get_outline',
+      name: MCP_TOOL.get_outline,
       description: 'Return the symbol outline (declarations) for a single file, computed live from the source. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
@@ -285,7 +286,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: 'list_risks',
+      name: MCP_TOOL.list_risks,
       description: 'List scanner findings, optionally filtered by severity or category. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
@@ -301,7 +302,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // Returns a 2-10 KB markdown digest synthesized from agent.json
       // + human.json. Cheaper than walking agent.json by 10-100x for
       // the cold-start case. Re-run `analyze` to refresh.
-      name: 'read_memory',
+      name: MCP_TOOL.read_memory,
       description: 'Read .facts/MEMORY.md — a compact (2-10 KB) markdown brief that summarizes the project for AI agents. ALWAYS call this first when joining a new project; it replaces a 40-200 KB cold-read of agent.json.',
       inputSchema: { type: 'object', properties: {} },
     },
@@ -310,7 +311,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // Returns a structured "what changed since X" report — added /
       // modified / removed files + new routes + new risks — so the
       // agent reads ~5 KB instead of re-fetching the full artifact.
-      name: 'since',
+      name: MCP_TOOL.since,
       description: 'What changed since an ISO timestamp. Returns added/modified/removed files plus new + removed routes + risks. Uses the most recent snapshot in .facts/snapshots/ as a baseline when available; falls back to mtime-only mode otherwise. The hasBaseline field tells the caller which mode produced the report.',
       inputSchema: {
         type: 'object',
@@ -324,7 +325,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // v0.3.4: append a proposal/outcome event to .facts/learnings.jsonl.
       // Foundation for the v0.6 trust framework — every accepted vs
       // rejected proposal accumulates as calibration data.
-      name: 'log_learning',
+      name: MCP_TOOL.log_learning,
       description: 'Append a proposal/outcome event to .facts/learnings.jsonl. Use to record what your agent proposed and whether the human accepted, rejected, or left it pending. Required: agent (your stable id), action (verb-form, ≤64 chars), outcome (accepted|rejected|pending|self-calibrate). Optional: model, ticketId, reasoning, filesAffected, confidence (0..1), tags.',
       inputSchema: {
         type: 'object',
@@ -346,7 +347,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // v0.3.4: read + filter the learnings log. Lets the next agent
       // session pick up calibration context without re-reading every
       // line.
-      name: 'query_learnings',
+      name: MCP_TOOL.query_learnings,
       description: 'Filter .facts/learnings.jsonl by since/until/agent/outcome/action/tag. Returns most-recent-first, capped at 5000 events. Use for "what has this codebase\'s agents been right about?" calibration questions. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
@@ -366,7 +367,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // v0.3.6: env-var inventory. Returns the same data the UI's
       // Config tab renders — every var name, read sites, captured
       // defaults, primary access pattern.
-      name: 'get_config',
+      name: MCP_TOOL.get_config,
       description: 'List every environment variable read by the codebase, with read sites + captured defaults. Sorted by read count desc. Empty when no env reads are detected. Returns FactsPack by default (one row per read site); pass format:"json" for the legacy JSON shape (one entry per name, with reads[] nested).',
       inputSchema: {
         type: 'object',
@@ -379,7 +380,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       /* v0.6 — flat view of secret-scanner findings (subset of risks
          filtered to category === 'secret'). Convenience for agents
          auditing credential hygiene without re-deriving the filter. */
-      name: 'list_credentials',
+      name: MCP_TOOL.list_credentials,
       description: 'List leaked-credential findings from the secrets scanner — all `risks` entries with category === "secret". Each finding includes ruleId, file, line, severity, and a redacted preview (raw secrets are NEVER emitted; enforced at the type level in @factstack/scanners). JSON-only response.',
       inputSchema: {
         type: 'object',
@@ -392,7 +393,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       /* v0.6 — CVE findings from the last `factstack scan-vulns` run.
          Empty when scan-vulns hasn't been run; tells the agent
          explicitly so it can advise running it. */
-      name: 'list_vulnerabilities',
+      name: MCP_TOOL.list_vulnerabilities,
       description: 'List known CVE/GHSA advisories matched against the project\'s dependency manifests. Populated by the opt-in `factstack scan-vulns` subcommand (queries OSV.dev). Returns {findings, lastChecked, manifestCount}. When findings is empty AND lastChecked is null, scan-vulns has not been run yet — the agent should advise running it. Filterable by severity / ecosystem / package name.',
       inputSchema: {
         type: 'object',
@@ -411,7 +412,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
            hub     — the most-imported files + their importers
            focal   — caller graph rooted on one file (--focus), depth-capped
          Returns bare Mermaid source (drops into any ```mermaid block). */
-      name: 'get_diagram',
+      name: MCP_TOOL.get_diagram,
       description: 'Render the dependency graph as a Mermaid flowchart. view=package (inter-package edges, the architectural summary) | hub (most-imported files + importers) | focal (caller graph rooted on `focus`, requires it). Returns ready-to-embed Mermaid source — paste into a PR/README, or read it to grasp the shape without walking query_graph. Edge style: --> import, -.-> type-import, ==> dynamic.',
       inputSchema: {
         type: 'object',
@@ -423,7 +424,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: 'review_change',
+      name: MCP_TOOL.review_change,
       description: 'Change Verdict: compares the current analysis (head) against the most recent .facts/snapshots/ baseline and returns ONE opinionated risk verdict — severity + headline + grounded findings (new secrets, new CVEs, new dependency cycles, blast radius). Structured JSON by default; pass format:"markdown" for a PR-comment-ready block. When no baseline snapshot exists, returns {ok:false} advising to run `factstack analyze` again to create one. Cheaper + more decisive than walking the diff yourself.',
       inputSchema: {
         type: 'object',
@@ -455,7 +456,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: rawArgs } = req.params;
   const args = (rawArgs ?? {}) as Record<string, unknown>;
 
-  if (name === 'analyze') {
+  if (name === MCP_TOOL.analyze) {
     const stats = await enqueueAnalyze();
     /* v0.3.11 AI5: include version metadata so a connecting agent can
        version-check the artifact + the wire formats it'll consume.
@@ -479,7 +480,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats, version: versionInfo }) }] };
   }
 
-  if (name === 'query_graph') {
+  if (name === MCP_TOOL.query_graph) {
     if (!cached) await ensureAnalyzed();
     // Zod refine catches the missing-path-for-callers/imports case. Return
     // a structured error so callers see "missing required argument" rather
@@ -512,7 +513,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 
-  if (name === 'get_diagram') {
+  if (name === MCP_TOOL.get_diagram) {
     if (!cached) await ensureAnalyzed();
     /* Validate view against the union; default to package. Focal needs a
        focus path — surface that as a structured error (like query_graph)
@@ -537,7 +538,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: mermaid }] };
   }
 
-  if (name === 'get_outline') {
+  if (name === MCP_TOOL.get_outline) {
     if (!cached) await ensureAnalyzed();
     const relPath = String(args.path ?? '');
     const fmt = pickFormat(args);
@@ -570,7 +571,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     }
   }
 
-  if (name === 'list_risks') {
+  if (name === MCP_TOOL.list_risks) {
     if (!cached) await ensureAnalyzed();
     const sev = args.severity as string | undefined;
     const cat = args.category as string | undefined;
@@ -586,7 +587,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   /* v0.6 — credentials = filtered risks. Same data, different lens.
      Defined as its own tool so agents asking "any leaked secrets?"
      don't have to know the category-filter trick. */
-  if (name === 'list_credentials') {
+  if (name === MCP_TOOL.list_credentials) {
     if (!cached) await ensureAnalyzed();
     const sev = args.severity as string | undefined;
     let creds = cached!.agent.risks.filter((r) => r.category === 'secret');
@@ -597,7 +598,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   /* v0.6 — vulnerabilities pulled from agent.vulnerabilities (populated
      by `factstack scan-vulns`). When empty, signal "scan not run" vs
      "scan ran, zero findings" so agents can react accordingly. */
-  if (name === 'list_vulnerabilities') {
+  if (name === MCP_TOOL.list_vulnerabilities) {
     if (!cached) await ensureAnalyzed();
     const sev = args.severity as string | undefined;
     const eco = args.ecosystem as string | undefined;
@@ -628,7 +629,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     };
   }
 
-  if (name === 'read_memory') {
+  if (name === MCP_TOOL.read_memory) {
     if (!cached) await ensureAnalyzed();
     // Return as plain text so agents render it as markdown directly.
     // A JSON wrapper would force them to unwrap before reading.
@@ -636,7 +637,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   // v0.3.2 — what changed since X?
-  if (name === 'since') {
+  if (name === MCP_TOOL.since) {
     if (!cached) await ensureAnalyzed();
     const ts = typeof args.timestamp === 'string' ? args.timestamp : '';
     if (!ts) throw new Error("since: 'timestamp' (ISO 8601) is required");
@@ -649,7 +650,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   // v0.3.4 — append a learning event to .facts/learnings.jsonl.
-  if (name === 'log_learning') {
+  if (name === MCP_TOOL.log_learning) {
     /* Validate via the schema BEFORE we write — every line in the
        JSONL must be valid; an invalid event is a caller error and
        returning a structured complaint is more useful than a bad
@@ -675,7 +676,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   // v0.3.4 — read + filter learnings.jsonl.
-  if (name === 'query_learnings') {
+  if (name === MCP_TOOL.query_learnings) {
     const events = readLearnings();
     const result = queryLearnings(events, {
       ...(typeof args.since === 'string' ? { since: args.since } : {}),
@@ -694,7 +695,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   // v0.3.6 — env-var inventory.
-  if (name === 'get_config') {
+  if (name === MCP_TOOL.get_config) {
     if (!cached) await ensureAnalyzed();
     const config = cached!.agent.config ?? { envVars: [], schemas: [] };
     if (pickFormat(args) === 'pack') {
@@ -704,7 +705,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   }
 
   // Change Verdict: head (current analysis) vs latest snapshot baseline.
-  if (name === 'review_change') {
+  if (name === MCP_TOOL.review_change) {
     if (!cached) await ensureAnalyzed();
     // Exclude the head's own snapshot (analyze writes one each run) so we
     // compare against the PRIOR state, not head-vs-head.

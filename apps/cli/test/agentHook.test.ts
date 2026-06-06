@@ -87,6 +87,13 @@ describe('ensureFreshnessHook (pure merge)', () => {
     ensureFreshnessHook(input as never);
     expect(JSON.stringify(input)).toBe(snapshot);
   });
+
+  it('honors a custom command (configurable for self-hosting repos)', () => {
+    const cmd = 'npx tsx apps/cli/src/cli.ts analyze --minimal';
+    const { settings, added } = ensureFreshnessHook({}, cmd);
+    expect(added).toBe(true);
+    expect(settings.hooks!.PostToolUse![0]!.hooks![0]!.command).toBe(cmd);
+  });
 });
 
 describe('installFreshnessHook (fs round-trip)', () => {
@@ -137,6 +144,20 @@ describe('installFreshnessHook (fs round-trip)', () => {
       expect(r.added).toBe(true);
       const parsed = JSON.parse(readFileSync(r.settingsPath, 'utf8'));
       expect(parsed.hooks.PostToolUse[0].hooks[0].command).toBe(FRESHNESS_HOOK_COMMAND);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a custom command when given one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'facts-hook-'));
+    try {
+      const cmd = 'pnpm exec factstack analyze --minimal';
+      const r = installFreshnessHook(dir, cmd);
+      expect(r.added).toBe(true);
+      expect(r.command).toBe(cmd);
+      const parsed = JSON.parse(readFileSync(r.settingsPath, 'utf8'));
+      expect(parsed.hooks.PostToolUse[0].hooks[0].command).toBe(cmd);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

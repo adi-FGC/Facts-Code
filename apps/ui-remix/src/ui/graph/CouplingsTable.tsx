@@ -36,7 +36,7 @@ export function CouplingsTable(handle: Handle<CouplingsTableProps>) {
     if (couplings.length === 0) return null;
     return (
       <Section label="Heaviest couplings" title="Cross-module edges, ranked">
-        <RuledTable cols="minmax(0, 1fr) 32px minmax(0, 1fr) auto">
+        <RuledTable minWidth="28rem" cols="minmax(0, 1fr) 32px minmax(0, 1fr) auto">
           <RuledRow header>
             <RuledCell header>From</RuledCell>
             <RuledCell header>{' '}</RuledCell>

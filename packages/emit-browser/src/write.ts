@@ -20,9 +20,11 @@
 
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 import { writeArtifactsTo, type EmitProfile } from '@factstack/emit/pure';
+import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skills';
 import { FsaFileWriter } from './fsa-writer.js';
 
 export type { EmitProfile };
+export { ALL_FORMATS, type SkillFormatId };
 
 export interface BrowserWriteOptions {
   /** User-picked destination directory. Must be opened with mode: 'readwrite'. */
@@ -92,6 +94,65 @@ export async function writeBrowserArtifacts(
     memoryName: result.memoryName,
     snapshotName: result.snapshotName,
     bytesWritten: result.bytesWritten,
+  };
+}
+
+/* ─────────── agent-rules / skill files ─────────── */
+
+export interface BrowserSkillsOptions {
+  /** User-picked destination directory (the PROJECT ROOT). */
+  root: FileSystemDirectoryHandle;
+  agent: AgentArtifact;
+  human: HumanArtifact;
+  /** Which rules-file formats to write. Default: all registered
+   *  (Claude SKILL.md · Cursor .cursorrules · Copilot · AGENTS.md). */
+  formats?: SkillFormatId[];
+}
+
+export interface BrowserSkillsResult {
+  /** Project-root-relative paths written, e.g. `.cursorrules`,
+   *  `.github/copilot-instructions.md`, `.claude/skills/<name>/SKILL.md`. */
+  files: string[];
+  bytesWritten: number;
+  formats: SkillFormatId[];
+  /** Paths left untouched because they already existed (a hand-authored
+   *  `AGENTS.md`). Surfaced so the UI can tell the user it was preserved. */
+  preserved: string[];
+}
+
+/**
+ * Write the agent-instruction / skill files that tell an AI coding agent
+ * to PREFER the FACTS artifact (`.facts/agent.pack`) + the MCP tools over
+ * re-scanning the codebase. Unlike artifacts, these land at the PROJECT
+ * ROOT (next to `package.json`) — `.cursorrules`, `AGENTS.md`,
+ * `.github/copilot-instructions.md`, `.claude/skills/<name>/SKILL.md` —
+ * so a root-scoped `FsaFileWriter` (subdir `''`) is used. Same writer-
+ * agnostic `buildSkillsTo` orchestrator the CLI's `export-skills` uses;
+ * the browser just supplies the FSA tier.
+ *
+ * This is the "make any project opened in the web app self-instruct its
+ * agent" half — pairs with `writeBrowserArtifacts` (the pack itself).
+ */
+export async function writeBrowserSkills(
+  opts: BrowserSkillsOptions,
+): Promise<BrowserSkillsResult> {
+  /* subdir '' → write at the picked root, NOT under .facts/. */
+  const writer = new FsaFileWriter(opts.root, '');
+  const result = await buildSkillsTo(
+    writer,
+    opts.agent,
+    opts.human,
+    opts.formats ?? (ALL_FORMATS as SkillFormatId[]),
+    /* AGENTS.md is a cross-tool standard teams often hand-author — don't
+       overwrite an existing one on Save unless it was explicitly requested
+       via `formats`. The other rules files are FACTS-managed and refresh. */
+    { preserveExisting: opts.formats === undefined ? ['agents'] : [] },
+  );
+  return {
+    files: Object.keys(result.files),
+    bytesWritten: result.bytesWritten,
+    formats: result.formats,
+    preserved: result.preserved,
   };
 }
 

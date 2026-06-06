@@ -75,8 +75,24 @@ const gearActiveSpin = css({
   },
 });
 
-export function ConfigIcon(_h: Handle<{}>) {
+/* Re-render this icon on client-side navigation so its active tint tracks
+   the URL. The app no longer re-renders from the root on nav (that blanked
+   the tree); each pathname-reading component owns its own subscription. */
+function subscribeNav(handle: Handle<{}>) {
+  const onNav = () => {
+    void handle.update();
+  };
+  window.addEventListener('popstate', onNav);
+  window.addEventListener('factstack:nav', onNav);
+  handle.signal.addEventListener('abort', () => {
+    window.removeEventListener('popstate', onNav);
+    window.removeEventListener('factstack:nav', onNav);
+  });
+}
+
+export function ConfigIcon(handle: Handle<{}>) {
   ensureKeyframes();
+  subscribeNav(handle);
   return () => {
     const isActive = activeTab(location.pathname) === 'config';
     return (
@@ -136,8 +152,9 @@ const aboutMorph = css({
   },
 });
 
-export function AboutIcon(_h: Handle<{}>) {
+export function AboutIcon(handle: Handle<{}>) {
   ensureKeyframes();
+  subscribeNav(handle);
   return () => {
     const isActive = activeTab(location.pathname) === 'about';
     return (

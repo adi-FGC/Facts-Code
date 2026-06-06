@@ -325,7 +325,7 @@ export function Review(handle: Handle<ReviewProps>) {
           {/* ── trend vs baseline ── */}
           {v.trend ? (
             <Section label="Trend" title={`Change since ${shortAt(baseline!.at)}`}>
-              <RuledTable cols="1fr auto auto auto">
+              <RuledTable minWidth="24rem" cols="1fr auto auto auto">
                 <RuledRow header>
                   <RuledCell header>Metric</RuledCell>
                   <RuledCell header align="right">Baseline</RuledCell>

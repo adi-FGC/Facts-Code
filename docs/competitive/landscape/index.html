@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Coding & Code-Intelligence — Market Landscape (CIO scan)</title>
+<style>
+  :root{
+    --bg:#0c0e15; --panel:#14171f; --panel2:#1b1f2b; --ink:#e7ecf4; --muted:#97a2b4;
+    --line:#283041; --accent:#7c5cff;
+    --c1:#36d39a; --c2:#a855f7; --c3:#2ea043; --c4:#5b8cff; --c5:#ff5a3c; --c6:#eab308;
+    --code:#090b11; --chip:#1a1f2b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1140px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:31px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:42px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:15px;margin:18px 0 8px;color:#cdd6e0}
+  p{margin:10px 0}
+  a{color:#9d8bff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 18px;max-width:820px}
+  .cats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0}
+  .cat{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--line);border-radius:10px;padding:14px 16px;display:block}
+  .cat:hover{background:var(--panel2);text-decoration:none}
+  .cat b{display:block;color:#fff;font-size:14.5px;margin-bottom:4px}
+  .cat s{display:block;text-decoration:none;color:var(--muted);font-size:12.5px}
+  .cat .n{display:inline-block;margin-top:8px;font-size:11.5px;color:#cbd5e1;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
+  .c1{border-top-color:var(--c1)}.c2{border-top-color:var(--c2)}.c3{border-top-color:var(--c3)}
+  .c4{border-top-color:var(--c4)}.c5{border-top-color:var(--c5)}.c6{border-top-color:var(--c6)}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:12.6px}
+  th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600}
+  td.t{white-space:nowrap;font-weight:600;color:#dfe6ee}
+  code{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font:11.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#b9c4d0}
+  .wrapx{overflow-x:auto}
+  .cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:14px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h3{margin-top:0}
+  .card.v{border-left:3px solid var(--c1)} .card.b{border-left:3px solid var(--accent)} .card.m{border-left:3px solid var(--c5)}
+  ul{margin:8px 0;padding-left:20px} li{margin:4px 0}
+  .callout{background:linear-gradient(180deg,#1a2030,#161b22);border:1px solid #34406b;border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#bcabff}
+  .legend{font-size:11.5px;color:var(--muted);margin:6px 0 0}
+  .pill{display:inline-block;border-radius:6px;padding:1px 7px;font-size:11px;border:1px solid var(--line)}
+  .local{background:#10231a;color:#7ff0c6;border-color:#1f5a42}
+  .cloud{background:#231016;color:#ff9e8e;border-color:#5a2a23}
+  .oss{background:#101a2e;color:#9fc2ff;border-color:#28415e}
+  .prop{background:#221a10;color:#e9cf86;border-color:#5a4a1f}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:860px){.cats,.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>AI Coding & Code-Intelligence — Market Landscape</h1>
+  <p class="lead">A CIO-grade scan of the tools adjacent to <b>FACTS / FactsPack</b>: context/token reduction, coding-agent context engines, semantic code search &amp; code-graphs, code-intelligence infrastructure, AI testing, and engineering-intelligence dashboards. ~70 tools across six categories, researched live and captured <b>2026-06-06</b>. Each category links to a full dossier; figures are point-in-time.</p>
+
+  <h2>The stack, by layer</h2>
+  <p>These categories form a layer cake. The bottom layer (<b>infrastructure</b>) is what everything else is built on; the top layers (<b>agents</b>, <b>dashboards</b>) are what users touch. FACTS spans an unusual diagonal: it sits on the infrastructure layer (its own extractor + graph) but ships both an agent-facing wire format and a human/exec dashboard.</p>
+  <div class="cats">
+    <a class="cat c1" href="01-context-packing-and-compression.md"><b>1 · Context packing & token reduction</b><s>Repo→prompt flatteners, AST skeletonizers, and LLM/KV-cache compressors. The "make it cheap" layer.</s><span class="n">~14 tools</span></a>
+    <a class="cat c2" href="02-coding-agent-context-engines.md"><b>2 · Coding-agent context engines</b><s>How Aider, Cursor, Continue, Windsurf, Augment, Copilot, JetBrains et al. gather & feed code context.</s><span class="n">~12 tools</span></a>
+    <a class="cat c4" href="03-semantic-code-search-and-graph-qa.md"><b>3 · Semantic search & code-graph Q&A</b><s>Greptile, Potpie, blarify, Serena, code-graph-rag — index a repo for questions, navigation, auto-review.</s><span class="n">~10 tools</span></a>
+    <a class="cat c3" href="04-code-intelligence-infrastructure.md"><b>4 · Code-intelligence infrastructure</b><s>tree-sitter, SCIP/LSIF, stack-graphs, CodeQL, Semgrep, ast-grep — the symbol/graph plumbing.</s><span class="n">~14 tools</span></a>
+    <a class="cat c5" href="05-ai-test-generation-and-qa.md"><b>5 · AI test generation & QA</b><s>Qodo, Diffblue, Keploy, Meticulous, Symflower — generate/maintain/run tests by various methods.</s><span class="n">~12 tools</span></a>
+    <a class="cat c6" href="06-engineering-intelligence-dashboards.md"><b>6 · Engineering-intelligence dashboards</b><s>CodeScene, LinearB, Swarmia, Jellyfish, DX — codebase + git → exec metrics. The CXO layer.</s><span class="n">~11 tools</span></a>
+  </div>
+
+  <h2>Methodology taxonomy (cross-cutting)</h2>
+  <p>Strip the brand names away and the whole market runs on ~12 recurring methods. This is the CIO's real decision surface — you pick methods, not logos.</p>
+  <div class="wrapx">
+  <table>
+    <tr><th>Method</th><th>What it is</th><th>Representative tools</th><th>Trade-off</th></tr>
+    <tr><td class="t">Verbatim flatten</td><td>Walk + concatenate files, respect gitignore</td><td>gitingest, files-to-prompt, Repomix(basic)</td><td>Deterministic, lossless; zero relevance intelligence</td></tr>
+    <tr><td class="t">AST skeleton</td><td>Strip bodies, keep signatures/types</td><td>Repomix compress, RepoPrompt CodeMaps</td><td>~30–70% token cut; lossy for implementation detail</td></tr>
+    <tr><td class="t">Repo-map / graph-rank</td><td>Tag graph + PageRank within a token budget</td><td><b>Aider</b></td><td>Deterministic, no GPU; recomputed per turn (O(n))</td></tr>
+    <tr><td class="t">Embeddings-RAG</td><td>Chunk→embed→vector store→similarity</td><td>Cursor, Continue, Copilot, Windsurf</td><td>Scales to millions LoC; fuzzy; weak on "all callers"</td></tr>
+    <tr><td class="t">Agentic file-read</td><td>No index; agent walks imports/reads on demand</td><td>Cline, Zed</td><td>Exact structure; high exploration token cost</td></tr>
+    <tr><td class="t">LSP / structural</td><td>Live language-server symbol queries</td><td><b>Serena</b>, JetBrains PSI, blarify</td><td>Authoritative, deterministic, compact; no NL similarity</td></tr>
+    <tr><td class="t">AST-graph + GraphRAG</td><td>AST → graph DB (Neo4j/Memgraph) + embeddings</td><td>Greptile, Potpie, code-graph-rag</td><td>Multi-hop reasoning; graph-DB ops weight; approximate</td></tr>
+    <tr><td class="t">Index-format ingest</td><td>Consume a neutral symbol index file</td><td><b>SCIP</b>, LSIF</td><td>Compiler-grade, language-agnostic; needs build toolchain</td></tr>
+    <tr><td class="t">Perplexity compression</td><td>Small LM prunes low-information tokens</td><td>LLMLingua-2, Selective Context</td><td>4–20×; non-deterministic, latency-additive</td></tr>
+    <tr><td class="t">Symbolic / RL test-gen</td><td>Provably-correct tests via search/symbolic exec</td><td>Diffblue, Symflower</td><td>Correctness guarantee; narrow (lang/heap limited)</td></tr>
+    <tr><td class="t">Record-replay testing</td><td>Capture real traffic/sessions → regression tests</td><td>Keploy, Meticulous</td><td>Zero-authoring, real fidelity; discovers no new paths</td></tr>
+    <tr><td class="t">Behavioral code analysis</td><td>Git history × code complexity → hotspots</td><td><b>CodeScene</b></td><td>Causal, code-level exec insight; needs full git history</td></tr>
+  </table>
+  </div>
+
+  <h2>Master comparison matrix</h2>
+  <p>The strategically relevant tools across all six categories. <span class="pill local">local</span> = runs on your machine; <span class="pill cloud">cloud</span> = code leaves the machine; openness as <span class="pill oss">OSS</span> / <span class="pill prop">proprietary/open-core</span>.</p>
+  <div class="wrapx">
+  <table>
+    <tr><th>Tool</th><th>Cat</th><th>Core method</th><th>Host</th><th>Open</th><th>Token / context strategy</th></tr>
+    <tr><td class="t">Repomix</td><td>1</td><td>flatten + AST skeleton</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>~70% cut via signature-only compress + XML tags</td></tr>
+    <tr><td class="t">yek</td><td>1</td><td>git-history priority + budget</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>Greedy fill of token cap with most-worked-on files</td></tr>
+    <tr><td class="t">LLMLingua-2</td><td>1</td><td>perplexity compression</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>3–20× via keep/drop token classification</td></tr>
+    <tr><td class="t">Aider</td><td>2</td><td>repo-map + PageRank</td><td><span class="pill local">local</span></td><td><span class="pill oss">Apache</span></td><td>Signature skeleton ranked to a hard map-token budget</td></tr>
+    <tr><td class="t">Cursor</td><td>2</td><td>embeddings + Merkle index</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Top-k chunks; re-embed only changed Merkle branches</td></tr>
+    <tr><td class="t">Continue.dev</td><td>2</td><td>hybrid vector+FTS+AST</td><td><span class="pill local">local</span></td><td><span class="pill oss">Apache</span></td><td>Local LanceDB + SQLite FTS5; top-k merged</td></tr>
+    <tr><td class="t">Augment</td><td>2</td><td>cross-repo knowledge graph</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Curate+compress (4,456→682 sources); infinite-context framing</td></tr>
+    <tr><td class="t">JetBrains PSI</td><td>2</td><td>IDE symbol-index query</td><td><span class="pill local">local</span></td><td><span class="pill prop">prop</span></td><td>Structured symbol answers, not chunk dumps</td></tr>
+    <tr><td class="t">Serena</td><td>3</td><td>LSP via MCP (zero-vector)</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>Returns only requested symbols; no padding</td></tr>
+    <tr><td class="t">Greptile</td><td>3</td><td>AST-graph + agentic review</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Graph traversal narrows surface before the LLM</td></tr>
+    <tr><td class="t">Potpie</td><td>3</td><td>AST → Neo4j + CrewAI agents</td><td><span class="pill cloud">cloud</span></td><td><span class="pill oss">Apache</span></td><td>Cypher subgraph queries return only relevant nodes</td></tr>
+    <tr><td class="t">blarify</td><td>3</td><td>LSP/SCIP → Neo4j</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>Exact structural graph; SCIP 330× faster than live LSP</td></tr>
+    <tr><td class="t">tree-sitter</td><td>4</td><td>incremental parse (WASM)</td><td><span class="pill local">local</span></td><td><span class="pill oss">MIT</span></td><td>CST per file; 305 grammars; browser + Node</td></tr>
+    <tr><td class="t">SCIP</td><td>4</td><td>protobuf symbol index</td><td><span class="pill local">local</span></td><td><span class="pill oss">Apache</span></td><td>Compact cross-file def/ref index; ingest then query</td></tr>
+    <tr><td class="t">stack-graphs</td><td>4</td><td>scope-graph name binding</td><td><span class="pill local">local</span></td><td><span class="pill oss">Apache</span></td><td>Precise cross-file refs w/o a type-checker (Rust-only)</td></tr>
+    <tr><td class="t">CodeQL</td><td>4</td><td>compile-to-DB + Datalog</td><td><span class="pill local">local</span></td><td><span class="pill prop">queries MIT</span></td><td>Compiler-grade call graph/dataflow; build-coupled</td></tr>
+    <tr><td class="t">Semgrep</td><td>4</td><td>AST pattern-match + taint</td><td><span class="pill local">local</span></td><td><span class="pill prop">LGPL/prop</span></td><td>Findings, not a symbol DB; Pro adds interfile taint</td></tr>
+    <tr><td class="t">Qodo</td><td>5</td><td>LLM-gen + multi-agent</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">open-core</span></td><td>Behavioral-intent assertions; coverage-gap crawl</td></tr>
+    <tr><td class="t">Diffblue</td><td>5</td><td>RL / search-based (non-LLM)</td><td><span class="pill local">local</span></td><td><span class="pill prop">prop</span></td><td>Guaranteed compile/pass; impact-scoped re-test</td></tr>
+    <tr><td class="t">Keploy</td><td>5</td><td>eBPF record-replay</td><td><span class="pill local">local</span></td><td><span class="pill oss">Apache</span></td><td>Real traffic → deterministic tests + mocks</td></tr>
+    <tr><td class="t">Symflower</td><td>5</td><td>symbolic execution + LLM</td><td><span class="pill local">local</span></td><td><span class="pill prop">open-core</span></td><td>Guaranteed branch coverage per function</td></tr>
+    <tr><td class="t">CodeScene</td><td>6</td><td>behavioral (git × complexity)</td><td><span class="pill local">local</span></td><td><span class="pill prop">prop/CE</span></td><td>Hotspots, change coupling, knowledge risk, health trend</td></tr>
+    <tr><td class="t">LinearB</td><td>6</td><td>DORA + PR metrics</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Process metrics only (no code analysis)</td></tr>
+    <tr><td class="t">Jellyfish</td><td>6</td><td>investment + AI-ROI</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Maps effort to business epics; AI-tool ROI</td></tr>
+    <tr><td class="t">DX</td><td>6</td><td>DXI (metrics + surveys)</td><td><span class="pill cloud">cloud</span></td><td><span class="pill prop">prop</span></td><td>Quant + qualitative; 2026 "Agent Experience"</td></tr>
+  </table>
+  </div>
+
+  <h2>What this means for FACTS</h2>
+  <div class="cols">
+    <div class="card v">
+      <h3>✓ Validated by the market</h3>
+      <ul>
+        <li><b>Token-cheap context is a real category</b> — an entire layer (cat 1) exists just to shrink payloads.</li>
+        <li><b>Repo-map + PageRank works</b> — Aider proves deterministic, local, budgeted context selection (FACTS's pre-injection feature).</li>
+        <li><b>Structural &gt; embeddings for precision</b> — Serena (~25k★) and JetBrains PSI show agents want authoritative symbol answers, not fuzzy chunks.</li>
+        <li><b>Behavioral code analysis is the exec wedge</b> — CodeScene monetizes exactly the git-churn × complexity hotspot that FACTS already has the inputs for.</li>
+      </ul>
+    </div>
+    <div class="card b">
+      <h3>↻ Borrow now (per category)</h3>
+      <ul>
+        <li><b>1:</b> yek's git-history ranking; Repomix's AST skeleton rows.</li>
+        <li><b>2:</b> Aider's personalized-PageRank loop; Cursor's Merkle incremental invalidation.</li>
+        <li><b>3:</b> Serena's MCP tool conventions; blarify's SCIP-first fallback; Potpie's incremental graph update.</li>
+        <li><b>4:</b> <code>web-tree-sitter</code> + a scope-graph layer; optional SCIP ingest for compiler-grade multi-language.</li>
+        <li><b>5:</b> graph-driven impact-based test selection (Diffblue Optimize idea).</li>
+        <li><b>6:</b> hotspots, change coupling, knowledge-risk, health-trend, DORA anchoring.</li>
+      </ul>
+    </div>
+    <div class="card m">
+      <h3>★ Uncontested (FACTS's moat)</h3>
+      <ul>
+        <li><b>A compact tabular wire format</b> — every cat-1 tool emits flat text/XML for chat; none emit typed columns + relational keys.</li>
+        <li><b>Deterministic, committable, diffable</b> — incompatible with the LLM-based compressors and embedding indexes that dominate.</li>
+        <li><b>Dual audience</b> — agent JSON/pack <i>and</i> an exec dashboard from one pass; cat-2/3 serve agents, cat-6 serves execs, nobody does both.</li>
+        <li><b>Local + isomorphic (browser+Node)</b> — most graph tools need Neo4j/Qdrant or a cloud; FACTS needs neither.</li>
+        <li><b>Built-in secrets/risk + intent</b> — security and CXO-narrative in the same artifact.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="callout">
+    <h3>CIO build-vs-buy lens</h3>
+    <ul>
+      <li><b>Adopt (open infrastructure):</b> <code>tree-sitter</code>/<code>web-tree-sitter</code> for parsing, the <b>SCIP</b> format for compiler-grade ingest, LSP for live symbol truth, the <b>MCP</b> tool conventions Serena popularized. Don't hand-write parsers or invent a protocol where an open one exists.</li>
+      <li><b>Build (the differentiated core):</b> the <b>FactsPack wire format</b>, the <b>deterministic graph + ranking</b>, <b>graph-aware pre-injection</b>, and the <b>dual-audience (agent + exec) output</b>. No vendor sells this combination; it is the defensible center.</li>
+      <li><b>Watch (fast-moving entrants):</b> knowledge-graph context engines (Augment, Tabnine Enterprise), behavioral analysis (CodeScene), and per-review-priced review agents (Greptile). These validate demand and signal where the category is heading.</li>
+      <li><b>Avoid as dependencies:</b> heavyweight or closed substrates — Neo4j-as-default, CodeQL's closed engine, Kythe (maintenance-mode), and any cloud-upload requirement — all of which break the local/zero-infra/committable invariant.</li>
+    </ul>
+  </div>
+
+  <h2>Dossiers</h2>
+  <ul>
+    <li><a href="01-context-packing-and-compression.md">01 · Context packing & token reduction</a></li>
+    <li><a href="02-coding-agent-context-engines.md">02 · Coding-agent context engines</a></li>
+    <li><a href="03-semantic-code-search-and-graph-qa.md">03 · Semantic code search & code-graph Q&A</a></li>
+    <li><a href="04-code-intelligence-infrastructure.md">04 · Code-intelligence infrastructure</a></li>
+    <li><a href="05-ai-test-generation-and-qa.md">05 · AI test generation & QA</a></li>
+    <li><a href="06-engineering-intelligence-dashboards.md">06 · Engineering-intelligence dashboards</a></li>
+  </ul>
+  <p>Deep-dive single-product files (sibling folder): <a href="../graperoot.html">GrapeRoot</a> · <a href="../graphify.html">Graphify</a> · <a href="../sourcegraph.html">Sourcegraph</a> · <a href="../neo4j.html">Neo4j</a> · <a href="../index.html">competitive index</a>.</p>
+
+  <footer>
+    Landscape captured 2026-06-06 via parallel live web + GitHub research across six categories (~70 tools). Stars/pricing/version figures are point-in-time and flagged "~"/"verify" in the dossiers where uncertain. Internal competitive analysis for the FACTS / FactsPack project; not affiliated with any tool listed.
+  </footer>
+
+</div>
+</body>
+</html>

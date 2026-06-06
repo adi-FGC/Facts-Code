@@ -90,8 +90,47 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/**
+ * Root component — mounted ONCE by `createRoot` in main.tsx. The root handle
+ * in this Remix UI runtime does NOT implement `handle.update()`, so the root
+ * can't re-render itself. It simply mounts <AppRouter/>, a normal (non-root)
+ * component whose `handle.update()` DOES work — and that drives every nav.
+ *
+ * Why not the old approach (re-call `root.render(<App/>)` on each nav event)?
+ * In this VDOM `createRoot().render()` is NOT re-entrant: the 2nd+ call
+ * unmounts the tree and silently fails to re-mount, blanking #root. That was
+ * the "blank on client navigation, fine on hard refresh" bug. Single mount +
+ * child `handle.update()` is the reliable pattern. (Fixed 2026-06-03.)
+ */
 export function App(_handle: Handle<AppProps>) {
+  return () => <AppRouter />;
+}
+
+/**
+ * The reactive router. Lives one level below the root, so its
+ * `handle.update()` works (the same path every interactive component uses).
+ * Subscribes to URL changes — `popstate` (back/forward) + `factstack:nav`
+ * (dispatched by the in-app linkClick helper) — and the data-ready event,
+ * and re-renders. The active route is derived from `location.pathname`,
+ * threaded into <Shell> as the `path` prop so the swap is unmissable.
+ */
+function AppRouter(handle: Handle) {
   ensureLoadStarted();
+  // AppRouter re-renders ONLY for the data lifecycle (Loading → Shell →
+  // Error). That's a component TYPE change, i.e. a clean remount, which the
+  // runtime handles. It deliberately does NOT listen for navigation events:
+  // re-rendering this root-adjacent component IN PLACE corrupts the
+  // reconciler and blanks the whole tree (the "blank on client nav, fine on
+  // refresh" bug). Per-navigation reactivity lives in DEEP components —
+  // RouteView (below) and NumberedNav — whose handle.update() patches a
+  // small subtree, the same path SubViewTabs uses, which works reliably.
+  const onData = () => {
+    void handle.update();
+  };
+  window.addEventListener(DATA_READY_EVENT, onData);
+  handle.signal.addEventListener('abort', () => {
+    window.removeEventListener(DATA_READY_EVENT, onData);
+  });
   return () => {
     if (loadError) return <ErrorScreen message={loadError} />;
     if (!cached) return <Loading />;
@@ -138,7 +177,6 @@ function Loading(_h: Handle) {
 function Shell(handle: Handle<{ data: Dataset }>) {
   return () => {
     const { data } = handle.props;
-    const tab = activeTab(location.pathname);
     return (
       <>
         <a href="#main" class="skip-link">Skip to content</a>
@@ -151,7 +189,10 @@ function Shell(handle: Handle<{ data: Dataset }>) {
               stays on the link, so the next Tab dumps the user back into the
               nav — defeating the skip link. -1 keeps it out of the Tab order. */}
           <main id="main" tabIndex={-1}>
-            {renderRoute(tab, data)}
+            {/* RouteView is the per-navigation reactive boundary (see below).
+                Shell itself mounts once and never patches, so the chrome
+                (Header, file tree, status bar) keeps its state across navs. */}
+            <RouteView data={data} />
           </main>
           <StatusBar data={data} />
         </div>
@@ -169,6 +210,28 @@ function Shell(handle: Handle<{ data: Dataset }>) {
       </>
     );
   };
+}
+
+/**
+ * RouteView — the per-navigation reactive boundary. Deep in the tree
+ * (App → AppRouter → Shell → main → RouteView), so its `handle.update()`
+ * patches only the route subtree — exactly like SubViewTabs, which works,
+ * whereas re-rendering the root-adjacent Shell in place blanks the whole
+ * tree. Subscribes to URL changes — `popstate` (back/forward) and the in-app
+ * `factstack:nav` event (from the linkClick helper) — and re-renders the
+ * active route. (Blank-on-client-nav fix, 2026-06-03.)
+ */
+function RouteView(handle: Handle<{ data: Dataset }>) {
+  const onChange = () => {
+    void handle.update();
+  };
+  window.addEventListener('popstate', onChange);
+  window.addEventListener('factstack:nav', onChange);
+  handle.signal.addEventListener('abort', () => {
+    window.removeEventListener('popstate', onChange);
+    window.removeEventListener('factstack:nav', onChange);
+  });
+  return () => renderRoute(activeTab(location.pathname), handle.props.data);
 }
 
 function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {

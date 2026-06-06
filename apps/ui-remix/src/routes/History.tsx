@@ -128,7 +128,7 @@ export function History(handle: Handle<HistoryProps>) {
           </LabelNumberRow>
 
           <Section label="Snapshots" title="Every analysis pass">
-            <RuledTable cols="auto auto auto auto auto auto">
+            <RuledTable minWidth="34rem" cols="auto auto auto auto auto auto">
               <RuledRow header>
                 <RuledCell header>When</RuledCell>
                 <RuledCell header align="right">Files</RuledCell>

@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourcegraph — Knowledge File</title>
+<style>
+  :root{
+    --bg:#0c0f14; --panel:#14181f; --panel2:#1b212c; --ink:#e7edf4; --muted:#94a2b2;
+    --line:#28313d; --accent:#ff5a3c; --accent2:#5b8cff; --warn:#eab308;
+    --code:#090c11; --chip:#1b222d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:960px;margin:0 auto;padding:40px 24px 80px}
+  h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:38px 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:16px;margin:22px 0 8px;color:#cdd6e0}
+  p{margin:10px 0}
+  a{color:#ff8c78;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:16px;margin:8px 0 18px}
+  .badges{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+  .badge{background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:4px 12px;font-size:12.5px;color:#cbd5e1}
+  .badge b{color:#fff}
+  table{border-collapse:collapse;width:100%;margin:14px 0;font-size:13.5px}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:#dbe3ea;font-weight:600}
+  td code,p code,li code{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:12.5px/1.5 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#ffb3a3}
+  pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow:auto;font:12.5px/1.6 "SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#c3cdd9}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .callout{background:linear-gradient(180deg,#241820,#181318);border:1px solid #6b3326;border-left:4px solid var(--accent);border-radius:10px;padding:14px 18px;margin:18px 0}
+  .callout h3{margin-top:0;color:#ffb09e}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .card h3{margin-top:0}
+  .tag{display:inline-block;background:#3a1f17;border:1px solid #7a3a28;color:#ffc1b2;border-radius:6px;padding:1px 7px;font-size:11.5px;margin-left:6px;vertical-align:middle}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0}
+  .kv span{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:3px 9px;font-size:12px}
+  .pill{display:inline-block;background:#10202e;border:1px solid #28465e;color:#9fd0ff;border-radius:6px;padding:1px 7px;font-size:11.5px}
+  footer{margin-top:50px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:640px){.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Sourcegraph <span class="tag">3rd-party · knowledge file</span></h1>
+  <p class="lead">“Take control of your codebase.” The enterprise <b>code-intelligence platform</b> for <b>Big Code</b> — give humans and agents complete context to <b>Understand · Oversee · Evolve</b> the world’s largest codebases. In 2026 it leads with an <b>SCIP-powered MCP server</b> that feeds context to <i>any</i> agent.</p>
+
+  <div class="badges">
+    <span class="badge">Tier <b>Enterprise / server</b></span>
+    <span class="badge"><b>200+</b> enterprise teams</span>
+    <span class="badge">Code search <b>~decade</b> old</span>
+    <span class="badge">OSS plumbing <b>Apache-2.0</b></span>
+    <span class="badge">Product <b>closed-source</b></span>
+    <span class="badge">SOC2 II · ISO27001</span>
+  </div>
+  <div class="kv">
+    <span>Site: sourcegraph.com</span>
+    <span>OSS: <code>scip</code> (646★), <code>zoekt</code> (1.7k★), <code>src-cli</code>, <code>scip-*</code> indexers</span>
+    <span>Agent product: <code>Amp</code> (ampcode.com)</span>
+  </div>
+
+  <h2>1 · Positioning (current, 2026)</h2>
+  <p>The pitch is explicitly <b>agent-context at enterprise scale</b>: “Agents see only fragments of the enterprise codebase, rebuilding context for each task… that blind spot becomes inconsistency, missed changes, and risk.” Sourcegraph indexes <b>all</b> repositories and feeds agents full context. The homepage demo contrasts a bare agent (misses auth middleware, DTOs, audit logging, tests) with one calling <code>sg_keyword_search "User struct" across 2,847 repositories</code> that finds 31 files across 7 layers and plans the full cross-cutting change.</p>
+  <p>Notably, the old <b>Cody</b> assistant is no longer the headline (its public repo is gone); Sourcegraph now sells the <b>platform + MCP context layer</b> that powers any agent, plus a separate agent product <b>Amp</b>. Marquee proof point: <b>Stripe</b> connects its internal AI “Minions” to the Sourcegraph MCP server for code intelligence.</p>
+
+  <h2>2 · Product lineup</h2>
+  <table>
+    <tr><th>Product</th><th>What it is</th></tr>
+    <tr><td><b>Code Search</b></td><td>Exact, deterministic, exhaustive search across the entire codebase (powered by <code>zoekt</code> trigram index). The decade-old core.</td></tr>
+    <tr><td><b>Deep Search</b></td><td><b>Agentic natural-language</b> search — ask complex questions, get grounded answers <b>with citations</b>. Used beyond eng (support, GTM).</td></tr>
+    <tr><td><b>MCP server</b></td><td>“Code graph knowledge for agents.” <b>SCIP-powered</b> context to agents — “make every token count… fewer retries and lower inference spend.”</td></tr>
+    <tr><td><b>Batch Changes</b></td><td>Large-scale, cross-repository changes — refactor / fix vulns / migrate across <i>all</i> repos with control.</td></tr>
+    <tr><td><b>Code Insights</b></td><td>High-level metrics &amp; analytics — track migrations, adoption, and risk over time. (The exec/CXO-facing surface.)</td></tr>
+    <tr><td><b>Code Monitoring</b></td><td>Alert agents and teams when code changes.</td></tr>
+    <tr><td><b>Living Documentation</b></td><td>A continuously updated knowledge base of your codebase.</td></tr>
+    <tr><td><b>APIs / CLI</b></td><td>GraphQL API + <code>src-cli</code> (Sourcegraph in your terminal). Public code search over 1M+ repos.</td></tr>
+  </table>
+
+  <h2>3 · Architecture &amp; open-source plumbing</h2>
+  <p>The product is closed (the main monorepo went private during the enterprise pivot), but the <b>code-intelligence plumbing is open</b> and is exactly the part relevant to FACTS:</p>
+  <div class="grid">
+    <div class="card"><h3>SCIP <span class="pill">Apache-2.0 · Go</span></h3><p><b>SCIP Code Intelligence Protocol</b> — a language-agnostic, <b>Protobuf</b>-based index format (successor to LSIF) that powers Go-to-definition, Find-references, Find-implementations. Ships Go/Rust bindings, generated TS/Haskell, and a <code>scip</code> CLI.</p></div>
+    <div class="card"><h3>zoekt <span class="pill">Apache-2.0 · Go</span></h3><p>Fast <b>trigram-based</b> code search engine. Powers exact/regex Code Search at scale. This is search, not a graph DB.</p></div>
+    <div class="card"><h3>Indexers</h3><p>One precise indexer per language emits SCIP: <code>scip-typescript</code> (TS/JS), <code>scip-python</code>, <code>scip-java</code> (Java/Scala/Kotlin), <code>scip-clang</code> (C/C++), <code>scip-ruby</code>, <code>scip-dotnet</code> (C#/VB), <code>rust-analyzer</code> (Rust), <code>scip-dart</code>, <code>scip-php</code>.</p></div>
+    <div class="card"><h3>Storage <span class="pill">reality check</span></h3><p>Backed by <b>Postgres + zoekt + stored SCIP blobs</b>. The largest “code graph” company <b>does not use a graph database</b> — strong evidence a graph DB is optional for code intelligence.</p></div>
+  </div>
+
+  <h2>4 · The SCIP model (the adoptable artifact)</h2>
+  <p>SCIP is the concrete thing FACTS can <b>consume</b> rather than re-implement per language. Conceptually a SCIP index is: <b>Documents</b> (files) → <b>Occurrences</b> (a symbol referenced at a range, with a role: definition/reference) → <b>Symbols</b> (a stable, structured monikered identity) → <b>SymbolInformation</b> (kind, docs, relationships like <code>implementation</code>/<code>type_definition</code>). It’s designed for cross-repo, language-agnostic precise navigation.</p>
+  <pre>scip-typescript index            # emit index.scip for a TS/JS repo
+scip print index.scip            # inspect occurrences / symbols
+# → ingest occurrences+symbols → your own graph (FACTS does this in scip_ingest-style)</pre>
+
+  <h2>5 · Enterprise posture</h2>
+  <ul>
+    <li><b>Security/compliance:</b> SOC2 Type II + ISO27001; <b>zero data retention</b> on LLM inference (never stored beyond what’s required, never shared).</li>
+    <li><b>Scale:</b> built for the world’s largest monorepos and multi-repo architectures; “indexes all of your repositories.”</li>
+    <li><b>Access:</b> SSO (SAML/OIDC/OAuth), SCIM provisioning, RBAC; dedicated account + support engineers.</li>
+    <li><b>Proof:</b> a “CodeScaleBench” report claims it makes agents “faster, cheaper, and more accurate.”</li>
+  </ul>
+
+  <div class="callout">
+    <h3>↳ Relevance to FACTS / FactsPack</h3>
+    <p>Sourcegraph is the <b>enterprise mirror of FACTS</b> — several FACTS pillars already exist there at scale, which is both validation and a source of design lessons:</p>
+    <table>
+      <tr><th>FACTS pillar</th><th>Sourcegraph analog</th><th>Lesson</th></tr>
+      <tr><td>FactsPack “make tokens cheap” MCP</td><td>SCIP-powered MCP — “make every token count”</td><td>The framing is validated by the category leader; lean into it in your messaging.</td></tr>
+      <tr><td><code>.facts/MEMORY.md</code> brief</td><td>Living Documentation</td><td>A continuously-updated codebase knowledge base is a recognized product surface.</td></tr>
+      <tr><td>CXO editorial dashboard</td><td>Code Insights</td><td>Metrics/adoption/risk-over-time is the exec-facing wedge — keep investing here.</td></tr>
+      <tr><td>Fixed query verbs</td><td>Deep Search (NL, cited)</td><td>Move to natural-language, citation-grounded queries returning a FactsPack subgraph.</td></tr>
+      <tr><td>JS/TS-only analyzer</td><td>SCIP + 9 precise indexers</td><td><b>Ingest SCIP</b> to get many languages with compiler-grade precision — don’t hand-write each extractor.</td></tr>
+    </table>
+    <p><b>The strategic gap (your opening):</b> Sourcegraph is <b>enterprise, server-hosted, closed, “Big Code.”</b> FACTS is <b>local, zero-infra, git-committable, open-spec, solo→small-team.</b> Different tier — learn the <i>concepts</i> (SCIP ingestion, “tokens count” MCP, Living Docs, Insights), not the heavyweight deployment. And note: like FACTS, Sourcegraph stores in <b>Postgres, not a graph DB</b> — your SQLite choice is in good company.</p>
+  </div>
+
+  <footer>
+    Knowledge captured 2026-06-06: live homepage via headless browse (<a href="https://sourcegraph.com/">sourcegraph.com</a>) + OSS repos via GitHub
+    (<a href="https://github.com/sourcegraph/scip">scip</a>, <a href="https://github.com/sourcegraph/zoekt">zoekt</a>, the <code>scip-*</code> indexers).
+    Cody/main monorepo are private; SCIP internals summarized from the protocol design. Figures point-in-time. Internal competitive analysis for the FACTS / FactsPack project.
+  </footer>
+
+</div>
+</body>
+</html>

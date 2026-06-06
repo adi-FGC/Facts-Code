@@ -5,6 +5,7 @@ export * from './frameworks.js';
 export * from './tokencost.js';
 export * from './dependencies.js';
 export * from './vulnerabilities.js';
+export * from './outdated.js';
 export * from './css.js';
 export {
   scanFileLicense,
