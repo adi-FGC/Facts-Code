@@ -45,6 +45,9 @@ function node(path: string, language: string = 'typescript', extra: Record<strin
 function edge(from: string, to: string, kind: 'import' | 'dynamic-import' | 'type-import' = 'import') {
   return { from, to, kind };
 }
+function edgeC(from: string, to: string, confidence: 'extracted' | 'inferred' | 'ambiguous') {
+  return { from, to, kind: 'import' as const, confidence };
+}
 
 describe('executeQuery — callers verb', () => {
   it('returns files that import the target', () => {
@@ -336,5 +339,63 @@ describe('executeQuery — glob matcher', () => {
     expect(executeQuery(agent, { verb: 'cycles', filter: 'x.ts' }).count).toBe(2);
     // '?.ts' is glob → anchored single-char + literal '.ts', matches only 'x.ts'
     expect(executeQuery(agent, { verb: 'cycles', filter: '?.ts' }).count).toBe(1);
+  });
+});
+
+describe('executeQuery — minConfidence filter (F1)', () => {
+  // a.ts imports b (extracted), c (inferred), d (ambiguous).
+  function mixed(): AgentArtifact {
+    return makeArtifact({
+      graph: {
+        nodes: [node('a.ts'), node('b.ts'), node('c.ts'), node('d.ts')],
+        edges: [
+          edgeC('a.ts', 'b.ts', 'extracted'),
+          edgeC('a.ts', 'c.ts', 'inferred'),
+          edgeC('a.ts', 'd.ts', 'ambiguous'),
+        ],
+        cycles: [],
+      },
+    });
+  }
+
+  it('no threshold returns every edge', () => {
+    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts' }).results)
+      .toEqual(['b.ts', 'c.ts', 'd.ts']);
+  });
+
+  it('minConfidence=extracted keeps only the most certain edge', () => {
+    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'extracted' }).results)
+      .toEqual(['b.ts']);
+  });
+
+  it('minConfidence=inferred keeps extracted + inferred', () => {
+    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'inferred' }).results)
+      .toEqual(['b.ts', 'c.ts']);
+  });
+
+  it('minConfidence=ambiguous is the loosest threshold (keeps everything)', () => {
+    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'ambiguous' }).results)
+      .toEqual(['b.ts', 'c.ts', 'd.ts']);
+  });
+
+  it('callers: a threshold bypasses the cached path-only callers index so the filter applies', () => {
+    const agent = makeArtifact({
+      graph: {
+        nodes: [node('b.ts', 'typescript', { callers: ['a.ts'] }), node('a.ts')],
+        edges: [edgeC('a.ts', 'b.ts', 'ambiguous')],
+        cycles: [],
+      },
+    });
+    // No threshold → the cached caller index wins (fast path).
+    expect(executeQuery(agent, { verb: 'callers', path: 'b.ts' }).results).toEqual(['a.ts']);
+    // Threshold drops the only (ambiguous) edge → no callers survive.
+    expect(executeQuery(agent, { verb: 'callers', path: 'b.ts', minConfidence: 'extracted' }).results).toEqual([]);
+  });
+
+  it('is pure — never mutates the input agent', () => {
+    const agent = mixed();
+    executeQuery(agent, { verb: 'imports', path: 'a.ts', minConfidence: 'extracted' });
+    expect(agent.graph.edges.map((e) => e.to)).toEqual(['b.ts', 'c.ts', 'd.ts']);
+    expect(agent.graph.nodes.every((n) => n.callers === undefined)).toBe(true); // untouched
   });
 });

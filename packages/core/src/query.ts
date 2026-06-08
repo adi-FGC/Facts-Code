@@ -5,7 +5,7 @@
  * `orphans`) drives both entry points so behavior can't drift.
  */
 
-import type { AgentArtifact, QueryVerb } from '@factstack/spec';
+import type { AgentArtifact, Confidence, QueryVerb } from '@factstack/spec';
 
 export interface QueryResult {
   verb: QueryVerb;
@@ -20,17 +20,52 @@ export interface QueryOptions {
   filter?: string;     // glob-style, falls back to substring
   limit?: number;
   depth?: number;
+  /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
+   *  `ambiguous`). Omit for all edges. */
+  minConfidence?: Confidence;
 }
+
+/** Confidence rank: lower = more certain. Mirrors the spec enum order
+ *  (`extracted` < `inferred` < `ambiguous`). */
+const CONF_RANK: Record<Confidence, number> = { extracted: 0, inferred: 1, ambiguous: 2 };
 
 export function executeQuery(agent: AgentArtifact, opts: QueryOptions): QueryResult {
   const limit = opts.limit ?? 200;
+  // F1 — narrow to edges at least as certain as `minConfidence` before any
+  // verb runs. No-op today (every edge is `extracted`); the plumbing lands now
+  // so F2's inferred/ambiguous edges become filterable without a re-design.
+  const a = applyMinConfidence(agent, opts.minConfidence);
 
   switch (opts.verb) {
-    case 'callers':   return callersOf(agent, opts.path ?? '', limit, opts.filter);
-    case 'imports':   return importsOf(agent, opts.path ?? '', limit, opts.filter, opts.depth ?? 1);
-    case 'cycles':    return allCycles(agent, limit, opts.filter);
-    case 'orphans':   return allOrphans(agent, limit, opts.filter);
+    case 'callers':   return callersOf(a, opts.path ?? '', limit, opts.filter);
+    case 'imports':   return importsOf(a, opts.path ?? '', limit, opts.filter, opts.depth ?? 1);
+    case 'cycles':    return allCycles(a, limit, opts.filter);
+    case 'orphans':   return allOrphans(a, limit, opts.filter);
   }
+}
+
+/**
+ * A view of `agent` whose graph keeps only edges at least as certain as `min`.
+ * Pure — never mutates input. Returns the original when there's nothing to do
+ * (no `min`, the loosest threshold, or no edge removed) so the common path
+ * allocates nothing. When it does filter, the cached path-only `node.callers`
+ * is dropped so `callersOf` recomputes from the filtered edges — the fast path
+ * is pre-confidence and can't honor the threshold. `cycles` is unaffected (it
+ * reads precomputed SCCs, not edges).
+ */
+function applyMinConfidence(agent: AgentArtifact, min?: Confidence): AgentArtifact {
+  if (!min || min === 'ambiguous') return agent;
+  const maxRank = CONF_RANK[min];
+  const edges = agent.graph.edges.filter((e) => CONF_RANK[e.confidence ?? 'extracted'] <= maxRank);
+  if (edges.length === agent.graph.edges.length) return agent;
+  return {
+    ...agent,
+    graph: {
+      ...agent.graph,
+      edges,
+      nodes: agent.graph.nodes.map((n) => (n.callers ? { ...n, callers: undefined } : n)),
+    },
+  };
 }
 
 function callersOf(agent: AgentArtifact, path: string, limit: number, filter?: string): QueryResult {

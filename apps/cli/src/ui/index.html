@@ -5666,8 +5666,10 @@
             const result = await res.json();
             if (!result.ok) throw new Error(result.error || 'setup failed');
             const n = (result.files || []).length;
+            const kept = result.preserved || [];
             const msg = 'Agent skills installed · ' + n + ' file' + (n === 1 ? '' : 's') +
               ' (' + (result.formats || []).join(', ') + ')' +
+              (kept.length ? ' · kept your ' + kept.join(', ') : '') +
               (result.hookInstalled ? ' · refresh hook on' : '');
             const status = document.getElementById('status-line');
             if (status) {

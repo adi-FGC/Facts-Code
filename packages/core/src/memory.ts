@@ -81,6 +81,17 @@ export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string 
       `${formatNum(agent.stats.loc)} LOC · ${formatTokens(agent.stats.totalTokenCost)} tokens`,
   );
   sections.push(`- **Health**: ${human.summary.health.headline}`);
+  // F1 — edge-confidence breakdown, shown only when some edge is NOT
+  // `extracted` (the section-omission contract). Today every edge is
+  // `extracted`, so this stays hidden until F2's resolver emits
+  // inferred/ambiguous edges that warrant a human glance.
+  const conf = edgeConfidence(agent);
+  if (conf.uncertain > 0) {
+    const parts = [`${conf.extracted} extracted`];
+    if (conf.inferred) parts.push(`${conf.inferred} inferred`);
+    if (conf.ambiguous) parts.push(`${conf.ambiguous} ambiguous`);
+    sections.push(`- **Edge confidence**: ${parts.join(' · ')} _(${conf.uncertain} to verify)_`);
+  }
   if (agent.stats.fileCount === 0) {
     sections.push('');
     sections.push('_No source files yet — analyze a populated project to fill out this brief._');
@@ -233,6 +244,25 @@ function topImportedFiles(agent: AgentArtifact, limit: number): Array<{ path: st
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([path, inDegree]) => ({ path, inDegree }));
+}
+
+/**
+ * Count graph edges by F1 confidence (`extracted`/`inferred`/`ambiguous`),
+ * plus `uncertain` = inferred + ambiguous. Drives the optional
+ * edge-confidence line in "At a glance". Treats a missing field as
+ * `extracted` (pre-F1 artifacts) so old inputs never inflate "to verify".
+ */
+function edgeConfidence(agent: AgentArtifact): {
+  extracted: number; inferred: number; ambiguous: number; uncertain: number;
+} {
+  let extracted = 0, inferred = 0, ambiguous = 0;
+  for (const e of agent.graph.edges) {
+    const c = e.confidence ?? 'extracted';
+    if (c === 'inferred') inferred++;
+    else if (c === 'ambiguous') ambiguous++;
+    else extracted++;
+  }
+  return { extracted, inferred, ambiguous, uncertain: inferred + ambiguous };
 }
 
 /**

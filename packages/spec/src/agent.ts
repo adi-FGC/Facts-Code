@@ -149,16 +149,75 @@ export const GraphNodeSchema = z.object({
   callers: z.array(z.string()).optional(),
 });
 
+/**
+ * F1 — how a graph edge was established. `extracted` = read directly from
+ * source (every import edge today); `inferred` = resolved/deduced (F2 symbol
+ * resolution); `ambiguous` = name-match only, flagged for review. Listed
+ * most→least certain so the enum order is meaningful.
+ */
+export const ConfidenceSchema = z.enum(['extracted', 'inferred', 'ambiguous']);
+export type Confidence = z.infer<typeof ConfidenceSchema>;
+
 export const GraphEdgeSchema = z.object({
   from: z.string(),
   to: z.string(),
   kind: z.enum(['import', 'dynamic-import', 'type-import']),
+  /** F1 — provenance of this edge. Import edges are always `extracted`. The
+   *  `.default` keeps artifacts written before F1 valid on read (INV4), so
+   *  FACTS_SCHEMA_VERSION stays put. */
+  confidence: ConfidenceSchema.default('extracted'),
+  /** F1 — optional 0..1 certainty, set for `inferred`/`ambiguous` edges (F2). */
+  confidenceScore: z.number().min(0).max(1).optional(),
 });
+
+/**
+ * F2 — a declaration as a graph-addressable node. The id is the stable scheme
+ * `path#name@startLine` (path + name + line disambiguates overloads and
+ * same-named decls), built via `symbolId()` — the single source of truth.
+ */
+export const SymbolNodeSchema = z.object({
+  id: z.string(),
+  path: z.string(),
+  name: z.string(),
+  kind: SymbolKindSchema,
+  startLine: z.number().int().nonnegative(),
+  endLine: z.number().int().nonnegative(),
+  exported: z.boolean(),
+});
+export type SymbolNode = z.infer<typeof SymbolNodeSchema>;
+
+/**
+ * F2 — an edge in the symbol graph: a reference from one declaration to
+ * another. `kind` is how it appears in source (call/read/jsx/type-ref) plus
+ * the class relationships (implements/extends). Carries the F1 `confidence`:
+ * `extracted` (same-file), `inferred` (import- or single-match-resolved),
+ * `ambiguous` (name collides across files).
+ */
+export const SymbolEdgeSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  kind: z.enum(['call', 'read', 'jsx', 'type-ref', 'implements', 'extends']),
+  confidence: ConfidenceSchema.default('extracted'),
+  confidenceScore: z.number().min(0).max(1).optional(),
+});
+export type SymbolEdge = z.infer<typeof SymbolEdgeSchema>;
+
+/** F2 — the canonical symbol id: `path#name@startLine`. Single source of truth
+ *  for the format; the resolver, pack encoder, and every consumer that builds
+ *  an id must call this so ids match across the artifact. */
+export function symbolId(path: string, name: string, startLine: number): string {
+  return `${path}#${name}@${startLine}`;
+}
 
 export const GraphSchema = z.object({
   nodes: z.array(GraphNodeSchema),
   edges: z.array(GraphEdgeSchema),
   cycles: z.array(z.array(z.string())),
+  /** F2 — symbol-level graph: declarations as nodes, references as edges.
+   *  Additive defaults so pre-F2 artifacts validate unchanged (INV4); empty
+   *  unless analysis ran with symbol resolution enabled (`--symbols`). */
+  symbolNodes: z.array(SymbolNodeSchema).default([]),
+  symbolEdges: z.array(SymbolEdgeSchema).default([]),
 });
 
 export const RiskSchema = z.object({

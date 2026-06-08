@@ -114,10 +114,10 @@ function makeAgent(): AgentArtifact {
 describe('encodeAgentPack — shape + content', () => {
   it('emits a header line with producer + schema + snapshotId + rowCount', () => {
     const pack = encodeAgentPack(makeAgent());
-    expect(pack.startsWith('# factstack/0.3.10\tagent-v1\t')).toBe(true);
+    expect(pack.startsWith('# factstack/0.3.10\tagent-v2\t')).toBe(true);
   });
 
-  it('emits all six tables in fixed order', () => {
+  it('emits all eight tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
       pack.indexOf('& files'),
@@ -126,13 +126,40 @@ describe('encodeAgentPack — shape + content', () => {
       pack.indexOf('& risks'),
       pack.indexOf('& envs'),
       pack.indexOf('& declarations'),
+      pack.indexOf('& symbols'),
+      pack.indexOf('& calls'),
     ];
-    // Every table is present.
+    // Every table is present (F2 added symbols + calls, even when empty).
     expect(order.every((i) => i >= 0)).toBe(true);
     // And in the documented order.
     for (let i = 1; i < order.length; i++) {
       expect(order[i]!).toBeGreaterThan(order[i - 1]!);
     }
+  });
+
+  it('F2: symbols + calls tables carry the symbol graph', () => {
+    const agent = makeAgent();
+    agent.graph.symbolNodes = [
+      { id: 'a.ts#caller@1', path: 'a.ts', name: 'caller', kind: 'function', startLine: 1, endLine: 9, exported: true },
+      { id: 'a.ts#helper@11', path: 'a.ts', name: 'helper', kind: 'function', startLine: 11, endLine: 13, exported: false },
+    ];
+    agent.graph.symbolEdges = [
+      { from: 'a.ts#caller@1', to: 'a.ts#helper@11', kind: 'call', confidence: 'extracted' },
+    ];
+    const pack = encodeAgentPack(agent);
+    expect(pack).toContain('& symbols');
+    expect(pack).toContain('& calls');
+    expect(pack).toContain('caller');         // symbol name (literal in symbols)
+    expect(pack).toContain('a.ts#helper@11'); // symbol id (symbols PK + calls S/T dict)
+    expect(pack.slice(pack.indexOf('& calls'))).toContain('call'); // edge kind literal
+  });
+
+  it('F1: imports table carries a conf column; edges default to extracted (agent-v2)', () => {
+    const pack = encodeAgentPack(makeAgent());
+    const afterImports = pack.slice(pack.indexOf('& imports'));
+    const importsTable = afterImports.slice(0, afterImports.indexOf('& routes'));
+    expect(importsTable).toContain('conf');       // the new agent-v2 column header
+    expect(importsTable).toContain('extracted');  // edges without explicit confidence
   });
 
   it('round-trips decode → expected row counts per table', () => {

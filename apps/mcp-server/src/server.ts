@@ -469,11 +469,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const versionInfo = {
       facts: '0.1.0',
       schemas: {
-        agent: 'agent-v1',     // agent.json + agent.pack
+        agent: 'agent-v2',     // agent.pack wire format (F1: imports gained `conf`). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
         human: 'human.v1',     // human.json
         memory: 'factstack-memory.v1',
         learnings: 'factstack-learnings.v1',
-        pack: { agent: 'agent-v1', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v1', learnings: 'learnings-v1', queryGraph: 'query-graph-v1' },
+        pack: { agent: 'agent-v2', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v1', learnings: 'learnings-v1', queryGraph: 'query-graph-v1' },
       },
       producer: 'factstack-mcp/0.3.11',
     };
@@ -504,6 +504,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       verb: parsed.verb,
       ...(parsed.path !== undefined ? { path: parsed.path } : {}),
       ...(parsed.filter !== undefined ? { filter: parsed.filter } : {}),
+      ...(parsed.minConfidence !== undefined ? { minConfidence: parsed.minConfidence } : {}),
       limit: parsed.limit,
       depth: parsed.depth,
     });

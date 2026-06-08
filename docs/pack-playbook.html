@@ -250,10 +250,10 @@
     <section id="what">
       <div class="sk"><span><span class="n">01</span> · what .pack is</span><span>the map, not the territory</span></div>
       <h2>A 93 KB index of a 1.07M-token codebase.</h2>
-      <p class="b lead m">FACTS analyzes a project and emits <code>.facts/agent.pack</code> — a token-lean, columnar text format (schema <code>agent-v1</code>) built for an AI agent to read instead of the source. Six tables, fixed order:</p>
+      <p class="b lead m">FACTS analyzes a project and emits <code>.facts/agent.pack</code> — a token-lean, columnar text format (schema <code>agent-v2</code>) built for an AI agent to read instead of the source. Six tables, fixed order:</p>
       <div class="tablecard">
         <div class="row"><span class="t">files</span><span class="d">every file → language, LOC, <b>token cost</b>, bytes, status, churn, read-time</span></div>
-        <div class="row"><span class="t">imports</span><span class="d">the <b>resolved dependency graph</b> (from → to → kind). Forward + reverse. This is what grep can't give you.</span></div>
+        <div class="row"><span class="t">imports</span><span class="d">the <b>resolved dependency graph</b> (from → to → kind → conf). Forward + reverse, each edge tagged with provenance. This is what grep can't give you.</span></div>
         <div class="row"><span class="t">routes</span><span class="d">URL/path → framework → method → <b>handler file</b> → symbol</span></div>
         <div class="row"><span class="t">risks</span><span class="d">severity, category, rule, <b>file:line</b>, message — secrets, broken imports, TODOs, stale</span></div>
         <div class="row"><span class="t">envs</span><span class="d">every env var → each read site (file:line, access kind, default)</span></div>

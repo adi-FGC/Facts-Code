@@ -201,7 +201,8 @@ program
   .option('--no-progress', 'Suppress progress output')
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
   .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze.')
-  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean }) => {
+  .option('--symbols', 'F2 (beta): also build the symbol-level call/reference graph — declarations as nodes, refs as edges, each provenance-tagged (extracted/inferred/ambiguous). Adds a per-file AST ref walk; off by default until it stabilizes.')
+  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean }) => {
     // Inherit top-level --json if subcommand-local flag isn't set.
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
@@ -237,6 +238,7 @@ program
       projectName,
       gzip: gzippedBytes,
       gitStats,
+      symbols: opts.symbols ?? false,
       onProgress: showProgress
         ? (pct, file) => {
             const now = performance.now();
@@ -460,7 +462,13 @@ program
       }
       const host = r.headers.host;
       if (host) return allowedHosts.has(host);
-      return true; // no Host header (HTTP/1.0) — vanishingly rare
+      // No Origin AND no Host: unreachable from a browser (Host is mandatory
+      // and browser-controlled on HTTP/1.1), so the CSRF/DNS-rebind vectors
+      // this guards are already caught above. The only requests landing here
+      // are non-browser clients (HTTP/1.0, raw sockets). Default-DENY — a
+      // server with a filesystem-write endpoint (/api/setup-agents) must never
+      // fall open. A scripted client can set an explicit Host header.
+      return false;
     }
 
     const server = createServer((req, res) => {
@@ -529,6 +537,10 @@ program
               ok: true,
               formats: result.formats,
               files: Object.keys(result.files),
+              // Report files left untouched (a hand-authored AGENTS.md) so the
+              // dashboard caller can tell the user it was preserved, not skipped
+              // silently — same contract as `export-skills`/`setup-agents` CLI.
+              preserved: result.preserved,
               bytesWritten: result.bytesWritten,
               hookInstalled,
               ...(hookError ? { hookError } : {}),
@@ -600,10 +612,17 @@ program
               if (!abs) { sendJson(403, { ok: false, error: 'path outside project' }); return; }
               fileTarget = abs;
             }
-            // Belt + suspenders: reject shell metacharacters in any path we
-            // pass, even though spawn() below never uses a shell.
-            const META = /[`$;&|\n\r%^<>!"]/;
-            if (META.test(root) || META.test(fileTarget)) { sendJson(400, { ok: false, error: 'invalid characters in path' }); return; }
+            // spawn() below uses shell:false + an arg array, so shell
+            // metacharacters in a path are inert — there's no shell to
+            // interpret them. The original broad filter ALSO rejected valid
+            // paths (`D:\R&D\factstack`, `C:\Users\A!B\repo`). Reject only NUL +
+            // C0 control chars: spawn() rejects NUL anyway, and no control char
+            // has a legitimate place in a filesystem path.
+            const hasControlChar = (s: string): boolean => {
+              for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 0x20) return true;
+              return false;
+            };
+            if (hasControlChar(root) || hasControlChar(fileTarget)) { sendJson(400, { ok: false, error: 'invalid control characters in path' }); return; }
 
             const EDITORS: Record<string, { bin: string; args: string[] }> = {
               code: { bin: 'code', args: [fileTarget] },
@@ -1485,7 +1504,8 @@ program
   .option('-f, --filter <glob>', 'Restrict results to matching paths')
   .option('-l, --limit <n>', 'Max results (default 200)', '200')
   .option('-d, --depth <n>', 'Transitive depth for `imports` verb (default 1)', '1')
-  .action(async (verb: string, target: string | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string }) => {
+  .option('--min-confidence <level>', 'Keep only edges at least this certain: extracted | inferred | ambiguous')
+  .action(async (verb: string, target: string | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string; minConfidence?: string }) => {
     if (opts.json === undefined && program.opts().json) opts.json = true;
     // Verb set is the single-source-of-truth `QUERY_VERBS` from @factstack/spec.
     if (!(QUERY_VERBS as readonly string[]).includes(verb)) {
@@ -1495,6 +1515,13 @@ program
     if ((verb === 'callers' || verb === 'imports') && !target) {
       process.stderr.write(kleur.red('factstack query: ') + `verb "${verb}" requires a target path.\n`);
       process.stderr.write(kleur.dim(`  example: factstack query ${verb} packages/core/src/index.ts\n`));
+      process.exit(1);
+    }
+    // F1 — validate --min-confidence up front; an unknown level would
+    // otherwise silently drop every edge (see applyMinConfidence in core).
+    const CONF_LEVELS = ['extracted', 'inferred', 'ambiguous'] as const;
+    if (opts.minConfidence && !(CONF_LEVELS as readonly string[]).includes(opts.minConfidence)) {
+      process.stderr.write(kleur.red('factstack query: ') + `unknown --min-confidence "${opts.minConfidence}". Expected: ${CONF_LEVELS.join(', ')}\n`);
       process.exit(1);
     }
     // Numeric option guards — `Number('nope')` is NaN, which the
@@ -1517,6 +1544,7 @@ program
       verb: verb as typeof QUERY_VERBS[number],
       ...(target ? { path: target } : {}),
       ...(opts.filter ? { filter: opts.filter } : {}),
+      ...(opts.minConfidence ? { minConfidence: opts.minConfidence as (typeof CONF_LEVELS)[number] } : {}),
       limit,
       depth,
     });
@@ -2189,7 +2217,7 @@ function loadDiffEndpoint(p: string): DiffEndpoint | null {
       generatedAt: raw.at ?? new Date().toISOString(),
       project: { name: '', root: '', languages: [], frameworks: [], entryPoints: [], monorepo: null },
       files: [],
-      graph: { nodes: [], edges: [], cycles: [] },
+      graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [] },
       routes: [],
       scripts: {},
       capabilities: [],

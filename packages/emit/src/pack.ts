@@ -1,14 +1,15 @@
 /**
  * Encode an `AgentArtifact` into a FactsPack `.pack` string.
  *
- * Six tables in fixed order — the schema name is `agent-v1` and the
+ * Eight tables in fixed order — the schema name is `agent-v2` and the
  * order is part of the contract. Consumers reading the pack can either
  * walk all tables in declaration order or jump to a named table; both
  * work because every table carries its own `&` schema line.
  *
  * Dictionary strategy:
  *   - File paths are interned ONLY in tables where they repeat across
- *     rows (`imports`, `routes`, `risks`, `envs`, `declarations`).
+ *     rows (`imports`, `routes`, `risks`, `envs`, `declarations`,
+ *     `symbols`). The F2 `calls` table interns symbol ids via `S`/`T`.
  *     The `files` table uses `path` as a literal primary-key column
  *     because each value is unique-per-row — interning unique values
  *     wastes a `@` line per row (spec §13).
@@ -27,7 +28,10 @@ import type { AgentArtifact } from '@factstack/spec';
 import { encode, type PackHeader, type PackRow, type PackTable } from '@factstack/factspack';
 
 const PRODUCER = 'factstack/0.3.10';
-const SCHEMA = 'agent-v1';
+// agent-v2 (F1): the `imports` table gained a `conf` column (edge provenance).
+// Consumers pin this name and must reject a mismatch; the decoder preamble doc
+// (docs/FACTSPACK_PROMPT.md) is updated in lockstep.
+const SCHEMA = 'agent-v2';
 
 /**
  * Build the multi-table FactsPack representation of an agent artifact.
@@ -52,6 +56,8 @@ export function encodeAgentPack(agent: AgentArtifact, opts: { snapshotId?: strin
       buildRisksTable(agent),
       buildEnvsTable(agent),
       buildDeclarationsTable(agent),
+      buildSymbolsTable(agent),
+      buildCallsTable(agent),
     ],
   });
 }
@@ -94,17 +100,19 @@ function buildImportsTable(agent: AgentArtifact): PackTable {
      §4.2 convention). Same path appearing as both `from` and `to`
      gets two dict entries — minor waste, accepted to keep the schema
      readable. `kind` stays literal: ~3 distinct values, average value
-     length under 8 chars, dict overhead would exceed the savings. */
+     length under 8 chars, dict overhead would exceed the savings. `conf`
+     (F1 edge provenance) stays literal for the same reason: 3 short values. */
   const edges = agent.graph?.edges ?? [];
   const rows: PackRow[] = edges.map((e, i) => [
     String(i),
     e.from,
     e.to,
     e.kind ?? 'import',
+    e.confidence ?? 'extracted',
   ]);
   return {
     name: 'imports',
-    columns: [{ name: 'id' }, { name: 'F' }, { name: 'T' }, { name: 'kind' }],
+    columns: [{ name: 'id' }, { name: 'F' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' }],
     rows,
   };
 }
@@ -229,6 +237,55 @@ function buildDeclarationsTable(agent: AgentArtifact): PackTable {
     columns: [
       { name: 'id' }, { name: 'F' }, { name: 'name' },
       { name: 'kind' }, { name: 'start' }, { name: 'end' }, { name: 'exp' },
+    ],
+    rows,
+  };
+}
+
+/* ───────────── symbols table (F2) ───────────── */
+
+function buildSymbolsTable(agent: AgentArtifact): PackTable {
+  /* Symbol-graph NODES — every declaration as a graph-addressable node.
+     `id` (`path#name@line`) is the PK, unique per row → literal. `F` (path)
+     repeats across all of a file's symbols → interned. `kind` stays literal
+     (≤12 short values). Empty unless analysis ran with `--symbols`. */
+  const rows: PackRow[] = (agent.graph?.symbolNodes ?? []).map((s) => [
+    s.id,
+    s.path,
+    s.name,
+    s.kind,
+    String(s.startLine),
+    String(s.endLine),
+    s.exported ? '1' : '0',
+  ]);
+  return {
+    name: 'symbols',
+    columns: [
+      { name: 'id' }, { name: 'F' }, { name: 'name' }, { name: 'kind' },
+      { name: 'start' }, { name: 'end' }, { name: 'exp' },
+    ],
+    rows,
+  };
+}
+
+/* ───────────── calls table (F2) ───────────── */
+
+function buildCallsTable(agent: AgentArtifact): PackTable {
+  /* Symbol-graph EDGES — a reference from one declaration to another. `S`/`T`
+     (from/to symbol ids) repeat across a symbol's many edges → interned.
+     `kind` (call/read/jsx/type-ref/implements/extends) + `conf`
+     (extracted/inferred/ambiguous) stay literal. Empty without `--symbols`. */
+  const rows: PackRow[] = (agent.graph?.symbolEdges ?? []).map((e, i) => [
+    String(i),
+    e.from,
+    e.to,
+    e.kind,
+    e.confidence ?? 'extracted',
+  ]);
+  return {
+    name: 'calls',
+    columns: [
+      { name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' },
     ],
     rows,
   };

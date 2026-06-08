@@ -83,6 +83,52 @@ function file(path: string, lang: string, loc: number, tokens: number) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
+//  Edge-confidence summary (F1)
+// ─────────────────────────────────────────────────────────────────────
+
+describe('buildMemory — edge-confidence summary (F1)', () => {
+  function withEdges(edges: Array<Record<string, unknown>>): AgentArtifact {
+    return makeAgent({
+      graph: { nodes: [{ id: 'a.ts' }, { id: 'b.ts' }], edges, cycles: [] } as unknown as AgentArtifact['graph'],
+    });
+  }
+
+  it('omits the Edge confidence line when every edge is extracted', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'b.ts', to: 'a.ts', kind: 'import', confidence: 'extracted' },
+    ]), makeHuman());
+    expect(out).not.toContain('Edge confidence');
+  });
+
+  it('omits it for pre-F1 artifacts (missing confidence ⇒ treated as extracted)', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import' },
+    ]), makeHuman());
+    expect(out).not.toContain('Edge confidence');
+  });
+
+  it('shows counts + a "to verify" total once any edge is inferred/ambiguous', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+    ]), makeHuman());
+    expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred · 2 ambiguous _(3 to verify)_');
+  });
+
+  it('drops zero-count buckets from the breakdown', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+    ]), makeHuman());
+    expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred _(1 to verify)_');
+    expect(out).not.toContain('ambiguous');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
 //  Section presence + ordering
 // ─────────────────────────────────────────────────────────────────────
 

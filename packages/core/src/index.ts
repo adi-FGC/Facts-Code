@@ -48,6 +48,7 @@ import {
   extractImports,
   extractPythonImports,
   extractSymbols,
+  extractSymbolRefs,
   isAstro,
   isParseable,
   isPython,
@@ -56,9 +57,11 @@ import {
   type EnvVarRead,
   type ExtractedSymbol,
   type RawImport,
+  type RawRef,
 } from '@factstack/extractors';
 import {
   buildCallerIndex,
+  buildSymbolGraph,
   buildDependencyGraph,
   buildWorkspaceIndex,
   buildAliasIndex,
@@ -129,6 +132,10 @@ export interface AnalyzeOptions {
   }> | undefined;
   /** Called with percent-complete (0–1) and the file being processed. */
   onProgress?: ((pct: number, file: string) => void) | undefined;
+  /** F2 — build the symbol-level graph (call/reference edges). Off by default
+   *  (the plan's `--symbols` rollout) so the per-file ref walk + resolver only
+   *  run when asked; `agent.graph.symbolNodes/symbolEdges` stay [] otherwise. */
+  symbols?: boolean | undefined;
 }
 
 export interface AnalysisResult {
@@ -174,6 +181,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   /* v0.3.6 — env-var read sites collected per file, aggregated below
      into the top-level `config.envVars` table. */
   const envVarReadsByFile = new Map<string, EnvVarRead[]>();
+  /* F2 — per-file identifier references (call/read/jsx/type-ref), captured
+     only when opts.symbols is set; fed to buildSymbolGraph below. */
+  const refsByFile = new Map<string, RawRef[]>();
   let filesScanned = 0;
   let filesSkipped = 0;
   // Sources for the human-friendly one-liner, in priority order:
@@ -325,6 +335,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         const raws = extractImports(text, f.ext, parsed);
         if (raws.length) importsByFile.set(f.path, raws);
         symbols = extractSymbols(text, f.ext, parsed);
+        // F2 — capture identifier refs from the same AST (symbol graph).
+        if (opts.symbols) {
+          const refs = extractSymbolRefs(text, f.ext, parsed);
+          if (refs.length) refsByFile.set(f.path, refs);
+        }
         // v0.3.6 — env-var reads share the parsed AST (no double parse).
         const envReads = extractEnvVars(text, f.ext, parsed);
         if (envReads.length) envVarReadsByFile.set(f.path, envReads);
@@ -361,6 +376,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
               endLine: c.endLine + fm.lineOffset,
             })) } : {}),
           }));
+          // F2 — Astro refs, shifted by the same frontmatter line offset.
+          if (opts.symbols) {
+            const refs = extractSymbolRefs(fm.source, '.ts', parsed).map((r) => ({ ...r, line: r.line + fm.lineOffset }));
+            if (refs.length) refsByFile.set(f.path, refs);
+          }
           const envReads = extractEnvVars(fm.source, '.ts', parsed).map((r) => ({
             ...r,
             line: r.line + fm.lineOffset,
@@ -490,6 +510,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (callers && callers.length) node.callers = callers;
   }
 
+  // F2 — symbol-level graph (call/reference edges), gated behind opts.symbols
+  // until stable (the plan's `--symbols` rollout). Empty otherwise → the
+  // artifact's GraphSchema defaults ([]) apply, so existing consumers are
+  // unaffected and pre-F2 artifacts still validate.
+  const symbolGraph = opts.symbols
+    ? buildSymbolGraph(outlines, refsByFile)
+    : { symbolNodes: [], symbolEdges: [] };
+
   // Backfill `resolved` on each outline's imports + surface broken imports.
   for (const outline of outlines) {
     if (!outline.imports.length) continue;
@@ -592,7 +620,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     generatedAt: new Date().toISOString(),
     project: projectMeta,
     files: outlines,
-    graph: depGraph,
+    graph: { ...depGraph, symbolNodes: symbolGraph.symbolNodes, symbolEdges: symbolGraph.symbolEdges },
     routes: reclassifyRoutes(dedupeRoutes(detectedRoutes), frameworks).map((r) => ({
       framework: r.framework,
       method: r.method,
@@ -688,7 +716,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       iconId: l.id,
     })),
     tree: buildHumanTree(outlines, rootName),
-    graph: depGraph,
+    // The human artifact isn't the symbol-graph carrier (that's the agent
+    // artifact + the pack); keep its graph the file-level dependency view.
+    graph: { ...depGraph, symbolNodes: [], symbolEdges: [] },
     // Activity feed surfaces files a CXO would actually want to see —
     // skip lockfiles + tsbuildinfo + non-source artifacts so the panel
     // doesn't get hijacked by build cache mtime churn.

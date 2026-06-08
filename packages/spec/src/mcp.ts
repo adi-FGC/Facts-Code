@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { ConfidenceSchema } from './agent.js';
 
 export const FACTS_MCP_URI_SCHEME = 'facts' as const;
 
@@ -89,6 +90,10 @@ export const QueryGraphInputSchema = z.object({
   limit: z.number().int().positive().default(200),
   /** Include transitive imports up to this depth from each matching node. */
   depth: z.number().int().nonnegative().default(1),
+  /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
+   *  `ambiguous`). Omit for all edges. No-op until F2 emits non-extracted
+   *  edges; `cycles` ignores it (SCCs are precomputed). */
+  minConfidence: ConfidenceSchema.optional(),
 }).refine(
   (v) => !((v.verb === 'callers' || v.verb === 'imports') && !v.path),
   {

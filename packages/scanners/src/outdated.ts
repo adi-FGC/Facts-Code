@@ -76,6 +76,12 @@ export function cleanVersion(v: string): string {
   return String(v).replace(/^[\^~>=<\s]+/, '').trim();
 }
 
+/** SemVer §2/§9 numeric identifier: `0`, or a non-zero digit followed by more
+ *  digits — i.e. a non-negative integer with NO leading zeroes (`01` is not). */
+function isNumericId(s: string): boolean {
+  return /^(0|[1-9][0-9]*)$/.test(s);
+}
+
 /* ─────────── semver comparison ─────────── */
 
 interface SemVer {
@@ -102,10 +108,20 @@ export function parseSemver(v: string): SemVer | null {
   const release: [number, number, number] = [0, 0, 0];
   for (let i = 0; i < nums.length; i++) {
     const part = nums[i]!;
-    if (!/^\d+$/.test(part)) return null;          // non-numeric core ⇒ unknown
+    // SemVer §2: numeric identifiers are non-negative ints with NO leading
+    // zeroes ('01' is invalid). Reject so a malformed version reports as
+    // unknown (null) per this fn's contract, not as a silently-valid release.
+    if (!isNumericId(part)) return null;
     release[i] = Number(part);
   }
-  return { release, prerelease: preStr ? preStr.split('.') : [] };
+  const prerelease = preStr ? preStr.split('.') : [];
+  for (const id of prerelease) {
+    // SemVer §9: each prerelease identifier is non-empty alphanumeric/hyphen;
+    // a PURELY numeric one also forbids leading zeroes.
+    if (id === '' || !/^[0-9A-Za-z-]+$/.test(id)) return null;
+    if (/^[0-9]+$/.test(id) && !isNumericId(id)) return null;
+  }
+  return { release, prerelease };
 }
 
 /** Compare two semver-ish strings: negative (a<b), 0 (equal), positive (a>b),

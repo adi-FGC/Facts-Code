@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { GraphEdgeSchema } from '@factstack/spec';
 import { buildDependencyGraph } from '../src/dependency.js';
 import { buildCallerIndex } from '../src/callers.js';
 import { isRelative, isNodeBuiltin } from '../src/resolver.js';
@@ -34,6 +35,14 @@ describe('buildDependencyGraph', () => {
     const g = buildDependencyGraph([file('a.ts'), file('b.ts')], importsByFile, emptyCtx);
     expect(g.edges.length).toBeGreaterThan(0);
     expect(g.edges[0]).toMatchObject({ from: 'a.ts', to: 'b.ts' });
+  });
+
+  it('F1: tags import edges with confidence "extracted" (read directly from source)', () => {
+    const importsByFile = new Map([['a.ts', [rawImport('./b')]]]);
+    const g = buildDependencyGraph([file('a.ts'), file('b.ts')], importsByFile, emptyCtx);
+    expect(g.edges[0]?.confidence).toBe('extracted');
+    // Score omitted for extracted edges (implicitly 1.0); F2 sets it for inferred/ambiguous.
+    expect(g.edges[0]?.confidenceScore).toBeUndefined();
   });
 
   it('skips edges when target is not in files set', () => {
@@ -123,6 +132,22 @@ describe('buildCallerIndex', () => {
       ],
     });
     expect(callers.get('shared.ts')).toEqual(['a.ts']);
+  });
+});
+
+describe('F1 — GraphEdgeSchema confidence (INV4 backward-compat)', () => {
+  it('defaults a legacy edge (no confidence field) to "extracted" on parse', () => {
+    const parsed = GraphEdgeSchema.parse({ from: 'a.ts', to: 'b.ts', kind: 'import' });
+    expect(parsed.confidence).toBe('extracted');
+    expect(parsed.confidenceScore).toBeUndefined();
+  });
+  it('preserves an explicit inferred confidence + score (what F2 will write)', () => {
+    const parsed = GraphEdgeSchema.parse({ from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred', confidenceScore: 0.9 });
+    expect(parsed.confidence).toBe('inferred');
+    expect(parsed.confidenceScore).toBe(0.9);
+  });
+  it('rejects an out-of-range confidenceScore', () => {
+    expect(() => GraphEdgeSchema.parse({ from: 'a', to: 'b', kind: 'import', confidenceScore: 1.5 })).toThrow();
   });
 });
 
