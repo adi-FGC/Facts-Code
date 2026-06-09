@@ -1,8 +1,8 @@
 /**
  * Encode an `AgentArtifact` into a FactsPack `.pack` string.
  *
- * Nine tables in fixed order — the schema name is `agent-v3` and the
- * order is part of the contract (the 9th, `nodeMetrics`, is the F5 addition).
+ * Ten tables in fixed order — the schema name is `agent-v3` and the
+ * order is part of the contract (the 10th, `rationale`, is the F10 addition).
  * Consumers reading the pack can either
  * walk all tables in declaration order or jump to a named table; both
  * work because every table carries its own `&` schema line.
@@ -61,6 +61,7 @@ export function encodeAgentPack(agent: AgentArtifact, opts: { snapshotId?: strin
       buildSymbolsTable(agent),
       buildCallsTable(agent),
       buildNodeMetricsTable(agent),
+      buildRationaleTable(agent),
     ],
   });
 }
@@ -314,6 +315,25 @@ function buildNodeMetricsTable(agent: AgentArtifact): PackTable {
   return {
     name: 'nodeMetrics',
     columns: [{ name: 'path' }, { name: 'imp' }, { name: 'comm' }],
+    rows,
+  };
+}
+
+/* ───────────── rationale table (F10) ───────────── */
+
+function buildRationaleTable(agent: AgentArtifact): PackTable {
+  /* F10 — design rationale ("the why") linked to symbols. `F` (file) repeats
+     across a file's items → interned. `id` is the unique PK; `sym` may be null
+     (file-level item); `kind` is one of 6 short values; `text` is unique → all
+     literal (interning a nullable/short/unique column isn't worth the dict line
+     per spec §13). Empty `rows` when the project has no comments/docstrings. */
+  const rows: PackRow[] = [];
+  for (const r of agent.rationale ?? []) {
+    rows.push([r.id, r.symbol ?? null, r.kind, r.text, r.file, String(r.line)]);
+  }
+  return {
+    name: 'rationale',
+    columns: [{ name: 'id' }, { name: 'sym' }, { name: 'kind' }, { name: 'text' }, { name: 'F' }, { name: 'line' }],
     rows,
   };
 }

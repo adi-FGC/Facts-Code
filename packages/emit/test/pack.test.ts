@@ -117,7 +117,7 @@ describe('encodeAgentPack — shape + content', () => {
     expect(pack.startsWith('# factstack/0.3.10\tagent-v3\t')).toBe(true);
   });
 
-  it('emits all nine tables in fixed order', () => {
+  it('emits all ten tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
       pack.indexOf('& files'),
@@ -129,9 +129,10 @@ describe('encodeAgentPack — shape + content', () => {
       pack.indexOf('& symbols'),
       pack.indexOf('& calls'),
       pack.indexOf('& nodeMetrics'),
+      pack.indexOf('& rationale'),
     ];
-    // Every table is present (F2 added symbols + calls; F5 added nodeMetrics)
-    // — emitted even when empty.
+    // Every table is present (F2 added symbols + calls; F5 added nodeMetrics;
+    // F10 added rationale) — emitted even when empty.
     expect(order.every((i) => i >= 0)).toBe(true);
     // And in the documented order.
     for (let i = 1; i < order.length; i++) {

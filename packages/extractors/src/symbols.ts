@@ -90,6 +90,7 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
   if (t === 'ExportNamedDeclaration') {
     const inner = node.declaration;
     if (!inner) return [];
+    inheritLeadingComments(node, inner); // JSDoc sits on the export wrapper
     // Track via WeakSet so the VariableDeclaration branch knows to emit.
     // Safer than property-flagging the AST node — two calls on the same
     // ParsedFile would otherwise keep the previous run's flag.
@@ -103,6 +104,7 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
     // Use 'default' as the binding name.
     const inner_type = inner.type;
     if (inner_type === 'FunctionDeclaration' || inner_type === 'ClassDeclaration') {
+      inheritLeadingComments(node, inner); // JSDoc sits on the export wrapper
       const inferred = visitTopLevel(inner, fromExport).map((s) => ({
         ...s,
         name: s.name || 'default',
@@ -283,6 +285,24 @@ function leadingDoc(node: AnyNode | null | undefined): string | undefined {
     .join(' ')
     .trim();
   return text.length > 240 ? text.slice(0, 237) + '…' : text;
+}
+
+/**
+ * JSDoc on `export function foo` / `export class Foo` / `export const x`
+ * attaches to the ExportNamedDeclaration (or ExportDefaultDeclaration), NOT the
+ * inner declaration Babel unwraps to — so reading the inner node's
+ * leadingComments silently misses the docstring on every exported symbol (the
+ * API surface where docstrings matter most). Propagate the wrapper's comments
+ * to the inner node when it has none of its own. Idempotent + safe to re-run on
+ * a cached AST (only fills an empty slot).
+ */
+function inheritLeadingComments(from: AnyNode, to: AnyNode | null | undefined): void {
+  if (!to || typeof to !== 'object') return;
+  const src = (from as { leadingComments?: unknown }).leadingComments;
+  const dst = to as { leadingComments?: unknown };
+  if (Array.isArray(src) && src.length > 0 && !Array.isArray(dst.leadingComments)) {
+    dst.leadingComments = src;
+  }
 }
 
 /** Dedupe on (name, kind, startLine) — handles overloads safely. */

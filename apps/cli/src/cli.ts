@@ -1017,6 +1017,43 @@ program
   });
 
 program
+  .command('why <target>')
+  .description('F10 — show the design rationale (NOTE/HACK/FIXME comments + docstrings) attached to a symbol, file, or name. e.g. `factstack why buildMemory`')
+  .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .action((target: string, opts: { json?: boolean; root: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(opts.root);
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    let agent: AgentArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack why: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first (add --symbols for symbol-level links).\n'));
+      process.exit(1);
+    }
+    const needle = target.toLowerCase();
+    const items = (agent.rationale ?? []).filter((r) => {
+      const sym = (r.symbol ?? '').toLowerCase();
+      return sym.includes(needle) || r.file.toLowerCase().includes(needle);
+    });
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ target, count: items.length, rationale: items }, null, 2) + '\n');
+      return;
+    }
+    if (!items.length) {
+      process.stdout.write(kleur.dim(`No rationale found for "${target}". `) + 'Try a symbol name, file path, or run `factstack analyze . --symbols`.\n');
+      return;
+    }
+    process.stdout.write(kleur.bold(`Rationale for "${target}" (${items.length})\n\n`));
+    for (const r of items) {
+      const loc = r.symbol ?? `${r.file}:${r.line}`;
+      process.stdout.write(`  ${kleur.cyan(r.kind.toUpperCase())} ${kleur.dim(loc)}\n    ${r.text}\n\n`);
+    }
+  });
+
+program
   .command('quick [target]')
   .description('Scan a project and open a self-contained viewer in your browser — no server, no setup. The 5-second look.')
   .option('--reanalyze', 'Force a fresh analysis even if .facts/ already exists')
@@ -2301,6 +2338,7 @@ function loadDiffEndpoint(p: string): DiffEndpoint | null {
       scripts: {},
       capabilities: [],
       docs: [],
+      rationale: [],
       /* Clamp risk-count synthesis: snapshots are on-disk data we
          don't fully trust (corrupted file, mis-written by an older
          FACTS, etc.). `new Array(1e9).fill(...)` would OOM the CLI

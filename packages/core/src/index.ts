@@ -70,6 +70,7 @@ import {
   type ResolverContext,
 } from '@factstack/graph';
 import { buildDocFile, isDocFile } from './docs.js';
+import { buildRationale } from './rationale.js';
 
 export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
@@ -553,6 +554,10 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     ? buildSymbolGraph(outlines, refsByFile)
     : { symbolNodes: [], symbolEdges: [] };
 
+  // F10 — link rationale (NOTE/HACK/FIXME/TODO/XXX comments + docstrings) to the
+  // enclosing symbol (or file-level when no symbol graph). Pure; deterministic.
+  const rationale = buildRationale(outlines, symbolGraph.symbolNodes);
+
   // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
@@ -678,6 +683,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     dependencyManifests,
     vulnerabilities: [],
     docs,
+    rationale,
     ...(styleAudit ? { styles: styleAudit } : {}),
   };
 

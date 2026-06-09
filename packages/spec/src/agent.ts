@@ -218,6 +218,26 @@ export function symbolId(path: string, name: string, startLine: number): string 
   return `${path}#${name}@${startLine}`;
 }
 
+/**
+ * F10 — a unit of design rationale ("the why") linked to the code it explains.
+ * `symbol` is the enclosing F2 symbol id, or null when the item sits at module
+ * level (file-only). `kind` lowercases the TODO-family kinds plus `docstring`.
+ */
+export const RationaleKindSchema = z.enum(['todo', 'fixme', 'hack', 'xxx', 'note', 'docstring']);
+export type RationaleKind = z.infer<typeof RationaleKindSchema>;
+
+export const RationaleSchema = z.object({
+  /** Stable id: `${file}@${line}#${kind}`. */
+  id: z.string(),
+  /** Enclosing symbol id (F2), or null for a file-level item. */
+  symbol: z.string().nullable(),
+  file: z.string(),
+  line: z.number().int().nonnegative(),
+  kind: RationaleKindSchema,
+  text: z.string(),
+});
+export type Rationale = z.infer<typeof RationaleSchema>;
+
 export const GraphSchema = z.object({
   nodes: z.array(GraphNodeSchema),
   edges: z.array(GraphEdgeSchema),
@@ -452,6 +472,10 @@ export const AgentArtifactSchema = z.object({
    *  Powers the dashboard's Docs tab + agent doc-discovery. Default keeps
    *  pre-v0.8 artifacts validating unchanged. */
   docs: z.array(DocFileSchema).default([]),
+  /** F10 — design rationale (NOTE/HACK/FIXME/TODO/XXX comments + docstrings)
+   *  linked to the symbol they explain. Additive default keeps pre-F10
+   *  artifacts valid (INV4). Populated by buildRationale in @factstack/core. */
+  rationale: z.array(RationaleSchema).default([]),
   /** v0.8 — CSS / styling audit of the scanned project (class map, selector
    *  specificity, conflicts, responsive breakpoint coverage, paradigms,
    *  lightningcss/tooling check). Optional for backward-compat; absent when

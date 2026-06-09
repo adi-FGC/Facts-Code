@@ -80,6 +80,24 @@ interface SugiyamaDagProps {
   onTransformChange?: (zoomedOrPanned: boolean) => void;
   /** Styling mode toggle */
   styleMode?: 'classic' | 'neo';
+  /**
+   * Optional path → community map (F5 label-propagation cluster ids,
+   * the same metric the Modules tab consumes via `data.nodeMetrics`).
+   *
+   * When PRESENT, each node whose id appears in the map gets a stable
+   * per-community fill tint (see `communityFill`) and a legend of the
+   * visible communities renders above the diagram. When ABSENT (the
+   * default), nodes keep the editorial monochrome `--bg` fill.
+   *
+   * The parent gates this on the DagControls "Communities" toggle:
+   * passing the map === coloring is on, omitting it === off. Community
+   * has no effect on layout — it's purely a visual overlay — which is
+   * why it lands here in the renderer and not in `buildSugiyamaLayout`.
+   *
+   * The explicit `| undefined` lets the parent pass `undefined` to mean
+   * "off" under the project's `exactOptionalPropertyTypes` setting.
+   */
+  communityOf?: Map<string, number> | undefined;
 }
 
 
@@ -295,6 +313,98 @@ function nodeLabel(path: string): string {
   const i = path.lastIndexOf('/');
   return i < 0 ? path : path.slice(i + 1);
 }
+
+/* ─────────── community coloring (F5 secondary surface) ───────────
+ *
+ * The optional "color by community" overlay. Deterministic path → fill
+ * so the same label-propagation cluster always lands on the same hue,
+ * across renders and sessions. Reuses the shared diagram vocabulary
+ * (@factstack/ui-theme/diagram.css) so the palette themes (light/dark)
+ * with every other diagram surface.
+ *
+ * ── The one real design decision here — the palette ──────────────────
+ * Three constraints shaped the default below; this is the function to
+ * revise if you want a different look:
+ *
+ *   1. Several listed tokens ALIAS each other —
+ *        --dg-edge-import === --ok      (green)
+ *        --dg-edge-export === --info    (blue)
+ *        --dg-focus       === --accent  (orange)
+ *      so the distinct hues available are exactly { --ok, --info, --warn,
+ *      --accent }. Listing the aliases too would just collide.
+ *
+ *   2. --accent / --dg-focus is otherwise RESERVED for interaction
+ *      (hover/selection) across every diagram. It's included here as the
+ *      4th hue — the brief explicitly green-lit it, and the faint 20%
+ *      tint at rest reads clearly differently from the hover treatment
+ *      (solid accent stroke + scale + every other node dimmed). Drop it
+ *      to a 3-hue palette if you'd rather keep orange strictly for
+ *      interaction — fewer hues just means more communities share a color.
+ *
+ *   3. A full-strength status hue would bury the 10px mono label. A soft
+ *      color-mix tint over --bg keeps the label readable while still
+ *      reading as "this cluster." Bump the 20% for louder color.
+ */
+const COMMUNITY_TOKENS = [
+  'var(--ok)',     // green   (a.k.a. --dg-edge-import)
+  'var(--info)',   // blue    (a.k.a. --dg-edge-export)
+  'var(--warn)',   // amber
+  'var(--accent)', // orange  (a.k.a. --dg-focus) — see constraint 2
+] as const;
+
+/** Stable community id → soft node fill. `% N` makes it deterministic;
+ *  the extra `+ N) % N` keeps it correct for any negative ids. */
+function communityFill(community: number): string {
+  const n = COMMUNITY_TOKENS.length;
+  const token = COMMUNITY_TOKENS[((community % n) + n) % n];
+  return `color-mix(in oklab, ${token} 20%, var(--bg))`;
+}
+
+/** How many legend chips to show before collapsing into "+N more". The
+ *  legend reflects the VISIBLE nodes, so this rarely truncates at the
+ *  60-node cap — but we never silently hide, matching the rest of the UI. */
+const LEGEND_CAP = 12;
+
+/* Legend strip — sits in the chrome above the canvas, same register as
+   the `meta` row, only rendered when community coloring is active. */
+const legendRow = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 'var(--space-2) var(--space-3)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: 'var(--space-2)',
+  borderBottom: '1px solid var(--hairline)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+});
+
+const legendLabel = css({
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
+const legendItem = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '6px',
+});
+
+const legendSwatch = css({
+  width: '12px',
+  height: '12px',
+  borderRadius: '3px',
+  /* Hairline border so the faint tint is still delineated against the
+     chrome background — the swatch fill matches the node fill exactly. */
+  border: '1px solid var(--border)',
+  flex: '0 0 auto',
+});
+
+const legendText = css({
+  color: 'var(--fg-muted)',
+  fontVariantNumeric: 'tabular-nums',
+});
 
 /* ─────────── transform helpers ─────────── */
 
@@ -748,6 +858,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
       laneGap = 14,
       showLabels: showLabelsProp,
       styleMode = 'neo',
+      communityOf,
     } = handle.props;
     exposeIfNeeded();
     /* Layout-change reset: zoom and pan don't make sense across
@@ -796,6 +907,21 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     const nodeY = (n: SugiyamaNode): number => layoutY(n) + (nodeOffsets.get(n.id)?.dy ?? 0);
     const nodeArr = Array.from(layout.nodes.values());
 
+    /* Legend data — the communities actually present among the VISIBLE
+       nodes, with their member counts. Built only when coloring is on.
+       Sorted by count desc (dominant clusters lead), ties broken by id
+       so the order is deterministic across renders. */
+    const legend: Array<[community: number, count: number]> = [];
+    if (communityOf) {
+      const counts = new Map<number, number>();
+      for (const n of nodeArr) {
+        const c = communityOf.get(n.id);
+        if (c !== undefined) counts.set(c, (counts.get(c) ?? 0) + 1);
+      }
+      legend.push(...counts.entries());
+      legend.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    }
+
     function edgePath(from: SugiyamaNode, to: SugiyamaNode): string {
       const x1 = nodeX(from) + nodeWidth / 2;
       const y1 = nodeY(from) + nodeHeight;
@@ -818,6 +944,24 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
             )}
           </span>
         </div>
+        {legend.length > 0 && (
+          <div mix={legendRow} aria-label="Community color legend">
+            <span mix={legendLabel}>Communities</span>
+            {legend.slice(0, LEGEND_CAP).map(([community, count]) => (
+              <span key={community} mix={legendItem}>
+                <span
+                  mix={legendSwatch}
+                  style={`background:${communityFill(community)}`}
+                  aria-hidden="true"
+                />
+                <span mix={legendText}>#{community} · {count}</span>
+              </span>
+            ))}
+            {legend.length > LEGEND_CAP && (
+              <span mix={legendText}>+{legend.length - LEGEND_CAP} more</span>
+            )}
+          </div>
+        )}
         <svg
           data-style-mode={styleMode}
           mix={[
@@ -966,6 +1110,14 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                 const x = nodeX(n);
                 const y = nodeY(n);
                 const label = nodeLabel(n.id);
+                /* Community overlay: when the parent passed a communityOf
+                   map and this node belongs to a cluster, paint the stable
+                   tint; otherwise keep the monochrome paper fill. The CSS
+                   `:hover > rect` rule still wins on hover (it's a class
+                   selector, beats the presentation attribute), so the
+                   focus treatment is unaffected. */
+                const community = communityOf?.get(n.id);
+                const rectFill = community !== undefined ? communityFill(community) : 'var(--bg)';
                 /* The live-drag pointermove handler stamps transform=""
                    on this anchor via setAttribute. We clear that
                    stamp in onPointerUp before the re-render fires —
@@ -990,7 +1142,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                       height={nodeHeight}
                       rx={styleMode === 'neo' ? 4 : 0}
                       ry={styleMode === 'neo' ? 4 : 0}
-                      fill="var(--bg)"
+                      fill={rectFill}
                       stroke={nodeOffsets.has(n.id) ? 'var(--accent)' : 'var(--border)'}
                       stroke-width="1"
                     />

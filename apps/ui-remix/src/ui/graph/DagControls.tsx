@@ -45,6 +45,15 @@ interface DagControlsProps {
 
   styleMode: 'classic' | 'neo';
   onStyleModeChange: (next: 'classic' | 'neo') => void;
+
+  /** Color the diagram nodes by community (F5 label-propagation cluster).
+   *  Default off — preserves the editorial monochrome look. */
+  colorByCommunity: boolean;
+  onColorByCommunityChange: (next: boolean) => void;
+  /** True when the dataset carries community metrics (`data.nodeMetrics`).
+   *  Gates the toggle when false — visible but disabled, with a tooltip
+   *  explaining why, so the affordance stays discoverable. */
+  communitiesAvailable: boolean;
 }
 
 /* ─────────── styles ─────────── */
@@ -153,6 +162,9 @@ export function DagControls(handle: Handle<DagControlsProps>) {
       onResetZoom,
       styleMode,
       onStyleModeChange,
+      colorByCommunity,
+      onColorByCommunityChange,
+      communitiesAvailable,
     } = props;
 
     /* "Show all" makes no sense when totalNodes ≤ nodeCap — disable
@@ -219,6 +231,27 @@ export function DagControls(handle: Handle<DagControlsProps>) {
           })]}
         >
           {showAll ? `Top ${nodeCap}` : `Show all ${totalNodes}`}
+        </button>
+
+        {/* Communities — color nodes by label-propagation cluster.
+            Default off (monochrome); disabled when the dataset has no
+            community metrics. Active state shown by the segmentActive
+            inset accent, matching the Show-all toggle. */}
+        <button
+          type="button"
+          disabled={!communitiesAvailable}
+          aria-pressed={colorByCommunity ? 'true' : 'false'}
+          title={communitiesAvailable
+            ? colorByCommunity
+              ? 'Back to monochrome nodes'
+              : 'Color nodes by module (label-propagation community)'
+            : 'No community metrics in this dataset — re-run `factstack analyze` to compute graph analytics.'}
+          mix={[standalone, colorByCommunity ? segmentActive : null, on('click', () => {
+            if (communitiesAvailable) onColorByCommunityChange(!colorByCommunity);
+          })]}
+        >
+          <span aria-hidden="true" mix={dimGlyph}>◑</span>
+          Communities
         </button>
 
         {/* Reset — clears zoom + pan + dragged-node positions to the
