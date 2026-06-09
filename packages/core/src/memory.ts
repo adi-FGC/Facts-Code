@@ -27,6 +27,7 @@ const TRUNCATE_FRAMEWORKS = 8;
 const TRUNCATE_RISKS = 8;
 const TRUNCATE_ACTIVITY = 5;
 const TRUNCATE_KEY_FILES = 8;
+const TRUNCATE_MODULES = 6;
 const TRUNCATE_ROUTES_PER_GROUP = 6;
 const TRUNCATE_CAPABILITIES = 6;
 const ONELINER_MAX_LEN = 280;
@@ -144,16 +145,36 @@ export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string 
     }
   }
 
-  // ── Key files (highest in-degree = most-imported = hubs) ──────────
+  // ── Key files (ranked by F5 importance when present, else in-degree) ──
   const keyFiles = topImportedFiles(agent, TRUNCATE_KEY_FILES);
   if (keyFiles.length) {
+    const ranked = keyFiles.some((k) => typeof k.importance === 'number');
     sections.push('');
     sections.push('## Key files');
     sections.push('');
-    sections.push('Files most-imported by the rest of the codebase — read these first to understand the API surface.');
+    sections.push(ranked
+      ? 'Most important files by graph centrality (PageRank over the import graph) — read these first to understand the API surface.'
+      : 'Files most-imported by the rest of the codebase — read these first to understand the API surface.');
     sections.push('');
     for (const k of keyFiles) {
-      sections.push(`- \`${k.path}\` (imported by ${k.inDegree})`);
+      const imp = typeof k.importance === 'number' ? `, importance ${k.importance}` : '';
+      sections.push(`- \`${k.path}\` (imported by ${k.inDegree}${imp})`);
+    }
+  }
+
+  // ── Modules (F5 communities; each named by its most important member) ──
+  const modules = topModules(agent);
+  if (modules.length) {
+    sections.push('');
+    sections.push('## Modules');
+    sections.push('');
+    sections.push('Clusters of files that import each other — each named by its most important member.');
+    sections.push('');
+    for (const m of modules.slice(0, TRUNCATE_MODULES)) {
+      sections.push(`- **\`${m.name}\`** — ${m.memberCount} files`);
+    }
+    if (modules.length > TRUNCATE_MODULES) {
+      sections.push(`- _+${modules.length - TRUNCATE_MODULES} more modules_`);
     }
   }
 
@@ -234,16 +255,64 @@ function topLanguages(agent: AgentArtifact): Array<{ id: string; pct: number }> 
  * Files sorted by in-degree (count of edges pointing TO them) descending.
  * Files with in-degree 0 are excluded — they're not hubs by definition.
  */
-function topImportedFiles(agent: AgentArtifact, limit: number): Array<{ path: string; inDegree: number }> {
+function topImportedFiles(
+  agent: AgentArtifact,
+  limit: number,
+): Array<{ path: string; inDegree: number; importance?: number }> {
   const inDeg = new Map<string, number>();
   for (const e of agent.graph.edges) {
     inDeg.set(e.to, (inDeg.get(e.to) ?? 0) + 1);
   }
+  // F5 — when importance (PageRank) is present, reorder hubs by it: a file
+  // imported by a few *important* files can outrank one imported by many
+  // trivial ones. The in-degree>0 gate stays — importance only reorders hubs,
+  // it doesn't promote runtime-only entrypoints (in-degree 0) into "read first".
+  const importance = new Map<string, number>();
+  for (const n of agent.graph.nodes) {
+    if (typeof n.importance === 'number') importance.set(n.path, n.importance);
+  }
+  const hasImportance = importance.size > 0;
   return [...inDeg.entries()]
     .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([path, inDegree]) => ({ path, inDegree }));
+    .map(([path, inDegree]) => {
+      const imp = importance.get(path);
+      return imp !== undefined ? { path, inDegree, importance: imp } : { path, inDegree };
+    })
+    .sort((a, b) => {
+      if (hasImportance) {
+        const diff = (b.importance ?? 0) - (a.importance ?? 0);
+        if (diff !== 0) return diff;
+      }
+      return b.inDegree - a.inDegree || a.path.localeCompare(b.path);
+    })
+    .slice(0, limit);
+}
+
+/**
+ * F5 — group nodes into modules by their `community` id (from label
+ * propagation). A real module has ≥2 files (singletons aren't modules). Each is
+ * named by its highest-importance member. Largest modules first; ties break on
+ * the name path for determinism. Returns every qualifying module (the caller
+ * caps + adds the "+N more" trailer). Empty when no community data is present.
+ */
+function topModules(agent: AgentArtifact): Array<{ name: string; memberCount: number }> {
+  const byCommunity = new Map<number, Array<{ path: string; importance: number }>>();
+  for (const n of agent.graph.nodes) {
+    if (typeof n.community !== 'number') continue;
+    const entry = { path: n.path, importance: typeof n.importance === 'number' ? n.importance : 0 };
+    const arr = byCommunity.get(n.community);
+    if (arr) arr.push(entry);
+    else byCommunity.set(n.community, [entry]);
+  }
+  return [...byCommunity.values()]
+    .filter((members) => members.length >= 2)
+    .map((members) => {
+      const named = [...members].sort(
+        (a, b) => b.importance - a.importance || a.path.localeCompare(b.path),
+      )[0]!;
+      return { name: named.path, memberCount: members.length };
+    })
+    .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
 }
 
 /**

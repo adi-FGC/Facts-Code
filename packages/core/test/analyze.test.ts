@@ -378,3 +378,78 @@ describe('analyze — tsconfig path aliases (#15)', () => {
     expect(imp?.resolved).toBeNull();
   });
 });
+
+describe('analyze — symbol graph (F2)', () => {
+  // Two files: a.ts has a same-file call (caller → helper); b.ts imports
+  // `helper` and calls it. Exercises the full pipeline (extractSymbolRefs →
+  // resolved-backfill → buildSymbolGraph), not the resolver in isolation.
+  const symbolsFixture: Record<string, string> = {
+    'package.json': JSON.stringify({ name: 'sym', version: '0.0.0' }),
+    'src/a.ts': 'export function helper() {\n  return 42;\n}\n\nexport function caller() {\n  return helper();\n}\n',
+    'src/b.ts': "import { helper } from './a';\n\nexport function runHelper() {\n  return helper();\n}\n",
+  };
+
+  it('stays empty unless opts.symbols is set (gated --symbols rollout)', async () => {
+    const fs = memoryFS(symbolsFixture);
+    const r = await analyze(fs, { root: '.', projectName: 'sym' });
+    expect(r.agent.graph.symbolNodes).toEqual([]);
+    expect(r.agent.graph.symbolEdges).toEqual([]);
+  });
+
+  it('tags same-file refs `extracted` and import-resolved refs `inferred` 0.9', async () => {
+    const fs = memoryFS(symbolsFixture);
+    const r = await analyze(fs, { root: '.', projectName: 'sym', symbols: true });
+
+    const helper = r.agent.graph.symbolNodes.find((n) => n.path === 'src/a.ts' && n.name === 'helper');
+    expect(helper).toBeDefined();
+
+    // Same-file caller() → helper(): fully extracted, no confidence score.
+    const sameFile = r.agent.graph.symbolEdges.find(
+      (e) => e.from.startsWith('src/a.ts#caller@') && e.to === helper!.id,
+    );
+    expect(sameFile?.confidence).toBe('extracted');
+    expect(sameFile?.confidenceScore).toBeUndefined();
+
+    // Cross-file runHelper() → helper() resolved THROUGH the import → 0.9.
+    // Regression guard for two pipeline bugs that unit tests missed:
+    //   1. ImportDecl.specifiers must carry the binding name (`helper`).
+    //   2. imp.resolved must be backfilled BEFORE buildSymbolGraph runs.
+    // If either regresses, this edge degrades to the global-name fallback
+    // (single match → 0.7), failing the assertion below.
+    const crossFile = r.agent.graph.symbolEdges.find(
+      (e) => e.from.startsWith('src/b.ts#runHelper@') && e.to === helper!.id,
+    );
+    expect(crossFile?.confidence).toBe('inferred');
+    expect(crossFile?.confidenceScore).toBe(0.9);
+  });
+});
+
+describe('analyze — graph metrics (F5)', () => {
+  it('writes importance + community onto graph nodes (agent AND human)', async () => {
+    // util.ts is imported by a.ts and b.ts → the hub, so the most important node.
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'm', version: '0.0.0' }),
+      'src/util.ts': 'export function u() {\n  return 1;\n}\n',
+      'src/a.ts': "import { u } from './util';\nexport function a() {\n  return u();\n}\n",
+      'src/b.ts': "import { u } from './util';\nexport function b() {\n  return u();\n}\n",
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'm' });
+
+    const util = r.agent.graph.nodes.find((n) => n.path === 'src/util.ts')!;
+    expect(util).toBeDefined();
+    expect(typeof util.importance).toBe('number');
+    expect(util.importance!).toBeGreaterThan(0);
+    expect(util.importance!).toBeLessThanOrEqual(1);
+    expect(typeof util.community).toBe('number');
+
+    // The hub is the most important (normalized PageRank top = 1.0).
+    const maxImp = Math.max(...r.agent.graph.nodes.map((n) => n.importance ?? 0));
+    expect(util.importance).toBe(maxImp);
+    expect(util.importance).toBe(1);
+
+    // Metrics propagate to the human artifact too (shared depGraph reference).
+    const hUtil = r.human.graph.nodes.find((n) => n.path === 'src/util.ts')!;
+    expect(typeof hUtil.importance).toBe('number');
+    expect(typeof hUtil.community).toBe('number');
+  });
+});

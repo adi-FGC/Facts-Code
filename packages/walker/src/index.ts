@@ -139,6 +139,12 @@ async function* walkDir(
   for (const entry of entries) {
     if (ALWAYS_EXCLUDE.has(entry.name)) continue;
     if (!entry.isDirectory && isNoiseArtifact(entry.name)) continue;
+    // Ignore-rule files (.gitignore/.factsignore/…) are consumed for their
+    // RULES above — never EMIT them as analysis content. FACTS writes a
+    // `.gitignore` itself, so emitting it made re-analysis non-idempotent (the
+    // file set grew by one on the 2nd run, shifting graph metrics). Rules still
+    // apply; we just don't treat the rule file as a graph node.
+    if (!entry.isDirectory && IGNORE_FILES.includes(entry.name)) continue;
 
     const relToRoot = relativeTo(base, entry.path, fs);
     const ignoreKey = entry.isDirectory ? relToRoot + '/' : relToRoot;

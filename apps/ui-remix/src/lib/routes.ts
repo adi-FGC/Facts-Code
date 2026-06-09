@@ -30,6 +30,7 @@ import { createHref } from 'remix/route-pattern/href';
 export const tabPatterns = {
   overview: RoutePattern.parse('/'),
   architecture: RoutePattern.parse('/architecture'),
+  modules: RoutePattern.parse('/modules'),
   files: RoutePattern.parse('/files'),
   docs: RoutePattern.parse('/docs'),
   review: RoutePattern.parse('/review'),
@@ -56,11 +57,12 @@ export interface TabMeta {
   ported: boolean;
 }
 
-/** The numbered nav — 7 primary tabs. Config + About are rendered as
+/** The numbered nav — 9 primary tabs. Config + About are rendered as
  *  right-side icons by the Header, not here. */
 export const TABS: readonly TabMeta[] = [
   { key: 'overview',     label: 'Overview',     href: createHref(tabPatterns.overview),     ported: true },
   { key: 'architecture', label: 'Architecture', href: createHref(tabPatterns.architecture), ported: true },
+  { key: 'modules',      label: 'Modules',      href: createHref(tabPatterns.modules),      ported: true },
   { key: 'files',        label: 'Files',        href: createHref(tabPatterns.files),        ported: true },
   { key: 'docs',         label: 'Docs',         href: createHref(tabPatterns.docs),         ported: true },
   { key: 'review',       label: 'Review',       href: createHref(tabPatterns.review),       ported: true },

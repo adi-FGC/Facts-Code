@@ -1,8 +1,9 @@
 /**
  * Encode an `AgentArtifact` into a FactsPack `.pack` string.
  *
- * Eight tables in fixed order — the schema name is `agent-v2` and the
- * order is part of the contract. Consumers reading the pack can either
+ * Nine tables in fixed order — the schema name is `agent-v3` and the
+ * order is part of the contract (the 9th, `nodeMetrics`, is the F5 addition).
+ * Consumers reading the pack can either
  * walk all tables in declaration order or jump to a named table; both
  * work because every table carries its own `&` schema line.
  *
@@ -28,10 +29,11 @@ import type { AgentArtifact } from '@factstack/spec';
 import { encode, type PackHeader, type PackRow, type PackTable } from '@factstack/factspack';
 
 const PRODUCER = 'factstack/0.3.10';
-// agent-v2 (F1): the `imports` table gained a `conf` column (edge provenance).
+// agent-v2 (F1/F2): `imports` gained a `conf` column; `symbols`/`calls` tables.
+// agent-v3 (F5): added the 9th `nodeMetrics` table (importance + community).
 // Consumers pin this name and must reject a mismatch; the decoder preamble doc
-// (docs/FACTSPACK_PROMPT.md) is updated in lockstep.
-const SCHEMA = 'agent-v2';
+// (docs/FACTSPACK_PROMPT.md) is a generic grammar primer, so it needs no change.
+const SCHEMA = 'agent-v3';
 
 /**
  * Build the multi-table FactsPack representation of an agent artifact.
@@ -58,6 +60,7 @@ export function encodeAgentPack(agent: AgentArtifact, opts: { snapshotId?: strin
       buildDeclarationsTable(agent),
       buildSymbolsTable(agent),
       buildCallsTable(agent),
+      buildNodeMetricsTable(agent),
     ],
   });
 }
@@ -287,6 +290,30 @@ function buildCallsTable(agent: AgentArtifact): PackTable {
     columns: [
       { name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' },
     ],
+    rows,
+  };
+}
+
+/* ───────────── node-metrics table (F5) ───────────── */
+
+function buildNodeMetricsTable(agent: AgentArtifact): PackTable {
+  /* Per-node graph analytics: `imp` (normalized PageRank importance, 0..1) and
+     `comm` (label-propagation community id). `path` is the unique PK → literal
+     (interning a column whose every value is distinct wastes a `@` line/row per
+     spec §13). A node with neither metric is skipped; on a normal `analyze`
+     every file node carries both (metrics are always-on for the file graph). */
+  const rows: PackRow[] = [];
+  for (const n of agent.graph?.nodes ?? []) {
+    if (n.importance === undefined && n.community === undefined) continue;
+    rows.push([
+      n.path,
+      n.importance != null ? String(n.importance) : null,
+      n.community != null ? String(n.community) : null,
+    ]);
+  }
+  return {
+    name: 'nodeMetrics',
+    columns: [{ name: 'path' }, { name: 'imp' }, { name: 'comm' }],
     rows,
   };
 }

@@ -36,6 +36,7 @@ import {
   buildMemory,
   diffArtifacts,
   executeQuery,
+  planFromQuestion,
   renderVerdictMarkdown,
   formatLearningEvent,
   selfCalibrateEvent,
@@ -46,6 +47,7 @@ import { extractOutline } from '@factstack/extractors';
 import { gzippedBytes, humanToViz, NodeFileWriter, readSnapshots, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import {
+  approximateTokens,
   flattenManifests,
   queryOsvBatch,
   osvResultsToVulnerabilities,
@@ -1497,37 +1499,31 @@ program
   });
 
 program
-  .command('query <verb> [target]')
-  .description('Query the dependency graph. Verbs: callers <path> | imports <path> | cycles | orphans')
+  .command('query <selector> [target...]')
+  .description('Query the graph. Structured: query <verb> <target...> (verbs: callers | imports | cycles | orphans | neighbors | references | implementers | impact | path-between <from> <to>). Free-text: query "who calls buildMemory" — resolved deterministically against real entity names.')
   .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
   .option('-r, --root <path>', 'Project root (default cwd)', '.')
   .option('-f, --filter <glob>', 'Restrict results to matching paths')
   .option('-l, --limit <n>', 'Max results (default 200)', '200')
-  .option('-d, --depth <n>', 'Transitive depth for `imports` verb (default 1)', '1')
+  .option('-d, --depth <n>', 'Transitive depth for imports/neighbors/references (default 1)', '1')
+  .option('--direction <dir>', 'Direction for `neighbors`: out | in | both (default both)')
   .option('--min-confidence <level>', 'Keep only edges at least this certain: extracted | inferred | ambiguous')
-  .action(async (verb: string, target: string | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string; minConfidence?: string }) => {
+  .action(async (selector: string, targetArr: string[] | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string; direction?: string; minConfidence?: string }) => {
     if (opts.json === undefined && program.opts().json) opts.json = true;
-    // Verb set is the single-source-of-truth `QUERY_VERBS` from @factstack/spec.
-    if (!(QUERY_VERBS as readonly string[]).includes(verb)) {
-      process.stderr.write(kleur.red('factstack query: ') + `unknown verb "${verb}". Expected: ${QUERY_VERBS.join(', ')}\n`);
-      process.exit(1);
-    }
-    if ((verb === 'callers' || verb === 'imports') && !target) {
-      process.stderr.write(kleur.red('factstack query: ') + `verb "${verb}" requires a target path.\n`);
-      process.stderr.write(kleur.dim(`  example: factstack query ${verb} packages/core/src/index.ts\n`));
-      process.exit(1);
-    }
-    // F1 — validate --min-confidence up front; an unknown level would
-    // otherwise silently drop every edge (see applyMinConfidence in core).
+    const targets = targetArr ?? [];
+    const isVerb = (QUERY_VERBS as readonly string[]).includes(selector);
+
     const CONF_LEVELS = ['extracted', 'inferred', 'ambiguous'] as const;
     if (opts.minConfidence && !(CONF_LEVELS as readonly string[]).includes(opts.minConfidence)) {
       process.stderr.write(kleur.red('factstack query: ') + `unknown --min-confidence "${opts.minConfidence}". Expected: ${CONF_LEVELS.join(', ')}\n`);
       process.exit(1);
     }
-    // Numeric option guards — `Number('nope')` is NaN, which the
-    // downstream `slice(0, NaN)` and `for (let i = 0; i < NaN; …)` paths
-    // silently treat as 0, producing empty results with no signal. Parse
-    // strictly + clamp to sane positive integers, falling back to defaults.
+    if (opts.direction && !['out', 'in', 'both'].includes(opts.direction)) {
+      process.stderr.write(kleur.red('factstack query: ') + `unknown --direction "${opts.direction}". Expected: out | in | both\n`);
+      process.exit(1);
+    }
+    // Numeric option guards — `Number('nope')` is NaN, which downstream
+    // slice(0, NaN) paths silently treat as 0 (empty result, no signal).
     const limit = parseIntInRange(opts.limit, 200, 1, 100_000);
     const depth = parseIntInRange(opts.depth, 1,   0, 50);
     const root = path.resolve(opts.root);
@@ -1540,9 +1536,66 @@ program
       process.stderr.write(kleur.dim('  run `factstack analyze .` first.\n'));
       process.exit(1);
     }
+
+    // ── Free-text path: selector isn't a known verb → treat selector + targets
+    //    as a natural-language question and map it deterministically (INV3). ──
+    if (!isVerb) {
+      const question = [selector, ...targets].join(' ');
+      const plan = planFromQuestion(agent, question);
+      if (!plan.ok) {
+        if (opts.json) {
+          process.stdout.write(JSON.stringify({ ok: false, reason: plan.reason, candidates: plan.candidates }, null, 2) + '\n');
+        } else {
+          process.stderr.write(kleur.yellow('factstack query: ') + plan.reason + '\n');
+          for (const c of plan.candidates) process.stderr.write(kleur.dim('  • ') + c + '\n');
+          if (!plan.candidates.length) process.stderr.write(kleur.dim('  (no candidates — try `factstack query callers <path>`)\n'));
+        }
+        process.exit(plan.candidates.length ? 0 : 1);
+      }
+      // Lift the plan to a verb call for uniform list rendering: GraphQuery
+      // plans become `neighbors` with the resolved direction.
+      const p = plan.plan;
+      const result = p.graphQuery
+        ? executeQuery(agent, {
+            verb: 'neighbors',
+            ...(p.graphQuery.start.id ? { path: p.graphQuery.start.id } : {}),
+            direction: p.graphQuery.traverse?.direction ?? 'both',
+            depth: p.graphQuery.traverse?.maxDepth ?? 1,
+            limit,
+          })
+        : executeQuery(agent, {
+            verb: p.verb!,
+            ...(p.path ? { path: p.path } : {}),
+            ...(p.to ? { to: p.to } : {}),
+            limit,
+          });
+      if (opts.json) {
+        process.stdout.write(JSON.stringify({ interpretation: p.interpretation, entities: p.entities, ...result }, null, 2) + '\n');
+        return;
+      }
+      process.stderr.write(kleur.dim(p.interpretation) + '\n');
+      printQueryResult(result);
+      return;
+    }
+
+    // ── Structured verb path ────────────────────────────────────────────────
+    const verb = selector as typeof QUERY_VERBS[number];
+    const target = targets[0];
+    const needsTarget = ['callers', 'imports', 'neighbors', 'references', 'implementers', 'path-between', 'impact'];
+    if (needsTarget.includes(verb) && !target) {
+      process.stderr.write(kleur.red('factstack query: ') + `verb "${verb}" requires a target path/symbol.\n`);
+      process.stderr.write(kleur.dim(`  example: factstack query ${verb} packages/core/src/index.ts\n`));
+      process.exit(1);
+    }
+    if (verb === 'path-between' && !targets[1]) {
+      process.stderr.write(kleur.red('factstack query: ') + 'verb "path-between" requires two targets: <from> <to>.\n');
+      process.exit(1);
+    }
     const result = executeQuery(agent, {
-      verb: verb as typeof QUERY_VERBS[number],
+      verb,
       ...(target ? { path: target } : {}),
+      ...(targets[1] ? { to: targets[1] } : {}),
+      ...(opts.direction ? { direction: opts.direction as 'out' | 'in' | 'both' } : {}),
       ...(opts.filter ? { filter: opts.filter } : {}),
       ...(opts.minConfidence ? { minConfidence: opts.minConfidence as (typeof CONF_LEVELS)[number] } : {}),
       limit,
@@ -1552,20 +1605,12 @@ program
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
       return;
     }
-    const header = target
-      ? `${verb}(${target}) — ${result.count} result${result.count === 1 ? '' : 's'}`
+    const label = result.target ?? target;
+    const header = label
+      ? `${verb}(${label}) — ${result.count} result${result.count === 1 ? '' : 's'}`
       : `${verb} — ${result.count} result${result.count === 1 ? '' : 's'}`;
     process.stderr.write(kleur.bold(header) + '\n');
-    const rows = result.results as unknown;
-    if (verb === 'cycles') {
-      // cycles are arrays of paths; print one cycle per indented block.
-      for (const cyc of rows as string[][]) {
-        process.stderr.write(kleur.dim('  ─── cycle ───\n'));
-        for (const p of cyc) process.stderr.write('  ' + p + '\n');
-      }
-    } else {
-      for (const r of rows as string[]) process.stderr.write('  ' + r + '\n');
-    }
+    printQueryResult(result);
   });
 
 program
@@ -1972,6 +2017,40 @@ program
   });
 
 program
+  .command('tokens [target]')
+  .description('Estimate the AI-context token cost of a file (or stdin with `-`). Char-based cl100k approximation, within ~8% of tiktoken — the same estimate analyze uses for per-file tokenCost.')
+  .option('--json', 'Emit machine-readable JSON to stdout')
+  .action((target: string | undefined, opts: { json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    let text: string;
+    let label: string;
+    if (!target || target === '-') {
+      if (process.stdin.isTTY) {
+        process.stderr.write(kleur.red('factstack tokens: ') + 'provide a file path, or pipe text via stdin (e.g. `cat file.ts | factstack tokens -`).\n');
+        process.exit(1);
+      }
+      // fd 0 = stdin; synchronous read of piped input.
+      try { text = readFileSync(0, 'utf8'); } catch { text = ''; }
+      label = '<stdin>';
+    } else {
+      const abs = path.resolve(target);
+      if (!existsSync(abs)) {
+        process.stderr.write(kleur.red('factstack tokens: ') + `file not found: ${target}\n`);
+        process.exit(1);
+      }
+      text = readFileSync(abs, 'utf8');
+      label = target;
+    }
+    const tokens = approximateTokens(text);
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ path: label, chars: text.length, tokens }) + '\n');
+      return;
+    }
+    const human = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : String(tokens);
+    process.stdout.write(`${kleur.bold(human + ' tokens')}  ${kleur.dim(`(${text.length} chars · ${label})`)}\n`);
+  });
+
+program
   .command('telemetry [action]')
   .description('Local-first usage metrics. action: status (default) | export | reset | opt-in | opt-out')
   .option('--json', 'Emit machine-readable JSON to stdout')
@@ -2339,6 +2418,23 @@ function parseIntInRange(raw: string | number, def: number, min: number, max: nu
   const n = typeof raw === 'number' ? raw : parseInt(String(raw), 10);
   if (!Number.isFinite(n)) return def;
   return Math.max(min, Math.min(max, n));
+}
+
+/**
+ * Render a QueryResult to stderr as an indented list. `cycles` is an array of
+ * path arrays (one indented block per cycle); every other verb is a flat
+ * string list (paths, symbol ids, or an ordered path-between sequence).
+ */
+function printQueryResult(result: { verb: string; results: unknown }): void {
+  const rows = result.results;
+  if (result.verb === 'cycles') {
+    for (const cyc of (rows as string[][]) ?? []) {
+      process.stderr.write(kleur.dim('  ─── cycle ───\n'));
+      for (const p of cyc) process.stderr.write('  ' + p + '\n');
+    }
+    return;
+  }
+  for (const r of (rows as string[]) ?? []) process.stderr.write('  ' + r + '\n');
 }
 
 /** Returns true iff `candidate` is `root` itself or a descendant of it. */

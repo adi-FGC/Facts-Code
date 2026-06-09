@@ -66,6 +66,11 @@ export interface Dataset {
   stats: { files: number; loc: number; size: number; gzip: number; tokens: number };
   tree: DatasetTreeNode;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
+  /** F5 — per-node graph analytics (importance = normalized PageRank 0..1,
+   *  community = label-propagation cluster id). One entry per node that carries
+   *  metrics. Optional for backward-compat with pre-F5 baked datasets — the
+   *  Modules surface renders an empty state when absent. */
+  nodeMetrics?: Array<{ path: string; importance?: number; community?: number }>;
   entryPoints: Array<{ label: string; path: string; handlerFile: string; kind: string }>;
   /**
    * Detected routes from per-framework AST extraction. `framework` is

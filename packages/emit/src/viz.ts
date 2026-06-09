@@ -77,6 +77,11 @@ export interface VizArtifact {
   stats: { files: number; loc: number; size: number; gzip: number; tokens: number };
   tree: VizTreeNode;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
+  /** F5 — per-node graph analytics: `importance` (normalized PageRank, 0..1)
+   *  and `community` (label-propagation cluster id). One entry per node that
+   *  carries metrics; empty on pre-F5 artifacts. Drives the Modules surface,
+   *  importance-ranked key files, and community node coloring. */
+  nodeMetrics: Array<{ path: string; importance?: number; community?: number }>;
   entryPoints: Array<{ label: string; path: string; handlerFile: string; kind: string }>;
   /**
    * Detected URL routes — frontend pages + API endpoints.
@@ -295,6 +300,16 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
     tree,
     edges: human.graph.edges.map((e) => ({ from: e.from, to: e.to, kind: e.kind })),
     cycles: human.graph.cycles ?? [],
+    // F5 — surface graph analytics per node (importance + community). Only
+    // nodes that carry metrics are emitted, conditional-spread for
+    // exactOptionalPropertyTypes.
+    nodeMetrics: agent.graph.nodes
+      .filter((n) => n.importance !== undefined || n.community !== undefined)
+      .map((n) => ({
+        path: n.path,
+        ...(n.importance !== undefined ? { importance: n.importance } : {}),
+        ...(n.community !== undefined ? { community: n.community } : {}),
+      })),
     entryPoints,
     routes: agent.routes.map((r) => ({
       framework: r.framework,

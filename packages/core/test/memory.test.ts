@@ -311,6 +311,86 @@ describe('buildMemory — content correctness', () => {
     expect(out).not.toMatch(/`d\.ts`.*\(imported by/);
   });
 
+  it('F5: importance reorders Key files above raw in-degree', () => {
+    // b.ts has higher in-degree (2) but a.ts has higher importance (1.0 vs 0.2).
+    // With importance present, a.ts must rank first.
+    const out = buildMemory(
+      makeAgent({
+        files: [
+          file('a.ts', 'typescript', 10, 100),
+          file('b.ts', 'typescript', 10, 100),
+          file('x.ts', 'typescript', 10, 100),
+          file('y.ts', 'typescript', 10, 100),
+        ],
+        graph: {
+          nodes: [
+            { id: 'a.ts', path: 'a.ts', importance: 1.0 },
+            { id: 'b.ts', path: 'b.ts', importance: 0.2 },
+            { id: 'x.ts', path: 'x.ts', importance: 0 },
+            { id: 'y.ts', path: 'y.ts', importance: 0 },
+          ],
+          edges: [
+            { from: 'x.ts', to: 'a.ts', kind: 'import' }, // a in-degree 1
+            { from: 'x.ts', to: 'b.ts', kind: 'import' }, // b in-degree 2
+            { from: 'y.ts', to: 'b.ts', kind: 'import' },
+          ],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    const ixA = out.indexOf('`a.ts`');
+    const ixB = out.indexOf('`b.ts`');
+    expect(ixA).toBeGreaterThan(0);
+    expect(ixA).toBeLessThan(ixB);                 // importance beats in-degree
+    expect(out).toContain('importance 1');         // the score is surfaced
+    expect(out).toMatch(/PageRank/);               // descriptor switched to importance wording
+  });
+
+  it('F5: Modules section lists communities named by their most-important member', () => {
+    const out = buildMemory(
+      makeAgent({
+        files: [
+          file('a.ts', 'typescript', 10, 100),
+          file('b.ts', 'typescript', 10, 100),
+          file('c.ts', 'typescript', 10, 100),
+          file('d.ts', 'typescript', 10, 100),
+        ],
+        graph: {
+          nodes: [
+            { id: 'a.ts', path: 'a.ts', importance: 1.0, community: 0 },
+            { id: 'b.ts', path: 'b.ts', importance: 0.2, community: 0 },
+            { id: 'c.ts', path: 'c.ts', importance: 0.5, community: 1 },
+            { id: 'd.ts', path: 'd.ts', importance: 0.9, community: 1 },
+          ],
+          edges: [],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    expect(out).toContain('## Modules');
+    // community 0 named by a.ts (imp 1.0 > 0.2); community 1 named by d.ts (0.9 > 0.5).
+    expect(out).toMatch(/\*\*`a\.ts`\*\* — 2 files/);
+    expect(out).toMatch(/\*\*`d\.ts`\*\* — 2 files/);
+    // single-member communities aren't modules → c.ts/b.ts are members, not names.
+  });
+
+  it('omits the Modules section when no community data is present', () => {
+    const out = buildMemory(
+      makeAgent({
+        files: [file('a.ts', 'typescript', 10, 100), file('b.ts', 'typescript', 10, 100)],
+        graph: {
+          nodes: [{ id: 'a.ts' }, { id: 'b.ts' }],
+          edges: [{ from: 'b.ts', to: 'a.ts', kind: 'import' }],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    expect(out).not.toContain('## Modules');
+  });
+
   it('"Open risks" only includes severity high/critical', () => {
     const out = buildMemory(
       makeAgent({

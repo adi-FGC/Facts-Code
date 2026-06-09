@@ -11,8 +11,9 @@ import { resolveSpecifier, type ResolverContext } from './resolver.js';
 
 export interface DependencyGraph {
   // `callers` is optional and populated by `buildCallerIndex` after the
-  // graph is built — mirrors the `GraphNodeSchema` shape in @factstack/spec.
-  nodes: Array<{ id: string; path: string; language: string; loc: number; tokenCost: number; status: FileOutline['status']; callers?: string[] }>;
+  // graph is built. `importance`/`community` are populated by `computeMetrics`
+  // (F5). All three mirror the `GraphNodeSchema` shape in @factstack/spec.
+  nodes: Array<{ id: string; path: string; language: string; loc: number; tokenCost: number; status: FileOutline['status']; callers?: string[]; importance?: number; community?: number }>;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import'; confidence: Confidence; confidenceScore?: number }>;
   cycles: string[][];
 }

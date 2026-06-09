@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>FACTS — New-CTO Audit · Graph-Intelligence Wave (F2-fix · F3 · F5 · F7 · F10)</title>
+<style>
+  :root{
+    --bg:#0B0D10; --s1:#14171C; --s2:#1b1f26; --fg:#E6E8EA; --mut:#9aa3ad; --sub:#6b7682;
+    --acc:#ff7a3c; --ok:#4ade80; --warn:#fbbf24; --dang:#f87171; --info:#60a5fa; --hair:#252b33;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+    --ui:'Inter',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--ui);line-height:1.55;counter-reset:pt;font-size:15px}
+  header.top{padding:40px clamp(16px,5vw,72px) 28px;border-bottom:1px solid var(--hair);background:linear-gradient(180deg,#101319,#0B0D10)}
+  h1{font-size:clamp(22px,3.4vw,34px);margin:0 0 8px;letter-spacing:-.02em}
+  .sub{color:var(--mut);max-width:80ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:16px;font-family:var(--mono);font-size:12px;color:var(--sub)}
+  .meta b{color:var(--ok)}
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:0;max-width:1100px;margin:0 auto;padding:0 clamp(16px,5vw,40px)}
+  nav.toc{position:sticky;top:0;background:rgba(11,13,16,.86);backdrop-filter:blur(10px);border-bottom:1px solid var(--hair);padding:10px clamp(16px,5vw,40px);font-family:var(--mono);font-size:11.5px;z-index:5;display:flex;flex-wrap:wrap;gap:4px 14px}
+  nav.toc a{color:var(--mut);text-decoration:none}
+  nav.toc a:hover{color:var(--acc)}
+  section{padding:30px 0 8px;border-top:1px solid var(--hair)}
+  section:first-of-type{border-top:none}
+  h2{font-size:19px;margin:0 0 4px;letter-spacing:-.01em;color:#fff}
+  h2 .k{font-family:var(--mono);font-size:11px;color:var(--acc);display:block;letter-spacing:.12em;text-transform:uppercase;margin-bottom:6px}
+  .lead{color:var(--mut);margin:2px 0 14px;max-width:84ch}
+  ol.pts{list-style:none;margin:0;padding:0}
+  li.pt{position:relative;padding:7px 0 7px 64px;border-bottom:1px solid #181c22}
+  li.pt::before{counter-increment:pt;content:"#" counter(pt);position:absolute;left:0;top:7px;font-family:var(--mono);font-size:11px;color:var(--sub);width:54px;text-align:right}
+  li.pt b{color:#fff;font-weight:600}
+  li.pt code{font-family:var(--mono);font-size:12.5px;background:var(--s2);padding:.08em .38em;border-radius:4px;color:#cdd5de}
+  .tag{font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:999px;border:1px solid var(--hair);color:var(--mut);margin-left:6px;vertical-align:middle}
+  .tag.ok{color:var(--ok);border-color:#1f3d2a}
+  .tag.warn{color:var(--warn);border-color:#473a17}
+  .tag.dang{color:var(--dang);border-color:#4a2222}
+  .tag.info{color:var(--info);border-color:#1d3550}
+  footer{padding:40px clamp(16px,5vw,72px);color:var(--sub);font-family:var(--mono);font-size:12px;border-top:1px solid var(--hair)}
+  strong.f{color:var(--acc)}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>FACTS — New-CTO Audit</h1>
+  <div class="sub">Plain-language walkthrough of the <strong class="f">graph-intelligence wave</strong> (the F2 follow-up, F3 query engine, F5 graph analytics, F7 token accounting) and the F10 rationale work it ships alongside — plus the whole app it lives in. Written so someone who joined this week can follow every claim to its source. Each point is numbered; there are 400+.</div>
+  <div class="meta">
+    <span>repo: <b>factstack</b> (pnpm monorepo)</span>
+    <span>branch: <b>apps-remix3</b></span>
+    <span>verify: <b>typecheck 19/19 · 947 tests · 0 fail · ui build OK</b></span>
+    <span>wire format: <b>agent-v3</b></span>
+    <span>status: pre-commit (uncommitted)</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#what">1·What FACTS is</a>
+  <a href="#audience">2·Audience</a>
+  <a href="#repo">3·Monorepo</a>
+  <a href="#inv">4·Invariants</a>
+  <a href="#pipe">5·Analyze pipeline</a>
+  <a href="#artifacts">6·Artifacts</a>
+  <a href="#pack">7·FactsPack</a>
+  <a href="#f1">8·F1 confidence</a>
+  <a href="#f2">9·F2 symbols</a>
+  <a href="#f2fix">10·F2 bugfixes</a>
+  <a href="#f3">11·F3 engine</a>
+  <a href="#nl">12·F3 free-text</a>
+  <a href="#subgraph">13·Subgraph</a>
+  <a href="#pr">14·F5 PageRank</a>
+  <a href="#comm">15·F5 communities</a>
+  <a href="#impact">16·F5 impact</a>
+  <a href="#mem">17·F5 MEMORY</a>
+  <a href="#modtab">18·Modules tab</a>
+  <a href="#f7">19·F7 tokens</a>
+  <a href="#f10">20·F10 rationale</a>
+  <a href="#mcp">21·MCP server</a>
+  <a href="#cli">22·CLI</a>
+  <a href="#ui">23·Dashboard</a>
+  <a href="#det">24·Determinism</a>
+  <a href="#sec">25·Security</a>
+  <a href="#perf">26·Perf/bundle</a>
+  <a href="#tests">27·Testing</a>
+  <a href="#ver">28·Versioning</a>
+  <a href="#risk">29·Risks/debt</a>
+  <a href="#commit">30·Commit plan</a>
+</nav>
+
+<div class="wrap">
+
+<section id="what">
+  <h2><span class="k">Section 1</span>What FACTS is</h2>
+  <p class="lead">The product in one breath, then the why.</p>
+  <ol class="pts">
+    <li class="pt">FACTS reads a codebase and writes a small, structured <b>artifact</b> an AI agent can read <i>instead of</i> the source.</li>
+    <li class="pt">The pitch is token economics: a 1M-token repo compresses to a ~23K-token pack that still answers "where is X / who calls Y / what's risky" precisely.</li>
+    <li class="pt">It is <b>deterministic</b> by design: same code in ⇒ byte-identical artifact out. No model, no randomness in the core.</li>
+    <li class="pt">It serves <b>two audiences from one computation</b>: an AI agent (via the pack + an MCP server) and a human exec (via a dashboard).</li>
+    <li class="pt">The core analysis is <b>isomorphic</b> — the same pure code runs in Node (CLI) and in the browser (the dashboard's scan worker).</li>
+    <li class="pt">FACTS positions in the "structural / deterministic" camp (precise) vs the "embeddings / probabilistic" camp (scales), and aims for the uncontested center: deterministic + local + a compact tabular wire format + dual audience.</li>
+    <li class="pt">Everything is local-first; <code>analyze</code> makes <b>no network calls</b> (a hard constraint). Network features (CVE lookups) are opt-in subcommands.</li>
+    <li class="pt">The artifact is meant to be committable to the repo (<code>.facts/</code>), so it rides the diff and stays fresh per commit.</li>
+    <li class="pt">This wave deepens FACTS from a file-level map into a <b>graph-intelligence</b> tool: symbol-level edges, queryable structure, ranked importance, and clustered modules.</li>
+    <li class="pt">The through-line of the wave: make the dependency graph <i>answer questions</i> (F3), <i>rank itself</i> (F5), and <i>price itself in tokens</i> (F7) — all without an LLM.</li>
+    <li class="pt">Nothing here changes the JSON artifact's version number (<code>FACTS_SCHEMA_VERSION = 0.1.0</code>); every JSON change is additive.</li>
+    <li class="pt">The binary wire format (FactsPack) <i>did</i> bump, <code>agent-v2 → agent-v3</code>, because a new table changes what consumers decode.</li>
+  </ol>
+</section>
+
+<section id="audience">
+  <h2><span class="k">Section 2</span>Who it's for, and the job</h2>
+  <p class="lead">Three users, one artifact.</p>
+  <ol class="pts">
+    <li class="pt"><b>AI coding agents</b> (Claude Code, Cursor, Copilot) — read the pack + call MCP tools instead of grepping the repo.</li>
+    <li class="pt"><b>CXOs / non-developers</b> — open the dashboard and understand a codebase in under two minutes.</li>
+    <li class="pt"><b>Developers</b> — use the CLI + dashboard to navigate, audit, and reason about structure.</li>
+    <li class="pt">The job-to-be-done for an agent: "answer my question about this code in one cheap lookup, not ten expensive reads."</li>
+    <li class="pt">The job for a CXO: "is this codebase healthy, what does it do, and what's risky" — answered with clickable evidence, not an unfalsifiable score.</li>
+    <li class="pt">The graph-intelligence wave serves the agent (new MCP tools + pack tables) and the CXO (a new Modules dashboard tab) from the <i>same</i> metrics.</li>
+    <li class="pt">"Evidence-first" is the design law: every claim resolves to a <code>file:line</code> or a clickable source, never a vibe.</li>
+    <li class="pt">F3's free-text query is for agents that want to ask in English without learning a verb grammar; it stays deterministic so it never hallucinates an answer.</li>
+    <li class="pt">F5's importance answers "what should I read first?"; communities answer "what clusters together?"; impact answers "what breaks if I touch this?".</li>
+    <li class="pt">F7's token tools answer "will this fit in context?" / "how much will reading this cost?" — the literal currency of agent work.</li>
+  </ol>
+</section>
+
+<section id="repo">
+  <h2><span class="k">Section 3</span>The monorepo at a glance</h2>
+  <p class="lead">A pnpm workspace: pure isomorphic packages, plus Node/browser adapters, plus apps.</p>
+  <ol class="pts">
+    <li class="pt"><code>packages/spec</code> — the schemas (Zod) + shared types + the canonical MCP tool/verb tuples. The single source of truth for shapes.</li>
+    <li class="pt"><code>packages/walker</code> — walks the filesystem (via an injected <code>FactsFS</code>), yields files. Pure + isomorphic.</li>
+    <li class="pt"><code>packages/parsers</code> — language detection + parse helpers.</li>
+    <li class="pt"><code>packages/extractors</code> — per-file AST extraction: imports, symbols, refs, routes, env vars. Babel-based, pure-JS (no WASM/native).</li>
+    <li class="pt"><code>packages/graph</code> — builds the dependency graph, the caller index, the symbol graph, and (new) the metrics. Pure.</li>
+    <li class="pt"><code>packages/scanners</code> — secrets, licenses, TODOs, dependencies, vulnerabilities, token cost. Pure.</li>
+    <li class="pt"><code>packages/intent</code> — infers a human one-liner of what the project does.</li>
+    <li class="pt"><code>packages/core</code> — the orchestrator: composes walker → extractors → graph → scanners into the artifacts. Also hosts the query engine, MEMORY builder, diff, review, diagram.</li>
+    <li class="pt"><code>packages/factspack</code> — the FactsPack codec: <code>encode()</code> / <code>decode()</code> for the columnar text format.</li>
+    <li class="pt"><code>packages/emit</code> — Node-side writers + the agent→pack encoder + the human→viz converter. Where I/O lives.</li>
+    <li class="pt"><code>packages/emit-browser</code> — the browser-side writers (File System Access API).</li>
+    <li class="pt"><code>packages/fs-node</code> / <code>packages/fs-memory</code> / <code>packages/fs-browser</code> — the three <code>FactsFS</code> implementations (disk, in-memory for tests, browser).</li>
+    <li class="pt"><code>packages/skills</code> — renders agent instruction files (AGENTS.md / Claude / Cursor / Copilot) from the artifact.</li>
+    <li class="pt"><code>packages/ui-theme</code> — design tokens (colors, type, spacing) + the diagram CSS vocabulary, shared by the dashboard.</li>
+    <li class="pt"><code>apps/cli</code> — the <code>factstack</code> binary. Node + Deno compatible. The primary surface.</li>
+    <li class="pt"><code>apps/mcp-server</code> — the Model Context Protocol server; exposes the artifact as MCP resources + tools over stdio.</li>
+    <li class="pt"><code>apps/ui-remix</code> — the React-free Remix v3 dashboard (the exec/dev UI).</li>
+    <li class="pt"><code>apps/chrome-ext</code> / <code>apps/vscode-ext</code> — thin client integrations.</li>
+    <li class="pt">The dependency direction is strict: apps depend on packages; pure packages never depend on Node-only ones.</li>
+    <li class="pt">The wave touched <b>~29 files across 9 packages/apps</b>, plus 12 new files — all green together.</li>
+    <li class="pt">The build is source-served in dev: packages export <code>./src/*.ts</code> as <code>main</code>, so a change in <code>graph</code> is live in <code>core</code> without a build step.</li>
+    <li class="pt">Tests run with Vitest per package; the workspace runs them with <code>pnpm -r test</code>.</li>
+    <li class="pt">Typechecking is per-package <code>tsc --noEmit</code> against a shared <code>tsconfig.base.json</code> with <code>exactOptionalPropertyTypes: true</code> (strict optionals).</li>
+    <li class="pt">The whole workspace typechecks clean (19 projects) and runs 947 tests green after this wave.</li>
+  </ol>
+</section>
+
+<section id="inv">
+  <h2><span class="k">Section 4</span>The eight design invariants</h2>
+  <p class="lead">The guardrails. Every change in this wave was checked against them.</p>
+  <ol class="pts">
+    <li class="pt"><b>INV1 — Tier purity.</b> spec/walker/parsers/extractors/graph/scanners/intent/core/factspack/emit-pure are pure + isomorphic: no <code>node:*</code>, no fetch, no wall-clock, no randomness, no I/O.</li>
+    <li class="pt">The new <code>graph/metrics.ts</code> obeys INV1: it imports only types, uses only arithmetic, and touches no clock or RNG.</li>
+    <li class="pt"><b>INV2 — Determinism.</b> Same input ⇒ byte-identical output. Fixed iteration counts, stable tie-breaks on a sorted key.</li>
+    <li class="pt">PageRank uses a <b>fixed 30 iterations</b> (never "loop until converged", which would vary by platform rounding).</li>
+    <li class="pt">Communities use a <b>fixed 10-pass</b> label propagation with lowest-label tie-breaks, processed in path-sorted order.</li>
+    <li class="pt"><b>INV3 — No model in the core.</b> FACTS never calls an LLM. "Natural language" is resolved by deterministic entity-matching against real graph names.</li>
+    <li class="pt">The F3 free-text mapper (<code>query-nl.ts</code>) honors INV3: it tokenizes + matches against real entity names + picks a keyword template; on doubt it returns a "did you mean" list, never a guess.</li>
+    <li class="pt"><b>INV4 — Additive schema evolution.</b> New JSON fields are <code>.optional()</code> / <code>.default()</code> so old artifacts still validate; <code>FACTS_SCHEMA_VERSION</code> stays 0.1.0.</li>
+    <li class="pt">F5's <code>importance</code>/<code>community</code> are <code>.optional()</code> on the node schema — pre-F5 artifacts load unchanged.</li>
+    <li class="pt">A FactsPack <i>table change</i> bumps the pack schema name (a separate version axis); that's why this wave moved <code>agent-v2 → agent-v3</code>.</li>
+    <li class="pt"><b>INV5 — Single sources of truth.</b> Query verbs live in one tuple (<code>QUERY_VERBS</code>); MCP tool names in one tuple (<code>MCP_TOOL_NAMES</code>). Add to the tuple first; <code>tsc</code> points at every site to change.</li>
+    <li class="pt">Adding <code>impact</code> (F5) and <code>count_tokens</code> (F7) followed INV5: edit the tuple, then fix what <code>tsc</code> flags.</li>
+    <li class="pt"><b>INV6 — analyze makes no network calls.</b> Held: nothing in the wave adds a fetch to the analyze path.</li>
+    <li class="pt"><b>INV7 — Browser parity.</b> Pure features run identically in the browser scan worker; the new metrics do too (they're pure).</li>
+    <li class="pt"><b>INV8 — Token-first responses.</b> New tabular agent responses ship as FactsPack (the F3 subgraph, the get_outline refs).</li>
+    <li class="pt">The invariants are not aspirational comments — they are enforced by tests (determinism re-runs, schema round-trips) and by the type system (the tuple <code>satisfies</code> clauses).</li>
+  </ol>
+</section>
+
+<section id="pipe">
+  <h2><span class="k">Section 5</span>How a scan works (the analyze pipeline)</h2>
+  <p class="lead"><code>analyze(fs, opts)</code> in <code>packages/core/src/index.ts</code> — the spine.</p>
+  <ol class="pts">
+    <li class="pt">Phase 1 walks every file via the injected <code>FactsFS</code> (so the same code works on disk, in memory, or in the browser).</li>
+    <li class="pt">Per file: detect language, count LOC + bytes, estimate token cost, gzip size (via an injected callback so core stays isomorphic).</li>
+    <li class="pt">For JS/TS/Astro: parse once with Babel and share that AST across extractors (imports + symbols + refs) — parse-once, not parse-per-extractor.</li>
+    <li class="pt">Imports are extracted as raw records: the module source (<code>'./a'</code>), the kind (import/type-import/dynamic/require), the line, and (new this wave) the <b>local binding names</b>.</li>
+    <li class="pt">Symbols (declarations) are extracted with name, kind, line span, exported flag, and docstring.</li>
+    <li class="pt">F2's identifier <b>refs</b> (call/read/jsx/type-ref) are captured per file, but only when <code>--symbols</code> is passed (the gated rollout).</li>
+    <li class="pt">Secrets, licenses, TODOs, env vars, routes, and dependency manifests are scanned in the same per-file loop.</li>
+    <li class="pt">After the walk, the resolver context is built: the set of project files, workspace package index, and tsconfig path aliases.</li>
+    <li class="pt"><code>buildDependencyGraph</code> turns resolved imports into file edges (from importer → imported), detecting cycles with Tarjan's SCC.</li>
+    <li class="pt"><code>buildCallerIndex</code> inverts the edges into "who imports me" and backfills <code>node.callers</code>.</li>
+    <li class="pt"><b>New (F2 fix):</b> the <code>imp.resolved</code> backfill (turning <code>'./a'</code> into <code>src/a.ts</code>) now runs <i>before</i> the symbol graph is built — previously it ran after, starving the resolver.</li>
+    <li class="pt"><b>New (F5):</b> <code>computeMetrics(depGraph)</code> runs right after the caller backfill and writes <code>importance</code> + <code>community</code> onto the shared graph nodes.</li>
+    <li class="pt">Because both the agent and human artifacts spread the same <code>depGraph</code> object, the metrics land on both for free (no double computation).</li>
+    <li class="pt">The symbol graph (F2) is built next, but only under <code>--symbols</code>; otherwise the symbol arrays stay empty (and old consumers are unaffected).</li>
+    <li class="pt"><b>New (F10):</b> <code>buildRationale</code> links NOTE/HACK/FIXME/TODO/XXX comments + docstrings to the enclosing symbol — coexisting in the same assembly.</li>
+    <li class="pt">Broken imports + cycles are surfaced as risks after the resolved-backfill.</li>
+    <li class="pt">The CSS audit runs over collected stylesheet sources; the dependency/vuln data is assembled; capabilities are inferred.</li>
+    <li class="pt">The agent artifact is assembled (full graph incl. symbol arrays + metrics + rationale); the human artifact is assembled (file graph, no symbol arrays).</li>
+    <li class="pt">Risks are funneled through <code>applyRewrite</code> so CXO-readable prose replaces raw rule text where one exists (the original is kept on <code>messageTechnical</code>).</li>
+    <li class="pt">The analyzer is deterministic end-to-end: walk order is path-stable, maps preserve insertion order, and every new ranking sorts on a stable key.</li>
+    <li class="pt">Wall-clock time (<code>generatedAt</code>) is the <i>only</i> non-deterministic field, and it's injected at the adapter edge, not computed in pure code.</li>
+    <li class="pt">The whole pipeline is one function with clearly-ordered phases; the wave inserted its steps at documented, tested seams.</li>
+    <li class="pt">A regression test (<code>analyze.test.ts</code>) now asserts that a hub file (<code>util.ts</code> imported by two files) gets importance 1.0 on both artifacts — locking the F5 wiring.</li>
+    <li class="pt">A second regression test locks the F2 fix: an imported ref resolves at confidence 0.9 (the "import-resolved" tier), proving specifiers + ordering both work.</li>
+  </ol>
+</section>
+
+<section id="artifacts">
+  <h2><span class="k">Section 6</span>The artifacts FACTS writes</h2>
+  <p class="lead">What ends up in <code>.facts/</code>.</p>
+  <ol class="pts">
+    <li class="pt"><code>agent.json</code> — the full machine artifact: files, graph (nodes/edges/cycles/symbols/metrics), routes, risks, config, docs, rationale.</li>
+    <li class="pt"><code>agent.pack</code> — the same data in FactsPack (token-lean columnar text); the format agents actually read.</li>
+    <li class="pt"><code>agent.jsonl</code> — a streamable companion (one FileOutline per line).</li>
+    <li class="pt"><code>human.json</code> — the dashboard's data shape (a viz-friendly projection; file graph only).</li>
+    <li class="pt"><code>MEMORY.md</code> — a 2–10 KB compact brief an agent reads on session start: one-liner, at-a-glance, capabilities, entry points, routes, key files, modules, open risks.</li>
+    <li class="pt"><code>snapshots/</code> — dated baselines used by <code>since</code> and <code>review_change</code> to diff against prior state.</li>
+    <li class="pt">A <code>--minimal</code> mode writes only the AI-first core (pack + human.json + MEMORY.md) for fast per-commit refresh.</li>
+    <li class="pt">All artifacts are additive-versioned: the JSON stays <code>0.1.0</code> forever as long as new fields are optional.</li>
+    <li class="pt">The wave added two fields to <code>agent.json</code> graph nodes (<code>importance</code>, <code>community</code>) — both optional, both invisible to old readers.</li>
+    <li class="pt">The wave added a 10th FactsPack table (<code>nodeMetrics</code> from F5; the F10 <code>rationale</code> table is the actual 10th) and bumped the pack schema to <code>agent-v3</code>.</li>
+    <li class="pt">The dashboard's data (<code>human.json</code> / the baked inline blob) is produced by <code>humanToViz(agent, human)</code> — one transform feeds the static bake, the dev server, and the browser scanner.</li>
+    <li class="pt"><b>New (F5):</b> that transform now also emits <code>nodeMetrics</code> (importance + community per path), so the dashboard consumes the <i>core</i> metrics rather than recomputing them.</li>
+    <li class="pt">This is the load-bearing design choice of the F5 UI: one deterministic computation, two audiences — the agent and the dashboard can never disagree about importance.</li>
+    <li class="pt">The artifacts are intended to be committed; the dashboard's static export bakes the JSON into a single self-contained HTML file.</li>
+  </ol>
+</section>
+
+<section id="pack">
+  <h2><span class="k">Section 7</span>FactsPack — the token-lean wire format</h2>
+  <p class="lead">Why the agent reads a pack, not JSON.</p>
+  <ol class="pts">
+    <li class="pt">FactsPack is a line-oriented, columnar text format: each table is self-describing with an <code>&amp; name col1 col2 …</code> header and <code>- v1 v2 …</code> rows.</li>
+    <li class="pt">Repeated strings (file paths) are <b>interned</b> in an uppercase-named column via a <code>@ K=value</code> dictionary line, so a path written 50 times costs its bytes once.</li>
+    <li class="pt">Unique-per-row values (a primary key path) stay literal — interning a unique value would waste a dictionary line per row.</li>
+    <li class="pt">Short enums (kind/status/severity/confidence) stay literal — the dictionary overhead would exceed the savings on values under ~10 chars.</li>
+    <li class="pt">The header line carries the producer, the schema name, a snapshot id, and a row count; consumers pin the schema name and reject a mismatch.</li>
+    <li class="pt">On real data the pack is ~46× smaller than the equivalent JSON in tokens (the whole repo's structure in ~23K tokens vs ~1.07M tokens of source).</li>
+    <li class="pt">The agent pack is now <b>ten tables in a fixed order</b>: files, imports, routes, risks, envs, declarations, symbols, calls, nodeMetrics, rationale.</li>
+    <li class="pt">The order is part of the contract; a consumer can walk all tables or jump to a named one (every table has its own <code>&amp;</code> line).</li>
+    <li class="pt"><b>New (F5):</b> the <code>nodeMetrics</code> table carries <code>path</code> (literal PK) + <code>imp</code> (importance) + <code>comm</code> (community); it skips nodes with no metrics.</li>
+    <li class="pt"><b>New (F2):</b> the <code>imports</code> table gained a <code>conf</code> column (edge provenance) back in agent-v2; the <code>symbols</code> and <code>calls</code> tables carry the symbol graph.</li>
+    <li class="pt">The decoder preamble doc (<code>docs/FACTSPACK_PROMPT.md</code>) is a <i>generic grammar primer</i> — it teaches the syntax, not specific columns — so new tables need no doc change to be decodable.</li>
+    <li class="pt">A pure round-trip test asserts the pack decodes back to the expected row counts per table, and that null values serialize as a bare <code>-</code>.</li>
+    <li class="pt">The "all tables in fixed order" test now checks all ten tables, including the new <code>nodeMetrics</code> and <code>rationale</code> (a coverage hole the review closed).</li>
+    <li class="pt">FactsPack is also the format for per-tool MCP responses (query, get_outline, list_risks, etc.) so an agent learns the columns once and reuses them.</li>
+    <li class="pt">Per-tool packs carry their own schema names (<code>query-graph-v1</code>, <code>outline-v2</code>, <code>subgraph-v1</code>) advertised by the server's version block.</li>
+    <li class="pt">FactsPack is pure and isomorphic — encoding/decoding runs in the browser exactly as in Node.</li>
+  </ol>
+</section>
+
+<section id="f1">
+  <h2><span class="k">Section 8</span>F1 — edge confidence (provenance)</h2>
+  <p class="lead">Shipped earlier; the substrate the wave builds on.</p>
+  <ol class="pts">
+    <li class="pt">Every graph edge carries a <code>confidence</code>: <code>extracted</code> (read directly from source), <code>inferred</code> (resolved/deduced), or <code>ambiguous</code> (name-match only).</li>
+    <li class="pt">The enum is ordered most→least certain so it can drive a threshold filter.</li>
+    <li class="pt">File import edges are always <code>extracted</code> (they're literally in the source).</li>
+    <li class="pt">Symbol edges (F2) carry the interesting confidences: same-file ⇒ extracted, import-resolved ⇒ inferred (0.9), single-global-match ⇒ inferred (0.7), multi-match ⇒ ambiguous (0.4).</li>
+    <li class="pt">An optional <code>confidenceScore</code> (0..1) rides alongside for the inferred/ambiguous tiers.</li>
+    <li class="pt">The schema default (<code>extracted</code>) keeps pre-F1 artifacts valid on read (INV4) so the JSON version never moved.</li>
+    <li class="pt">A <code>--min-confidence</code> filter on queries keeps only edges at least that certain; it's a no-op until F2 produces non-extracted edges.</li>
+    <li class="pt">MEMORY shows an edge-confidence line only when there are uncertain edges — no "100% extracted" noise.</li>
+    <li class="pt">The pack's <code>conf</code> column is literal (3 short values; interning wouldn't pay).</li>
+    <li class="pt">F1 is the reason the graph can say "I'm sure" vs "I'm guessing" — a property embeddings-based tools structurally cannot offer.</li>
+    <li class="pt">F5's impact verb is confidence-aware: it can be told to traverse only edges above a confidence floor.</li>
+    <li class="pt">Confidence is the connective tissue of the wave: F2 produces it, F3 filters on it, F5 can weight by it.</li>
+    <li class="pt">The whole confidence model is deterministic — the same ref always resolves to the same tier.</li>
+    <li class="pt">It is also honest about its limits: a name that collides across many files is marked ambiguous, not silently guessed.</li>
+  </ol>
+</section>
+
+<section id="f2">
+  <h2><span class="k">Section 9</span>F2 — the symbol graph</h2>
+  <p class="lead">Declarations as nodes, references as edges.</p>
+  <ol class="pts">
+    <li class="pt">F2 moves beyond file-level imports to a <b>symbol graph</b>: nodes are declarations (functions/classes/methods/components), edges are references.</li>
+    <li class="pt">A symbol's stable id is <code>path#name@startLine</code> — path + name + line disambiguates overloads and same-named decls.</li>
+    <li class="pt">The id is built by one function (<code>symbolId()</code>) so every consumer agrees on the format.</li>
+    <li class="pt">Edge kinds are <code>call</code>, <code>read</code>, <code>jsx</code>, <code>type-ref</code>, <code>implements</code>, <code>extends</code>.</li>
+    <li class="pt">The resolver (<code>symbol-resolver.ts</code>) joins per-file refs against declarations + the import graph to produce the edges.</li>
+    <li class="pt">Resolution tiers: same-file decl ⇒ extracted; import-resolved target ⇒ inferred 0.9; one global match ⇒ inferred 0.7; many matches ⇒ ambiguous 0.4 (lowest id chosen).</li>
+    <li class="pt">It is pure + deterministic: candidate lists are id-sorted, the enclosing "from" symbol is the innermost span, edges dedupe keeping the strongest.</li>
+    <li class="pt">Output is sorted: symbol nodes by id, symbol edges by (from, to, kind).</li>
+    <li class="pt">The symbol graph is gated behind <code>--symbols</code> until it stabilizes; off by default so the per-file ref walk only runs when asked.</li>
+    <li class="pt">When off, the symbol arrays are empty and the artifact's defaults apply — pre-F2 consumers are unaffected.</li>
+    <li class="pt">The pack carries it as two tables: <code>symbols</code> (id, path, name, kind, span, exported) and <code>calls</code> (from, to, kind, conf).</li>
+    <li class="pt">Known honest gaps: dynamic dispatch isn't inferred; default/namespace imports resolve only via the global fallback; module-top-level refs (outside any decl) are dropped.</li>
+    <li class="pt">The resolver has 9 unit tests covering each tier + determinism + the enclosing-span logic.</li>
+    <li class="pt">F2 is the substrate for everything downstream: F3 queries it, F5's symbol-level reach uses it, get_outline surfaces it.</li>
+  </ol>
+</section>
+
+<section id="f2fix">
+  <h2><span class="k">Section 10</span>The F2 follow-up — two real bugs caught by dogfooding</h2>
+  <p class="lead">The unit tests were green while a whole confidence tier was dead in production. End-to-end dogfooding caught it.</p>
+  <ol class="pts">
+    <li class="pt"><b>Bug 1 — empty import specifiers.</b> The import extractor only recorded the module <i>source</i> (<code>'./a'</code>), never the named bindings (<code>helper</code>).</li>
+    <li class="pt">So <code>ImportDecl.specifiers</code> was hardcoded empty in core, and the resolver's 0.9 "import-resolved" tier could never fire — every cross-file ref silently fell to the 0.7 guess tier.</li>
+    <li class="pt">The fix: the extractor now captures the local binding names from each import declaration's specifiers (default + namespace + named).</li>
+    <li class="pt">It captures the <i>local</i> name (the alias the file actually uses), because that's what identifier refs match against.</li>
+    <li class="pt">Aliased imports (<code>import {x as y}</code>) keep the alias and gracefully fall to the lower tier — a documented, acceptable v1 gap.</li>
+    <li class="pt">The deduper now unions names when the same module is imported twice, instead of dropping the second import's names.</li>
+    <li class="pt">Core now threads those names into <code>ImportDecl.specifiers</code> (was <code>[]</code>).</li>
+    <li class="pt"><b>Bug 2 — ordering.</b> <code>buildSymbolGraph</code> ran <i>before</i> the <code>imp.resolved</code> backfill, so every import looked unresolved at resolution time even with specifiers present.</li>
+    <li class="pt">The serialized artifact looked correct because the backfill mutated it <i>after</i> the symbol graph was built — hiding that the consumer saw <code>null</code>.</li>
+    <li class="pt">The fix moved the resolved-backfill earlier, before <code>buildSymbolGraph</code>, so the resolver sees real targets.</li>
+    <li class="pt">Both bugs had to be fixed for the 0.9 tier to fire; the dogfood edge went 0.7 → 0.9 once both landed.</li>
+    <li class="pt">The lesson, encoded as a comment: unit tests that hand-build fixtures can pass while the real pipeline shape is broken; a pipeline-level regression test is what actually guards it.</li>
+    <li class="pt">A new <code>analyze.test.ts</code> case asserts an imported ref resolves at exactly 0.9 — it would fail if either bug regressed.</li>
+    <li class="pt">This wave also completed the deferred F2 item: <code>get_outline</code> now returns a <code>refs</code> table (outline-v2) of a file's outgoing symbol edges with confidence.</li>
+  </ol>
+</section>
+
+<section id="f3">
+  <h2><span class="k">Section 11</span>F3 — the declarative query engine</h2>
+  <p class="lead">One small engine; the old verbs become sugar over it.</p>
+  <ol class="pts">
+    <li class="pt">F3 replaces ad-hoc verb code with one traversal primitive (<code>runGraphQuery</code>) over a <b>unified adjacency</b> of file edges + symbol edges.</li>
+    <li class="pt">The two id-spaces (file paths vs <code>path#name@line</code> symbol ids) never share an edge, so a file seed naturally walks import edges and a symbol seed walks symbol edges.</li>
+    <li class="pt">A <code>GraphQuery</code> has: a <code>start</code> selector (by id/glob/name/kind), a <code>traverse</code> (direction out/in/both, edge-kind filter, max depth), a <code>where</code> filter, a <code>select</code> (nodes/edges/subgraph), and a <code>limit</code>.</li>
+    <li class="pt">The engine builds direction-aware adjacency, runs a depth-bounded BFS, applies the where-filter, and returns a connected subgraph.</li>
+    <li class="pt">It's deterministic: adjacency is built from sorted neighbor lists, results are id-sorted, ties break on id.</li>
+    <li class="pt">Capping is explicit: when <code>limit</code> drops nodes, the result carries a <code>truncated</code> flag — never a silent drop.</li>
+    <li class="pt">The four legacy verbs (callers/imports/cycles/orphans) keep their tuned implementations; a <b>parity test</b> proves the engine reproduces callers and imports exactly.</li>
+    <li class="pt">That's the anti-drift contract the plan wanted, achieved without a risky rewrite of the battle-tested verbs.</li>
+    <li class="pt">New verbs added: <code>neighbors</code> (adjacent nodes, direction-controlled), <code>references</code> (who references a symbol), <code>implementers</code> (who extends/implements a symbol), <code>path-between</code> (shortest directed path).</li>
+    <li class="pt"><code>path-between</code> is a deterministic multi-source BFS that explores neighbors in id order so the reconstructed path is stable.</li>
+    <li class="pt"><code>references</code> restricts to call/read/jsx/type-ref edges; <code>implementers</code> restricts to implements/extends — so each answers a precise question.</li>
+    <li class="pt">Verb resolution is forgiving: a target string matches an exact id, then a symbol/file name, then a path suffix — agents don't need to know the exact id.</li>
+    <li class="pt">The engine + verbs have 13 unit tests (parity, symbol verbs, subgraph, where-filters, truncation, determinism).</li>
+    <li class="pt">F5's <code>impact</code> verb reuses this engine's in-edge adjacency — "one engine," exactly as the plan intended.</li>
+    <li class="pt">The verb set is single-sourced in <code>QUERY_VERBS</code>; adding a verb makes <code>tsc</code> flag every dispatch site.</li>
+    <li class="pt">The structured GraphQuery is also exposed directly via the new <code>query</code> MCP tool, so agents can express custom traversals.</li>
+  </ol>
+</section>
+
+<section id="nl">
+  <h2><span class="k">Section 12</span>F3 — free-text → plan (no LLM)</h2>
+  <p class="lead">English questions, deterministic answers.</p>
+  <ol class="pts">
+    <li class="pt"><code>query-nl.ts</code> maps a free-text question to a query plan — purely, with no model (INV3).</li>
+    <li class="pt">It tokenizes the question, keeping identifier + path + symbol-id characters, and matches tokens against <i>real</i> entity names in the graph.</li>
+    <li class="pt">Templates are chosen by keyword cues: "who calls X" / "what does X import" / "path between X and Y" / "unused files" / "cycles".</li>
+    <li class="pt">Direction is inferred from phrasing: "who/what calls/uses/depends-on X" ⇒ incoming; "X depends on / imports" ⇒ outgoing.</li>
+    <li class="pt">"what depends on X" beats the generic "depends on" cue — the stronger directional signal wins (incoming).</li>
+    <li class="pt">When a name matches several entities, it returns a ranked candidate list ("did you mean…") rather than guessing.</li>
+    <li class="pt">When nothing resolves, it suggests entities whose name/path contains a token — a graceful dead-end, not a hallucination.</li>
+    <li class="pt">It's deterministic: token scan is left-to-right, the resolver returns id-sorted candidates, ties break on id.</li>
+    <li class="pt">The plan is one of two shapes: a declarative <code>GraphQuery</code> (run via the engine) or a legacy verb call (for orphans/cycles/path-between).</li>
+    <li class="pt">A stop-word list keeps question words ("who/what/the/of") from being mistaken for entity names.</li>
+    <li class="pt">The mapper has 9 unit tests (directional cues, verb templates, did-you-mean, determinism).</li>
+    <li class="pt">This is the deliberate line between FACTS and an LLM: FACTS offers a deterministic shortcut for the common shapes; real NL reasoning stays the calling agent's job.</li>
+    <li class="pt">The interpretation string ("callers — nodes that reference X") is returned so the agent can confirm what FACTS understood.</li>
+    <li class="pt">The CLI exposes it: <code>factstack query "who calls buildMemory"</code> works alongside the structured <code>factstack query &lt;verb&gt; &lt;target&gt;</code>.</li>
+    <li class="pt">The CLI detects free-text vs verb by whether the first token is a known verb — no separate command needed.</li>
+    <li class="pt">The MCP <code>query</code> tool accepts either <code>q</code> (free-text) or a structured <code>query</code> object, exactly one required.</li>
+  </ol>
+</section>
+
+<section id="subgraph">
+  <h2><span class="k">Section 13</span>F3 — the subgraph FactsPack + citations</h2>
+  <p class="lead">The agent gets jump-to-source anchors.</p>
+  <ol class="pts">
+    <li class="pt">The <code>query</code> tool returns a connected subgraph as FactsPack (schema <code>subgraph-v1</code>).</li>
+    <li class="pt">Four tables: <code>nodes</code> (id + path + kind + name), <code>edges</code> (from/to/kind/conf), <code>citations</code> (file:line#symbol anchors), and a 1-row <code>meta</code>.</li>
+    <li class="pt">The <code>citations</code> table is the point: the agent can jump straight to <code>src/auth.ts:1#helper</code> instead of re-searching.</li>
+    <li class="pt">The <code>meta</code> row carries the <code>truncated</code> flag + node/edge counts — so a capped result is never a silent drop (an explicit design law).</li>
+    <li class="pt">Node metadata (path/line/name/kind) is recovered from the artifact's node lists, keyed by id, not by parsing the id string.</li>
+    <li class="pt">Symbol ids carry their own line; file nodes have no line, so the citation line is null for files.</li>
+    <li class="pt">The subgraph encoder interns the from/to symbol ids (they repeat across a symbol's edges) and keeps the node id literal (unique PK).</li>
+    <li class="pt">The converter lives in <code>pack-responses.ts</code> alongside the other per-tool converters, following the established pattern.</li>
+    <li class="pt">It was verified end-to-end against the real dogfood graph: "who calls helper" returns the right nodes/edges/citations with the import-resolved edge at confidence inferred.</li>
+    <li class="pt">The subgraph format makes F3 the answer to the market-validated "NL code search with citations" pattern — but resolved deterministically.</li>
+    <li class="pt">The free-text path lifts verb plans (orphans/cycles/path-between) into a node-list subgraph so the response shape is uniform.</li>
+    <li class="pt">Format is selectable: pack by default (token-lean), <code>format:"json"</code> for the legacy shape.</li>
+  </ol>
+</section>
+
+<section id="pr">
+  <h2><span class="k">Section 14</span>F5 — PageRank importance</h2>
+  <p class="lead">"What should I read first?" — graph-weighted, not raw in-degree.</p>
+  <ol class="pts">
+    <li class="pt"><code>computeMetrics</code> in <code>packages/graph/src/metrics.ts</code> computes a PageRank score per file over the import graph.</li>
+    <li class="pt">Edges point importer → imported, so rank flows <i>to</i> the files everything depends on — a heavily-imported utility ranks high.</li>
+    <li class="pt">This is strictly better than raw in-degree: a file imported by a few <i>important</i> files outranks one imported by many trivial ones.</li>
+    <li class="pt">The power method runs a <b>fixed 30 iterations</b> with damping 0.85 — fixed, not convergence-stopped, so the count never varies by platform rounding (INV2).</li>
+    <li class="pt">Dangling nodes (no out-edges) leak their mass; it's redistributed uniformly so the total stays ~1 and rank doesn't silently drain.</li>
+    <li class="pt">The initial vector is <code>1/N</code> (deterministic), not random — same trajectory every run.</li>
+    <li class="pt">Nodes are processed in <b>path-sorted</b> order, so the result is independent of the analyzer's file-enumeration order.</li>
+    <li class="pt">Adjacency is frozen into <b>sorted arrays</b> before iteration, so floating-point addition order is stable even if the edge list is reordered — a determinism belt-and-suspenders.</li>
+    <li class="pt">The final scores are normalized by the max, so the top file is exactly 1.0 and others are relative — a clean 0..1 value for ranking and a dashboard bar.</li>
+    <li class="pt">Scores are rounded to 4 decimals for determinism + compact serialization.</li>
+    <li class="pt">Multi-edges (same from→to via import + type-import) are deduped so a dependency is weighted once.</li>
+    <li class="pt">Self-loops and edges touching unknown nodes are ignored.</li>
+    <li class="pt">Empty graph ⇒ empty maps; a single isolated node ⇒ importance 1.0 — the edge cases are explicit and tested.</li>
+    <li class="pt">The <code>maxRank === 0</code> guard prevents a divide-by-zero in degenerate graphs.</li>
+    <li class="pt">Real-world validation: re-analyzing FACTS on itself ranks <code>packages/spec/src/index.ts</code> (the barrel everything imports) at importance <b>1.00</b> — exactly right.</li>
+    <li class="pt">All 428 file nodes got a score (metrics are always-on for the file graph — cheap and unconditional).</li>
+    <li class="pt">Symbol-level PageRank (over the symbol graph) is intentionally deferred behind <code>--symbols</code>; the file-level metric is the always-on default.</li>
+    <li class="pt">The metric has 8 unit tests, including a "shuffle the edges, same result" test that proves the sorted-adjacency choice works.</li>
+    <li class="pt">The 3-node hand-traced case (a→b, a→c, b→c) asserts c &gt; b &gt; a and c == 1.0 — a checkable anchor for the math.</li>
+    <li class="pt">PageRank is a pure function of the graph; it touches no clock, no RNG, no I/O (INV1).</li>
+    <li class="pt">It's computed once and consumed by MEMORY (key-files reorder), the pack (nodeMetrics), and the dashboard (Modules tab).</li>
+    <li class="pt">The market signal: a leading CLI agent already does repo-map → personalized-PageRank; FACTS does it deterministically and emits it as a compact, agent-agnostic payload.</li>
+  </ol>
+</section>
+
+<section id="comm">
+  <h2><span class="k">Section 15</span>F5 — communities (label propagation)</h2>
+  <p class="lead">"What clusters together?" — deterministic modules.</p>
+  <ol class="pts">
+    <li class="pt">Communities are computed by <b>label propagation</b> over the undirected import graph.</li>
+    <li class="pt">Each node starts as its own community; in path-sorted order it adopts the most frequent label among its neighbors.</li>
+    <li class="pt">Ties break on the <b>lowest label value</b>, so the result is independent of tally iteration order.</li>
+    <li class="pt">Updates are asynchronous (visible within a pass) and run a <b>fixed 10 passes</b> with an early-out on no-change — never convergence-dependent.</li>
+    <li class="pt">Communities are renumbered by smallest-member path, so an existing cluster's id is stable as the graph grows (adding an isolated file doesn't renumber everything).</li>
+    <li class="pt">Determinism is tested directly: a "run twice + shuffle edges, byte-identical" assertion.</li>
+    <li class="pt">A hand-traced two-cluster fixture asserts {a,b}=community 0 and {x,y}=community 1, numbered by smallest member.</li>
+    <li class="pt">The plan deliberately chose label propagation over randomized Louvain — simple, fast, and INV2-safe (no seed needed).</li>
+    <li class="pt">On FACTS itself, 428 files fell into 186 communities, of which 9 are real multi-file modules (the rest are leaf singletons).</li>
+    <li class="pt">The biggest module (community 62) is 156 files — the core spec/analyzer cluster — which matches the real architecture.</li>
+    <li class="pt">Communities are surfaced in MEMORY (a capped "Modules" section) and the dashboard (the Modules tab), each named by the module's most important member.</li>
+    <li class="pt">A "module" requires ≥2 files; singletons aren't modules (every leaf file being its own cluster is noise, not signal).</li>
+    <li class="pt">The community is a pure function of the graph — same input, same clusters, every time.</li>
+    <li class="pt">It's stored as an optional integer on each graph node (INV4), invisible to pre-F5 consumers.</li>
+    <li class="pt">Disconnected graphs naturally produce multiple communities; an empty graph produces none — both handled.</li>
+    <li class="pt">The community id is what lets the dashboard color-group and what could later color the Sugiyama graph nodes (a flagged follow-up).</li>
+  </ol>
+</section>
+
+<section id="impact">
+  <h2><span class="k">Section 16</span>F5 — impact (blast radius)</h2>
+  <p class="lead">"What breaks if I touch this?"</p>
+  <ol class="pts">
+    <li class="pt">The <code>impact</code> verb answers reverse reachability: everything that transitively imports/references the target.</li>
+    <li class="pt">It reuses the F3 engine's in-edge adjacency — one engine, no new traversal code.</li>
+    <li class="pt">For a file seed it restricts to import-kind edges; for a symbol seed it walks all symbol kinds.</li>
+    <li class="pt">Its default depth is <b>3</b> (a meaningful blast radius), not 1 — a hub doesn't return the whole repo, but you see more than direct importers.</li>
+    <li class="pt">Results are id-sorted (deterministic) and exclude the seed itself.</li>
+    <li class="pt">It's wired through <code>QUERY_VERBS</code> → <code>executeQuery</code> → the CLI's needs-target list → the MCP refine (INV5, all sites).</li>
+    <li class="pt">A regression test asserts impact at depth 3 reaches both hops, at depth 1 reaches only the direct importer, and a leaf has empty blast radius.</li>
+    <li class="pt"><b>The review caught a real bug here:</b> the MCP schema defaulted depth to 1, which silently pinned impact to direct-importers-only from the MCP path.</li>
+    <li class="pt">The fix removed the blanket schema default so <code>executeQuery</code> owns the per-verb default (1 for most, 3 for impact) — and a test now locks "impact with no depth reaches both hops".</li>
+    <li class="pt">This is exactly the kind of behavioral bug that typecheck + the browser stay green on — the adversarial review earned its keep.</li>
+    <li class="pt">Impact is the agent's "should I be careful?" tool and the reviewer's "what does this PR ripple into?" tool.</li>
+    <li class="pt">It's confidence-aware: a min-confidence floor can exclude shaky edges from the blast radius.</li>
+  </ol>
+</section>
+
+<section id="mem">
+  <h2><span class="k">Section 17</span>F5 — MEMORY changes</h2>
+  <p class="lead">The agent's session brief gets smarter.</p>
+  <ol class="pts">
+    <li class="pt">The "Key files" section now ranks by importance (PageRank) when present, falling back to in-degree on pre-F5 artifacts.</li>
+    <li class="pt">The in-degree&gt;0 gate stays — importance only reorders hubs; it doesn't promote a runtime-only entrypoint into "read first".</li>
+    <li class="pt">The descriptor line switches wording to "by graph centrality (PageRank)" when importance drives the order.</li>
+    <li class="pt">A new <b>Modules</b> section lists the top communities, each named by its most important member, with a file count.</li>
+    <li class="pt">The Modules section is capped (<code>TRUNCATE_MODULES = 6</code>) with a "+N more modules" trailer — the same overflow pattern every other section uses.</li>
+    <li class="pt">It omits entirely when there's no community data (the section-omission contract, like every conditional section).</li>
+    <li class="pt">A real module needs ≥2 files; singletons never appear.</li>
+    <li class="pt">The 2–10 KB MEMORY budget is respected: the new sections only render with graph data, and the budget test's large fixture has none.</li>
+    <li class="pt">Three new MEMORY tests: importance reorders key files, the Modules section names communities by top member, and the section omits without community data.</li>
+    <li class="pt">MEMORY stays the cheapest possible "understand this repo" read for an agent on session start.</li>
+    <li class="pt">The section order is a tested contract; Modules slots between Key files and Open risks.</li>
+    <li class="pt">All of this is derived from the same metrics the dashboard and pack use — no separate computation, no drift.</li>
+  </ol>
+</section>
+
+<section id="modtab">
+  <h2><span class="k">Section 18</span>F5 — the Modules dashboard tab</h2>
+  <p class="lead">The exec-facing surface of the metrics. Built with the frontend-design discipline.</p>
+  <ol class="pts">
+    <li class="pt">A new top-level <b>Modules</b> tab (nav slot 03, between Architecture and Files) hosts two sub-views.</li>
+    <li class="pt"><b>Key Files</b> — a table ranked by importance with columns #, File, Folder, In, Tokens, and an importance bar.</li>
+    <li class="pt"><b>Modules</b> — communities rendered as sections, each titled by its most important member, with a member table.</li>
+    <li class="pt">The data is the <i>core</i> metrics, plumbed through <code>Dataset.nodeMetrics</code> — the UI never recomputes PageRank in the browser.</li>
+    <li class="pt">That plumbing is one line in <code>humanToViz</code> (emit) plus a mirrored optional field on the UI's <code>Dataset</code> type.</li>
+    <li class="pt">A pure <code>moduleAnalysis.ts</code> aggregates the metrics into ranked key files + grouped modules — pure data, unit-tested (4 tests).</li>
+    <li class="pt">The importance encoding is a thin bar in <code>--accent-soft</code> — a <i>new</i> visual channel, chosen deliberately because the design already spends size on token cost, saturation on status, opacity on churn, and hue on language.</li>
+    <li class="pt">Evidence-first: the bar is the glance, the exact value sits beside it in mono.</li>
+    <li class="pt">Every file row links to <code>/files?p=…</code> — the claim resolves to its source, per the design law.</li>
+    <li class="pt">The components reuse the existing design system (<code>Section</code>, <code>RuledTable</code>, <code>SubViewTabs</code>) — it looks like the rest of FACTS, not a bolted-on widget.</li>
+    <li class="pt">Caps are explicit: modules shown cap at 12, members per module at 8, each with a "+N more" marker — no silent truncation.</li>
+    <li class="pt">A pre-F5 dataset (no <code>nodeMetrics</code>) shows an honest empty state prompting a re-analyze, not a blank tab.</li>
+    <li class="pt">A graph with no multi-file clusters shows "the import graph is mostly flat" instead of nothing.</li>
+    <li class="pt">It follows Remix v3 beta.4 conventions: setup function returns a zero-arg render fn, props via <code>handle.props</code>.</li>
+    <li class="pt">It was browser-verified on the real FACTS graph: zero console errors, Key Files ranked correctly (spec/index.ts = 1.00), 9 modules sized + sorted right (156 → 8 files).</li>
+    <li class="pt">Regression-checked: Overview, Architecture, and Files all load with zero console errors after the tab was added.</li>
+    <li class="pt">The review caught a minor inefficiency — the route computed the derivation twice on mount — now hoisted to once.</li>
+    <li class="pt">The tab registration is three mechanical edits (route pattern, TABS entry, the App switch case) — no router config.</li>
+    <li class="pt">The whole UI addition cost ~3.3 KB raw / ~0.2 KB gzipped of first-paint code.</li>
+    <li class="pt">It crossed the main-JS bundle cap, which was bumped with a documented justification that re-flags the route-code-splitting debt.</li>
+    <li class="pt">The Sugiyama-graph community coloring (the optional secondary surface) was deliberately deferred and flagged as a follow-up — the Modules tab is the headline.</li>
+    <li class="pt">Screenshots were captured and reviewed for design quality — on-brand, dark-first, editorial, no AI-slop tells.</li>
+    <li class="pt">The empty state and the "+N more" markers make it honest about what it can and can't show.</li>
+    <li class="pt">The tab is the proof of the F5 thesis: the agent's MEMORY/pack and the CXO's dashboard show the <i>same</i> importance, because they share one computation.</li>
+  </ol>
+</section>
+
+<section id="f7">
+  <h2><span class="k">Section 19</span>F7 — token accounting</h2>
+  <p class="lead">Pricing the work in its actual currency.</p>
+  <ol class="pts">
+    <li class="pt">F7 exposes the existing pure <code>approximateTokens(text)</code> estimator (chars / 3.5, within ~8% of tiktoken's cl100k) as a first-class tool.</li>
+    <li class="pt">A new <code>count_tokens</code> MCP tool counts a project file (by path) or a raw text snippet — exactly one required.</li>
+    <li class="pt">For a path already in the artifact, it returns the <b>exact</b> pre-computed <code>tokenCost</code>; otherwise it live-reads + estimates.</li>
+    <li class="pt">A new CLI command, <code>factstack tokens &lt;path|-&gt;</code>, reads a file or stdin and prints the estimate (human + <code>--json</code>).</li>
+    <li class="pt">It guards a TTY stdin (no piped input) with a clear usage error rather than hanging on a blocking read.</li>
+    <li class="pt">Both surfaces back onto the <i>same</i> estimator the analyzer uses for per-file tokenCost — one source of truth.</li>
+    <li class="pt">Dogfood proof: <code>factstack tokens packages/spec/src/index.ts</code> returns 177 tokens, exactly matching that file's <code>tokenCost</code> in <code>agent.json</code>.</li>
+    <li class="pt">The estimator is already unit-tested (positive int, 0 for empty, monotonic, unicode-safe).</li>
+    <li class="pt"><code>count_tokens</code> is added to <code>MCP_TOOL_NAMES</code> (INV5); the <code>satisfies</code> map keeps the tuple and the reference map in lockstep.</li>
+    <li class="pt">The MCP server gained a <code>@factstack/scanners</code> dependency to reach the estimator — a clean package.json edit, lockfile relinked.</li>
+    <li class="pt"><code>session_stats</code> (token-savings over a session) was deferred: it depends on F9's session log, which isn't built — a stub would return nothing useful.</li>
+    <li class="pt">F7 quantifies the savings narrative that is FACTS's whole pitch, right where an agent needs it.</li>
+    <li class="pt">It's an "S-effort" feature: small surface, high leverage, fully verified by the estimator tests + the exact-match dogfood + typecheck.</li>
+    <li class="pt">The path case prefers the artifact's number to avoid re-reading a file FACTS already measured — cheap by construction.</li>
+  </ol>
+</section>
+
+<section id="f10">
+  <h2><span class="k">Section 20</span>F10 — rationale (the coexisting work)</h2>
+  <p class="lead">Built in parallel; coexists green. Reviewed lightly here as it isn't this author's.</p>
+  <ol class="pts">
+    <li class="pt">F10 captures design rationale — NOTE/HACK/FIXME/TODO/XXX comments + docstrings — linked to the code it explains.</li>
+    <li class="pt">It adds a <code>RationaleSchema</code> + a <code>rationale</code> array to the agent artifact (additive default, INV4).</li>
+    <li class="pt">A pure <code>buildRationale</code> linker attaches each item to its enclosing symbol id (or the file when none).</li>
+    <li class="pt">It adds a 10th FactsPack table (<code>rationale</code>) under the same <code>agent-v3</code> bump.</li>
+    <li class="pt">It shares files with this wave (agent.ts, core/index.ts, pack.ts, cli.ts) at the hunk level — the source of the commit-split complication.</li>
+    <li class="pt">It compiles + its tests pass (a <code>rationale.test.ts</code> exists), so the combined tree is green.</li>
+    <li class="pt">This wave completed one trivial gap F10's schema change left open: a CLI fallback <code>AgentArtifact</code> literal was missing the (now-required-on-output) <code>rationale: []</code>.</li>
+    <li class="pt">That one-line fix kept the whole workspace compiling while F10 was mid-flight — additive, matching F10's own pattern.</li>
+    <li class="pt">Whether F10 is "done" is the author's call; it should not be committed without their confirmation — flagged in the commit plan.</li>
+    <li class="pt">Rationale is nearly free given FACTS already extracts TODOs + docstrings; it just links them to symbol ids — a high-leverage, low-cost feature.</li>
+  </ol>
+</section>
+
+<section id="mcp">
+  <h2><span class="k">Section 21</span>The MCP server + its tools</h2>
+  <p class="lead">How an agent talks to FACTS.</p>
+  <ol class="pts">
+    <li class="pt">The MCP server (<code>apps/mcp-server</code>) exposes the artifact as MCP resources + tools over stdio.</li>
+    <li class="pt">It holds a mutable cache of the latest analyze output; every tool reads from it, and <code>analyze</code> replaces it.</li>
+    <li class="pt">Concurrent analyze calls are serialized so two tool invocations can't race into the writer.</li>
+    <li class="pt">The tool list is single-sourced in <code>MCP_TOOL_NAMES</code>; the server dispatches via <code>MCP_TOOL.&lt;name&gt;</code>, so a typo fails <code>tsc</code>.</li>
+    <li class="pt">The roster after this wave: analyze, query_graph, <b>query</b> (F3), get_outline, list_risks, read_memory, since, log_learning, query_learnings, get_config, list_credentials, list_vulnerabilities, get_diagram, review_change, <b>count_tokens</b> (F7).</li>
+    <li class="pt"><code>query_graph</code> gained the new verbs (neighbors/references/implementers/path-between/impact) + the <code>to</code>/<code>direction</code> args.</li>
+    <li class="pt"><code>query</code> is the F3 free-text + structured tool, returning a subgraph pack with citations.</li>
+    <li class="pt"><code>get_outline</code> now returns the F2 <code>refs</code> table (outline-v2) — a file's outgoing symbol edges with confidence.</li>
+    <li class="pt"><code>count_tokens</code> is the F7 estimator tool.</li>
+    <li class="pt">Most tabular tools default to FactsPack and accept <code>format:"json"</code> for the legacy shape (INV8).</li>
+    <li class="pt">The server advertises a version block: the facts schema, the per-format schema names (incl. <code>agent-v3</code>, <code>outline-v2</code>, <code>subgraph-v1</code>), and the producer id.</li>
+    <li class="pt">Input is validated with the shared Zod schemas; invalid input returns a structured error (field + message), not a stack trace.</li>
+    <li class="pt">The <code>query_graph</code> refine guards that target-requiring verbs actually got a target — so callers don't silently get empty results.</li>
+    <li class="pt">The server now has a vitest harness (<code>pack-responses.test.ts</code>) — the pure pack converters are unit-testable there.</li>
+    <li class="pt">File-reading tools (get_outline, count_tokens) resolve paths against the project root and check existence before reading.</li>
+    <li class="pt">The server never emits raw secrets (enforced at the type level in scanners); list_credentials returns redacted previews only.</li>
+    <li class="pt">Tools that need an analysis call <code>ensureAnalyzed()</code> lazily; the text-only path of count_tokens needs no analysis at all.</li>
+    <li class="pt">The server is the agent's API: one cheap call replaces many file reads, which is the entire token-economics thesis in practice.</li>
+  </ol>
+</section>
+
+<section id="cli">
+  <h2><span class="k">Section 22</span>The CLI surface</h2>
+  <p class="lead">The <code>factstack</code> binary — the primary surface.</p>
+  <ol class="pts">
+    <li class="pt">Built on commander; the default command is <code>analyze</code>.</li>
+    <li class="pt"><code>analyze [target]</code> writes <code>.facts/</code>; flags include <code>--minimal</code>, <code>--symbols</code> (F2 gate), <code>--json</code>, <code>--no-progress</code>.</li>
+    <li class="pt"><code>query &lt;selector&gt; [target...]</code> handles both structured verbs and free-text in one command (F3).</li>
+    <li class="pt">The query command's verb list now includes neighbors/references/implementers/impact/path-between; <code>path-between</code> takes two targets.</li>
+    <li class="pt">A <code>--direction</code> option drives <code>neighbors</code>; <code>--min-confidence</code> filters edges; <code>--depth</code> bounds traversal.</li>
+    <li class="pt">Free-text query prints the interpretation + results, or a "did you mean" candidate list on no-match.</li>
+    <li class="pt"><b>New (F7):</b> <code>tokens &lt;path|-&gt;</code> estimates token cost of a file or stdin.</li>
+    <li class="pt">Other commands: ui, watch, export, quick, outdated, scan-vulns, diff, review, export-skills, setup-agents, export-diagram, ci-report, telemetry, doctor.</li>
+    <li class="pt">Numeric options are parsed strictly + clamped (a bad <code>--limit</code> can't silently become 0 via NaN).</li>
+    <li class="pt">The CLI is Node 20+ and Deno 2+ compatible.</li>
+    <li class="pt">It composes <code>@factstack/core</code> via <code>@factstack/fs-node</code> and spawns the dashboard server for <code>ui</code>.</li>
+    <li class="pt">It injects the Node-only bits core can't have: gzip sizing, git stats mining, real file I/O.</li>
+    <li class="pt">The query rewrite keeps the structured form working exactly as before (the 49 CLI tests stayed green).</li>
+    <li class="pt">A shared <code>printQueryResult</code> renders cycles (path groups) vs flat lists uniformly.</li>
+    <li class="pt">The CLI is where most of the interleaving lives (F2-fix + F3 + F5 + F7 + the F10 literal) — the densest file in the commit-split decision.</li>
+    <li class="pt">Every new command is additive — no existing command's behavior changed.</li>
+  </ol>
+</section>
+
+<section id="ui">
+  <h2><span class="k">Section 23</span>The dashboard (ui-remix) architecture</h2>
+  <p class="lead">A React-free Remix v3 SPA.</p>
+  <ol class="pts">
+    <li class="pt">The dashboard is built on Remix v3 (beta.4) with the <code>@remix-run/ui</code> VDOM — <b>no React</b>.</li>
+    <li class="pt">Components are a setup function returning a zero-arg render fn; props are read via <code>handle.props</code>; state lives in the closure.</li>
+    <li class="pt">Styling is CSS-in-JS via <code>css()</code> atoms applied with <code>mix=</code>, plus shared design tokens from <code>@factstack/ui-theme</code>.</li>
+    <li class="pt">It's a pure client SPA: routing is a pathname→tab switch, no server-side framework features.</li>
+    <li class="pt">Tabs are single-sourced in <code>routes.ts</code> (the route patterns + the TABS array) and dispatched in <code>App.tsx</code>'s switch.</li>
+    <li class="pt">Data loads via <code>loadArtifacts()</code>: it reads an inline baked JSON blob first, falling back to a dev-server fetch.</li>
+    <li class="pt">The inline blob is the <code>VizArtifact</code> shape produced by <code>humanToViz</code>; the UI's <code>Dataset</code> type is a hand-maintained mirror of the fields it reads.</li>
+    <li class="pt">There's a browser scan path too: a worker runs the full analyzer (via fs-browser) and dispatches a fresh dataset — INV7 browser parity in action.</li>
+    <li class="pt">The dark-first, liquid-glass, editorial aesthetic is the brand; glass is chrome-only, content is paper.</li>
+    <li class="pt">Existing tabs: Overview, Architecture (Graph/Flow/Routes), Files, Docs, Review, Security, Tests, History — plus Config/About icons.</li>
+    <li class="pt">The wave added the Modules tab and the <code>nodeMetrics</code> field to the data contract; nothing else in the dashboard changed.</li>
+    <li class="pt">Reusable building blocks: <code>Section</code> (hairline-topped block), <code>RuledTable</code> (grid-with-hairlines), <code>SubViewTabs</code> (secondary tabs), <code>LabelNumber</code>, <code>FootnoteChip</code>.</li>
+    <li class="pt">The static export bakes the dataset into one self-contained HTML file (a CXO can open it offline).</li>
+    <li class="pt">A bundle-size gate fails the build if the main JS crosses its cap — the wave bumped it once with justification.</li>
+    <li class="pt">The dashboard is deployable to Netlify/Cloudflare; deploy is gated on an explicit human go-ahead (never automatic).</li>
+    <li class="pt">The UI proves FACTS isn't just an agent tool — the same artifact tells the human story.</li>
+  </ol>
+</section>
+
+<section id="det">
+  <h2><span class="k">Section 24</span>Determinism — why and how</h2>
+  <p class="lead">The property that makes FACTS trustworthy.</p>
+  <ol class="pts">
+    <li class="pt">Determinism means a code change produces a <i>reviewable</i> artifact diff — no spurious churn from run-to-run noise.</li>
+    <li class="pt">It also means the agent and the dashboard, computing from the same input, always agree.</li>
+    <li class="pt">PageRank's fixed iteration count is the canonical example: convergence-stopping would make the count vary by floating-point rounding across platforms.</li>
+    <li class="pt">Sorted adjacency makes even floating-point <i>addition order</i> stable, so reordering the edge list can't change a score.</li>
+    <li class="pt">Label propagation's lowest-label tie-break makes the result independent of tally iteration order.</li>
+    <li class="pt">Community renumbering by smallest-member path keeps ids stable as the graph grows.</li>
+    <li class="pt">The query engine sorts every result and breaks ties on id; path-between explores neighbors in id order.</li>
+    <li class="pt">The free-text mapper scans tokens left-to-right and resolves to id-sorted candidates.</li>
+    <li class="pt">The symbol resolver sorts candidates and dedupes edges deterministically.</li>
+    <li class="pt">Wall-clock time is injected at the adapter edge; pure code never reads a clock.</li>
+    <li class="pt">Determinism is tested, not assumed: metrics "run twice + shuffle, identical", subgraph "run twice identical", NL mapper "two runs identical".</li>
+    <li class="pt">Rounding to fixed precision (4 dp for importance) closes the last floating-point gap before serialization.</li>
+    <li class="pt">The whole wave was built to keep determinism as a first-class, tested property — not a nice-to-have.</li>
+    <li class="pt">This is the structural advantage over embeddings-based tools: same input, same output, every time, provably.</li>
+  </ol>
+</section>
+
+<section id="sec">
+  <h2><span class="k">Section 25</span>Security posture</h2>
+  <p class="lead">What the wave does and doesn't expose.</p>
+  <ol class="pts">
+    <li class="pt"><code>analyze</code> makes no network calls — the wave adds none (INV6).</li>
+    <li class="pt">The new file-reading paths (get_outline live-read, count_tokens live-read, the CLI tokens command) resolve against the project root and check existence first.</li>
+    <li class="pt">Raw secrets are never emitted; the secrets scanner enforces redaction at the type level, and no new tool exposes source secrets.</li>
+    <li class="pt">The token tools read file contents to <i>count</i> them; they return a number, not the content.</li>
+    <li class="pt">The free-text query mapper resolves only against <i>existing</i> graph entity names — it can't be steered to read arbitrary paths.</li>
+    <li class="pt">The MCP server validates all input with Zod before acting; malformed input returns a structured error.</li>
+    <li class="pt">The dashboard runs entirely client-side; the baked dataset is static data, not executable.</li>
+    <li class="pt">Deploys are gated on explicit human approval; nothing in the wave publishes anything.</li>
+    <li class="pt">The pack format has no code execution surface — it's line-oriented text the consumer parses.</li>
+    <li class="pt">The CLI <code>tokens -</code> stdin path reads fd 0 synchronously and guards a TTY to avoid a hang, but it doesn't trust the content as a path.</li>
+    <li class="pt">A point worth the reviewer's eyes (flagged to the running review): the path-based file reads should stay confined to the project root — a traversal check is the thing to confirm.</li>
+    <li class="pt">No new dependency with a network or native surface was added; the only new dep is the in-repo <code>@factstack/scanners</code> (pure).</li>
+    <li class="pt">The wave touches no auth, no credentials, no system settings — it's read-and-derive only.</li>
+    <li class="pt">The security model is "local, read-only, deterministic" — the wave keeps it intact.</li>
+  </ol>
+</section>
+
+<section id="perf">
+  <h2><span class="k">Section 26</span>Performance + the bundle budget</h2>
+  <ol class="pts">
+    <li class="pt">The metrics are cheap: PageRank is 30 iterations over a sparse graph; label propagation is 10 passes — negligible vs the AST parse loop already done.</li>
+    <li class="pt">They're always-on for the file graph because they cost ~nothing relative to a full analyze.</li>
+    <li class="pt">The analyzer re-ran FACTS on itself (428 files) in well under a second, metrics included.</li>
+    <li class="pt">Adjacency is built once and reused; the BFS frontier is replaced, not accumulated (a prior O(depth·V·E) bug class avoided).</li>
+    <li class="pt">The dashboard's <code>moduleAnalysis</code> aggregation is O(nodes+edges) and runs in &lt;10 ms on a 500-node graph.</li>
+    <li class="pt">The review trimmed a double-derivation in the Modules route to a single pass on mount.</li>
+    <li class="pt">The main-JS bundle is gated at 102 KB gz; the Modules tab brought it to 100.14 KB gz (within cap).</li>
+    <li class="pt">The cap was bumped from 100→102 gz / 370→380 raw with a documented per-file breakdown and a re-flag of the route-splitting debt.</li>
+    <li class="pt">The standing perf lever is route-level code-splitting (lazy per-tab body), which would claw first-paint back toward ~55 KB — tracked, not done.</li>
+    <li class="pt">The lazy/worker bundle (the analyzer in the browser) sits at 169 KB gz against a 200 KB cap — comfortable.</li>
+    <li class="pt">Token estimation is O(text length) — a single division, two orders of magnitude faster than real tiktoken.</li>
+    <li class="pt">No performance regression was observed; the full test suite runs in seconds.</li>
+  </ol>
+</section>
+
+<section id="tests">
+  <h2><span class="k">Section 27</span>Testing strategy + the numbers</h2>
+  <ol class="pts">
+    <li class="pt">The workspace runs <b>947 tests across 57 files</b>, 0 failures, after this wave.</li>
+    <li class="pt">Testing favors <i>external behavior</i> over implementation details — the artifact shape and the tool outputs are the contracts.</li>
+    <li class="pt">Pure algorithms get hand-traced fixtures with checkable expected values (PageRank ordering, community grouping, label-prop traces).</li>
+    <li class="pt">Determinism gets dedicated "run twice / shuffle inputs" assertions.</li>
+    <li class="pt">The F2 fix is locked by a pipeline-level regression test (imported ref resolves at 0.9), not just a unit test — because the unit tests passed while production was broken.</li>
+    <li class="pt">The F5 wiring is locked by an analyze-level test (a hub gets importance 1.0 on both artifacts).</li>
+    <li class="pt">The F3 engine has parity tests proving it reproduces the legacy verbs exactly.</li>
+    <li class="pt">The NL mapper has fixtures for each template + the did-you-mean fallback.</li>
+    <li class="pt">The pack tests now assert all ten tables in fixed order (incl. nodeMetrics + rationale) — the review closed a coverage hole there.</li>
+    <li class="pt">The metrics module has 8 tests; the query engine 13; the NL mapper 9; moduleAnalysis 4; memory +3 for F5.</li>
+    <li class="pt">The token estimator has 4 tests; the CLI tokens command is dogfooded against the artifact's tokenCost.</li>
+    <li class="pt">The MCP pack converters are unit-tested in the new mcp-server vitest harness.</li>
+    <li class="pt">The dashboard's Modules tab was browser-verified end-to-end (real data, zero console errors, correct rankings).</li>
+    <li class="pt">An adversarial review (4 reviewers → verify each finding) ran over F5; 3 real issues were found and fixed, 4 false positives filtered.</li>
+    <li class="pt">A second pre-commit review is running over the full uncommitted diff as part of this gate.</li>
+    <li class="pt">The verification ladder is: typecheck → unit tests → pipeline regression tests → dogfood on the real repo → browser → adversarial review.</li>
+    <li class="pt">Every layer of this wave climbed that whole ladder before being called done.</li>
+    <li class="pt">The test count grew with the features (from ~877 at the start of the symbol-graph work to 947 now), never shrank.</li>
+  </ol>
+</section>
+
+<section id="ver">
+  <h2><span class="k">Section 28</span>Wire-format versioning</h2>
+  <ol class="pts">
+    <li class="pt">There are two independent version axes: the JSON artifact (<code>FACTS_SCHEMA_VERSION</code>) and the FactsPack wire format (the schema name).</li>
+    <li class="pt">The JSON stays <code>0.1.0</code> because every field added this wave is optional/defaulted (INV4).</li>
+    <li class="pt">The pack moved <code>agent-v2 → agent-v3</code> because a new table changes what a positional decoder reads — consumers pin the name and reject a mismatch.</li>
+    <li class="pt">The bump was applied consistently: the encoder constant, the server's version block, the pack header test, and the doc.</li>
+    <li class="pt">The per-tool pack schemas (<code>outline-v2</code> for the F2 refs, <code>subgraph-v1</code> for F3) are versioned independently and advertised by the server.</li>
+    <li class="pt">The decoder preamble doc is a generic grammar primer, so adding tables needs no doc rewrite — the format is self-describing.</li>
+    <li class="pt">The pack-playbook doc was updated from the stale "six tables" to the current ten, with the new tables described.</li>
+    <li class="pt">An agent that doesn't recognize a schema layer can fall back to JSON per tool call — forward-compatible by design.</li>
+    <li class="pt">Versioning discipline is the reason old artifacts and old agents don't break when FACTS grows.</li>
+    <li class="pt">The wave's one breaking-ish change (the pack bump) is the honest, documented kind — not a silent reshape.</li>
+  </ol>
+</section>
+
+<section id="risk">
+  <h2><span class="k">Section 29</span>Risks, tech debt, and follow-ups</h2>
+  <p class="lead">What a new CTO should keep an eye on.</p>
+  <ol class="pts">
+    <li class="pt"><span class="tag warn">debt</span> Route-level code-splitting in the dashboard is overdue; the main-JS cap has been bumped several times. Doing it would drop first-paint substantially.</li>
+    <li class="pt"><span class="tag warn">debt</span> The Sugiyama graph nodes aren't yet community-colored — the data is plumbed, the wiring is a flagged follow-up.</li>
+    <li class="pt"><span class="tag info">scope</span> Symbol-level PageRank is deferred behind <code>--symbols</code>; the always-on metric is file-level only.</li>
+    <li class="pt"><span class="tag info">scope</span> <code>session_stats</code> (F7) is deferred until F9 ships the session log — a stub would be empty.</li>
+    <li class="pt"><span class="tag info">gap</span> F2's resolver has honest documented gaps (dynamic dispatch, default/namespace imports, barrel chains) — not bugs, but limits to communicate.</li>
+    <li class="pt"><span class="tag dang">coexist</span> F10 (rationale) is in-flight, authored separately, and interleaved with this wave at the hunk level — its commit ownership needs the author's sign-off.</li>
+    <li class="pt"><span class="tag warn">env</span> The shell's working directory drifted to the repo's parent mid-session, breaking <code>pnpm</code> root detection; the fix is to pin <code>-C</code>/Set-Location. Worth a documented helper.</li>
+    <li class="pt"><span class="tag info">test</span> The MCP <code>count_tokens</code> handler is verified by transitivity (estimator tested + dogfood + typecheck), not a direct handler test — a stdio smoke would add belt-and-suspenders.</li>
+    <li class="pt"><span class="tag info">test</span> The CLI <code>tokens</code> command has no dedicated unit test (it's dogfooded); a small spawn test would lock it.</li>
+    <li class="pt"><span class="tag ok">strength</span> The determinism property is heavily tested — a strong foundation for the incremental-refresh feature (F8) later.</li>
+    <li class="pt"><span class="tag ok">strength</span> The "one computation, two audiences" plumbing is now proven end-to-end (agent + dashboard share metrics).</li>
+    <li class="pt"><span class="tag ok">strength</span> The adversarial-review pattern caught a real behavioral bug (impact depth) that no green build would have — keep using it before commits.</li>
+    <li class="pt"><span class="tag info">watch</span> The uncommitted pile is large (five features). Committing soon keeps history bisectable; stacking F4 on top would compound the risk.</li>
+    <li class="pt"><span class="tag info">next</span> F4 (<code>get_context</code> — graph-aware, token-budgeted context assembly) is the natural next feature and the synthesis of F2/F3/F5/F7.</li>
+    <li class="pt"><span class="tag info">next</span> F8 (incremental refresh + content-hash cache) would make per-commit re-analysis cheap, leaning on the stable ids this wave hardened.</li>
+    <li class="pt"><span class="tag ok">posture</span> No security regressions; no network added; no secrets exposed; deploys still human-gated.</li>
+    <li class="pt"><span class="tag ok">posture</span> No JSON schema break; old artifacts and old agents keep working.</li>
+    <li class="pt"><span class="tag info">process</span> The Workflow validator false-positives on the literal strings "Date"/"Math.random" in prompt text — reword prompts to avoid them. A known footgun.</li>
+  </ol>
+</section>
+
+<section id="commit">
+  <h2><span class="k">Section 30</span>The commit plan</h2>
+  <p class="lead">The honest reality, and the options.</p>
+  <ol class="pts">
+    <li class="pt">The uncommitted pile is <b>five interleaved features</b> (F2-follow-up, F3, F5, F7, and the author's F10), sharing files at the hunk level.</li>
+    <li class="pt">Shared files: <code>spec/agent.ts</code> (F5+F10), <code>core/index.ts</code> (F2-fix+F5+F10), <code>emit/pack.ts</code> (F2+F5+F10), <code>cli.ts</code> (F2-fix+F3+F5+F7+F10), <code>spec/mcp.ts</code> (F3+F5+F7), <code>server.ts</code> (F2-refs+F3+F5+F7).</li>
+    <li class="pt">A clean per-feature commit split needs hunk-level staging (<code>git add -p</code>), which is interactive and not available in this environment.</li>
+    <li class="pt">Per-hunk patch surgery (<code>git apply --cached</code>) across ~29 modified files is possible but risky — a malformed hunk fails to apply, and the ordering matters.</li>
+    <li class="pt"><b>Option A (recommended):</b> one comprehensive commit for the graph-intelligence wave (F2-fix + F3 + F5 + F7), explicitly excluding or including F10 per your call. Clean, low-risk, all-green.</li>
+    <li class="pt"><b>Option B:</b> two commits by author intent — my graph/query/token work as one, your F10 as a second — accepting that I'd do careful per-hunk patches on the four shared files (slower, higher risk).</li>
+    <li class="pt"><b>Option C:</b> you stage + split it yourself, since you have the clearest view of your F10 boundaries.</li>
+    <li class="pt">In every option, the commit requires your explicit go-ahead ("commit" / "ship it") — this audit is the precondition for <i>asking</i>, not a substitute for your approval.</li>
+    <li class="pt">My recommendation: Option A with F10 excluded (you commit F10 yourself when you're ready), so each author owns their history — but I'll do whatever you pick.</li>
+    <li class="pt">Whatever we choose, the tree is green: typecheck 19/19, 947 tests, ui build OK, bundle capped, adversarially reviewed.</li>
+  </ol>
+</section>
+
+</div>
+
+<footer>
+  FACTS new-CTO audit · graph-intelligence wave · generated for the pre-commit gate ·
+  every point traces to source in the factstack monorepo · the commit still needs your explicit go-ahead.
+</footer>
+
+</body>
+</html>

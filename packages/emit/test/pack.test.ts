@@ -114,10 +114,10 @@ function makeAgent(): AgentArtifact {
 describe('encodeAgentPack — shape + content', () => {
   it('emits a header line with producer + schema + snapshotId + rowCount', () => {
     const pack = encodeAgentPack(makeAgent());
-    expect(pack.startsWith('# factstack/0.3.10\tagent-v2\t')).toBe(true);
+    expect(pack.startsWith('# factstack/0.3.10\tagent-v3\t')).toBe(true);
   });
 
-  it('emits all eight tables in fixed order', () => {
+  it('emits all nine tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
       pack.indexOf('& files'),
@@ -128,13 +128,34 @@ describe('encodeAgentPack — shape + content', () => {
       pack.indexOf('& declarations'),
       pack.indexOf('& symbols'),
       pack.indexOf('& calls'),
+      pack.indexOf('& nodeMetrics'),
     ];
-    // Every table is present (F2 added symbols + calls, even when empty).
+    // Every table is present (F2 added symbols + calls; F5 added nodeMetrics)
+    // — emitted even when empty.
     expect(order.every((i) => i >= 0)).toBe(true);
     // And in the documented order.
     for (let i = 1; i < order.length; i++) {
       expect(order[i]!).toBeGreaterThan(order[i - 1]!);
     }
+  });
+
+  it('F5: nodeMetrics table carries importance + community (agent-v3)', () => {
+    const agent = makeAgent();
+    agent.graph.nodes = [
+      { id: 'src/auth.ts', path: 'src/auth.ts', language: 'typescript', loc: 80, tokenCost: 320, status: 'ok', importance: 1, community: 0 },
+      { id: 'src/users.ts', path: 'src/users.ts', language: 'typescript', loc: 60, tokenCost: 240, status: 'stale', importance: 0.42, community: 1 },
+    ];
+    const pack = encodeAgentPack(agent);
+    expect(pack).toContain('& nodeMetrics');
+    const decoded = decode(pack);
+    const nm = decoded.tables.get('nodeMetrics')!;
+    expect(nm.rows).toHaveLength(2);
+    const auth = nm.rows.find((r) => r[0] === 'src/auth.ts')!;
+    expect(auth[1]).toBe('1');   // importance
+    expect(auth[2]).toBe('0');   // community
+    const users = nm.rows.find((r) => r[0] === 'src/users.ts')!;
+    expect(users[1]).toBe('0.42');
+    expect(users[2]).toBe('1');
   });
 
   it('F2: symbols + calls tables carry the symbol graph', () => {
@@ -154,7 +175,7 @@ describe('encodeAgentPack — shape + content', () => {
     expect(pack.slice(pack.indexOf('& calls'))).toContain('call'); // edge kind literal
   });
 
-  it('F1: imports table carries a conf column; edges default to extracted (agent-v2)', () => {
+  it('F1: imports table carries a conf column; edges default to extracted (agent-v3)', () => {
     const pack = encodeAgentPack(makeAgent());
     const afterImports = pack.slice(pack.indexOf('& imports'));
     const importsTable = afterImports.slice(0, afterImports.indexOf('& routes'));

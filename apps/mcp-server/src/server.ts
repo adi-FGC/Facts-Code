@@ -47,6 +47,8 @@ import {
   buildMemory,
   buildDiagram,
   executeQuery,
+  runGraphQuery,
+  planFromQuestion,
   formatLearningEvent,
   parseLearningsJsonl,
   proposalEvent,
@@ -63,16 +65,21 @@ import {
   getOutlineToPack,
   getConfigToPack,
   queryLearningsToPack,
+  subgraphToPack,
+  verbResultNodes,
   packSnapshotId,
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
+import { approximateTokens } from '@factstack/scanners';
 import { extractOutline } from '@factstack/extractors';
 import {
   FACTS_MCP_URI_SCHEME,
   McpResourceCatalog,
   QUERY_VERBS,
   QueryGraphInputSchema,
+  QueryInputSchema,
+  CountTokensInputSchema,
   jsonSchemaByKind,
   MCP_TOOL,
   type AgentArtifact,
@@ -260,22 +267,37 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: MCP_TOOL.query_graph,
-      description: 'Query the dependency graph. Verbs: callers (files importing X), imports (files imported BY X), cycles, orphans. Returns FactsPack format by default (line-oriented, ~80% cheaper than JSON; see docs/FACTSPACK_PROMPT.md for the 8-line decoder preamble). Pass format:"json" to fall back to the legacy JSON shape.',
+      description: 'Query the graph by verb. File-level: callers (files importing X), imports (files imported BY X), cycles, orphans, impact (blast radius — everything transitively affected by changing X). Symbol-level (needs --symbols analysis): neighbors (adjacent nodes; pass direction), references (symbols that reference X), implementers (symbols that extend/implement X), path-between (shortest path from `path` to `to`). Returns FactsPack by default (line-oriented, ~80% cheaper than JSON; see docs/FACTSPACK_PROMPT.md). Pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         properties: {
           verb: { type: 'string', enum: [...QUERY_VERBS], default: 'callers' },
-          path: { type: 'string' },
+          path: { type: 'string', description: 'Target file path or symbol id (path#name@line); source endpoint for path-between.' },
+          to: { type: 'string', description: 'Destination endpoint — path-between only.' },
+          direction: { type: 'string', enum: ['out', 'in', 'both'], description: 'Traversal direction for neighbors (default both).' },
           filter: { type: 'string' },
           limit: { type: 'number', default: 200 },
-          depth: { type: 'number', default: 1 },
+          depth: { type: 'number', description: 'Transitive depth. Default 1 for most verbs; 3 for `impact` (blast radius) when omitted.' },
+          minConfidence: { type: 'string', enum: ['extracted', 'inferred', 'ambiguous'], description: 'Keep only edges at least this certain.' },
+          format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
+        },
+      },
+    },
+    {
+      name: MCP_TOOL.query,
+      description: 'Free-text or declarative graph query → a connected subgraph with file:line citations. Pass `q` (a question like "who calls buildMemory" / "what does src/auth.ts import" / "path between A and B" / "unused files") resolved deterministically against real entity names (no LLM, INV3), OR a structured `query` GraphQuery object. Returns FactsPack (schema subgraph-v1: nodes + edges + citations + a truncation marker) by default; pass format:"json" for JSON. When a name is ambiguous or unmatched, returns a ranked "did you mean" candidate list instead of guessing.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          q: { type: 'string', description: 'Free-text question.' },
+          query: { type: 'object', description: 'Structured GraphQuery (start/traverse/where/select/limit).' },
           format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
         },
       },
     },
     {
       name: MCP_TOOL.get_outline,
-      description: 'Return the symbol outline (declarations) for a single file, computed live from the source. Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
+      description: 'Return the symbol outline (declarations) for a single file, computed live from the source, plus a `refs` table of outgoing symbol-graph edges with confidence (populated when the project was analyzed with --symbols). Returns FactsPack by default; pass format:"json" for the legacy JSON shape.',
       inputSchema: {
         type: 'object',
         required: ['path'],
@@ -433,6 +455,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: MCP_TOOL.count_tokens,
+      description: 'Estimate the AI-context token cost of a project file (by `path`) or a raw `text` snippet. For a `path` already in the analyzed artifact this returns the EXACT pre-computed tokenCost; otherwise it live-reads + estimates (char-based cl100k approximation, within ~8% of tiktoken). Answers "does this fit in context?" / "how much will reading this cost?". JSON response. Exactly one of path/text.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Project-relative file path.' },
+          text: { type: 'string', description: 'Raw text to estimate instead of a file.' },
+        },
+      },
+    },
   ],
 }));
 
@@ -469,11 +502,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const versionInfo = {
       facts: '0.1.0',
       schemas: {
-        agent: 'agent-v2',     // agent.pack wire format (F1: imports gained `conf`). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
+        agent: 'agent-v3',     // agent.pack wire format (F1: `conf`; F2: symbols/calls; F5: nodeMetrics). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
         human: 'human.v1',     // human.json
         memory: 'factstack-memory.v1',
         learnings: 'factstack-learnings.v1',
-        pack: { agent: 'agent-v2', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v1', learnings: 'learnings-v1', queryGraph: 'query-graph-v1' },
+        pack: { agent: 'agent-v3', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v2', learnings: 'learnings-v1', queryGraph: 'query-graph-v1', subgraph: 'subgraph-v1' },
       },
       producer: 'factstack-mcp/0.3.11',
     };
@@ -503,15 +536,73 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const result = executeQuery(cached!.agent, {
       verb: parsed.verb,
       ...(parsed.path !== undefined ? { path: parsed.path } : {}),
+      ...(parsed.to !== undefined ? { to: parsed.to } : {}),
+      ...(parsed.direction !== undefined ? { direction: parsed.direction } : {}),
       ...(parsed.filter !== undefined ? { filter: parsed.filter } : {}),
       ...(parsed.minConfidence !== undefined ? { minConfidence: parsed.minConfidence } : {}),
       limit: parsed.limit,
-      depth: parsed.depth,
+      // `depth` is intentionally undefined-when-omitted (no schema default) so
+      // executeQuery applies the per-verb default — notably 3 for `impact`.
+      ...(parsed.depth !== undefined ? { depth: parsed.depth } : {}),
     });
     if (pickFormat(args) === 'pack') {
       return { content: [{ type: 'text', text: queryGraphToPack(result, packSnapshotId(cached!.agent)) }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  if (name === MCP_TOOL.query) {
+    if (!cached) await ensureAnalyzed();
+    const parseResult = QueryInputSchema.safeParse(args);
+    if (!parseResult.success) {
+      const issues = parseResult.error.issues.map((i) => ({
+        field: i.path.join('.') || '(root)',
+        message: i.message,
+      }));
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid query input', issues }, null, 2) }],
+        isError: true,
+      };
+    }
+    const agent = cached!.agent;
+    const snapshotId = packSnapshotId(agent);
+    const wantPack = pickFormat(args) === 'pack';
+
+    // Structured GraphQuery → run directly.
+    if (parseResult.data.query) {
+      const sub = runGraphQuery(agent, parseResult.data.query);
+      if (wantPack) {
+        return { content: [{ type: 'text', text: subgraphToPack(agent, sub, snapshotId) }] };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify(sub) }] };
+    }
+
+    // Free-text → deterministic plan (INV3). No confident match → did-you-mean.
+    const plan = planFromQuestion(agent, parseResult.data.q!);
+    if (!plan.ok) {
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, reason: plan.reason, candidates: plan.candidates }, null, 2) }] };
+    }
+    // Resolve the plan to a subgraph: GraphQuery plans run on the engine;
+    // verb plans (orphans/cycles/path-between) run on the verb engine and are
+    // lifted into a node-list subgraph so the response shape is uniform.
+    let sub: { nodes: string[]; edges: Array<{ from: string; to: string; kind: string; confidence?: string }>; truncated: boolean };
+    if (plan.plan.graphQuery) {
+      sub = runGraphQuery(agent, plan.plan.graphQuery);
+    } else {
+      const r = executeQuery(agent, {
+        verb: plan.plan.verb!,
+        ...(plan.plan.path !== undefined ? { path: plan.plan.path } : {}),
+        ...(plan.plan.to !== undefined ? { to: plan.plan.to } : {}),
+      });
+      // Lift the verb result into a flat node list. `cycles` (string[][]) is
+      // flattened by verbResultNodes so a free-text "circular dependencies?"
+      // question doesn't silently return an empty subgraph.
+      sub = { nodes: verbResultNodes(r), edges: [], truncated: false };
+    }
+    if (wantPack) {
+      return { content: [{ type: 'text', text: subgraphToPack(agent, sub, snapshotId) }] };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ interpretation: plan.plan.interpretation, entities: plan.plan.entities, ...sub }) }] };
   }
 
   if (name === MCP_TOOL.get_diagram) {
@@ -543,15 +634,27 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!cached) await ensureAnalyzed();
     const relPath = String(args.path ?? '');
     const fmt = pickFormat(args);
+    /* F2: outgoing symbol-graph edges whose `from` declaration lives in
+       this file — "what does this file reference, and how certain are
+       we?". We map edges back to the file via the symbol NODES (whose
+       `path` is authoritative) rather than parsing the `path#name@line`
+       id, so a path containing `#` can't break the match. Empty unless
+       analysis ran with `--symbols`; the converter still emits the table. */
+    const fileSymbolIds = new Set(
+      (cached!.agent.graph.symbolNodes ?? [])
+        .filter((n) => n.path === relPath)
+        .map((n) => n.id),
+    );
+    const fileRefs = (cached!.agent.graph.symbolEdges ?? []).filter((e) => fileSymbolIds.has(e.from));
     // Prefer pre-extracted declarations from the cached artifact; fall
     // back to a live extractor call for parity with the CLI endpoint.
     const outline = cached!.agent.files.find((f) => f.path === relPath);
     if (outline && outline.declarations.length) {
       if (fmt === 'pack') {
-        const text = getOutlineToPack(relPath, outline.declarations as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent));
+        const text = getOutlineToPack(relPath, outline.declarations as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent), fileRefs);
         return { content: [{ type: 'text', text }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: outline.declarations }) }] };
+      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: outline.declarations, refs: fileRefs }) }] };
     }
     const abs = path.resolve(root, relPath);
     if (!existsSync(abs)) throw new Error(`File not found: ${relPath}`);
@@ -563,10 +666,10 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         /* Live outline returns OutlineNode[]; cast to ExtractedSymbol[]
            shape — both share { name, kind, startLine, endLine,
            exported, children? } so the converter handles both. */
-        const text = getOutlineToPack(relPath, live as unknown as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent));
+        const text = getOutlineToPack(relPath, live as unknown as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent), fileRefs);
         return { content: [{ type: 'text', text }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: live }) }] };
+      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: live, refs: fileRefs }) }] };
     } catch (err) {
       throw new Error(`Failed to extract outline for ${relPath}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -721,6 +824,35 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { content: [{ type: 'text', text: renderVerdictMarkdown(verdict) }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify(verdict) }] };
+  }
+
+  // F7 — token cost of a file or a raw snippet.
+  if (name === MCP_TOOL.count_tokens) {
+    const parsed = CountTokensInputSchema.safeParse(args);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid count_tokens input', issues }, null, 2) }],
+        isError: true,
+      };
+    }
+    // Raw text → pure estimate, no analysis needed.
+    if (parsed.data.text !== undefined) {
+      const text = parsed.data.text;
+      return { content: [{ type: 'text', text: JSON.stringify({ tokens: approximateTokens(text), chars: text.length, source: 'estimate' }) }] };
+    }
+    // Path → prefer the artifact's exact pre-computed tokenCost; else live-read.
+    if (!cached) await ensureAnalyzed();
+    const relPath = String(parsed.data.path);
+    const fileEntry = cached!.agent.files.find((f) => f.path === relPath);
+    if (fileEntry) {
+      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: fileEntry.tokenCost, source: 'artifact' }) }] };
+    }
+    const abs = path.resolve(root, relPath);
+    if (!existsSync(abs)) {
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `File not found: ${relPath}` }) }], isError: true };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: approximateTokens(readFileSync(abs, 'utf8')), source: 'estimate' }) }] };
   }
 
   throw new Error(`Unknown tool: ${name}`);

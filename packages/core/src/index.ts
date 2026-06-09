@@ -65,6 +65,7 @@ import {
   buildDependencyGraph,
   buildWorkspaceIndex,
   buildAliasIndex,
+  computeMetrics,
   resolveSpecifier,
   type ResolverContext,
 } from '@factstack/graph';
@@ -74,7 +75,16 @@ export { diffArtifacts } from './diff.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
 export { buildChangeVerdict, renderVerdictMarkdown } from './review.js';
 export { buildDocFile, isDocFile, parseMarkdownStructure, DOC_CONTENT_CAP } from './docs.js';
-export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
+export {
+  executeQuery,
+  runGraphQuery,
+  findEntities,
+  suggestEntities,
+  type QueryOptions,
+  type QueryResult,
+  type SubgraphResult,
+} from './query.js';
+export { planFromQuestion, type NlPlan, type NlResult } from './query-nl.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
 export {
   buildDiagram,
@@ -418,7 +428,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       imports: (importsByFile.get(f.path) ?? []).map((r) => ({
         source: r.specifier,
         resolved: null,          // backfilled after the resolver runs
-        specifiers: [],
+        specifiers: r.names,     // F2 — local binding names drive symbol-graph import resolution
         isTypeOnly: r.kind === 'type-import',
       })),
       /* v0.3.9 — derive exports from declarations.filter(s => s.exported).
@@ -510,6 +520,31 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (callers && callers.length) node.callers = callers;
   }
 
+  // F5 — graph analytics: importance (PageRank) + community (label propagation).
+  // Always-on for the file graph (cheap, deterministic); writes onto the shared
+  // depGraph.nodes so BOTH the agent and human artifacts (which spread depGraph)
+  // carry the metrics. Pure (INV1) + deterministic (INV2).
+  const metrics = computeMetrics(depGraph);
+  for (const node of depGraph.nodes) {
+    const imp = metrics.importance.get(node.path);
+    if (imp !== undefined) node.importance = imp;
+    const com = metrics.community.get(node.path);
+    if (com !== undefined) node.community = com;
+  }
+
+  // Backfill `resolved` on each outline's imports. This MUST run before
+  // buildSymbolGraph below: the symbol resolver maps an imported binding to
+  // its target file via `imp.resolved`, so leaving it null here would force
+  // every cross-file ref down the lower-confidence global-name fallback
+  // (the 0.9 "import-resolved" tier would never fire).
+  for (const outline of outlines) {
+    if (!outline.imports.length) continue;
+    for (const imp of outline.imports) {
+      const resolved = resolveIfLocal(imp.source, outline.path, resolverCtx);
+      imp.resolved = resolved;
+    }
+  }
+
   // F2 — symbol-level graph (call/reference edges), gated behind opts.symbols
   // until stable (the plan's `--symbols` rollout). Empty otherwise → the
   // artifact's GraphSchema defaults ([]) apply, so existing consumers are
@@ -518,14 +553,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     ? buildSymbolGraph(outlines, refsByFile)
     : { symbolNodes: [], symbolEdges: [] };
 
-  // Backfill `resolved` on each outline's imports + surface broken imports.
-  for (const outline of outlines) {
-    if (!outline.imports.length) continue;
-    for (const imp of outline.imports) {
-      const resolved = resolveIfLocal(imp.source, outline.path, resolverCtx);
-      imp.resolved = resolved;
-    }
-  }
+  // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
       if (imp.resolved == null && isProjectLocalSpecifier(imp.source, resolverCtx)) {

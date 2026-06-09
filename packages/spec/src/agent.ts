@@ -147,6 +147,15 @@ export const GraphNodeSchema = z.object({
   /** File paths that import this node. Optional for backward compat;
    *  populated by buildCallerIndex in @factstack/graph. */
   callers: z.array(z.string()).optional(),
+  /** F5 — graph importance (normalized PageRank over the import graph, top
+   *  node = 1.0). Optional + absent on pre-F5 artifacts (INV4), so
+   *  FACTS_SCHEMA_VERSION stays 0.1.0. Deterministic: fixed-iteration power
+   *  method, path-sorted, rounded. */
+  importance: z.number().min(0).max(1).optional(),
+  /** F5 — community id from deterministic label propagation. Communities are
+   *  renumbered by smallest-member path so the id of an existing cluster is
+   *  stable as the graph grows. Optional/absent pre-F5 (INV4). */
+  community: z.number().int().nonnegative().optional(),
 });
 
 /**
