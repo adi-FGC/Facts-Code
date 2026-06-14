@@ -240,3 +240,225 @@ export function proposalEvent(input: ProposalInput): LearningEvent {
   };
   return LearningEventSchema.parse(event);
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * F9 — session + cross-session memory, layered on the SAME append-only
+ * log (no schema break: `meta` is free-form, and these are just `action`
+ * conventions). Two families:
+ *
+ *   - SESSION ACTIONS (`served`/`read`/`edited`/`queried`): ephemeral "what
+ *     the agent did" with the entity ids it touched (+ optional token counts).
+ *     Feeds `get_context` re-ranking (recently-touched entities) and F7 stats.
+ *   - CONTEXT RECORDS (`decision`/`fact`/`task`/`question`): DURABLE context an
+ *     agent or human records. `outcome:'pending'` marks an open task/question;
+ *     a later event with the same key + a closing outcome supersedes it.
+ *
+ * The aggregator + recency reader below are PURE (no fs, no clock). The actual
+ * append-to-disk stays Node-side in the CLI / MCP server, as for every other
+ * learning event.
+ * ─────────────────────────────────────────────────────────────── */
+
+export const SESSION_ACTIONS = ['served', 'read', 'edited', 'queried'] as const;
+export type SessionAction = (typeof SESSION_ACTIONS)[number];
+const SESSION_ACTION_SET = new Set<string>(SESSION_ACTIONS);
+
+export const CONTEXT_KINDS = ['decision', 'fact', 'task', 'question'] as const;
+export type ContextKind = (typeof CONTEXT_KINDS)[number];
+const CONTEXT_KIND_SET = new Set<string>(CONTEXT_KINDS);
+
+/** One durable context item (a decision/fact/task/question), resolved to its
+ *  latest state after most-recent-wins dedup. */
+export interface ContextRecord {
+  kind: ContextKind;
+  /** The content (from the event's `reasoning`). */
+  text: string;
+  /** Lifecycle: `pending` = open; `accepted`/`rejected` close it. */
+  status: LearningOutcome;
+  /** Stable dedup key (explicit `meta.key`, else the text). */
+  key: string;
+  agent: string;
+  timestamp: string;
+  /** Entity ids this record is about (from `filesAffected`). */
+  entities: string[];
+}
+
+/** Aggregated durable context for the "Working context" MEMORY section +
+ *  `factstack context-store`. */
+export interface ContextStore {
+  /** decisions + facts, latest-per-key, most-recent-first. */
+  decisions: ContextRecord[];
+  /** OPEN tasks (latest status `pending`), most-recent-first. */
+  tasks: ContextRecord[];
+  /** OPEN questions (latest status `pending`), most-recent-first. */
+  openQuestions: ContextRecord[];
+}
+
+/** Stable dedup key for a context record: explicit `meta.key`, else its text. */
+function contextKey(e: LearningEvent): string {
+  const k = e.meta?.['key'];
+  return typeof k === 'string' && k.length > 0 ? k : (e.reasoning ?? '');
+}
+
+/** Most-recent-first, key tie-break — the canonical deterministic order. */
+function byRecencyThenKey(a: ContextRecord, b: ContextRecord): number {
+  if (a.timestamp !== b.timestamp) return a.timestamp > b.timestamp ? -1 : 1;
+  return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+}
+
+/**
+ * F9 — aggregate the durable context-record events (action ∈ CONTEXT_KINDS) into
+ * decisions / open tasks / open questions. MOST-RECENT-WINS per (kind, key): a
+ * later event supersedes earlier ones with the same key, so a task can be closed
+ * or a decision revised by re-logging it. Pure + deterministic.
+ */
+export function buildContextStore(events: LearningEvent[]): ContextStore {
+  const latest = new Map<string, LearningEvent>();
+  for (const e of events) {
+    if (!CONTEXT_KIND_SET.has(e.action)) continue;
+    const key = contextKey(e);
+    if (!key) continue; // a record with no key AND no text carries no content
+    const mapKey = `${e.action} ${key}`;
+    const prev = latest.get(mapKey);
+    if (!prev || e.timestamp > prev.timestamp) latest.set(mapKey, e);
+  }
+  const records: ContextRecord[] = [...latest.values()].map((e) => ({
+    kind: e.action as ContextKind,
+    text: e.reasoning ?? '',
+    status: e.outcome,
+    key: contextKey(e),
+    agent: e.agent,
+    timestamp: e.timestamp,
+    entities: e.filesAffected ?? [],
+  }));
+  return {
+    decisions: records.filter((r) => r.kind === 'decision' || r.kind === 'fact').sort(byRecencyThenKey),
+    tasks: records.filter((r) => r.kind === 'task' && r.status === 'pending').sort(byRecencyThenKey),
+    openQuestions: records.filter((r) => r.kind === 'question' && r.status === 'pending').sort(byRecencyThenKey),
+  };
+}
+
+/**
+ * F9 — entity ids touched by recent SESSION-action events, most-recent-first,
+ * deduped, capped. The MCP `get_context` handler passes these as
+ * `recentEntities` so the assembler boosts what the agent has been working with.
+ * Reads `filesAffected` + a `meta.entities` string array. Pure.
+ */
+export function recentSessionEntities(events: LearningEvent[], limit = 20): string[] {
+  const sorted = events
+    .filter((e) => SESSION_ACTION_SET.has(e.action))
+    .slice()
+    .sort((a, b) => (a.timestamp > b.timestamp ? -1 : a.timestamp < b.timestamp ? 1 : 0));
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const e of sorted) {
+    const metaEnts = Array.isArray(e.meta?.['entities'])
+      ? (e.meta!['entities'] as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [];
+    for (const id of [...(e.filesAffected ?? []), ...metaEnts]) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
+
+export interface ContextRecordInput {
+  kind: ContextKind;
+  text: string;
+  agent?: string;
+  /** Defaults: `pending` for task/question (open), `accepted` for decision/fact. */
+  status?: LearningOutcome;
+  /** Stable key so a later event can supersede this one; defaults to the text. */
+  key?: string;
+  entities?: string[];
+  timestamp?: string;
+}
+
+/** F9 — build a durable context-record event (decision/fact/task/question). */
+export function contextRecordEvent(input: ContextRecordInput): LearningEvent {
+  const status: LearningOutcome =
+    input.status ?? (input.kind === 'task' || input.kind === 'question' ? 'pending' : 'accepted');
+  return proposalEvent({
+    agent: input.agent ?? 'factstack-self',
+    action: input.kind,
+    outcome: status,
+    reasoning: input.text,
+    tags: ['context'],
+    ...(input.entities !== undefined ? { filesAffected: input.entities } : {}),
+    ...(input.key !== undefined ? { meta: { key: input.key } } : {}),
+    ...(input.timestamp !== undefined ? { timestamp: input.timestamp } : {}),
+  });
+}
+
+/**
+ * F9 — resolve which open record a "close" (`--done`) should supersede.
+ * Matching order: exact (kind, key) — where `key` defaults to the text — then
+ * exact TEXT match against any open record, ADOPTING that record's key so the
+ * close event lands on the same dedup key and actually closes it. Without the
+ * text fallback, closing a task created with an explicit `--key` by re-typing
+ * its text would silently create a NEW closed record while the keyed one stayed
+ * open (and the CLI would still claim "closed"). `matched: false` tells the
+ * caller to warn instead of claiming success. Pure.
+ */
+export function resolveCloseTarget(
+  store: ContextStore,
+  kind: ContextKind,
+  key: string | undefined,
+  text: string,
+): { key?: string; matched: boolean } {
+  if (kind !== 'task' && kind !== 'question') {
+    // decision/fact have no "open" state to close.
+    return { ...(key !== undefined ? { key } : {}), matched: false };
+  }
+  const open = kind === 'task' ? store.tasks : store.openQuestions;
+  const want = key ?? text;
+  if (open.some((r) => r.key === want)) {
+    return { ...(key !== undefined ? { key } : {}), matched: true };
+  }
+  const byText = open.find((r) => r.text === text);
+  if (byText) return { key: byText.key, matched: true };
+  return { ...(key !== undefined ? { key } : {}), matched: false };
+}
+
+/**
+ * F9 — entity list of the MOST RECENT `served` event (by timestamp). Lets the
+ * serving surfaces skip appending a consecutive identical `served` line, so a
+ * repeated get_context call doesn't grow the log one line per call. Pure.
+ */
+export function lastServedEntities(events: LearningEvent[]): string[] {
+  let best: LearningEvent | undefined;
+  for (const e of events) {
+    if (e.action !== 'served') continue;
+    if (!best || e.timestamp > best.timestamp) best = e;
+  }
+  if (!best) return [];
+  const metaEnts = Array.isArray(best.meta?.['entities'])
+    ? (best.meta!['entities'] as unknown[]).filter((x): x is string => typeof x === 'string')
+    : [];
+  return metaEnts.length ? metaEnts : (best.filesAffected ?? []);
+}
+
+export interface SessionActionInput {
+  action: SessionAction;
+  entities: string[];
+  agent?: string;
+  tokens?: number;
+  timestamp?: string;
+}
+
+/** F9 — build a session-action event (served/read/edited/queried). `outcome` is
+ *  `accepted` ("it happened") — session actions aren't proposals with a
+ *  lifecycle; they're distinguished by `action ∈ SESSION_ACTIONS`. */
+export function sessionActionEvent(input: SessionActionInput): LearningEvent {
+  return proposalEvent({
+    agent: input.agent ?? 'factstack-self',
+    action: input.action,
+    outcome: 'accepted',
+    filesAffected: input.entities,
+    tags: ['session'],
+    meta: { entities: input.entities, ...(input.tokens !== undefined ? { tokens: input.tokens } : {}) },
+    ...(input.timestamp !== undefined ? { timestamp: input.timestamp } : {}),
+  });
+}

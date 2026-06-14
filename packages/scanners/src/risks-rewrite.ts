@@ -75,8 +75,17 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
   'unresolved-import': ({ file }) =>
     `A broken import in ${file ?? 'an unknown file'} means part of the codebase can't be built or tested as currently written. Either the dependency was removed or the path is stale.`,
 
+  'unscanned-import': ({ file }) =>
+    `An import in ${file ?? 'an unknown file'} points at a file that exists on disk but sits in a directory the analyzer doesn't scan (build output like dist/, or an ignored folder). It likely works after a build — but it breaks whenever that output is missing or regenerated, so prefer importing from source.`,
+
   'parse-error': ({ file }) =>
     `${file ?? 'A source file'} has a syntax error and couldn't be analyzed. The rest of the report is missing data from this file until it's fixed.`,
+
+  'read-error': ({ file }) =>
+    `${file ?? 'A file'} could not be read during analysis (it may have been locked or mid-save). Its line and token counts in this report are placeholders, not measurements — re-run the analysis to fill them in.`,
+
+  'binary-source': ({ file }) =>
+    `${file ?? 'A source file'} looks like code by its name but its content reads as binary — most likely it was saved in an unusual encoding (like UTF-16). The analyzer couldn't measure it; re-save the file as UTF-8 to bring it back into the report.`,
 
   'import-cycle': ({ technical }) => {
     const fileCount = technical.match(/across (\d+) file/i)?.[1] ?? technical.match(/(\d+)\s*files?/i)?.[1] ?? 'several';

@@ -60,3 +60,15 @@ packages/*/.netlify/
 # they're ignored at any depth, including apps/*/ and packages/*/.
 .shot.mjs
 .shot-*.png
+
+# Agent scratch — ad-hoc probe scripts dropped next to a package while
+# reverse-engineering a format. Numbered, throwaway, never source.
+packages/*/probe*.mjs
+
+# Point-in-time commit-gate audit artifacts (ELI5 new-CTO audits). Generated
+# fresh per commit as a review aid; not source, kept local only.
+docs/cto-eli5-audit-*.html
+
+# Local MCP client config for this repo (per-machine install state written
+# by `factstack install`/uninstall). Not source.
+/.mcp.json

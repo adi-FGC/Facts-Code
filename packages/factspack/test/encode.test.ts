@@ -228,6 +228,207 @@ describe('encode — rejection cases', () => {
   });
 });
 
+describe('encode — v0.2 header extras (S5)', () => {
+  const table: PackTable = { name: 't', columns: [{ name: 'a' }], rows: [['x']] };
+
+  it('appends seq/parent/kind/generated after rowCount when present', () => {
+    const out = encode({
+      header: { ...HEADER, seq: 3, parent: 'abcdef012345', kind: 'master', generated: '2026-06-12T00:00:00.000Z' },
+      tables: [table],
+    });
+    expect(out).toContain('# facts/0.1\tsymbols-v1\t88e9a1b\t1\t3\tabcdef012345\tmaster\t2026-06-12T00:00:00.000Z\n');
+  });
+
+  it('emits the plain 4-field header when no extras are set', () => {
+    const out = encode({ header: HEADER, tables: [table] });
+    expect(out).toContain('# facts/0.1\tsymbols-v1\t88e9a1b\t1\n');
+  });
+
+  it('fills `-` placeholders for absent earlier extras', () => {
+    // kind is set but seq/parent are absent → they render as `-` placeholders.
+    // (Uses kind=master so the baseline encoder accepts it; v0.2a routes diffs
+    // through encodeIncremental, covered in the round-trip + decode strict suites.)
+    const out = encode({ header: { ...HEADER, kind: 'master' }, tables: [table] });
+    expect(out).toContain('\t1\t-\t-\tmaster\n');
+  });
+
+  it('rejects a non-integer seq', () => {
+    expect(() => encode({ header: { ...HEADER, seq: 1.5 }, tables: [table] })).toThrow(PackEncodeError);
+  });
+
+  it('rejects generated containing a tab', () => {
+    expect(() => encode({ header: { ...HEADER, generated: 'a\tb' }, tables: [table] })).toThrow(PackEncodeError);
+  });
+});
+
+describe('encode — v0.2 meta lines (S2/S3)', () => {
+  const table: PackTable = {
+    name: 't',
+    columns: [{ name: 'F' }],
+    rows: [['src/a.ts'], ['src/a.ts'], ['src/b.ts']],
+  };
+
+  it('emits legend `;` lines between the header and the dictionary', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [table],
+      meta: { legend: ['first legend line', 'second legend line'] },
+    });
+    const lines = out.split('\n');
+    expect(lines[1]).toBe('; first legend line');
+    expect(lines[2]).toBe('; second legend line');
+    expect(lines[3]!.startsWith('@ ')).toBe(true);
+  });
+
+  it('emits a `; hot:` line ranking keys by reference count', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [table],
+      meta: { hot: { group: 'F' } },
+    });
+    // a.ts referenced twice, b.ts once — a.ts ranks first.
+    expect(out).toContain('; hot: F1~a.ts F2~b.ts\n');
+  });
+
+  it('caps the hot line at meta.hot.top entries', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [table],
+      meta: { hot: { group: 'F', top: 1 } },
+    });
+    expect(out).toContain('; hot: F1~a.ts\n');
+    expect(out).not.toContain('F2~b.ts');
+  });
+
+  it('rejects a legend line containing a newline', () => {
+    expect(() => encode({ header: HEADER, tables: [table], meta: { legend: ['a\nb'] } }))
+      .toThrow(PackEncodeError);
+  });
+
+  it('rejects a legend line that collides with the reserved `; end` trailer form', () => {
+    // Otherwise the decoder re-reads it AS the trailer and rejects the rest of the
+    // pack — an encoder that produces output its own decoder rejects.
+    expect(() => encode({
+      header: HEADER, tables: [table],
+      meta: { legend: ['end rows=1 tables=1 sha256=abcdef012345'] },
+    })).toThrow(/reserved `; end` trailer/);
+    // a near-miss that is NOT the exact trailer grammar is still fine
+    expect(() => encode({
+      header: HEADER, tables: [table], meta: { legend: ['rows=1 tables=1'] },
+    })).not.toThrow();
+  });
+});
+
+describe('encode — v0.2 trailer (S4)', () => {
+  it('always appends `; end` as the final line with row/table counts', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [
+        { name: 'a', columns: [{ name: 'x' }], rows: [['1'], ['2']] },
+        { name: 'b', columns: [{ name: 'y' }], rows: [['3']] },
+      ],
+    });
+    const lines = out.split('\n');
+    expect(lines[lines.length - 1]).toBe(''); // trailing \n
+    expect(lines[lines.length - 2]).toMatch(/^; end rows=3 tables=2 sha256=[0-9a-f]{12}$/);
+  });
+
+  it('incremental packs count + and x lines as trailer rows', () => {
+    const out = encodeIncremental({
+      header: HEADER,
+      tables: [{
+        name: 't',
+        columns: [{ name: 'id' }],
+        addedRows: [['6'], ['7']],
+        deletedIds: ['3'],
+      }],
+    });
+    expect(out).toMatch(/; end rows=3 tables=1 sha256=[0-9a-f]{12}\n$/);
+  });
+});
+
+describe('encode — v0.2 shared intern namespaces (S8)', () => {
+  it('columns with the same internGroup share one key pool across tables', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [
+        {
+          name: 'imports',
+          columns: [{ name: 'F', internGroup: 'F' }, { name: 'T', internGroup: 'F' }],
+          rows: [['src/a.ts', 'src/b.ts'], ['src/b.ts', 'src/a.ts']],
+        },
+        {
+          name: 'risks',
+          columns: [{ name: 'F', internGroup: 'F' }],
+          rows: [['src/b.ts']],
+        },
+      ],
+    });
+    // One id per file, everywhere: no T-prefixed keys, two dict lines total.
+    expect(out).toContain('@ F1=src/a.ts\n');
+    expect(out).toContain('@ F2=src/b.ts\n');
+    expect(out).not.toMatch(/^@ T\d+=/m);
+    expect((out.match(/^@ /gm) ?? []).length).toBe(2);
+    // Rows in both tables reference the same keys.
+    expect(out).toContain('- F1\tF2\n');
+    expect(out).toContain('- F2\tF1\n');
+    expect(out).toContain('- F2\n');
+  });
+
+  it('keeps per-column pools when internGroup is absent (v1 behavior)', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [{
+        name: 'imports',
+        columns: [{ name: 'F' }, { name: 'T' }],
+        rows: [['src/a.ts', 'src/a.ts']],
+      }],
+    });
+    expect(out).toContain('@ F1=src/a.ts');
+    expect(out).toContain('@ T1=src/a.ts');
+  });
+
+  it('rejects internGroup on a literal (lowercase) column', () => {
+    expect(() => encode({
+      header: HEADER,
+      tables: [{ name: 't', columns: [{ name: 'path', internGroup: 'F' }], rows: [] }],
+    })).toThrow(/literal/);
+  });
+
+  it('rejects internGroup containing "="', () => {
+    expect(() => encode({
+      header: HEADER,
+      tables: [{ name: 't', columns: [{ name: 'F', internGroup: 'a=b' }], rows: [] }],
+    })).toThrow(PackEncodeError);
+  });
+});
+
+describe('encode — v0.2 literal "-" guard (S12)', () => {
+  it('rejects a literal-column cell whose value is exactly "-"', () => {
+    expect(() => encode({
+      header: HEADER,
+      tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['-']] }],
+    })).toThrow(/decode as null/);
+  });
+
+  it('allows "-" as an interned-column value (rides in the dict)', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [{ name: 't', columns: [{ name: 'F' }], rows: [['-']] }],
+    });
+    expect(out).toContain('@ F1=-\n');
+    expect(out).toContain('- F1\n');
+  });
+
+  it('still serializes null as bare "-"', () => {
+    const out = encode({
+      header: HEADER,
+      tables: [{ name: 't', columns: [{ name: 'a' }, { name: 'b' }], rows: [['x', null]] }],
+    });
+    expect(out).toContain('- x\t-\n');
+  });
+});
+
 describe('encodeIncremental — patch packs', () => {
   it('emits + and x lines under the schema declaration', () => {
     const out = encodeIncremental({
@@ -241,7 +442,9 @@ describe('encodeIncremental — patch packs', () => {
         },
       ],
     });
-    expect(out).toContain('# facts/0.1\tsymbols-v1\t88e9a1b\t0\n'); // rowCount forced to 0 in incremental
+    // v0.2a: rowCount forced to the 0 sentinel AND kind=diff stamped on the wire,
+    // so the diff is round-trip-safe under the strict default even with a bare HEADER.
+    expect(out).toContain('# facts/0.1\tsymbols-v1\t88e9a1b\t0\t-\t-\tdiff\n');
     expect(out).toContain('& symbols\t');
     expect(out).toContain('@ F1=src/auth.ts');
     expect(out).toContain('+ 6\tfn\treset\tF1\t70');

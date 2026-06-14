@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decode, type DecodedTable } from '@factstack/factspack';
-import { getOutlineToPack, subgraphToPack, verbResultNodes, type SubgraphLike } from '../src/pack-responses.js';
+import { getOutlineToPack, subgraphToPack, contextToPack, verbResultNodes, type SubgraphLike, type ContextLike } from '../src/pack-responses.js';
 import type { AgentArtifact, SymbolNode, SymbolEdge } from '@factstack/spec';
 import type { QueryResult } from '@factstack/core';
 import type { ExtractedSymbol } from '@factstack/extractors';
@@ -249,5 +249,55 @@ describe('verbResultNodes', () => {
   it('is empty-safe for a non-array result', () => {
     const r = { verb: 'orphans', count: 0, results: undefined } as unknown as QueryResult;
     expect(verbResultNodes(r)).toEqual([]);
+  });
+});
+
+/**
+ * contextToPack — F4 `context-v1`. The `ranked` table carries the ranking
+ * columns AND the path/line/name citation (one table doubles as the jump-list);
+ * `meta` makes the budget + truncated/coldStart markers explicit so a capped or
+ * fallback result is never silent.
+ */
+describe('contextToPack → context-v1', () => {
+  const ctx: ContextLike = {
+    items: [
+      { id: 'src/user.ts', path: 'src/user.ts', name: 'user.ts', kind: 'file', line: null, score: 0.73, tokenCost: 200, hops: 0, isSeed: true },
+      { id: 'src/auth.ts#login@5', path: 'src/auth.ts', name: 'login', kind: 'function', line: 5, score: 0.5, tokenCost: 40, hops: 1, isSeed: false },
+    ],
+    edges: [{ from: 'src/auth.ts#login@5', to: 'src/user.ts', kind: 'call', confidence: 'inferred' }],
+    totalTokens: 240,
+    budgetTokens: 8000,
+    truncated: false,
+    coldStart: false,
+  };
+
+  const pack = contextToPack(ctx, SNAP);
+
+  it('pins the context-v1 schema + emits ranked/edges/meta tables', () => {
+    expect(decode(pack).header.schema).toBe('context-v1');
+    const names = [...decode(pack).tables.keys()];
+    expect(names).toEqual(expect.arrayContaining(['ranked', 'edges', 'meta']));
+  });
+
+  it('ranked row carries score/tokens/hops/seed + the file:line citation', () => {
+    const rows = table(pack, 'ranked').rows;
+    // cols: id, node, F(path), kind, name, line, score, tok, hops, seed
+    const seed = rows.find((r) => r[1] === 'src/user.ts')!;
+    expect(seed.slice(2)).toEqual(['src/user.ts', 'file', 'user.ts', null, '0.73', '200', '0', '1']);
+    const sym = rows.find((r) => r[1] === 'src/auth.ts#login@5')!;
+    expect(sym.slice(2)).toEqual(['src/auth.ts', 'function', 'login', '5', '0.5', '40', '1', '0']);
+  });
+
+  it('edges resolve S/T to ids; meta is a single budget row', () => {
+    expect(table(pack, 'edges').rows).toEqual([['0', 'src/auth.ts#login@5', 'src/user.ts', 'call', 'inferred']]);
+    // cols: totalTokens, budget, truncated, coldStart, items, edges
+    expect(table(pack, 'meta').rows).toEqual([['240', '8000', '0', '0', '2', '1']]);
+  });
+
+  it('meta flips truncated + coldStart markers when set (no silent cap)', () => {
+    const capped = contextToPack({ ...ctx, truncated: true, coldStart: true }, SNAP);
+    const m = table(capped, 'meta').rows[0]!;
+    expect(m[2]).toBe('1'); // truncated
+    expect(m[3]).toBe('1'); // coldStart
   });
 });

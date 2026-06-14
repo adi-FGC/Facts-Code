@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMemory, MEMORY_SCHEMA_VERSION } from '../src/memory.js';
+import { buildContextStore, contextRecordEvent } from '../src/learnings.js';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 /**
@@ -632,5 +633,30 @@ describe('buildMemory — edge cases', () => {
   it('exports MEMORY_SCHEMA_VERSION as a non-empty string', () => {
     expect(typeof MEMORY_SCHEMA_VERSION).toBe('string');
     expect(MEMORY_SCHEMA_VERSION.length).toBeGreaterThan(0);
+  });
+});
+
+describe('buildMemory — Working context (F9)', () => {
+  const T = '2026-06-09T00:0';
+  const store = buildContextStore([
+    contextRecordEvent({ kind: 'decision', key: 'db', text: 'use postgres for the store', timestamp: `${T}1:00.000Z` }),
+    contextRecordEvent({ kind: 'task', key: 't1', text: 'ship F9 session memory', timestamp: `${T}2:00.000Z` }),
+  ]);
+
+  it('renders open tasks + recent decisions when a context store is supplied', () => {
+    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: store });
+    expect(out).toContain('## Working context');
+    expect(out).toContain('- [ ] ship F9 session memory');
+    expect(out).toContain('use postgres for the store');
+    expect(out).not.toContain('**Open questions**'); // empty sub-section omitted
+  });
+
+  it('omits the section entirely when the store is empty', () => {
+    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: { decisions: [], tasks: [], openQuestions: [] } });
+    expect(out).not.toContain('## Working context');
+  });
+
+  it('omits the section when no store is passed (backward compat)', () => {
+    expect(buildMemory(makeAgent(), makeHuman())).not.toContain('## Working context');
   });
 });

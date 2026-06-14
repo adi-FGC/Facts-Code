@@ -20,17 +20,23 @@
  */
 
 export { encode, encodeIncremental, PackEncodeError } from './encode.js';
-export { decode, PackDecodeError } from './decode.js';
+export { decode, decodeStrict, decodeLegacy, PackDecodeError } from './decode.js';
 export { escapeCell, unescapeCell, PackEscapeError } from './escape.js';
+export { canonicalizePath, canonicalizeNumber } from './canonicalize.js';
 export {
   isInternedColumn,
+  STRICT_DEFAULT_LIMITS,
   type DecodedPack,
   type DecodedTable,
+  type DecodeLimits,
+  type DecodeMode,
+  type DecodeOptions,
   type EncodeOptions,
   type IncrementalEncodeOptions,
   type IncrementalTable,
   type PackColumn,
   type PackHeader,
+  type PackMeta,
   type PackRow,
   type PackTable,
 } from './types.js';

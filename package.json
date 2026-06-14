@@ -16,6 +16,9 @@
     "test": "turbo run test && pnpm test:legacy-proto",
     "test:legacy-proto": "node legacy/prototype/scripts/smoke-scan.mjs && node legacy/prototype/scripts/smoke-scan-deep.mjs && node legacy/prototype/scripts/smoke-scan-github.mjs",
     "test:cov": "turbo run test:cov",
+    "bench": "tsx apps/cli/src/cli.ts bench",
+    "bench:check": "tsx apps/cli/src/cli.ts bench --check",
+    "bench:update": "tsx apps/cli/src/cli.ts bench --update",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "lint:boundaries": "eslint .",
@@ -34,6 +37,6 @@
     "prettier": "^3.8.3",
     "turbo": "^2.9.15",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   }
 }

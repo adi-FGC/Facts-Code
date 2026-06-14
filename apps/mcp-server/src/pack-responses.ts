@@ -283,6 +283,98 @@ export function subgraphToPack(
   return encode({ header: header('subgraph-v1', snapshotId), tables });
 }
 
+/* ───────────── get_context (F4) → PACK ─────────────
+ *
+ * F4 — a task-scoped, ranked, token-budgeted context block. Two tables + a
+ * 1-row meta:
+ *   - `ranked`: the ranked anchors. Carries the ranking columns (`score`,
+ *               `tok`, `hops`, `seed`) AND the `F`/`line`/`name` citation, so
+ *               this one table doubles as the jump-list (no separate, duplicate
+ *               citations table — INV8 token-first).
+ *   - `edges` : edges connecting the included anchors (`S`/`T` intern ids).
+ *   - `meta`  : a single row with the budget stats + the `truncated`/`coldStart`
+ *               markers, so a capped or fallback result is NEVER silent.
+ * Schema `context-v1`.
+ */
+export interface ContextLike {
+  items: Array<{
+    id: string;
+    path: string;
+    name: string;
+    kind: string;
+    line: number | null;
+    score: number;
+    tokenCost: number;
+    hops: number;
+    isSeed: boolean;
+  }>;
+  edges: Array<{ from: string; to: string; kind: string; confidence?: string }>;
+  totalTokens: number;
+  budgetTokens: number;
+  truncated: boolean;
+  coldStart: boolean;
+}
+
+export function contextToPack(result: ContextLike, snapshotId: string): string {
+  const rankedRows: PackRow[] = result.items.map((it, i) => [
+    String(i),
+    it.id,
+    it.path,
+    it.kind,
+    it.name,
+    it.line != null ? String(it.line) : null,
+    String(it.score),
+    String(it.tokenCost),
+    String(it.hops),
+    it.isSeed ? '1' : '0',
+  ]);
+
+  const edgeRows: PackRow[] = result.edges.map((e, i) => [
+    String(i),
+    e.from,
+    e.to,
+    e.kind,
+    e.confidence ?? 'extracted',
+  ]);
+
+  const metaRow: PackRow = [
+    String(result.totalTokens),
+    String(result.budgetTokens),
+    result.truncated ? '1' : '0',
+    result.coldStart ? '1' : '0',
+    String(result.items.length),
+    String(result.edges.length),
+  ];
+
+  const tables: PackTable[] = [
+    {
+      name: 'ranked',
+      // `node` (id) is unique → literal PK; `F` (path) interns across rows.
+      columns: [
+        { name: 'id' }, { name: 'node' }, { name: 'F' }, { name: 'kind' },
+        { name: 'name' }, { name: 'line' }, { name: 'score' }, { name: 'tok' },
+        { name: 'hops' }, { name: 'seed' },
+      ],
+      rows: rankedRows,
+    },
+    {
+      name: 'edges',
+      columns: [{ name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' }],
+      rows: edgeRows,
+    },
+    {
+      name: 'meta',
+      columns: [
+        { name: 'totalTokens' }, { name: 'budget' }, { name: 'truncated' },
+        { name: 'coldStart' }, { name: 'items' }, { name: 'edges' },
+      ],
+      rows: [metaRow],
+    },
+  ];
+
+  return encode({ header: header('context-v1', snapshotId), tables });
+}
+
 /* ───────────── get_config → PACK ─────────────
  *
  * Flatten env vars: one row per (name, file, line). Same shape as

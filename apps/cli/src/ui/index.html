@@ -518,14 +518,6 @@
       /* Icon-only chrome buttons get 40x40 minimum (AA 2.2) */
       header button[aria-label]:not([class*="px-"]) { min-width: 40px; min-height: 40px; }
 
-      /* ft-11: "Simple" density hides the power-user tabs to lower the
-         first-value barrier. Toggle lives in the header; persisted in
-         localStorage. Default is "full" so existing users are undisturbed. */
-      html[data-density="simple"] #tab-graph,
-      html[data-density="simple"] #tab-dag,
-      html[data-density="simple"] #tab-history,
-      html[data-density="simple"] #tab-config { display: none; }
-
       /* Skip-to-content link — visible only on focus, top-left landing */
       .skip-link {
         position: fixed;
@@ -1163,32 +1155,6 @@
           <span class="hidden sm:inline">Scan</span>
         </button>
 
-        <!-- Set up FACTS for agents — installs/refreshes the per-project
-             skill files (Claude SKILL.md, .cursorrules, AGENTS.md,
-             copilot-instructions.md) so AI coding agents read the FACTS
-             pack instead of re-scanning. CLI-served only; in static mode
-             the click points the user at `factstack export-skills`. -->
-        <button id="setup-agents" class="h-8 rounded-md px-3 text-xs font-medium hover:bg-[var(--surface-2)] border border-[var(--border)] flex items-center gap-1.5 whitespace-nowrap" aria-label="Set up FACTS for AI agents" title="Install/refresh the agent skill files so agents read the FACTS pack">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg>
-          <span class="hidden sm:inline">Set up agents</span>
-        </button>
-
-        <!-- ft-5: open this project in an agent CLI (claude / codex) via the
-             whitelisted server-side /api/exec spawn (no shell). CLI-served
-             only; static mode shows the command instead. -->
-        <button id="open-claude" data-agent="claude" class="open-agent h-8 rounded-md px-2.5 text-xs font-medium hover:bg-[var(--surface-2)] border border-[var(--border)] whitespace-nowrap" aria-label="Open this project in Claude" title="Open this project in Claude Code (served mode only)">Claude</button>
-        <button id="open-codex" data-agent="codex" class="open-agent h-8 rounded-md px-2.5 text-xs font-medium hover:bg-[var(--surface-2)] border border-[var(--border)] whitespace-nowrap" aria-label="Open this project in Codex" title="Open this project in OpenAI Codex (served mode only)">Codex</button>
-
-        <!-- ft-6: recent-projects picker. Lists ~/.factstack/recent.json;
-             picking one copies `factstack ui <path>` (live re-point of the
-             running server is a follow-up). Populated on open from /api/recent. -->
-        <details class="relative" id="projects-details">
-          <summary class="list-none h-8 rounded-md px-2.5 text-xs font-medium hover:bg-[var(--surface-2)] cursor-pointer flex items-center whitespace-nowrap" aria-label="Recent projects">Projects</summary>
-          <div class="glass-strong absolute right-0 top-full mt-2 w-80 max-h-80 overflow-auto p-2 rounded-lg text-xs" id="projects-menu">
-            <div class="px-2 py-1.5 text-[var(--fg-subtle)]">loading…</div>
-          </div>
-        </details>
-
         <!-- Font-size slider -->
         <details class="relative">
           <summary class="list-none rounded-md p-1.5 hover:bg-[var(--surface-2)] cursor-pointer" aria-label="Font size">
@@ -1201,7 +1167,6 @@
           </div>
         </details>
 
-        <button id="density-toggle" class="h-8 rounded-md px-2.5 text-xs font-medium hover:bg-[var(--surface-2)] whitespace-nowrap" aria-label="Toggle simple or full view" aria-pressed="false" title="Simple view hides advanced tabs (Graph, DAG, History, Config) to cut clutter"><span id="density-label">Full</span></button>
         <button id="theme-toggle" class="rounded-md p-1.5 hover:bg-[var(--surface-2)]" aria-label="Toggle theme" title="Theme · ⌘J">
           <svg id="icon-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
           <svg id="icon-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -1228,7 +1193,6 @@
         <div class="p-2.5 border-t border-[var(--border)] text-[0.6875rem] space-y-1 text-[var(--fg-subtle)]">
           <div class="flex justify-between"><span>Bundle (gzip)</span><span id="bundle-size" class="mono">…</span></div>
           <div class="flex items-center justify-between"><span>Fits 200K context?</span><span id="fits-context" class="chip chip-muted">…</span></div>
-          <div class="flex items-center justify-between"><span>Outdated deps</span><span id="deps-outdated" class="chip chip-muted" title="npm dependencies behind the registry latest — served by factstack ui">…</span></div>
         </div>
       </aside>
 
@@ -1242,7 +1206,6 @@
           <button class="tab" role="tab" aria-selected="false" data-local-tab="callers">Callers</button>
           <button class="tab" role="tab" aria-selected="false" data-local-tab="todos">TODOs <span id="local-todos-chip" class="chip chip-warn ml-1">0</span></button>
           <button class="tab" role="tab" aria-selected="false" data-local-tab="tests">Tests</button>
-          <button class="tab" role="tab" aria-selected="false" data-local-tab="commits">Commits</button>
         </div>
 
         <div class="flex-1 overflow-y-auto" id="rhs-content">
@@ -4273,51 +4236,6 @@
             wrap.append(ul);
             break;
           }
-          case 'commits': {
-            wrap.append(mkLabel('Recent commits'));
-            // ft-7: git history for this file via /api/file-history. Only the
-            // served CLI exposes it — same served/static guard as Preview.
-            const servedC = location.protocol.startsWith('http');
-            const staticC = window.__STATIC_MODE === true;
-            if (!servedC || staticC) {
-              const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
-              prose.textContent = 'Git history is only available when served by the CLI (factstack ui).';
-              wrap.append(prose);
-              break;
-            }
-            const list = h('div', { class: 'space-y-2' });
-            list.textContent = 'loading…';
-            wrap.append(list);
-            fetch('/api/file-history?file=' + encodeURIComponent(f.path), { cache: 'no-store' })
-              .then((r) => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
-              .then((d) => {
-                list.textContent = '';
-                const commits = (d && d.commits) || [];
-                if (!commits.length) {
-                  const prose = h('p', { class: 'ed-prose', style: { fontSize: '0.9375rem' } });
-                  prose.textContent = 'No git history for this file (untracked, or not a git repository).';
-                  list.append(prose);
-                  return;
-                }
-                for (const c of commits) {
-                  const row = h('div', {
-                    class: 'text-xs',
-                    style: { paddingBottom: '6px', marginBottom: '6px', borderBottom: '1px solid var(--border)' },
-                  });
-                  const when = (c.date || '').slice(0, 10);
-                  row.innerHTML =
-                    '<span class="mono" style="color:var(--accent)">' + escapeHtml(c.short || '') + '</span>' +
-                    ' <span style="color:var(--fg-subtle)">' + escapeHtml(when) + '</span><br>' +
-                    '<span>' + escapeHtml(c.message || '') + '</span>' +
-                    '<span style="color:var(--fg-subtle)"> · ' + escapeHtml(c.author || '') + '</span>';
-                  list.append(row);
-                }
-              })
-              .catch((e) => {
-                list.textContent = 'failed to load history: ' + ((e && e.message) || e);
-              });
-            break;
-          }
           case 'callers': {
             wrap.append(mkLabel('Callers'));
             const ins = (DATA.edges || []).filter((e) => e.to === f.path);
@@ -5379,83 +5297,6 @@
 
       // ============================ THEME =================================
       const root = document.documentElement;
-      // ft-11: simple/full density toggle. "Simple" hides the power-user
-      // tabs (Graph/DAG/History/Config) to cut first-value friction.
-      // Persisted; defaults to full so existing users are undisturbed.
-      // ft-6: recent-projects picker. On open, fetch /api/recent and render a
-      // clickable list; picking a project copies `factstack ui <path>` to the
-      // clipboard (live re-point of the running server is a follow-up).
-      (function recentProjects() {
-        var details = document.getElementById('projects-details');
-        var menu = document.getElementById('projects-menu');
-        if (!details || !menu) return;
-        function copyCmd(p) {
-          var cmd = 'factstack ui "' + p + '"';
-          var done = function () {
-            var status = document.getElementById('status-line');
-            if (status) { status.textContent = 'Copied: ' + cmd; status.dataset.tone = 'ok'; }
-            details.open = false;
-          };
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(cmd).then(done, function () { alert(cmd); });
-          } else { alert(cmd); }
-        }
-        details.addEventListener('toggle', function () {
-          if (!details.open) return;
-          if (!location.protocol.startsWith('http') || window.__STATIC_MODE === true) {
-            menu.innerHTML = '<div class="px-2 py-1.5 text-[var(--fg-subtle)]">Recent projects are only available when served by the CLI.</div>';
-            return;
-          }
-          menu.innerHTML = '<div class="px-2 py-1.5 text-[var(--fg-subtle)]">loading…</div>';
-          fetch('/api/recent', { cache: 'no-store' })
-            .then(function (r) { return r.json(); })
-            .then(function (d) {
-              var list = (d && d.recent) || [];
-              if (!list.length) { menu.innerHTML = '<div class="px-2 py-1.5 text-[var(--fg-subtle)]">No recent projects yet.</div>'; return; }
-              menu.innerHTML = '';
-              list.forEach(function (r) {
-                var row = document.createElement('button');
-                row.className = 'w-full text-left px-2 py-1.5 rounded hover:bg-[var(--surface-2)] block';
-                row.innerHTML = '<div class="font-medium truncate">' + escapeHtml(r.name || '') + '</div>' +
-                  '<div class="mono text-[0.6875rem] text-[var(--fg-subtle)] truncate">' + escapeHtml(r.path || '') + '</div>';
-                row.title = 'Copy: factstack ui "' + (r.path || '') + '"';
-                row.addEventListener('click', function () { copyCmd(r.path); });
-                menu.appendChild(row);
-              });
-            })
-            .catch(function () { menu.innerHTML = '<div class="px-2 py-1.5 text-[var(--fg-subtle)]">Failed to load recents.</div>'; });
-        });
-      })();
-
-      (function densityToggle() {
-        var KEY = 'factstack:density';
-        var label = document.getElementById('density-label');
-        var btn = document.getElementById('density-toggle');
-        function apply(mode) {
-          document.documentElement.dataset.density = mode;
-          if (label) label.textContent = mode === 'simple' ? 'Simple' : 'Full';
-          if (btn) btn.setAttribute('aria-pressed', String(mode === 'simple'));
-        }
-        var saved = 'full';
-        try { saved = localStorage.getItem(KEY) === 'simple' ? 'simple' : 'full'; } catch (e) {}
-        apply(saved);
-        if (btn) btn.addEventListener('click', function () {
-          var next = document.documentElement.dataset.density === 'simple' ? 'full' : 'simple';
-          try { localStorage.setItem(KEY, next); } catch (e) {}
-          apply(next);
-          // If a now-hidden tab was active, fall back to Overview so the
-          // content area isn't left showing a panel with no visible tab.
-          if (next === 'simple') {
-            var active = document.querySelector('nav[aria-label="Primary navigation"] [role="tab"][aria-selected="true"]');
-            var hidden = { graph: 1, dag: 1, history: 1, config: 1 };
-            if (active && hidden[active.dataset.tab]) {
-              var ov = document.getElementById('tab-overview');
-              if (ov) ov.click();
-            }
-          }
-        });
-      })();
-
       const toggle = $('#theme-toggle');
       function syncIcons() { const dark = root.dataset.theme === 'dark'; $('#icon-sun').classList.toggle('hidden', dark); $('#icon-moon').classList.toggle('hidden', !dark); }
       syncIcons();
@@ -5590,104 +5431,6 @@
         });
       }
 
-      // ft-5: open the project in an agent CLI (claude/codex) via /api/exec —
-      // a whitelisted, no-shell server-side spawn. Same served/static guards
-      // as Scan / Set up agents.
-      document.querySelectorAll('.open-agent').forEach(function (btn) {
-        btn.addEventListener('click', async function () {
-          var agent = btn.dataset.agent;
-          if (!location.protocol.startsWith('http') || window.__STATIC_MODE === true) {
-            alert('Opening in ' + agent + ' only works when the UI is served by the CLI.\n\n' +
-              'Run from your project:\n\n    factstack ui .\n\n' +
-              'then click again — or just run:  ' + agent + ' --directory .');
-            return;
-          }
-          var orig = btn.textContent;
-          btn.disabled = true;
-          btn.textContent = 'opening…';
-          try {
-            var res = await fetch('/api/exec', {
-              method: 'POST',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ action: 'editor', editor: agent }),
-            });
-            var result = await res.json();
-            var status = document.getElementById('status-line');
-            if (result && result.ok) {
-              if (status) { status.textContent = 'Opening project in ' + agent + '…'; status.dataset.tone = 'ok'; }
-            } else {
-              alert('Could not launch ' + agent + ': ' + ((result && result.error) || ('HTTP ' + res.status)) +
-                '\n\nIs the `' + agent + '` CLI on your PATH?');
-            }
-          } catch (e) {
-            alert('Open in ' + agent + ' failed: ' + ((e && e.message) || e));
-          } finally {
-            btn.disabled = false;
-            btn.textContent = orig;
-          }
-        });
-      });
-
-      // Set up FACTS for agents — install/refresh the per-project skill
-      // files so AI coding agents read the FACTS pack instead of
-      // re-scanning. Mirrors the Scan button's served/static guards.
-      // POSTs to /api/setup-agents (Layer 3); the freshness-hook install
-      // (Layer 2) is reported back via result.hookInstalled.
-      const setupBtn = $('#setup-agents');
-      if (setupBtn) {
-        setupBtn.addEventListener('click', async () => {
-          const served = location.protocol.startsWith('http');
-          if (!served) {
-            alert(
-              'Setting up agents only works when the UI is served by the CLI.\n\n' +
-              'Run this from the project directory:\n\n' +
-              '    factstack ui .\n\n' +
-              'Or install the skill files directly:\n\n' +
-              '    factstack export-skills .',
-            );
-            return;
-          }
-          if (window.__STATIC_MODE === true) {
-            alert(
-              "This is the static demo — there's no analyzer server behind it.\n\n" +
-              "On your own project, run:\n\n" +
-              "    factstack export-skills /path/to/your/project\n\n" +
-              "to install the agent skill files (Claude / Cursor / Copilot / AGENTS.md).",
-            );
-            return;
-          }
-          const label = setupBtn.querySelector('span');
-          const orig = label?.textContent;
-          if (label) label.textContent = 'installing…';
-          setupBtn.disabled = true;
-          try {
-            const res = await fetch('/api/setup-agents', { method: 'POST' });
-            if (!res.ok) throw new Error('HTTP ' + res.status);
-            const result = await res.json();
-            if (!result.ok) throw new Error(result.error || 'setup failed');
-            const n = (result.files || []).length;
-            const kept = result.preserved || [];
-            const msg = 'Agent skills installed · ' + n + ' file' + (n === 1 ? '' : 's') +
-              ' (' + (result.formats || []).join(', ') + ')' +
-              (kept.length ? ' · kept your ' + kept.join(', ') : '') +
-              (result.hookInstalled ? ' · refresh hook on' : '');
-            const status = document.getElementById('status-line');
-            if (status) {
-              status.textContent = msg;
-              status.dataset.tone = 'ok';
-            } else {
-              alert(msg);
-            }
-          } catch (e) {
-            console.error(e);
-            alert('Set up agents failed: ' + (e?.message || e));
-          } finally {
-            setupBtn.disabled = false;
-            if (label) label.textContent = orig || 'Set up agents';
-          }
-        });
-      }
-
       // ============================ STATIC MODE DETECTION =================
       /**
        * True when the prototype is loaded from a static host that has
@@ -5768,46 +5511,6 @@
       //
       // Editorial status-bar treatment: "Updated N files · Ms ago" in a
       // calm tone; amber when the connection drops; red after 3 retries.
-      // ft-4: dependency-freshness chip. Lazy network fetch — the CLI server
-      // answers /api/deps-outdated; a static host (Netlify) doesn't, so we
-      // degrade the chip to "—". Fire-and-forget; never blocks first paint.
-      (function wireDepsOutdated() {
-        var el = document.getElementById('deps-outdated');
-        if (!el) return;
-        if (!location.protocol.startsWith('http')) {
-          el.textContent = '—';
-          el.title = 'Run via `factstack ui` for live dependency freshness';
-          return;
-        }
-        fetch('/api/deps-outdated', { cache: 'no-store' })
-          .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status)); })
-          .then(function (d) {
-            if (!d || d.ok !== true) throw new Error('bad payload');
-            var n = d.outdatedCount || 0;
-            var errored = d.errored || 0;
-            var list = (d.outdated || []).slice(0, 12).map(function (x) { return x.name + ' ' + x.current + ' → ' + x.latest; }).join('\n');
-            if (n > 0) {
-              el.className = 'chip chip-warn';
-              el.textContent = n + ' outdated';
-              el.title = 'Behind npm registry latest:\n' + list + (d.outdatedCount > 12 ? '\n…' : '') + (errored ? ('\n(' + errored + ' could not be checked)') : '');
-            } else if (errored > 0) {
-              // Don't claim "up to date" when the registry never answered for
-              // some deps — they were never actually checked.
-              el.className = 'chip chip-warn';
-              el.textContent = errored + ' uncheckable';
-              el.title = errored + ' of ' + (d.total || 0) + ' npm deps could not be checked (registry offline or rate-limited).';
-            } else {
-              el.className = 'chip chip-ok';
-              el.textContent = 'up to date';
-              el.title = 'All ' + (d.total || 0) + ' npm deps current';
-            }
-          })
-          .catch(function () {
-            el.textContent = '—';
-            el.title = 'Dependency freshness unavailable (static host or offline)';
-          });
-      })();
-
       (async function wireLiveUpdates() {
         if (!location.protocol.startsWith('http')) return;
         // Probe for a real analyzer server. On a static host (Netlify,

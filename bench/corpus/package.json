@@ -1,0 +1,10 @@
+{
+  "name": "mini-shop",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Fixture corpus for the FACTS F13 benchmark — a tiny shop backend with a realistic import graph.",
+  "scripts": {
+    "start": "node dist/index.js"
+  }
+}

@@ -387,6 +387,55 @@ export function runGraphQuery(agent: AgentArtifact, q: GraphQuery): SubgraphResu
   return { nodes: outNodes, edges: outEdges, truncated };
 }
 
+/**
+ * F4 — expand `seeds` outward up to `maxHops`, recording the hop distance of
+ * every reached node (seeds = 0) and the edges traversed. The hop distance is
+ * the proximity signal the context ranker weights; the edges feed the emitted
+ * subgraph. Reuses the same unified file+symbol adjacency as `runGraphQuery`,
+ * so context expansion can't drift from query traversal. Pure + deterministic:
+ * BFS records each node's FIRST-reached depth, edges are (from,to,kind)-sorted.
+ */
+export interface HopExpansion {
+  /** node id → minimum hops from any seed (seeds map to 0). */
+  hops: Map<string, number>;
+  /** edges traversed during expansion, sorted by (from,to,kind). */
+  edges: SubgraphResult['edges'];
+}
+
+export function expandWithHops(
+  agent: AgentArtifact,
+  seeds: string[],
+  maxHops: number,
+  direction: 'out' | 'in' | 'both' = 'both',
+): HopExpansion {
+  // Deliberately ALL edge kinds + ALL confidences: context assembly wants the
+  // fullest connected neighborhood (even `inferred`/`ambiguous` links are useful
+  // "you might also need this" signal). Relevance is then sorted out by the
+  // ranker, not by pre-filtering the graph — unlike the precise query verbs,
+  // which expose `minConfidence`.
+  const adj = adjacency(allEdgesLite(agent), direction);
+  const hops = new Map<string, number>();
+  for (const s of seeds) hops.set(s, 0);
+  const edges: EdgeLite[] = [];
+  const edgeSeen = new Set<string>();
+  let frontier = [...seeds];
+  for (let d = 0; d < maxHops; d++) {
+    const next: string[] = [];
+    for (const from of frontier) {
+      const outs = adj.get(from);
+      if (!outs) continue;
+      for (const { to, edge } of outs) {
+        const ek = `${edge.from}\t${edge.to}\t${edge.kind}`;
+        if (!edgeSeen.has(ek)) { edgeSeen.add(ek); edges.push(edge); }
+        if (!hops.has(to)) { hops.set(to, d + 1); next.push(to); }
+      }
+    }
+    if (!next.length) break;
+    frontier = next;
+  }
+  return { hops, edges: edges.sort(edgeSort) };
+}
+
 /** F3 — public entity resolution for the free-text mapper: exact id → name →
  *  path-suffix, id-sorted. Empty when nothing matches. */
 export function findEntities(agent: AgentArtifact, term: string): string[] {

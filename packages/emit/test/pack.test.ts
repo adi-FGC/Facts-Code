@@ -112,14 +112,20 @@ function makeAgent(): AgentArtifact {
 }
 
 describe('encodeAgentPack — shape + content', () => {
-  it('emits a header line with producer + schema + snapshotId + rowCount', () => {
+  it('emits a v4 header line with producer + schema + snapshotId + rowCount + chain fields', () => {
     const pack = encodeAgentPack(makeAgent());
-    expect(pack.startsWith('# factstack/0.3.10\tagent-v3\t')).toBe(true);
+    expect(pack.startsWith('# factstack/0.3.10\tagent-v4\t')).toBe(true);
+    // v0.2 chain fields are appended after rowCount: seq, parent, kind, generated.
+    const header = pack.split('\n', 1)[0] as string;
+    const fields = header.replace(/^# /, '').split('\t');
+    expect(fields.length).toBeGreaterThanOrEqual(8);
+    expect(fields[6]).toMatch(/^(master|diff)$/);
   });
 
-  it('emits all ten tables in fixed order', () => {
+  it('emits all thirteen tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
+      pack.indexOf('& top'),
       pack.indexOf('& files'),
       pack.indexOf('& imports'),
       pack.indexOf('& routes'),
@@ -130,9 +136,12 @@ describe('encodeAgentPack — shape + content', () => {
       pack.indexOf('& calls'),
       pack.indexOf('& nodeMetrics'),
       pack.indexOf('& rationale'),
+      pack.indexOf('& entities'),
+      pack.indexOf('& entityEdges'),
     ];
     // Every table is present (F2 added symbols + calls; F5 added nodeMetrics;
-    // F10 added rationale) — emitted even when empty.
+    // F10 added rationale; F11 added entities + entityEdges; the agent-v4 `top`
+    // digest leads) — emitted even when empty, so the 13-table shape is stable.
     expect(order.every((i) => i >= 0)).toBe(true);
     // And in the documented order.
     for (let i = 1; i < order.length; i++) {
@@ -140,7 +149,7 @@ describe('encodeAgentPack — shape + content', () => {
     }
   });
 
-  it('F5: nodeMetrics table carries importance + community (agent-v3)', () => {
+  it('F5: nodeMetrics table carries importance + community', () => {
     const agent = makeAgent();
     agent.graph.nodes = [
       { id: 'src/auth.ts', path: 'src/auth.ts', language: 'typescript', loc: 80, tokenCost: 320, status: 'ok', importance: 1, community: 0 },
@@ -176,7 +185,7 @@ describe('encodeAgentPack — shape + content', () => {
     expect(pack.slice(pack.indexOf('& calls'))).toContain('call'); // edge kind literal
   });
 
-  it('F1: imports table carries a conf column; edges default to extracted (agent-v3)', () => {
+  it('F1: imports table carries a conf column; edges default to extracted', () => {
     const pack = encodeAgentPack(makeAgent());
     const afterImports = pack.slice(pack.indexOf('& imports'));
     const importsTable = afterImports.slice(0, afterImports.indexOf('& routes'));
@@ -251,15 +260,73 @@ describe('encodeAgentPack — shape + content', () => {
   });
 });
 
+describe('encodeAgentPack — top table ranking (agent-v4)', () => {
+  type Node = NonNullable<AgentArtifact['graph']['nodes']>[number];
+  const node = (path: string, importance: number | undefined, extra: Partial<Node> = {}): Node => ({
+    id: path, path, language: 'typescript', loc: 5, tokenCost: 20, status: 'ok', community: 0,
+    ...(importance != null ? { importance } : {}),
+    ...extra,
+  });
+
+  it('caps at the 20 most important files, ranked by importance descending', () => {
+    const agent = makeAgent();
+    // 25 files with importance 0.01 … 0.25 — only the top 20 (0.06 … 0.25) survive.
+    agent.graph.nodes = Array.from({ length: 25 }, (_, i) => node(`f${i}.ts`, (i + 1) / 100));
+    const top = decode(encodeAgentPack(agent)).tables.get('top')!;
+    expect(top.rows).toHaveLength(20); // TOP_FILES cap
+    expect(top.rows[0]![0]).toBe('f24.ts'); // highest importance first
+    expect(top.rows[0]![1]).toBe('0.25');
+    expect(top.rows[19]![0]).toBe('f5.ts'); // 20th = importance 0.06; f0..f4 dropped
+    const imps = top.rows.map((r) => Number(r[1]));
+    for (let i = 1; i < imps.length; i++) expect(imps[i]!).toBeLessThanOrEqual(imps[i - 1]!);
+  });
+
+  it('excludes nodes with null importance (never ranked)', () => {
+    const agent = makeAgent();
+    agent.graph.nodes = [node('ranked.ts', 0.9), node('unranked.ts', undefined)];
+    const top = decode(encodeAgentPack(agent)).tables.get('top')!;
+    expect(top.rows.map((r) => r[0])).toEqual(['ranked.ts']);
+  });
+
+  it('breaks importance ties by path ascending (byte-determinism)', () => {
+    const agent = makeAgent();
+    agent.graph.nodes = [node('zeta.ts', 0.5), node('alpha.ts', 0.5)];
+    const top = decode(encodeAgentPack(agent)).tables.get('top')!;
+    expect(top.rows.map((r) => r[0])).toEqual(['alpha.ts', 'zeta.ts']);
+  });
+
+  it('reports in_deg from node.callers when present', () => {
+    const agent = makeAgent();
+    agent.graph.nodes = [node('hub.ts', 0.9, { callers: ['x.ts', 'y.ts', 'z.ts'] })];
+    const top = decode(encodeAgentPack(agent)).tables.get('top')!;
+    expect(top.rows[0]![2]).toBe('3');
+  });
+
+  it('falls back to counting import edges for in_deg when callers are absent', () => {
+    const agent = makeAgent(); // has two edges src/auth.ts -> src/users.ts (import + type-import)
+    agent.graph.nodes = [node('src/users.ts', 0.9)];
+    const top = decode(encodeAgentPack(agent)).tables.get('top')!;
+    expect(top.rows.find((r) => r[0] === 'src/users.ts')![2]).toBe('2');
+  });
+});
+
 describe('encodeAgentPack — byte cost', () => {
-  it('produces measurably less than the equivalent JSON for tabular content', () => {
+  it('data rows beat JSON; the fixed self-description overhead stays bounded', () => {
     const agent = makeAgent();
     const pack = encodeAgentPack(agent);
     const json = JSON.stringify(agent);
-    /* On this 2-file fixture the win is small (intern density is low),
-       but even here PACK should beat JSON by a noticeable margin. The
-       50%-on-real-data measurement happens in the workspace-level
+    /* v0.2 carries a fixed self-description block (legend, hot hints, trailer)
+       that amortizes to noise on real repos but dominates this 2-file fixture.
+       So the compression property is asserted on the DATA portion, and the
+       overhead is pinned separately so it can't silently balloon. */
+    const meta = pack
+      .split('\n')
+      .filter((l) => l.startsWith('; '))
+      .join('\n');
+    const dataLength = pack.length - meta.length;
+    expect(dataLength).toBeLessThan(json.length);
+    expect(meta.length).toBeLessThan(3500);
+    /* The 50%-on-real-data measurement happens in the workspace-level
        integration test against .facts/agent.json. */
-    expect(pack.length).toBeLessThan(json.length);
   });
 });

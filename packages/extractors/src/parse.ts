@@ -69,7 +69,7 @@ function plugins(kind: 'js' | 'ts', ext: string): ParserPlugin[] {
  * adversary-resistant). The SQLite-backed cache in v0.3 can swap in a
  * real digest (sha256) where needed; this is just a per-session key.
  */
-function djb2(s: string): string {
+export function djb2(s: string): string {
   let h = 5381;
   for (let i = 0; i < s.length; i++) {
     h = ((h << 5) + h + s.charCodeAt(i)) | 0;

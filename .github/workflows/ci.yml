@@ -48,3 +48,12 @@ jobs:
             if (typeof j.agentPath !== 'string') throw new Error('agentPath missing');
             console.log('[smoke] files=' + j.stats.fileCount + ' loc=' + j.stats.loc + ' risks=' + j.risks);
           "
+
+      # Determinism gate (F13): re-run the benchmark over the committed corpus and
+      # fail if the byte output drifts from bench/expected.json. Runs on every OS in
+      # the matrix, which also verifies the corpus .gitattributes LF pinning keeps
+      # the numbers byte-identical across platforms. Repin via `pnpm bench:update`
+      # after an intentional corpus/task change. (Honors bench/README.md.)
+      - name: Bench — determinism gate
+        shell: bash
+        run: ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts bench --check

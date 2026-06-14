@@ -20,10 +20,15 @@
  */
 
 import type { AgentArtifact, HumanArtifact, Risk } from '@factstack/spec';
+import type { ContextStore } from './learnings.js';
 
 export const MEMORY_SCHEMA_VERSION = 'factstack-memory.v1' as const;
 
 const TRUNCATE_FRAMEWORKS = 8;
+const TRUNCATE_WORKING_TASKS = 5;
+const TRUNCATE_WORKING_DECISIONS = 3;
+const TRUNCATE_WORKING_QUESTIONS = 3;
+const WORKING_TEXT_MAX = 140;
 const TRUNCATE_RISKS = 8;
 const TRUNCATE_ACTIVITY = 5;
 const TRUNCATE_KEY_FILES = 8;
@@ -32,13 +37,23 @@ const TRUNCATE_ROUTES_PER_GROUP = 6;
 const TRUNCATE_CAPABILITIES = 6;
 const ONELINER_MAX_LEN = 280;
 
+/** Collapse whitespace + cap a working-context line so the section stays small. */
+function truncateWorking(s: string): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > WORKING_TEXT_MAX ? t.slice(0, WORKING_TEXT_MAX - 1) + '…' : t;
+}
+
 /**
  * Render a MEMORY.md brief for the given analysis.
  *
  * Caller (CLI / MCP server) is responsible for writing to disk. This
  * module stays isomorphic — no Node imports.
  */
-export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string {
+export function buildMemory(
+  agent: AgentArtifact,
+  human: HumanArtifact,
+  opts: { contextStore?: ContextStore } = {},
+): string {
   const sections: string[] = [];
 
   // ── Header ────────────────────────────────────────────────────────
@@ -96,6 +111,31 @@ export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string 
   if (agent.stats.fileCount === 0) {
     sections.push('');
     sections.push('_No source files yet — analyze a populated project to fill out this brief._');
+  }
+
+  // ── Working context (F9) — durable tasks / decisions / questions an agent
+  //    or human recorded in the learnings log. Omitted entirely when empty
+  //    (section-omission contract). Capped + text-truncated to defend the size
+  //    budget. The caller passes the aggregated store (read from the log). ──
+  const store = opts.contextStore;
+  if (store && (store.tasks.length || store.decisions.length || store.openQuestions.length)) {
+    sections.push('');
+    sections.push('## Working context');
+    if (store.tasks.length) {
+      sections.push('');
+      sections.push('**Open tasks**');
+      for (const t of store.tasks.slice(0, TRUNCATE_WORKING_TASKS)) sections.push(`- [ ] ${truncateWorking(t.text)}`);
+    }
+    if (store.decisions.length) {
+      sections.push('');
+      sections.push('**Recent decisions**');
+      for (const d of store.decisions.slice(0, TRUNCATE_WORKING_DECISIONS)) sections.push(`- ${truncateWorking(d.text)}`);
+    }
+    if (store.openQuestions.length) {
+      sections.push('');
+      sections.push('**Open questions**');
+      for (const q of store.openQuestions.slice(0, TRUNCATE_WORKING_QUESTIONS)) sections.push(`- ${truncateWorking(q.text)}`);
+    }
   }
 
   // ── Capabilities ──────────────────────────────────────────────────

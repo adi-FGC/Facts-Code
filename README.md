@@ -4,6 +4,24 @@
 
 **Status:** v0.2 (analyzer + UI + MCP server + watch + diff + query)
 
+## Positioning
+
+FACTS is built on one principle: **make codebase analysis useful and not scary for new
+programmers — and legible to CXOs, new CTOs, and investors** at the same time. One pass
+produces both views: the agent map for the people (and agents) writing code, the
+executive dashboard for the people deciding about it.
+
+It is **free so far**, and deliberately focused: a helper and a **token saver** for
+programming and testing — agents read the cached map instead of re-reading your tree.
+A **premium SaaS tier is planned**: prompts, skills, and MCPs that drop FACTS into any
+coding-agent workflow.
+
+Sibling products (parallel, not parents): **facts-open** — the free, open-source
+drop-in codebase viewer (formerly facts-tree) — and **facts+** — the premium cited
+UI/UX/accessibility audit grader for anyone building and maintaining apps and websites.
+The token-compressed **`.pack` artifact is a cornerstone FACTS shares with facts+**;
+the facts-open line never used it — its agent surface is plain JSON.
+
 ---
 
 ## What ships today

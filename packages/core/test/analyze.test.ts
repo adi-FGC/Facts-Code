@@ -453,3 +453,158 @@ describe('analyze — graph metrics (F5)', () => {
     expect(typeof hUtil.community).toBe('number');
   });
 });
+
+describe('analyze — read failures are never status ok (facts+ eval regression)', () => {
+  // Real-world eval: packages/audit/src/engine.ts (338 lines, 11.9 KB) was
+  // recorded as `status ok, loc 0, tok 0, lang other` after a transient
+  // read failure — and an agent reading the pack concluded the audit
+  // engine was empty. A silently-wrong row is worse than no data.
+  function alwaysFailingReadFS(files: Record<string, string>, failPath: string) {
+    const base = memoryFS(files);
+    return {
+      readFile: (p: string) => base.readFile(p),
+      readText: async (p: string) => {
+        if (base.normalize(p) === failPath) throw new Error('EBUSY: resource busy or locked');
+        return base.readText(p);
+      },
+      readDir: (p: string) => base.readDir(p),
+      stat: (p: string) => base.stat(p),
+      readlink: (p: string) => base.readlink(p),
+      normalize: (p: string) => base.normalize(p),
+      join: (...s: string[]) => base.join(...s),
+    };
+  }
+
+  it('marks an unreadable file read_error (not ok) and emits a read-error risk', async () => {
+    const engineSource = 'export function runAudit() {\n  return 42;\n}\n'.repeat(20);
+    const fs = alwaysFailingReadFS(
+      {
+        'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+        'src/engine.ts': engineSource,
+        'src/other.ts': 'export const y = 1;\n',
+      },
+      'src/engine.ts',
+    );
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+
+    const row = r.agent.files.find((f) => f.path === 'src/engine.ts')!;
+    expect(row).toBeDefined();
+    expect(row.status).toBe('read_error');
+    // The extension still tells us the language even when content is unreadable.
+    expect(row.language).toBe('typescript');
+    // bytes come from stat — the row must not look like an empty file.
+    expect(row.bytes).toBeGreaterThan(0);
+
+    const risk = r.agent.risks.find((k) => k.category === 'read-error' && k.file === 'src/engine.ts');
+    expect(risk).toBeDefined();
+    expect(risk!.severity).toBe('medium');
+
+    // Health rolls the misread file into `broken` so dashboards surface it.
+    expect(r.human.summary.health.broken).toBeGreaterThanOrEqual(1);
+
+    // The readable sibling is unaffected.
+    expect(r.agent.files.find((f) => f.path === 'src/other.ts')!.status).toBe('ok');
+  });
+
+  it('recovers via the walker retry when the failure is transient', async () => {
+    const base = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'src/engine.ts': 'export const x = 1;\n',
+    });
+    let failures = 1;
+    const fs = {
+      readFile: (p: string) => base.readFile(p),
+      readText: async (p: string) => {
+        if (base.normalize(p) === 'src/engine.ts' && failures > 0) {
+          failures--;
+          throw new Error('EBUSY');
+        }
+        return base.readText(p);
+      },
+      readDir: (p: string) => base.readDir(p),
+      stat: (p: string) => base.stat(p),
+      readlink: (p: string) => base.readlink(p),
+      normalize: (p: string) => base.normalize(p),
+      join: (...s: string[]) => base.join(...s),
+    };
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+    const row = r.agent.files.find((f) => f.path === 'src/engine.ts')!;
+    expect(row.status).toBe('ok');
+    expect(row.loc).toBeGreaterThan(0);
+    expect(r.agent.risks.some((k) => k.category === 'read-error')).toBe(false);
+  });
+});
+
+describe('analyze — unresolved imports into unscanned directories (dist/)', () => {
+  it('diagnoses an import that exists on disk under dist/ as unscanned-import (low), not "removed or stale"', async () => {
+    // facts+ eval: worker/audit.ts imports ../packages/runtime/dist/axe-map.js;
+    // the file exists after a build, but dist/ is never walked. The old
+    // message claimed "dependency removed or path stale" — wrong diagnosis.
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'worker/audit.ts': "import { axeMap } from '../packages/runtime/dist/axe-map.js';\nexport const m = axeMap;\n",
+      'packages/runtime/dist/axe-map.js': 'export const axeMap = {};\n',
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+
+    const risks = r.agent.risks.filter((k) => k.file === 'worker/audit.ts');
+    const unscanned = risks.find((k) => k.rule === 'unscanned-import');
+    expect(unscanned).toBeDefined();
+    expect(unscanned!.severity).toBe('low');
+    expect(risks.some((k) => k.rule === 'unresolved-import')).toBe(false);
+    // A buildable import must not count the file as broken.
+    expect(r.human.summary.health.broken).toBe(0);
+  });
+
+  it('still reports a truly-missing relative import as unresolved-import (medium)', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'src/a.ts': "import { x } from './missing.js';\nexport const y = x;\n",
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+    const risk = r.agent.risks.find((k) => k.rule === 'unresolved-import' && k.file === 'src/a.ts');
+    expect(risk).toBeDefined();
+    expect(risk!.severity).toBe('medium');
+  });
+});
+
+describe('analyze — source files sniffed as binary are not silent', () => {
+  it('analyzes a source file with a single embedded NUL normally (facts+ engine.ts root cause)', async () => {
+    // The actual root cause of the eval miss: ONE literal NUL inside a
+    // template string tripped the binary sniff, and the skip was recorded
+    // as `ok` with loc 0.
+    const source = 'export function cacheKey(files: string[]): string {\n' +
+      '  return files.map((f) => `${f}\0suffix`).join("|");\n' +
+      '}\n' + '// padding\n'.repeat(300);
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'src/engine.ts': source,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+    const row = r.agent.files.find((f) => f.path === 'src/engine.ts')!;
+    expect(row.status).toBe('ok');
+    expect(row.loc).toBeGreaterThan(300);
+    expect(row.tokenCost).toBeGreaterThan(0);
+    expect(row.language).toBe('typescript');
+  });
+
+  it('marks a genuinely NUL-heavy source file read_error with a binary-source risk', async () => {
+    const utf16ish = 'c\0o\0n\0s\0t\0 \0x\0 \0=\0 \x001\0;\0\n\0'.repeat(50);
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'src/weird.ts': utf16ish,
+      'assets/logo.png': '\x89PNG\0\0\0\rIHDR\0\0',
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+
+    const weird = r.agent.files.find((f) => f.path === 'src/weird.ts')!;
+    expect(weird.status).toBe('read_error');
+    const risk = r.agent.risks.find((k) => k.rule === 'binary-source' && k.file === 'src/weird.ts');
+    expect(risk).toBeDefined();
+
+    // A real binary asset stays a quiet `ok` — loc 0 is the truth there.
+    const png = r.agent.files.find((f) => f.path === 'assets/logo.png')!;
+    expect(png.status).toBe('ok');
+    expect(r.agent.risks.some((k) => k.file === 'assets/logo.png')).toBe(false);
+  });
+});

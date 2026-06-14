@@ -9,7 +9,9 @@
  *     __pycache__, .venv, .git, vendor, target, coverage, .pnpm-store,
  *     .playwright-mcp, playwright-report, test-results.
  *   - Symlink loop detection via visited set of resolved paths.
- *   - Binary sniff: first 8 KB; skip if a null byte appears.
+ *   - Binary sniff: first 8 KB; skip when NUL bytes are frequent (>2, or
+ *     dense in a short head). A single stray NUL in otherwise-normal text
+ *     does NOT mark the file binary — source files legitimately embed one.
  *   - File size cap: default 1 MB, configurable.
  */
 
@@ -53,6 +55,17 @@ function isNoiseArtifact(name: string): boolean {
 }
 
 const IGNORE_FILES = ['.gitignore', '.dockerignore', '.cursorignore', '.aiignore', '.factsignore'];
+
+/** Pause before the single read retry — long enough for an editor save or
+ *  AV scan to release the file, short enough to be invisible on the rare
+ *  failing file. Only paid on the failure path. */
+const READ_RETRY_DELAY_MS = 50;
+
+/* This package compiles against the bare ES lib (no DOM, no @types/node)
+ * so the same build runs in Node and the browser. `setTimeout` exists in
+ * both runtimes but neither type lib is loaded — declare the one shape
+ * we use. */
+declare function setTimeout(cb: () => void, ms: number): unknown;
 
 export interface WalkOptions {
   /** Maximum bytes to read per file. Larger files are flagged but not parsed. */
@@ -171,8 +184,18 @@ async function* walkDir(
     try {
       text = await fs.readText(entry.path);
     } catch {
-      yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'read_error');
-      continue;
+      // Transient failures are real: an editor mid-save, an antivirus lock
+      // (Windows), or an mtime race when the file changed between stat and
+      // read. One delayed retry recovers those; a persistent failure falls
+      // through to `read_error` so downstream NEVER records the file as
+      // read-but-empty.
+      text = await new Promise<string | null>((resolve) =>
+        setTimeout(() => fs.readText(entry.path).then(resolve, () => resolve(null)), READ_RETRY_DELAY_MS),
+      );
+      if (text == null) {
+        yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'read_error');
+        continue;
+      }
     }
     if (isBinary(text)) {
       yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'binary');
@@ -217,9 +240,23 @@ function parseIgnore(content: string): string[] {
 }
 
 function isBinary(text: string): boolean {
-  // Sniff up to 8 KB of characters for NUL
+  // Sniff up to 8 KB of characters for NUL — but COUNT, don't test
+  // presence. Real binary formats (length-prefixed chunks, executables,
+  // UTF-16-decoded-as-UTF-8) produce many NULs; source code occasionally
+  // embeds a single literal `\0` as a string separator. A real 338-line
+  // TS file was misclassified binary — and packed as loc 0 / "ok" —
+  // because of ONE legitimate NUL inside a template literal.
   const head = text.slice(0, 8192);
-  return head.includes('\0');
+  let nuls = 0;
+  for (let i = 0; i < head.length; i++) {
+    if (head.charCodeAt(i) === 0) {
+      nuls++;
+      if (nuls > 2) return true;
+    }
+  }
+  // 1–2 NULs: binary only when they're dense (tiny header-like blobs),
+  // text when they're stray characters in thousands of normal ones.
+  return nuls > 0 && nuls / head.length > 0.005;
 }
 
 function relativeTo(base: string, p: string, fs: FactsFS): string {

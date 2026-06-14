@@ -51,6 +51,27 @@ describe('detectFileBasedRoutes', () => {
     const r = detectFileBasedRoutes('pages/users/[userId].tsx');
     expect(r[0]?.path).toBe('/users/:userId');
   });
+
+  it('maps the React Router index route to "/" (routes/index.jsx → /, not /index)', () => {
+    // Real-world ecom case: src/routes/index.jsx declares the `/` route,
+    // but the pack listed `GET /index` — a route that doesn't exist.
+    const r = detectFileBasedRoutes('src/routes/index.jsx');
+    expect(r[0]?.path).toBe('/');
+  });
+
+  it('maps Remix v2 _index to "/"', () => {
+    const r = detectFileBasedRoutes('app/routes/_index.tsx');
+    expect(r[0]?.path).toBe('/');
+  });
+
+  it('drops nested index segments (blog.index → /blog, blog/index → /blog)', () => {
+    expect(detectFileBasedRoutes('app/routes/blog.index.tsx')[0]?.path).toBe('/blog');
+    expect(detectFileBasedRoutes('app/routes/blog/index.tsx')[0]?.path).toBe('/blog');
+  });
+
+  it('does not strip "index" appearing inside a longer segment name', () => {
+    expect(detectFileBasedRoutes('src/routes/windex.tsx')[0]?.path).toBe('/windex');
+  });
 });
 
 describe('detectSourceRoutes', () => {

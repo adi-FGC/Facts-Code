@@ -213,7 +213,13 @@ const CAP_MAIN_JS_RAW = 380 * 1024;
 // remains the committed structural fix; this 2 KB keeps the binding gz rail
 // honest until that lands.
 const CAP_MAIN_JS_GZ = 102 * 1024;
-const CAP_WORKER_JS_RAW = 600 * 1024;
+// 2026-06-10 — lazy JS raw 600 → 640 KB. The graph-intelligence wave's lazy
+// chunks grew ~13 KB raw (Sugiyama community coloring in SugiyamaDag/DagControls
+// + entity-aware graph views riding the dynamically-imported route chunks); the
+// previous build sat at 598.9/600 with no headroom. The BINDING wire-cost rail
+// (gz 200 KB) is untouched with ~26 KB headroom (173.6 used) — this bump only
+// moves the raw sanity rail to match feature reality.
+const CAP_WORKER_JS_RAW = 640 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;
 const CAP_CSS_GZ = 8 * 1024;

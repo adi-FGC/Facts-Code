@@ -5,6 +5,8 @@ export type { EmitProfile } from './orchestrator.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
 export { encodeAgentPack } from './pack.js';
+export { exportGraph, toGraphML, toJsonGraph, graphExportFilename } from './graph-export.js';
+export type { GraphExportFormat } from './graph-export.js';
 /* NodeFileWriter is exported for callers that need a Node-backed
  * FileWriter scoped to something other than `.facts/` (e.g.
  * `factstack export-skills` writes at the project root). */

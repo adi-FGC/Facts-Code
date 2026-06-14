@@ -39,6 +39,13 @@ export interface ResolverContext {
    * being dropped as "external".
    */
   aliases?: AliasRule[];
+  /**
+   * F6 — Go modules declared by the repo's go.mod files: the `module` name +
+   * the root-relative directory containing that go.mod ('' for repo root).
+   * Lets module-absolute Go imports ("example.com/shop/internal/auth")
+   * resolve to project packages. Optional — non-Go repos omit it.
+   */
+  goModules?: Array<{ module: string; dir: string }>;
 }
 
 /**
@@ -101,6 +108,43 @@ function isPythonPath(p: string): boolean {
   return p.endsWith('.py') || p.endsWith('.pyi');
 }
 
+/** Is this importer a Go file? Affects how we resolve specifiers. */
+function isGoPath(p: string): boolean {
+  return p.endsWith('.go');
+}
+
+/**
+ * F6 — resolve a Go import path within the repo. Go imports are
+ * module-absolute ("example.com/shop/internal/auth"): a specifier resolves
+ * internally when it extends a module name declared by one of the repo's
+ * go.mod files. The import target is a PACKAGE (a directory), but the
+ * dependency graph is file-level — so we resolve to the package's
+ * lexicographically-first non-test .go file as its stable representative.
+ * Deterministic, and exactly right for "which package does this file depend
+ * on" edges. Anything not under a known module (stdlib "fmt", third-party
+ * modules) is external → null, same as npm packages.
+ */
+function resolveGoSpecifier(spec: string, ctx: ResolverContext): string | null {
+  for (const m of ctx.goModules ?? []) {
+    let rel: string | null = null;
+    if (spec === m.module) rel = '';
+    else if (spec.startsWith(m.module + '/')) rel = spec.slice(m.module.length + 1);
+    if (rel === null) continue;
+    const dir = m.dir ? (rel ? `${m.dir}/${rel}` : m.dir) : rel;
+    const prefix = dir ? dir + '/' : '';
+    let best: string | null = null;
+    for (const f of ctx.files) {
+      if (!f.endsWith('.go') || f.endsWith('_test.go')) continue;
+      if (!f.startsWith(prefix)) continue;
+      const rest = f.slice(prefix.length);
+      if (rest.includes('/')) continue; // a package is exactly one directory deep
+      if (best === null || f < best) best = f;
+    }
+    if (best) return best;
+  }
+  return null;
+}
+
 /** Python stdlib modules we shouldn't try to resolve inside the project. */
 const PYTHON_STDLIB = new Set([
   'os', 'sys', 're', 'json', 'math', 'datetime', 'time', 'random', 'subprocess',
@@ -126,6 +170,11 @@ export function resolveSpecifier(
   // ── Python path ────────────────────────────────────────────────────────
   if (isPythonPath(importerPath)) {
     return resolvePythonSpecifier(spec, importerPath, ctx);
+  }
+
+  // ── Go path (F6) ─────────────────────────────────────────────────────────
+  if (isGoPath(importerPath)) {
+    return resolveGoSpecifier(spec, ctx);
   }
 
   if (isRelative(spec)) {

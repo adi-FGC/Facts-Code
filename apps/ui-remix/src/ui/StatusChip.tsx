@@ -8,7 +8,7 @@
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
 
-type Kind = 'ok' | 'broken' | 'stale' | 'parse_error' | 'high' | 'critical' | 'medium' | 'low' | 'info';
+type Kind = 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error' | 'high' | 'critical' | 'medium' | 'low' | 'info';
 
 interface StatusChipProps {
   kind: Kind;
@@ -21,6 +21,7 @@ const KIND_LABEL: Record<Kind, string> = {
   broken: 'BROKEN',
   stale: 'STALE',
   parse_error: 'PARSE',
+  read_error: 'UNREAD',
   high: 'HIGH',
   critical: 'CRITICAL',
   medium: 'MEDIUM',
@@ -33,6 +34,7 @@ const KIND_COLOR: Record<Kind, string> = {
   broken: 'var(--danger)',
   stale: 'var(--warn)',
   parse_error: 'var(--danger)',
+  read_error: 'var(--danger)',
   high: 'var(--warn)',
   critical: 'var(--danger)',
   medium: 'var(--info)',

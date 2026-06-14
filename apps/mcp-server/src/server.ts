@@ -43,9 +43,14 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import {
   analyze,
+  assembleContext,
   buildChangeVerdict,
+  buildContextStore,
   buildMemory,
   buildDiagram,
+  lastServedEntities,
+  recentSessionEntities,
+  sessionActionEvent,
   executeQuery,
   runGraphQuery,
   planFromQuestion,
@@ -66,12 +71,22 @@ import {
   getConfigToPack,
   queryLearningsToPack,
   subgraphToPack,
+  contextToPack,
   verbResultNodes,
   packSnapshotId,
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
-import { approximateTokens } from '@factstack/scanners';
+import {
+  approximateTokens,
+  flattenManifests,
+  normalizeNpmVersion,
+  noopCache,
+  osvResultsToVulnerabilities,
+  queryOsvBatch,
+  reconcileVulnerabilities,
+  type OsvQuery,
+} from '@factstack/scanners';
 import { extractOutline } from '@factstack/extractors';
 import {
   FACTS_MCP_URI_SCHEME,
@@ -80,6 +95,7 @@ import {
   QueryGraphInputSchema,
   QueryInputSchema,
   CountTokensInputSchema,
+  ContextInputSchema,
   jsonSchemaByKind,
   MCP_TOOL,
   type AgentArtifact,
@@ -112,7 +128,14 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     gzip: gzippedBytes,
     gitStats: mineGitStats(root),
   });
-  const memoryBody = buildMemory(result.agent, result.human);
+  // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
+  // network-free per INV6 and returns an empty list). Mirrors the CLI.
+  restoreVulnScanInto(result.agent);
+  // F9 — fold the durable context store (decisions / open tasks / questions
+  // recorded in learnings.jsonl) into MEMORY.md's "Working context" section.
+  const memoryBody = buildMemory(result.agent, result.human, {
+    contextStore: buildContextStore(readLearnings()),
+  });
   await writeArtifacts({
     root,
     agent: result.agent,
@@ -348,7 +371,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       // Foundation for the v0.6 trust framework — every accepted vs
       // rejected proposal accumulates as calibration data.
       name: MCP_TOOL.log_learning,
-      description: 'Append a proposal/outcome event to .facts/learnings.jsonl. Use to record what your agent proposed and whether the human accepted, rejected, or left it pending. Required: agent (your stable id), action (verb-form, ≤64 chars), outcome (accepted|rejected|pending|self-calibrate). Optional: model, ticketId, reasoning, filesAffected, confidence (0..1), tags.',
+      description: 'Append a proposal/outcome event to .facts/learnings.jsonl. Use to record what your agent proposed and whether the human accepted, rejected, or left it pending. Required: agent (your stable id), action (verb-form, ≤64 chars), outcome (accepted|rejected|pending|self-calibrate). Optional: model, ticketId, reasoning, filesAffected, confidence (0..1), tags. F9 conventions: action decision|fact|task|question records DURABLE working context (text in `reasoning`; outcome pending = open task/question, re-log with accepted to close) — it surfaces in MEMORY.md\'s Working context and biases get_context; action served|read|edited|queried records session activity (entity ids in filesAffected) that re-ranks the next get_context call.',
       inputSchema: {
         type: 'object',
         required: ['agent', 'action', 'outcome'],
@@ -416,13 +439,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
          Empty when scan-vulns hasn't been run; tells the agent
          explicitly so it can advise running it. */
       name: MCP_TOOL.list_vulnerabilities,
-      description: 'List known CVE/GHSA advisories matched against the project\'s dependency manifests. Populated by the opt-in `factstack scan-vulns` subcommand (queries OSV.dev). Returns {findings, lastChecked, manifestCount}. When findings is empty AND lastChecked is null, scan-vulns has not been run yet — the agent should advise running it. Filterable by severity / ecosystem / package name.',
+      description: 'List known CVE/GHSA advisories matched against the project\'s dependency manifests. Returns {findings, scan, scanAgeDays, stale, lastChecked, manifestCount}. `scan` carries the last scan\'s metadata (scannedAt, packagesQueried, findings) — scan:null means never scanned; scan present with findings:0 means scanned-and-clean. When `stale` is true (scan older than 7 days) or scan is null, pass refresh:true to UPDATE the list: it re-queries OSV.dev live and persists the result into .facts/ (survives future re-analyzes). Refresh is the only network call; plain listing reads the artifact. Filterable by severity / ecosystem / package name.',
       inputSchema: {
         type: 'object',
         properties: {
           severity:  { type: 'string', enum: ['critical', 'high', 'medium', 'low', 'unknown'] },
           ecosystem: { type: 'string', enum: ['npm', 'pypi', 'cargo', 'go', 'maven', 'rubygems', 'unknown'] },
           package:   { type: 'string', description: 'Filter to advisories affecting this exact package name.' },
+          refresh:   { type: 'boolean', description: 'Re-query OSV.dev live and persist the updated list + scan metadata before returning (the update mechanism). Default false (artifact read only).', default: false },
         },
       },
     },
@@ -466,6 +490,21 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: MCP_TOOL.get_context,
+      description: 'F4 — assemble a task-scoped, ranked, token-budgeted CONTEXT BLOCK for a coding task. Give a free-text `query` (e.g. "add a role field to User") and optionally explicit `seeds`; FACTS resolves seeds in the graph, expands `maxHops` (default 2), ranks candidates by importance (PageRank) + proximity + name-match + recency, and packs the best anchors under `budgetTokens` (default 8000). Returns a FactsPack `context-v1`: ranked file/symbol anchors with file:line citations + per-item token cost, plus the connecting edges. Read this UP FRONT instead of issuing many exploratory reads. Seeds are never dropped; a budget-capped or cold-start (no match) result is flagged in `meta`. PACK by default; pass format:"json" for JSON.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The coding task in plain words, e.g. "add a role field to User".' },
+          seeds: { type: 'array', items: { type: 'string' }, description: 'Optional explicit seed file paths or symbol ids to anchor on.' },
+          budgetTokens: { type: 'number', description: 'Token budget for the assembled context (default 8000).', default: 8000 },
+          maxHops: { type: 'number', description: 'Graph expansion radius from the seeds (default 2).', default: 2 },
+          format: { type: 'string', enum: ['pack', 'json'], description: 'Response shape (default pack).', default: 'pack' },
+        },
+        required: ['query'],
+      },
+    },
   ],
 }));
 
@@ -502,11 +541,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const versionInfo = {
       facts: '0.1.0',
       schemas: {
-        agent: 'agent-v3',     // agent.pack wire format (F1: `conf`; F2: symbols/calls; F5: nodeMetrics). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
+        agent: 'agent-v4',     // agent.pack wire format (FactsPack standard v0.2: in-band `;` legend + hot hints, sha256 trailer, leading `top` table, unified F namespace, mtime_d, chain header fields). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
         human: 'human.v1',     // human.json
         memory: 'factstack-memory.v1',
         learnings: 'factstack-learnings.v1',
-        pack: { agent: 'agent-v3', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v2', learnings: 'learnings-v1', queryGraph: 'query-graph-v1', subgraph: 'subgraph-v1' },
+        pack: { agent: 'agent-v4', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v2', learnings: 'learnings-v1', queryGraph: 'query-graph-v1', subgraph: 'subgraph-v1' },
       },
       producer: 'factstack-mcp/0.3.11',
     };
@@ -704,6 +743,48 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
      "scan ran, zero findings" so agents can react accordingly. */
   if (name === MCP_TOOL.list_vulnerabilities) {
     if (!cached) await ensureAnalyzed();
+
+    /* v0.11 — refresh: re-query OSV.dev live and PERSIST, so agents can
+       update the vulnerability list on demand instead of waiting for a human
+       `scan-vulns` run. Opt-in network (analyze itself stays network-free,
+       INV6). The persisted artifact + scan metadata then survive future
+       re-analyzes via restoreVulnScanInto. */
+    if (args.refresh === true) {
+      const flat = flattenManifests(cached!.agent.dependencyManifests);
+      const queries: OsvQuery[] = [];
+      let skipped = 0;
+      for (const e of flat) {
+        const concrete = e.ecosystem === 'npm' ? normalizeNpmVersion(e.version) : e.version;
+        if (!concrete) { skipped++; continue; }
+        queries.push({ ecosystem: e.ecosystem, name: e.name, version: concrete, manifestPath: e.manifestPaths[0] ?? '' });
+      }
+      try {
+        const results = await queryOsvBatch(queries, { cache: noopCache });
+        const vulnerabilities = osvResultsToVulnerabilities(results);
+        const nextAgent: AgentArtifact = {
+          ...cached!.agent,
+          vulnerabilities,
+          vulnerabilityScan: {
+            scannedAt: new Date().toISOString(),
+            source: 'osv.dev',
+            packagesQueried: queries.length,
+            packagesSkipped: skipped,
+            findings: vulnerabilities.length,
+          },
+        };
+        const memoryBody = buildMemory(nextAgent, cached!.human, { contextStore: buildContextStore(readLearnings()) });
+        await writeArtifacts({ root, agent: nextAgent, human: cached!.human, addGitignoreEntry: false, memoryBody });
+        cached = { agent: nextAgent, human: cached!.human, memory: memoryBody };
+      } catch (err) {
+        /* A failed refresh must NEVER look like a successful empty scan —
+           return an explicit error; the stale data stays untouched on disk. */
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `OSV refresh failed: ${(err as Error).message}`, hint: 'Network/OSV.dev issue — the previously scanned data is unchanged. Retry later or run `factstack scan-vulns`.' }) }],
+          isError: true,
+        };
+      }
+    }
+
     const sev = args.severity as string | undefined;
     const eco = args.ecosystem as string | undefined;
     const pkg = args.package as string | undefined;
@@ -712,21 +793,30 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (eco) findings = findings.filter((v) => v.ecosystem === eco);
     if (pkg) findings = findings.filter((v) => v.package === pkg);
     /* Most-recent lastChecked across all findings — null when array
-       is empty. This is how the caller distinguishes "scan never ran"
-       from "scan ran, found nothing." */
+       is empty. Kept for backward compat; `scan` (v0.11) is the better
+       signal because it also marks a scanned-and-CLEAN artifact. */
     const lastChecked = cached!.agent.vulnerabilities.reduce(
       (m, v) => Math.max(m, v.lastChecked), 0,
     ) || null;
+    const scan = cached!.agent.vulnerabilityScan ?? null;
+    const VULN_SCAN_STALE_DAYS = 7;
+    const scanAgeDays = scan ? Math.max(0, Math.floor((Date.now() - Date.parse(scan.scannedAt)) / 86_400_000)) : null;
+    const stale = scanAgeDays !== null && scanAgeDays >= VULN_SCAN_STALE_DAYS;
     return {
       content: [{
         type: 'text',
         text: JSON.stringify({
           count: findings.length,
           lastChecked,
+          scan,
+          scanAgeDays,
+          stale,
           manifestCount: cached!.agent.dependencyManifests.length,
-          hint: lastChecked === null
-            ? 'No scan-vulns run recorded for this artifact. Run `factstack scan-vulns .` to populate.'
-            : undefined,
+          hint: scan === null
+            ? 'No vulnerability scan recorded for this artifact. Pass refresh:true (queries OSV.dev live) or run `factstack scan-vulns .`.'
+            : stale
+              ? `Scan is ${scanAgeDays}d old — new CVEs are published daily. Pass refresh:true to update.`
+              : undefined,
           findings,
         }),
       }],
@@ -855,6 +945,51 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: approximateTokens(readFileSync(abs, 'utf8')), source: 'estimate' }) }] };
   }
 
+  // F4 — assemble a ranked, token-budgeted context block for a task.
+  if (name === MCP_TOOL.get_context) {
+    if (!cached) await ensureAnalyzed();
+    const parsed = ContextInputSchema.safeParse(args);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid get_context input', issues }, null, 2) }],
+        isError: true,
+      };
+    }
+    const agent = cached!.agent;
+    const snapshotId = packSnapshotId(agent);
+    // F9 — re-rank by what the agent recently served/read/edited (session
+    // actions in the learnings log). Best-effort: a missing/corrupt log just
+    // means no boost, never a failed call.
+    const sessionEvents = readLearnings();
+    const recentEntities = recentSessionEntities(sessionEvents);
+    const result = assembleContext(agent, {
+      query: parsed.data.query,
+      ...(parsed.data.seeds !== undefined ? { seeds: parsed.data.seeds } : {}),
+      budgetTokens: parsed.data.budgetTokens,
+      maxHops: parsed.data.maxHops,
+      ...(recentEntities.length ? { recentEntities } : {}),
+    });
+    // F9 — record what we served so the NEXT call (this session or the next)
+    // re-ranks toward the entities in flight. Best-effort by the same logic.
+    // Consecutive-dedup: an agent re-asking the same question must not grow the
+    // log one identical `served` line per call.
+    try {
+      const servedIds = result.items.map((i) => i.id);
+      if (JSON.stringify(servedIds) !== JSON.stringify(lastServedEntities(sessionEvents))) {
+        appendLearning(sessionActionEvent({
+          action: 'served',
+          entities: servedIds,
+          tokens: result.totalTokens,
+        }));
+      }
+    } catch { /* serving context must never fail on a log write */ }
+    if (pickFormat(args) === 'pack') {
+      return { content: [{ type: 'text', text: contextToPack(result, snapshotId) }] };
+    }
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
   throw new Error(`Unknown tool: ${name}`);
 });
 
@@ -931,6 +1066,27 @@ function readLearnings(): LearningEvent[] {
   const text = readFileSync(p, 'utf8');
   const { events } = parseLearningsJsonl(text);
   return events;
+}
+
+/* v0.11 — carry the last vulnerability scan across the server's own
+ * re-analyzes, reconciled against the FRESH manifests so removed/upgraded
+ * deps drop their stale findings. Raw parse (not schema validation): the
+ * prior artifact may predate the current schema and we only need two
+ * additive fields. Best-effort — an unreadable prior artifact just means
+ * nothing to carry; `scan-vulns` / `list_vulnerabilities refresh:true`
+ * rebuilds. */
+function restoreVulnScanInto(agent: AgentArtifact): void {
+  try {
+    const p = path.join(root, '.facts', 'agent.json');
+    if (!existsSync(p)) return;
+    const prev = JSON.parse(readFileSync(p, 'utf8')) as Partial<AgentArtifact>;
+    if (!prev.vulnerabilityScan) return;
+    agent.vulnerabilities = reconcileVulnerabilities(prev.vulnerabilities ?? [], agent.dependencyManifests);
+    /* Recompute `findings` to mirror the reconciled array — the spec's
+       scanned-and-clean marker must not contradict agent.vulnerabilities.length
+       (list_vulnerabilities returns both in one payload). */
+    agent.vulnerabilityScan = { ...prev.vulnerabilityScan, findings: agent.vulnerabilities.length };
+  } catch { /* best-effort */ }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────

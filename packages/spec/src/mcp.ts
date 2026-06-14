@@ -225,6 +225,7 @@ export const ListRisksInputSchema = z.object({
       'license',
       'supply-chain',
       'parse-error',
+      'read-error',
       'broken-import',
       'stale',
       'large-file',
@@ -266,6 +267,7 @@ export const MCP_TOOL_NAMES = [
   'get_diagram',
   'review_change',
   'count_tokens',
+  'get_context',
 ] as const;
 
 /** Union of every tool name the FACTS MCP server ships. */
@@ -295,6 +297,7 @@ export const MCP_TOOL = {
   get_diagram: 'get_diagram',
   review_change: 'review_change',
   count_tokens: 'count_tokens',
+  get_context: 'get_context',
 } as const satisfies { [K in ShippedMcpToolName]: K };
 
 /** F7 — input for the `count_tokens` tool: count a project file's tokens (by
@@ -309,6 +312,19 @@ export const CountTokensInputSchema = z
     message: 'count_tokens requires exactly one of `path` or `text`.',
   });
 export type CountTokensInput = z.infer<typeof CountTokensInputSchema>;
+
+/** F4 — input for the `get_context` tool. A free-text task `query` is resolved
+ *  to graph seeds deterministically (INV3); `seeds` adds explicit file/symbol
+ *  anchors. The assembled subgraph is expanded `maxHops` from the seeds and
+ *  packed greedily up to `budgetTokens`. Seeds are never dropped — when they
+ *  alone exceed the budget the result is marked `truncated`. */
+export const ContextInputSchema = z.object({
+  query: z.string(),
+  seeds: z.array(z.string()).optional(),
+  budgetTokens: z.number().int().positive().default(8000),
+  maxHops: z.number().int().nonnegative().default(2),
+});
+export type ContextInput = z.infer<typeof ContextInputSchema>;
 
 /* ─────────── (legacy) partial input-schema catalog ─────────── */
 

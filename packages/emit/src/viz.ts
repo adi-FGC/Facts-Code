@@ -34,7 +34,7 @@ export interface VizFile {
   tokens: number;
   todos: number;
   todoEntries: Array<{ kind: string; line: number; text: string }>;
-  status: 'ok' | 'broken' | 'stale' | 'parse_error';
+  status: 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error';
   mtime: number;
   /** v0.3.8 — read-through time estimate; absent when analyzer didn't compute it. */
   readingMinutes?: number;

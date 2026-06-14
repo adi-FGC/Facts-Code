@@ -328,7 +328,7 @@ export function Files(handle: Handle<FilesProps>) {
           </div>
 
           <MarginColumn>
-            <FootnoteChip label="Status" tone={file.status === 'ok' ? 'ok' : file.status === 'broken' ? 'danger' : 'warn'}>
+            <FootnoteChip label="Status" tone={file.status === 'ok' ? 'ok' : file.status === 'broken' || file.status === 'read_error' ? 'danger' : 'warn'}>
               {file.status.toUpperCase()}
             </FootnoteChip>
             {/* v0.3.8 — reading-time chip when present. Skipped/empty
@@ -388,9 +388,10 @@ export function Files(handle: Handle<FilesProps>) {
     const attention = all
       .filter((f) => f.status !== 'ok' || f.todos > 0)
       .sort((a, b) => {
-        // Sort: broken/parse_error first, then stale, then by todo count desc.
-        const sevA = a.status === 'broken' || a.status === 'parse_error' ? 2 : a.status === 'stale' ? 1 : 0;
-        const sevB = b.status === 'broken' || b.status === 'parse_error' ? 2 : b.status === 'stale' ? 1 : 0;
+        // Sort: broken/parse_error/read_error first, then stale, then by todo count desc.
+        const sevOf = (s: string) => s === 'broken' || s === 'parse_error' || s === 'read_error' ? 2 : s === 'stale' ? 1 : 0;
+        const sevA = sevOf(a.status);
+        const sevB = sevOf(b.status);
         if (sevA !== sevB) return sevB - sevA;
         return b.todos - a.todos;
       })
@@ -398,7 +399,7 @@ export function Files(handle: Handle<FilesProps>) {
 
     const totalTokens = all.reduce((s, f) => s + f.tokens, 0);
     const totalLoc    = all.reduce((s, f) => s + f.loc, 0);
-    const brokenCount = all.filter((f) => f.status === 'broken' || f.status === 'parse_error').length;
+    const brokenCount = all.filter((f) => f.status === 'broken' || f.status === 'parse_error' || f.status === 'read_error').length;
 
     return (
       <ContentWithMargin>

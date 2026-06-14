@@ -1,0 +1,42 @@
+[
+  {
+    "id": "add-user-role",
+    "query": "add a role field to the user model",
+    "budgetTokens": 600,
+    "expectedAnchors": [
+      "src/models/user.ts"
+    ]
+  },
+  {
+    "id": "fix-session-timeout",
+    "query": "fix the login session timeout",
+    "budgetTokens": 600,
+    "expectedAnchors": [
+      "src/auth/session.ts"
+    ]
+  },
+  {
+    "id": "list-api-routes",
+    "query": "where are the http api routes registered",
+    "budgetTokens": 600,
+    "expectedAnchors": [
+      "src/api/routes.ts"
+    ]
+  },
+  {
+    "id": "currency-to-euros",
+    "query": "switch the currency format to euros",
+    "budgetTokens": 600,
+    "expectedAnchors": [
+      "src/util/format.ts"
+    ]
+  },
+  {
+    "id": "order-discounts",
+    "query": "adjust the order quantity discount thresholds",
+    "budgetTokens": 600,
+    "expectedAnchors": [
+      "src/models/order.ts"
+    ]
+  }
+]

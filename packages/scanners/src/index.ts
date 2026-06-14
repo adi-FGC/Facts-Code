@@ -7,6 +7,8 @@ export * from './dependencies.js';
 export * from './vulnerabilities.js';
 export * from './outdated.js';
 export * from './css.js';
+export * from './sql.js';
+export * from './hcl.js';
 export {
   scanFileLicense,
   scanManifestLicense,

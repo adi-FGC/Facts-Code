@@ -26,7 +26,8 @@
  * filesystem in CLI, in-memory in tests).
  */
 
-import type { ManifestEcosystem, Vulnerability, VulnerabilitySeverity } from '@factstack/spec';
+import type { DependencyManifest, ManifestEcosystem, Vulnerability, VulnerabilitySeverity } from '@factstack/spec';
+import { flattenManifests } from './dependencies.js';
 
 /* The scanners package's tsconfig uses `lib: ["ES2022"]` only — no DOM,
  * no @types/node. `fetch` + `AbortSignal` are platform globals in Node
@@ -353,4 +354,32 @@ export function normalizeNpmVersion(raw: string): string | null {
   const cleaned = raw.replace(/^[\s\^~><=]+/u, '').trim();
   const match = cleaned.match(/^[0-9][0-9A-Za-z.\-+]*/u);
   return match ? match[0] : null;
+}
+
+/**
+ * v0.11 — reconcile a PREVIOUS scan's findings against the CURRENT dependency
+ * manifests: keep a finding only when its exact (ecosystem, package,
+ * installedVersion) is still installed. This is what makes carrying scan
+ * results forward across re-analyzes SAFE:
+ *
+ *   - dep removed   → its CVEs drop immediately (no zombie findings)
+ *   - dep upgraded  → the old version's findings drop (the advisory may not
+ *                     apply to the new version — a rescan re-establishes truth)
+ *   - dep unchanged → findings survive without a network round-trip
+ *
+ * Versions are normalized the same way scan queries are (npm ranges →
+ * conservative lower bound) so the keep-set keys match what the scan stored
+ * as `installedVersion`. Pure + deterministic.
+ */
+export function reconcileVulnerabilities(
+  previous: Vulnerability[],
+  manifests: DependencyManifest[],
+): Vulnerability[] {
+  if (!previous.length) return [];
+  const installed = new Set<string>();
+  for (const e of flattenManifests(manifests)) {
+    const concrete = e.ecosystem === 'npm' ? normalizeNpmVersion(e.version) : e.version;
+    if (concrete) installed.add(`${e.ecosystem}\t${e.name}\t${concrete}`);
+  }
+  return previous.filter((v) => installed.has(`${v.ecosystem}\t${v.package}\t${v.installedVersion}`));
 }

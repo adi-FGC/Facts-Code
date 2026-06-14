@@ -30,7 +30,7 @@ export interface DatasetFile {
   tokens: number;
   todos: number;
   todoEntries: Array<{ kind: string; line: number; text: string }>;
-  status: 'ok' | 'broken' | 'stale' | 'parse_error';
+  status: 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error';
   mtime: number;
   /** v0.3.8 — pre-computed read-through time in minutes. Undefined
    *  for older artifacts that pre-date the spec change. */

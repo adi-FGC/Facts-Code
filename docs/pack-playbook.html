@@ -250,8 +250,9 @@
     <section id="what">
       <div class="sk"><span><span class="n">01</span> · what .pack is</span><span>the map, not the territory</span></div>
       <h2>A 93 KB index of a 1.07M-token codebase.</h2>
-      <p class="b lead m">FACTS analyzes a project and emits <code>.facts/agent.pack</code> — a token-lean, columnar text format (schema <code>agent-v3</code>) built for an AI agent to read instead of the source. Ten tables, fixed order:</p>
+      <p class="b lead m">FACTS analyzes a project and emits <code>.facts/agent.pack</code> — a token-lean, columnar text format (schema <code>agent-v4</code>) built for an AI agent to read instead of the source. Thirteen tables, fixed order:</p>
       <div class="tablecard">
+        <div class="row"><span class="t">top</span><span class="d">agent-v4 — the <b>curated head</b>: the 20 most important files (PageRank + in-degree) so a reader gets the map before the raw tables.</span></div>
         <div class="row"><span class="t">files</span><span class="d">every file → language, LOC, <b>token cost</b>, bytes, status, churn, read-time</span></div>
         <div class="row"><span class="t">imports</span><span class="d">the <b>resolved dependency graph</b> (from → to → kind → conf). Forward + reverse, each edge tagged with provenance. This is what grep can't give you.</span></div>
         <div class="row"><span class="t">routes</span><span class="d">URL/path → framework → method → <b>handler file</b> → symbol</span></div>
@@ -262,8 +263,10 @@
         <div class="row"><span class="t">calls</span><span class="d">F2 — symbol → symbol references (call / read / jsx / type-ref / implements / extends), each with a <b>confidence</b> (extracted / inferred / ambiguous).</span></div>
         <div class="row"><span class="t">nodeMetrics</span><span class="d">F5 — per-file <b>importance</b> (normalized PageRank) + <b>community</b> (label-propagation cluster). The "what matters most / what clusters together" lens.</span></div>
         <div class="row"><span class="t">rationale</span><span class="d">F10 — design "why" (NOTE / HACK / FIXME / TODO / XXX comments + docstrings) linked to the symbol it explains. Intent, not just structure.</span></div>
+        <div class="row"><span class="t">entities</span><span class="d">F11 — whole-stack nodes beyond code: SQL tables/columns, Terraform/IaC resources, doc pages — each with a <b>file:line</b> anchor.</span></div>
+        <div class="row"><span class="t">entityEdges</span><span class="d">F11 — links between entities and code (reads / writes / defines / references), so "which file touches the <code>users</code> table" is a lookup.</span></div>
       </div>
-      <p class="b m" style="margin-top:18px">Sizes that matter: the whole codebase is <strong>~1.07M tokens</strong> of source across <strong>347 files</strong>. The pack carries the structure of all of it in <strong>~23.4K tokens</strong> — about <strong>46× smaller</strong>. That 46× is the ceiling (the "load everything" case); the per-change win is more about precision than raw tokens.</p>
+      <p class="b m" style="margin-top:18px">Sizes that matter (agent-v4 self-analysis, 2026-06-12): the whole codebase is <strong>~1.64M tokens</strong> of source across <strong>472 files</strong>. The pack carries the structure of all of it — now including rationale, entities, and per-file metrics — in <strong>~99K tokens</strong>, about <strong>17× smaller</strong>. That 17× is the ceiling (the "load everything" case); the per-change win is more about precision than raw tokens, and the richer v4 tables trade some ratio for far more answerable questions.</p>
     </section>
 
     <!-- 2 · EVIDENCE -->
