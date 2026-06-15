@@ -99,6 +99,21 @@ describe('walk — always-exclude folders', () => {
     const paths = await collect(walk(fs));
     expect(paths.some((p) => p.endsWith('.tsbuildinfo'))).toBe(false);
   });
+
+  it('hard-excludes the .facts output dir (F8 cache.db must not self-analyze)', async () => {
+    // FACTS's own output dir is excluded WITHOUT relying on a .gitignore entry,
+    // so a re-analyze is correct even before that entry is written and the
+    // F8 cache.db (+ its sqlite -wal/-shm sidecars) never pollute the file set.
+    const fs = memoryFS({
+      'src/a.ts': 'x',
+      '.facts/agent.json': '{}',
+      '.facts/cache.db': 'sqlitebytes',
+      '.facts/cache.db-wal': 'wal',
+      '.facts/snapshots/2026.json': '{}',
+    });
+    const paths = await collect(walk(fs));
+    expect(paths).toEqual(['src/a.ts']);
+  });
 });
 
 describe('walk — gitignore', () => {

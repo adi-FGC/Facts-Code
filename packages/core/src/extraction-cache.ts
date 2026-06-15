@@ -35,7 +35,6 @@ import {
   extractPythonImports,
   extractSymbols,
   extractSymbolRefs,
-  djb2,
   isAstro,
   isGo,
   isParseable,
@@ -46,10 +45,14 @@ import {
   type RawImport,
   type RawRef,
 } from '@factstack/extractors';
+import { sha256hex } from '@factstack/factspack';
 import { detectLanguage } from '@factstack/scanners';
 
-/** Bump on ANY behavior change in extractors/parse so stale entries die. */
-export const EXTRACTION_CACHE_VERSION = 1;
+/** Bump on ANY behavior change in extractors/parse so stale entries die.
+ *  v2: cache key switched from a 32-bit djb2 digest to SHA-256 — a djb2
+ *  collision between two same-ext files could serve the wrong file's parse
+ *  (silent INV2 violation). Bumping retires every djb2-keyed entry. */
+export const EXTRACTION_CACHE_VERSION = 2;
 
 /** The parse-derived facts of one file — everything analyze() takes from the
  *  AST pass. Plain JSON data (structuredClone/serialization safe). */
@@ -75,9 +78,13 @@ export interface ExtractionCache {
 
 /** The canonical cache key. ext is part of the key because parsing behavior
  *  branches on it; the refs flag because a no-refs entry can't serve a
- *  `--symbols` run; the version so extractor upgrades invalidate everything. */
+ *  `--symbols` run; the version so extractor upgrades invalidate everything.
+ *  The content hash is SHA-256 (not djb2): the store keys purely on this
+ *  string with no secondary content check, so the hash must be collision
+ *  -resistant or a hit could return another file's parse — a silent INV2
+ *  violation (warm-cache output diverging from a fresh parse). */
 export function extractionCacheKey(text: string, ext: string, wantRefs: boolean): string {
-  return `v${EXTRACTION_CACHE_VERSION}:${ext.toLowerCase()}:${wantRefs ? 'r1' : 'r0'}:${djb2(text)}`;
+  return `v${EXTRACTION_CACHE_VERSION}:${ext.toLowerCase()}:${wantRefs ? 'r1' : 'r0'}:${sha256hex(text)}`;
 }
 
 /** Fresh empty quad per call — consumers mutate extraction arrays, so a

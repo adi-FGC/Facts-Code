@@ -30,6 +30,12 @@ const ALWAYS_EXCLUDE = new Set([
   'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
   '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
   '.pnpm-store', '.vscode', '.idea',
+  /* FACTS's OWN output dir — never analyze our artifacts. Hard-excluded (not
+     just via the .gitignore entry analyze writes) so a re-analyze is correct
+     even before that entry exists, and so the F8 cache.db + its sqlite
+     -wal/-shm sidecars inside .facts/ never pollute the file set or break
+     determinism (the WAL files come and go between runs). */
+  '.facts',
   /* Test/automation runtime output — surfaced as analyzer noise in
      v0.4 calibration against RallyPro: 80+ YAML trace files from
      .playwright-mcp/ polluted the "other" tier without contributing

@@ -11,3 +11,6 @@ export type { GraphExportFormat } from './graph-export.js';
  * FileWriter scoped to something other than `.facts/` (e.g.
  * `factstack export-skills` writes at the project root). */
 export { NodeFileWriter } from './node-writer.js';
+/* F8 — node:sqlite-backed content-hash extraction cache. Node-only (imports
+ * node:sqlite); the browser build never imports it. */
+export { SqliteExtractionCache, openExtractionCache } from './extraction-cache-sqlite.js';

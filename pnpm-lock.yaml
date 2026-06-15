@@ -177,6 +177,9 @@ importers:
       '@factstack/extractors':
         specifier: workspace:*
         version: link:../extractors
+      '@factstack/factspack':
+        specifier: workspace:*
+        version: link:../factspack
       '@factstack/graph':
         specifier: workspace:*
         version: link:../graph

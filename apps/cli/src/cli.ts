@@ -58,7 +58,7 @@ import {
   type DiffEndpoint,
 } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
-import { exportGraph, graphExportFilename, gzippedBytes, humanToViz, NodeFileWriter, readSnapshots, writeArtifacts } from '@factstack/emit';
+import { exportGraph, graphExportFilename, gzippedBytes, humanToViz, NodeFileWriter, openExtractionCache, readSnapshots, writeArtifacts, type SqliteExtractionCache } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import {
   approximateTokens,
@@ -232,7 +232,8 @@ program
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
   .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze.')
   .option('--symbols', 'F2 (beta): also build the symbol-level call/reference graph — declarations as nodes, refs as edges, each provenance-tagged (extracted/inferred/ambiguous). Adds a per-file AST ref walk; off by default until it stabilizes.')
-  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean }) => {
+  .option('--no-cache', 'F8: disable the content-hash extraction cache (.facts/cache.db). Default-on caches per-file parse results keyed by content hash, so a re-analyze re-parses only changed files; output is byte-identical either way.')
+  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean; cache?: boolean }) => {
     // Inherit top-level --json if subcommand-local flag isn't set.
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
@@ -263,12 +264,26 @@ program
     const gitStats = mineGitStats(root);
     let lastPrinted = 0;
 
+    /* F8 — content-hash extraction cache (default-on). Keyed by content hash,
+       so a warm re-analyze re-parses only changed files; the artifact is
+       byte-identical to a cache-less run (INV2). Opening it is best-effort:
+       a sqlite failure (older Node, locked db) must never fail the analyze. */
+    let extractionCache: SqliteExtractionCache | undefined;
+    if (opts.cache !== false) {
+      try {
+        extractionCache = openExtractionCache(path.join(root, '.facts'));
+      } catch {
+        extractionCache = undefined; // node:sqlite unavailable → analyze cache-less
+      }
+    }
+
     const result = await analyze(fs, {
       root: '.',
       projectName,
       gzip: gzippedBytes,
       gitStats,
       symbols: opts.symbols ?? false,
+      extractionCache,
       onProgress: showProgress
         ? (pct, file) => {
             const now = performance.now();
@@ -285,6 +300,13 @@ program
         : undefined,
     });
     restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+
+    /* F8 — snapshot cache hit/miss for the report, then close the db. `hits` =
+       files served from cache.db (unchanged content) without re-parsing;
+       `misses` = freshly parsed (new/changed/never-seen). A warm re-analyze of
+       an unchanged tree is all hits — the incremental proof. */
+    const cacheStats = extractionCache ? { hits: extractionCache.hits, misses: extractionCache.misses } : null;
+    extractionCache?.close();
 
     /* Default `legacy` so the CLI's own downstream commands (diff,
        scan-vulns, export-skills/diagram, ci-report) — which read
@@ -338,6 +360,7 @@ program
         ...written,
         stats: result.agent.stats,
         risks: result.agent.risks.length,
+        ...(cacheStats ? { cache: cacheStats } : {}),
       }, null, 2) + '\n');
       return;
     }
@@ -351,6 +374,13 @@ program
       `  files        ${kleur.white(String(s.fileCount))}`,
       `  LOC          ${kleur.white(formatCount(s.loc))}`,
       `  tokens       ${kleur.white(formatCount(s.totalTokenCost))}${kleur.dim(' (cl100k approx)')}`,
+      // F8 — incremental cache line (only when the cache ran). All-hits =
+      // nothing changed; partial = only changed files re-parsed.
+      ...(cacheStats && cacheStats.hits + cacheStats.misses > 0
+        ? [`  cache        ${kleur.white(`${cacheStats.hits}/${cacheStats.hits + cacheStats.misses}`)} ${kleur.dim(
+            cacheStats.hits === 0 ? 'files parsed (cold cache)' : `reused · ${cacheStats.misses} re-parsed (incremental)`,
+          )}`]
+        : []),
       `  risks        ${result.agent.risks.length === 0 ? kleur.green('0') : kleur.yellow(String(result.agent.risks.length))}`,
       // v0.11 — vuln line only when a scan has ever run (carried forward by
       // restoreVulnScan). Staleness nudges the refresh; "never scanned" stays

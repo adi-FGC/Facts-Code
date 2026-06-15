@@ -31,6 +31,16 @@
 export interface PackColumn {
   name: string;
   /**
+   * agent-v5 — optional logical datatype emitted inline on the `&` schema line
+   * as `name:type` (e.g. `loc:int`, `score:ratio`, `F:dict`). Resolves the
+   * value-ambiguity criticism: readers no longer infer a column's meaning from
+   * its name. BREAKING for pre-agent-v5 readers (they parse `name:type` as the
+   * whole name), so it is opt-in on both sides: the encoder emits it only when
+   * set, and the decoder parses it only under `DecodeOptions.typedColumns`
+   * (a pack self-declares this via a `; caps … typed` line; spec §agent-v5).
+   */
+  type?: string;
+  /**
    * v0.2 (S8) — shared intern namespace. Columns in the SAME group
    * (across any table) draw dictionary keys from one pool, so the same
    * literal gets one id pack-wide (e.g. `imports.F` + `imports.T` both
@@ -116,6 +126,11 @@ export interface PackHeader {
   /** v0.2 — ISO-8601 UTC generation timestamp (the one timestamp;
    *  data cells carry relative days against it). */
   generated?: string;
+  /** agent-v5 — header field 9. A repo-scoped corpus name (Kythe VName
+   *  lesson) so symbol ids from multiple repos concatenate without
+   *  colliding. Additive: a `-` slot or absence means single-corpus;
+   *  pre-agent-v5 decoders ignore fields beyond the 8th. */
+  corpus?: string;
 }
 
 /**
@@ -245,6 +260,13 @@ export interface DecodeOptions {
   mode?: DecodeMode;
   /** Per-dimension overrides; merged over the mode's defaults. */
   limits?: DecodeLimits;
+  /**
+   * agent-v5 — parse inline `name:type` tokens on `&` schema lines into
+   * `PackColumn.type`. Off by default (pre-agent-v5 column names are taken
+   * verbatim). A pack declares it carries typed tokens via a `; caps … typed`
+   * line; a self-describing decoder sets this when it sees that line.
+   */
+  typedColumns?: boolean;
 }
 
 /**

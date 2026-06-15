@@ -74,6 +74,11 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
   const limits: DecodeLimits = mode === 'strictV02'
     ? { ...STRICT_DEFAULT_LIMITS, ...opts?.limits }
     : { ...opts?.limits };
+  /* agent-v5 — parse inline `name:type` schema tokens. Enabled by the caller
+     option, or self-enabled when the pack declares it via a `; caps … typed`
+     line (which always precedes the `&` schema lines). */
+  let typedColumns = opts?.typedColumns ?? false;
+  let sawSchema = false; // any `&` line parsed yet (for the caps-ordering guard)
 
   if (text.length > 0 && text.charCodeAt(0) === 0xFEFF) {
     /* Spec §10: BOM is forbidden. Reject loudly so producers can fix
@@ -159,12 +164,26 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
         break;
       }
       case 0x26 /* & */: {
+        sawSchema = true;
         const fields = body.split('\t');
         const name = fields[0];
         if (!name) {
           throw new PackDecodeError(`Line ${i + 1}: schema declaration missing table name`);
         }
-        const columns: PackColumn[] = fields.slice(1).map((n) => ({ name: n }));
+        const columns: PackColumn[] = fields.slice(1).map((n) => {
+          // agent-v5 typed token: split on the FIRST ':' into name + type. A
+          // MALFORMED token (empty name, empty type, or a type that itself
+          // contains ':') is NOT typed — it folds to an untyped name, so the
+          // decoder never accepts a token the encoder would reject and
+          // decode→re-encode stays total. (encode.ts mirrors these rules.)
+          if (typedColumns) {
+            const ci = n.indexOf(':');
+            if (ci > 0 && ci < n.length - 1 && n.indexOf(':', ci + 1) < 0) {
+              return { name: n.slice(0, ci), type: n.slice(ci + 1) };
+            }
+          }
+          return { name: n };
+        });
         if (columns.length === 0) {
           throw new PackDecodeError(`Line ${i + 1}: schema for '${name}' has zero columns`);
         }
@@ -173,9 +192,11 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
         }
         const existing = tables.get(name);
         if (existing) {
-          // Re-declared schema must match column-for-column.
+          // Re-declared schema must match column-for-column, INCLUDING the
+          // agent-v5 type token (a contradictory `id:int` then `id:str` is a
+          // real divergence, not a benign repeat).
           if (existing.columns.length !== columns.length ||
-              existing.columns.some((c, j) => c.name !== columns[j]!.name)) {
+              existing.columns.some((c, j) => c.name !== columns[j]!.name || c.type !== columns[j]!.type)) {
             throw new PackDecodeError(
               `Line ${i + 1}: schema for '${name}' redeclared with different columns`,
             );
@@ -232,6 +253,22 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
         if (t) {
           trailer = { ...t, lineNo: i + 1, start: lineStart };
         } else {
+          /* agent-v5 — a `; caps … typed` line self-declares that the `&`
+             schema lines (which follow) carry inline `name:type` tokens. Match
+             `typed` as an EXACT whitespace-delimited capability token, never as a
+             substring of prose (`strongly-typed`, `"typed"`), which would
+             otherwise silently split literal column names that contain ':'. */
+          if (body.startsWith('caps ') && body.slice(5).split(/\s+/).includes('typed')) {
+            if (sawSchema) {
+              // A capability MUST be declared before the schema it governs; a
+              // late caps line would split-brain the parse (early tables untyped,
+              // later ones typed). Fail closed rather than mis-parse.
+              throw new PackDecodeError(
+                `Line ${i + 1}: '; caps … typed' appears after an '&' schema line; capabilities must precede the schemas they govern`,
+              );
+            }
+            typedColumns = true;
+          }
           meta.push(body);
         }
         break;
@@ -425,6 +462,11 @@ function parseHeader(body: string, lineNo: number): PackHeader {
   }
   if (fields.length > 7 && fields[7] !== '-' && fields[7] !== '') {
     header.generated = fields[7]!;
+  }
+  // agent-v5 — header field 9: repo-scoped corpus name (additive; older packs
+  // omit it, older decoders ignored fields beyond the 8th).
+  if (fields.length > 8 && fields[8] !== '-' && fields[8] !== '') {
+    header.corpus = fields[8]!;
   }
   return header;
 }

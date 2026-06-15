@@ -92,7 +92,7 @@ export function encode(opts: EncodeOptions): string {
     rowCount: opts.header.rowCount ?? total,
   });
 
-  return assemble(headerOut, metaLines(opts.meta, enc), enc.dictLines(), tableLines, {
+  return assemble(headerOut, metaLines(withCapsTyped(opts.meta, opts.tables), enc), enc.dictLines(), tableLines, {
     rows: total,
     tables: distinctTableCount(opts.tables),
   });
@@ -141,7 +141,7 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
   /* Trailer rows for a patch pack = `+` additions + `x` deletions —
      the same "total data row lines" formula decode() recomputes. */
   const total = opts.tables.reduce((s, t) => s + t.addedRows.length + t.deletedIds.length, 0);
-  return assemble(headerOut, metaLines(opts.meta, enc), enc.dictLines(), tableLines, {
+  return assemble(headerOut, metaLines(withCapsTyped(opts.meta, opts.tables), enc), enc.dictLines(), tableLines, {
     rows: total,
     tables: distinctTableCount(opts.tables),
   });
@@ -174,7 +174,8 @@ function renderHeader(h: PackHeader): string {
  * four are absent (the v3 4-field header stays byte-identical).
  */
 function renderHeaderExtras(h: PackHeader): string {
-  if (h.seq === undefined && h.parent === undefined && h.kind === undefined && h.generated === undefined) {
+  if (h.seq === undefined && h.parent === undefined && h.kind === undefined
+    && h.generated === undefined && h.corpus === undefined) {
     return '';
   }
   if (h.seq !== undefined && (!Number.isInteger(h.seq) || h.seq < 0)) {
@@ -183,21 +184,29 @@ function renderHeaderExtras(h: PackHeader): string {
   if (h.kind !== undefined && h.kind !== 'master' && h.kind !== 'diff') {
     throw new PackEncodeError(`Header.kind must be 'master' or 'diff', got '${h.kind}'`);
   }
-  for (const [k, v] of Object.entries({ parent: h.parent, generated: h.generated })) {
+  for (const [k, v] of Object.entries({ parent: h.parent, generated: h.generated, corpus: h.corpus })) {
     if (v === undefined) continue;
-    if (typeof v !== 'string' || v.length === 0 || v.indexOf('\t') >= 0 || v.indexOf('\n') >= 0) {
-      throw new PackEncodeError(`Header.${k} must be a non-empty string without tab/newline`);
+    if (typeof v !== 'string' || v.length === 0 || /[\t\n\r]/.test(v)) {
+      throw new PackEncodeError(`Header.${k} must be a non-empty string without tab/newline/CR`);
     }
   }
+  /* `-` is the reserved ABSENT placeholder for the seq/kind/generated/corpus
+     slots, so passing it as a real value would silently decode back as absent
+     (a round-trip hole). parent='-' is the meaningful genesis value and is
+     exempt. Reject the others, mirroring the rowLine '-' guard. */
+  if (h.generated === '-') throw new PackEncodeError("Header.generated must not be '-' (the reserved absent placeholder)");
+  if (h.corpus === '-') throw new PackEncodeError("Header.corpus must not be '-' (the reserved absent placeholder)");
   const slots = [
     h.seq !== undefined ? String(h.seq) : '-',
     h.parent ?? '-',
     h.kind ?? '-',
     h.generated ?? '-',
+    h.corpus ?? '-', // agent-v5 field 9
   ];
   // Trim trailing placeholders — emit only up to the last real field.
   let last = slots.length - 1;
-  const defined = [h.seq !== undefined, h.parent !== undefined, h.kind !== undefined, h.generated !== undefined];
+  const defined = [h.seq !== undefined, h.parent !== undefined, h.kind !== undefined,
+    h.generated !== undefined, h.corpus !== undefined];
   while (last >= 0 && !defined[last]) last--;
   return '\t' + slots.slice(0, last + 1).join('\t');
 }
@@ -209,6 +218,16 @@ function declSchemaLine(name: string, columns: PackColumn[]): string {
   for (const c of columns) {
     if (!c.name || c.name.indexOf('\t') >= 0 || c.name.indexOf('\n') >= 0) {
       throw new PackEncodeError(`Column name '${c.name}' is invalid (empty or contains tab/newline)`);
+    }
+    if (c.type !== undefined) {
+      /* agent-v5 typed token `name:type`. The decoder splits on the FIRST ':',
+         so the NAME must not contain ':' and the type must be a clean token. */
+      if (c.name.indexOf(':') >= 0) {
+        throw new PackEncodeError(`Column '${c.name}' carries a type but its name contains ':' (ambiguous with the type token)`);
+      }
+      if (!c.type || /[\t\n:]/.test(c.type)) {
+        throw new PackEncodeError(`Column '${c.name}' type '${c.type}' is invalid (empty or contains tab/newline/':')`);
+      }
     }
     if (c.internGroup !== undefined) {
       /* internGroup is encoder-side metadata for interned columns only.
@@ -228,7 +247,7 @@ function declSchemaLine(name: string, columns: PackColumn[]): string {
       }
     }
   }
-  return `& ${name}\t${columns.map((c) => c.name).join('\t')}`;
+  return `& ${name}\t${columns.map((c) => (c.type !== undefined ? `${c.name}:${c.type}` : c.name)).join('\t')}`;
 }
 
 function rowLine(prefix: '-' | '+', row: PackRow, columns: PackColumn[], enc: Encoder): string {
@@ -283,6 +302,25 @@ function metaLines(meta: PackMeta | undefined, enc: Encoder): string[] {
     if (hot) out.push(hot);
   }
   return out;
+}
+
+/**
+ * agent-v5 — if any column carries a type, ensure a leading `; caps typed`
+ * capability line so the pack SELF-DECLARES its typed tokens. Then a default
+ * decode() parses the types (round-trips) and the caps line always precedes the
+ * `&` schemas it governs. No-op when nothing is typed (so v0.2 packs stay byte
+ * unchanged) and idempotent when the caller already declared it.
+ */
+function withCapsTyped(
+  meta: PackMeta | undefined,
+  tables: ReadonlyArray<{ columns: PackColumn[] }>,
+): PackMeta | undefined {
+  const hasTyped = tables.some((t) => t.columns.some((c) => c.type !== undefined));
+  if (!hasTyped) return meta;
+  const legend = meta?.legend ?? [];
+  const declared = legend.some((l) => l.startsWith('caps ') && l.slice(5).split(/\s+/).includes('typed'));
+  if (declared) return meta;
+  return { ...meta, legend: ['caps typed', ...legend] };
 }
 
 function distinctTableCount(tables: ReadonlyArray<{ name: string }>): number {
