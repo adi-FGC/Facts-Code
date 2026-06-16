@@ -4,9 +4,11 @@
 # Without this rule a hard load of a deep link (or a refresh on /review) 404s.
 # Mirror of the Netlify `[[redirects]] /* -> /index.html 200` in netlify.toml.
 #
-# A genuinely-missing hashed asset must 404 — NOT fall through to the SPA
-# catch-all below, which would hand back text/html (the index) for a .js/.css
-# request and trip a MIME/parse error on a stale client. Real assets are served
-# by Cloudflare before _redirects fire, so this only catches missing ones.
-/assets/*  /404.html  404
+# NOTE: do NOT add a 404.html + a `/assets/* /404.html 404` rule. On Cloudflare
+# Pages a 404.html in the build output takes precedence over this 200 catch-all
+# and breaks the SPA fallback (deep links like /files start returning 404). A
+# missing hashed asset falling through to index.html (200) is the accepted
+# SPA-on-CF trade-off — it's near-impossible anyway with immutable hashed
+# assets + atomic deploys. (Verified live 2026-06-15: the 404.html approach
+# 404'd every client route.)
 /*  /index.html  200
