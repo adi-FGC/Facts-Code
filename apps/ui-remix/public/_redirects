@@ -3,4 +3,10 @@
 # /graph, /flow, etc. are rendered in the browser, not as separate HTML files.
 # Without this rule a hard load of a deep link (or a refresh on /review) 404s.
 # Mirror of the Netlify `[[redirects]] /* -> /index.html 200` in netlify.toml.
+#
+# A genuinely-missing hashed asset must 404 — NOT fall through to the SPA
+# catch-all below, which would hand back text/html (the index) for a .js/.css
+# request and trip a MIME/parse error on a stale client. Real assets are served
+# by Cloudflare before _redirects fire, so this only catches missing ones.
+/assets/*  /404.html  404
 /*  /index.html  200

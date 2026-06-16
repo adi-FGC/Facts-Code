@@ -11,6 +11,7 @@
  * commit-message justification.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -313,6 +314,33 @@ if (totals.workerJsRaw > CAP_WORKER_JS_RAW) failures.push(`Lazy JS raw ${fmt(tot
 if (totals.workerJsGz  > CAP_WORKER_JS_GZ)  failures.push(`Lazy JS gzip ${fmt(totals.workerJsGz)} > cap ${fmt(CAP_WORKER_JS_GZ)}`);
 if (totals.cssRaw      > CAP_CSS_RAW)       failures.push(`CSS raw ${fmt(totals.cssRaw)} > cap ${fmt(CAP_CSS_RAW)}`);
 if (totals.cssGz       > CAP_CSS_GZ)        failures.push(`CSS gzip ${fmt(totals.cssGz)} > cap ${fmt(CAP_CSS_GZ)}`);
+
+/* ── CSP inline-script hash guard ──────────────────────────────────────────
+ * The CSP in public/_headers (and netlify.toml) pins the ONE inline boot
+ * script — the no-flash theme init in index.html — by SHA-256, so it survives
+ * a strict `script-src` with no 'unsafe-inline'. If that script ever changes
+ * and the hash isn't updated, the browser SILENTLY blocks it (flash of wrong
+ * theme) with no test to catch it. Re-derive the hash from the built HTML and
+ * fail the build unless the shipped _headers CSP carries the matching token. */
+const DIST = join(APP_DIR, 'dist');
+try {
+  const html = readFileSync(join(DIST, 'index.html'), 'utf8');
+  const m = html.match(/<script>([\s\S]*?)<\/script>/); // first bare inline script = the theme boot IIFE
+  if (!m) {
+    failures.push('CSP guard: no inline boot <script> found in dist/index.html — cannot verify the script-src hash.');
+  } else {
+    const token = `sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}`;
+    const headers = readFileSync(join(DIST, '_headers'), 'utf8');
+    if (!headers.includes(token)) {
+      failures.push(
+        `CSP guard: inline boot script drifted — script-src must pin '${token}'. ` +
+          `Update the Content-Security-Policy hash in apps/ui-remix/public/_headers AND netlify.toml.`,
+      );
+    }
+  }
+} catch (e) {
+  failures.push(`CSP guard: could not read built files (${e?.message || e}).`);
+}
 
 if (failures.length) {
   console.error('\n[check-bundle-size] FAIL:');

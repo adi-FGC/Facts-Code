@@ -50,9 +50,16 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy        = "no-referrer-when-downgrade"
-    Permissions-Policy     = "interest-cohort=()"
+    X-Content-Type-Options    = "nosniff"
+    Referrer-Policy           = "strict-origin-when-cross-origin"
+    X-Frame-Options           = "DENY"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy        = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+    # Mirror of apps/ui-remix/public/_headers (Cloudflare). script-src pins the
+    # inline no-flash theme boot script by SHA-256 (verified at build by
+    # check-bundle-size.mjs); connect-src allows the OSV CVE API; style/font-src
+    # allow Google Fonts; worker-src covers the in-browser scanner worker.
+    Content-Security-Policy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev; manifest-src 'self'"
 
 ###############################################################################
 # SPA-style fallback: client-side routing in React Router v7 owns paths
