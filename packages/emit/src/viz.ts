@@ -72,7 +72,10 @@ export interface VizArtifact {
     oneLiner: string;
     description: string;
     capabilities: Array<{ icon: string; head: string; sub: string }>;
-    health: { broken: number; stale: number; todos: number; secrets: number };
+    /** Full composite health (v0.3): flat counts + headline + grade/score/
+     *  factors. Mirrors the spec so the in-browser FSA-scan Overview shows the
+     *  same grade as the CLI-baked dashboard (INV7 browser parity). */
+    health: HumanArtifact['summary']['health'];
   };
   stats: { files: number; loc: number; size: number; gzip: number; tokens: number };
   tree: VizTreeNode;
@@ -283,12 +286,9 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
       // hidden in the Overview render.
       description: human.summary.intent || '',
       capabilities,
-      health: {
-        broken: human.summary.health.broken,
-        stale: human.summary.health.stale,
-        todos: human.summary.health.todos,
-        secrets: human.summary.health.secrets,
-      },
+      // Carry the whole health object — headline + grade/score/factors
+      // included — so the browser-scan dashboard grades identically (INV7).
+      health: { ...human.summary.health },
     },
     stats: {
       files: agent.stats.fileCount,

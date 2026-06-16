@@ -47,6 +47,7 @@ import {
   buildChangeVerdict,
   buildContextStore,
   buildMemory,
+  computeHealth,
   buildDiagram,
   lastServedEntities,
   recentSessionEntities,
@@ -131,6 +132,9 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
   // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
   // network-free per INV6 and returns an empty list). Mirrors the CLI.
   restoreVulnScanInto(result.agent);
+  // v0.3 — re-grade health after the CVE carry-forward so vulnerabilities land
+  // in the score/headline (analyze() grades before the restore). Mirrors the CLI.
+  result.human.summary.health = computeHealth(result.agent);
   // F9 — fold the durable context store (decisions / open tasks / questions
   // recorded in learnings.jsonl) into MEMORY.md's "Working context" section.
   const memoryBody = buildMemory(result.agent, result.human, {
@@ -772,9 +776,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             findings: vulnerabilities.length,
           },
         };
-        const memoryBody = buildMemory(nextAgent, cached!.human, { contextStore: buildContextStore(readLearnings()) });
-        await writeArtifacts({ root, agent: nextAgent, human: cached!.human, addGitignoreEntry: false, memoryBody });
-        cached = { agent: nextAgent, human: cached!.human, memory: memoryBody };
+        // v0.3 — re-grade health so the freshly-fetched CVEs land in the
+        // score/headline written to human.json + MEMORY.md. Build the updated
+        // human immutably and only swap `cached` AFTER the write succeeds — a
+        // failed write must leave the in-memory cache consistent (old agent +
+        // old health together), matching the catch block's "stale data stays
+        // untouched" promise.
+        const updatedHuman: HumanArtifact = {
+          ...cached!.human,
+          summary: { ...cached!.human.summary, health: computeHealth(nextAgent) },
+        };
+        const memoryBody = buildMemory(nextAgent, updatedHuman, { contextStore: buildContextStore(readLearnings()) });
+        await writeArtifacts({ root, agent: nextAgent, human: updatedHuman, addGitignoreEntry: false, memoryBody });
+        cached = { agent: nextAgent, human: updatedHuman, memory: memoryBody };
       } catch (err) {
         /* A failed refresh must NEVER look like a successful empty scan —
            return an explicit error; the stale data stays untouched on disk. */

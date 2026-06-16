@@ -27,6 +27,8 @@ import { Section } from '../ui/Section.tsx';
 import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
+import { HealthGrade } from '../ui/HealthGrade.tsx';
+import { healthTone } from '../lib/healthTone.ts';
 import { TokenRoiPanel } from '../ui/TokenRoiPanel.tsx';
 
 interface OverviewProps {
@@ -276,41 +278,63 @@ export function Overview(handle: Handle<OverviewProps>) {
             {' '}context window. Every metric below links to its source.
           </p>
 
-          {/* v0.3.10 — health badge. Click → /risks. State derives
-              from severity counts; ok when no critical/high/secrets,
-              warn when stale/todos > 0, danger when any
-              critical/secret/broken finding exists. */}
+          {/* v0.3 — health badge. Click → /risks. Leads with the composite
+              grade (A–F · 0–100) when present, then the top deductions. Tone
+              comes from the shared healthTone() helper so it never disagrees
+              with the margin HealthGrade marque. Pre-v0.3 datasets (no letter)
+              fall back to the original severity-count summary below. */}
           {(() => {
+            const h = summary.health;
+            const tone = healthTone(h);
+            const toneStyle =
+              tone === 'danger' ? healthBadgeDanger : tone === 'warn' ? healthBadgeWarn : healthBadgeOk;
+            const verb = tone === 'danger' ? 'Act on Risks' : tone === 'warn' ? 'Open Risks' : 'View Risks';
+
+            if (h.grade && typeof h.score === 'number') {
+              // Reuse core's headline prose (single grammar source — memory
+              // pins it verbatim) by stripping the "{grade} · {score} — " head.
+              // Grade/score render strong from the structured fields; the factor
+              // tail renders muted. Take everything after the FIRST " — " so the
+              // clean tail ("clean — no blockers detected") survives intact.
+              const sep = h.headline.indexOf(' — ');
+              const tail = sep >= 0 ? h.headline.slice(sep + 3) : h.headline;
+              return (
+                <a
+                  href="/risks"
+                  mix={[healthBadge, toneStyle]}
+                  aria-label={`Health grade ${h.grade}, score ${h.score} of 100. ${tail}.`}
+                >
+                  <span aria-hidden="true" mix={healthBadgeBar} />
+                  <span mix={healthBadgeText}>
+                    <span mix={healthBadgeStrong}>{h.grade} · {h.score}</span>
+                    <span mix={css({ color: 'var(--fg-faint)' })}> — {tail}</span>
+                  </span>
+                  <span mix={healthBadgeArrow}>{verb} →</span>
+                </a>
+              );
+            }
+
+            // Fallback: pre-grade dataset. Original severity-count summary.
             const risks = data.risks;
             const counts = risks.reduce<Record<string, number>>((acc, r) => {
               acc[r.severity] = (acc[r.severity] ?? 0) + 1;
               return acc;
             }, {});
             const critical = counts.critical ?? 0;
-            const high = counts.high ?? 0;
-            const secrets = summary.health.secrets;
-            const broken = summary.health.broken;
-            const stale = summary.health.stale;
-            const todos = summary.health.todos;
-            const isDanger = critical > 0 || secrets > 0 || broken > 0;
-            const isWarn = !isDanger && (high > 0 || stale > 0);
-            const tone = isDanger ? healthBadgeDanger : isWarn ? healthBadgeWarn : healthBadgeOk;
-            const label = isDanger
-              ? `${critical + secrets + broken} critical · review now`
-              : isWarn
-              ? `${risks.length} ${risks.length === 1 ? 'finding' : 'findings'} · ${stale} stale · ${todos} TODOs · review when convenient`
-              : `0 findings · scanned clean`;
-            const verb = isDanger ? 'Act on Risks' : isWarn ? 'Open Risks' : 'View Risks';
+            const label =
+              tone === 'danger'
+                ? `${critical + h.secrets + h.broken} critical · review now`
+                : tone === 'warn'
+                ? `${risks.length} ${risks.length === 1 ? 'finding' : 'findings'} · ${h.stale} stale · ${h.todos} TODOs · review when convenient`
+                : `0 findings · scanned clean`;
             return (
-              <a href="/risks" mix={[healthBadge, tone]} aria-label={`Health: ${label}`}>
+              <a href="/risks" mix={[healthBadge, toneStyle]} aria-label={`Health: ${label}`}>
                 <span aria-hidden="true" mix={healthBadgeBar} />
                 <span mix={healthBadgeText}>
                   <span mix={healthBadgeStrong}>{label.split('·')[0]?.trim()}</span>
                   <span mix={css({ color: 'var(--fg-faint)' })}> · {label.split('·').slice(1).join('·').trim()}</span>
                 </span>
-                <span mix={healthBadgeArrow}>
-                  {verb} →
-                </span>
+                <span mix={healthBadgeArrow}>{verb} →</span>
               </a>
             );
           })()}
@@ -388,20 +412,7 @@ export function Overview(handle: Handle<OverviewProps>) {
               </ul>
             </FootnoteChip>
           )}
-          <FootnoteChip
-            label="Health"
-            tone={
-              summary.health.broken > 0 || summary.health.secrets > 0
-                ? 'danger'
-                : summary.health.todos > 0
-                ? 'warn'
-                : 'ok'
-            }
-          >
-            {summary.health.broken === 0 && summary.health.secrets === 0
-              ? 'Clean. No broken imports, no secrets in source.'
-              : `${summary.health.broken} broken · ${summary.health.secrets} secrets · ${summary.health.todos} todos`}
-          </FootnoteChip>
+          <HealthGrade health={summary.health} />
           {summary.description && (
             <FootnoteChip label="Intent">{summary.description}</FootnoteChip>
           )}
