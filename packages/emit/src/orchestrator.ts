@@ -22,6 +22,7 @@
 
 import type { AgentArtifact, FileWriter, HumanArtifact } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema } from '@factstack/spec';
+import { computeDiff, decode, encodeIncremental, type PackHeader } from '@factstack/factspack';
 import { encodeAgentPack } from './pack.js';
 
 /**
@@ -73,6 +74,16 @@ export interface WriteArtifactsToOptions {
    * source-agnostic. When omitted or empty, no MEMORY.md is written.
    */
   memoryBody?: string;
+  /**
+   * F8 — the PREVIOUS `agent.pack` body, pre-read by the caller (the
+   * shims read it before this overwrites the file). When present and
+   * decodable, we additionally emit `agent.diff.pack`: the row-level
+   * delta from that master to this one, so a consumer holding the prior
+   * master applies a small diff instead of re-reading the whole pack.
+   * Omit it (or pass a body we can't use) and only the full master is
+   * written — the sidecar is purely additive and best-effort.
+   */
+  prevPackBody?: string;
 }
 
 export interface WriteArtifactsResult {
@@ -82,6 +93,9 @@ export interface WriteArtifactsResult {
   humanName: 'human.json';
   /** Always written: `agent.pack`. */
   packName: 'agent.pack';
+  /** F8 — `agent.diff.pack` when a usable `prevPackBody` was supplied and
+   *  the diff emitted; null otherwise (cold run, or an unusable prev). */
+  diffName: 'agent.diff.pack' | null;
   /** `agent.jsonl`, or null when streamable: false / minimal profile. */
   jsonlName: string | null;
   /** `MEMORY.md`, or null when memoryBody is omitted/empty. */
@@ -141,6 +155,48 @@ export async function writeArtifactsTo(
   bytes += await writer.writeText('human.json', humanBody);
   bytes += await writer.writeText('agent.pack', packBody);
 
+  /* F8 — incremental diff sidecar. When the caller supplies the previous
+     master, emit `agent.diff.pack`: the row-level delta from it to this
+     pack (encodeIncremental(computeDiff(prev, next))). It's a depth-1
+     accelerator — always the diff vs the immediately preceding master, not
+     a growing chain — so a consumer holding the prior master applies one
+     small diff instead of re-reading the whole pack. The full `agent.pack`
+     master above is untouched; the sidecar is purely additive.
+
+     Best-effort by design: any failure (a corrupt / pre-v0.2 / truncated
+     prev, a schema drift, a duplicate PK) skips the diff and leaves the
+     master as the source of truth. The emit step must never fail because
+     the accelerator couldn't build. The diff header's producer/schema/
+     snapshotId come from re-decoding the master we just wrote, so the
+     sidecar's identity can never drift from the pack it describes. */
+  let diffName: 'agent.diff.pack' | null = null;
+  if (options.prevPackBody) {
+    try {
+      const prev = decode(options.prevPackBody); // strict: throws on corrupt/legacy/truncated
+      const next = decode(packBody);
+      // Only diff a verifiable, same-schema master: the trailer sha anchors
+      // the chain (the consumer verifies it before applying), and a schema
+      // mismatch (e.g. an agent-v3 pack on disk) makes the rows incomparable.
+      if (prev.trailer && prev.header.schema === next.header.schema) {
+        const header: PackHeader = {
+          producer: next.header.producer,
+          schema: next.header.schema,
+          snapshotId: next.header.snapshotId,
+          rowCount: 0, // spec §7 diff sentinel — encodeIncremental enforces 0 here (not a placeholder)
+          seq: (prev.header.seq ?? 1) + 1,
+          parent: prev.trailer.sha256, // 12-hex of the master this diff applies onto
+          kind: 'diff',
+          ...(next.header.generated !== undefined && { generated: next.header.generated }),
+        };
+        const diffBody = encodeIncremental({ header, tables: computeDiff(prev, next) });
+        bytes += await writer.writeText('agent.diff.pack', diffBody);
+        diffName = 'agent.diff.pack';
+      }
+    } catch {
+      /* accelerator failed — master is still authoritative, carry on */
+    }
+  }
+
   /* agent.jsonl: streamable per-file. Profile sets the default
      (legacy on, minimal off); an explicit `streamable` still wins. */
   let jsonlName: string | null = null;
@@ -158,15 +214,12 @@ export async function writeArtifactsTo(
     memoryName = 'MEMORY.md';
   }
 
-  /* Snapshot: History-tab trend data. The profile sets the default
-     (legacy keeps the caller's prior default of false; minimal forces
-     off), but an explicit `writeSnapshot` still wins so the CLI's
-     `analyze` (which opts in) and the browser (which defaults on) keep
-     their behavior in legacy mode. In minimal, snapshots are off
-     unless the caller explicitly re-enables them. */
-  const snapshotDefault = isMinimal ? false : (options.writeSnapshot ?? false);
+  /* Snapshot: History-tab trend data, off unless the caller opts in.
+     Callers that want it on own that default explicitly — the browser
+     shim passes `writeSnapshot: !isMinimal` and the CLI's `analyze`
+     opts in — so the orchestrator needs no profile-based fallback. */
   let snapshotName: string | null = null;
-  if (options.writeSnapshot ?? snapshotDefault) {
+  if (options.writeSnapshot ?? false) {
     snapshotName = await writeSnapshotFile(writer, agent, human);
     if (snapshotName) {
       // Account for the snapshot bytes — writeText returns them but
@@ -187,6 +240,7 @@ export async function writeArtifactsTo(
     agentName,
     humanName: 'human.json',
     packName: 'agent.pack',
+    diffName,
     jsonlName,
     memoryName,
     snapshotName,

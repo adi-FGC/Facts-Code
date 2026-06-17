@@ -71,11 +71,19 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
   humanPath: string;
   jsonlPath: string | null;
   packPath: string;
+  diffPath: string | null;
   snapshotPath: string | null;
   memoryPath: string | null;
   bytesWritten: number;
 }> {
   const writer = new NodeFileWriter(opts.root);
+  /* F8 — read the prior master BEFORE writeArtifactsTo overwrites it, so the
+     orchestrator can emit an `agent.diff.pack` sidecar. Best-effort: absent
+     on the first run (no prior pack) or undefined on any read error → the
+     orchestrator simply writes no diff that run. */
+  const prevPackBody = await fs
+    .readFile(path.join(writer.artifactRoot, 'agent.pack'), 'utf8')
+    .catch(() => undefined);
   /* Conditional-spread because exactOptionalPropertyTypes rejects
      `{ key: undefined }` — the orchestrator's options must either
      have the key set to a real value or not have the key at all. */
@@ -85,6 +93,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     ...(opts.writeSnapshot !== undefined && { writeSnapshot: opts.writeSnapshot }),
     ...(opts.snapshotRetention !== undefined && { snapshotRetention: opts.snapshotRetention }),
     ...(opts.memoryBody !== undefined && { memoryBody: opts.memoryBody }),
+    ...(prevPackBody !== undefined && { prevPackBody }),
   });
 
   /* Node-only extra: auto-add `.facts/` to .gitignore so artifacts
@@ -105,6 +114,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     humanPath: path.join(root, result.humanName),
     jsonlPath: result.jsonlName ? path.join(root, result.jsonlName) : null,
     packPath: path.join(root, result.packName),
+    diffPath: result.diffName ? path.join(root, result.diffName) : null,
     memoryPath: result.memoryName ? path.join(root, result.memoryName) : null,
     snapshotPath: result.snapshotName
       ? path.join(root, 'snapshots', result.snapshotName)
