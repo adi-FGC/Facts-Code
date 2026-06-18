@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Factsv1 — Monetization & Roadmap</title>
+<style>
+  :root{
+    --bg:#fbfbfd; --ink:#1c2230; --muted:#5b6677; --line:#e4e7ee; --panel:#ffffff;
+    --accent:#5b3aa6; --accent2:#2563eb;
+    --free:#16794e; --freebg:#e8f6ef; --freeln:#bfe6d3;
+    --fm:#9a6a00; --fmbg:#fcf3df; --fmln:#ecd9a6;
+    --paid:#5b3aa6; --paidbg:#efe9fb; --paidln:#d8caf2;
+    --mvp:#0e7490; --v1:#7c3aed; --later:#64748b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.62 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:38px 24px 80px}
+  header.h{border-bottom:2px solid var(--line);padding-bottom:18px;margin-bottom:8px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.02em}
+  h2{font-size:21px;margin:40px 0 6px;letter-spacing:-.01em}
+  h2 .num{display:inline-block;width:27px;height:27px;line-height:27px;text-align:center;background:var(--accent);color:#fff;border-radius:7px;font-size:14px;margin-right:9px;vertical-align:2px}
+  h3{font-size:15.5px;margin:20px 0 6px}
+  p{margin:9px 0}
+  .sub{color:var(--muted);font-size:15px;margin:2px 0 0}
+  .goal{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:9px;padding:12px 16px;margin:14px 0;font-size:14.5px;color:#2c3444}
+  a{color:var(--accent2);text-decoration:none}a:hover{text-decoration:underline}
+  .lead{color:var(--muted);font-size:15.5px;max-width:860px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:14px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:16px 18px}
+  .card h3{margin-top:0}
+  .pill{display:inline-block;border-radius:20px;padding:2px 10px;font-size:11.5px;font-weight:600;border:1px solid var(--line);white-space:nowrap}
+  .p-free{background:var(--freebg);color:var(--free);border-color:var(--freeln)}
+  .p-fm{background:var(--fmbg);color:var(--fm);border-color:var(--fmln)}
+  .p-paid{background:var(--paidbg);color:var(--paid);border-color:var(--paidln)}
+  .ph{display:inline-block;border-radius:6px;padding:1px 9px;font-size:11px;font-weight:700;color:#fff}
+  .ph-mvp{background:var(--mvp)} .ph-v1{background:var(--v1)} .ph-later{background:var(--later)}
+  .chips{margin:8px 0}
+  .chip{display:inline-block;background:#f1f3f8;border:1px solid var(--line);border-radius:7px;padding:3px 9px;margin:3px 4px 0 0;font-size:12.5px}
+  .chip b{color:var(--accent)}
+  .why{background:#f7f8fc;border:1px dashed #c9cfdc;border-radius:9px;padding:11px 15px;margin:10px 0;font-size:13.6px;color:#39425a}
+  .why b{color:#1c2230}
+  .arrow{text-align:center;color:var(--muted);font-size:22px;margin:2px 0;line-height:1}
+  table{border-collapse:collapse;width:100%;margin:12px 0;font-size:13px}
+  th,td{border:1px solid var(--line);padding:8px 9px;text-align:left;vertical-align:top}
+  th{background:#f3f5fa;font-weight:600;font-size:12.5px}
+  td.c{text-align:center;white-space:nowrap}
+  tr:nth-child(even) td{background:#fcfcfe}
+  .score{display:inline-block;min-width:18px;font-weight:600}
+  .bar{display:inline-block;height:8px;border-radius:5px;background:linear-gradient(90deg,#7c3aed,#2563eb);vertical-align:middle}
+  .barwrap{display:flex;align-items:center;gap:7px}
+  .rank{font-weight:700;color:var(--accent)}
+  .formula{background:#0f1729;color:#dbe5f5;border-radius:9px;padding:12px 16px;font:13px/1.6 "SF Mono",ui-monospace,Menlo,Consolas,monospace;overflow:auto}
+  .legend{font-size:12.5px;color:var(--muted);margin:6px 0}
+  .price{font-size:22px;font-weight:700;margin:2px 0}
+  .price small{font-size:12.5px;font-weight:500;color:var(--muted)}
+  .tier{border-top:4px solid var(--line)}
+  .tier.f{border-top-color:var(--free)} .tier.pro{border-top-color:var(--accent2)} .tier.team{border-top-color:var(--paid)} .tier.ent{border-top-color:#334155}
+  ul{margin:8px 0;padding-left:20px}li{margin:4px 0}
+  .note{font-size:12.5px;color:var(--muted)}
+  footer{margin-top:46px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px}
+  @media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="h">
+    <h1>Factsv1 — Monetization &amp; Roadmap</h1>
+    <p class="sub">Fast AI Coding Tools · local-first, cloud-supercharged · for first-time programmers, experienced engineers, and CTOs</p>
+  </header>
+
+  <div class="goal">
+    <b>The goal:</b> a valuable coding tool that is <b>local-first</b> but gains <b>superpowers in the cloud</b> — priced so the cloud tier is easy to charge for yet <b>more than worth it</b>. The name is the promise: <i>Fast AI Coding Tools.</i>
+  </div>
+
+  <!-- ───────────────── SUMMARY ───────────────── -->
+  <h2><span class="num">§</span>Summary — the monetization thesis</h2>
+  <p class="lead">Factsv1's free/paid line is drawn by physics, not preference: anything that runs on <b>one machine, one repo, deterministically</b> is the free acquisition engine (zero infra cost, proves value, works offline, commits to git). Anything that needs <b>shared, hosted, historical, or cross-repo</b> state is a cloud superpower that captures willingness-to-pay. The strategy in five moves:</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>1 · Free local engine = acquisition + proof</h3>
+      <p>The local product (accurate code graph, ask-your-codebase queries, auto-context for your agent on a single repo, token-savings counter, one-command install) must be the <b>best free code-context tool</b>. It proves the value before any charge — the freemium prerequisite.</p>
+    </div>
+    <div class="card">
+      <h3>2 · Cloud amplifies, never unlocks, the core</h3>
+      <p>We <b>never paywall the core loop</b> (single-repo context — the literal "fast AI coding" benefit). We charge for its <b>cloud amplification</b>: cross-repo, team-shared, always-fresh, and historical. Local stays honest; cloud stays compelling.</p>
+    </div>
+    <div class="card">
+      <h3>3 · "More than worth it" is provable, not asserted</h3>
+      <p><b>Token accounting (F7)</b> + the <b>ROI harness (F13)</b> turn the pitch into a number: cheaper, fewer-turn agent runs. If a seat saves more in tokens + engineer hours than it costs, the sale closes itself.</p>
+    </div>
+    <div class="card">
+      <h3>4 · CTO value beyond coding speed</h3>
+      <p><b>Graph analytics (F5)</b> — hotspots, knowledge-risk/bus-factor, blast-radius, portfolio health — gives leaders a reason to buy that engineers' tools never reach. This is the high-WTP wedge and the expansion path.</p>
+    </div>
+  </div>
+  <div class="why" style="margin-top:14px">
+    <b>Three personas, three doors, one funnel:</b> first-time programmers enter free (the "how to read this codebase" brief, the "why" rationale, plain-English queries) → experienced engineers stay for free local power and convert to <b>Pro</b> cloud → CTOs buy <b>Team/Enterprise</b> for analytics, ROI, and governance. Each door widens the one above it.
+  </div>
+
+  <!-- ───────────────── PART 1: SEQUENCED PATH ───────────────── -->
+  <h2><span class="num">1</span>Sequenced path to the goal</h2>
+  <p class="lead">Three phases. Each is independently shippable and each <b>must</b> precede the next for a reason that is both technical (features depend on earlier ones) and commercial (you can't sell a cloud tier before a free base is adopted and proven).</p>
+
+  <div class="card" style="border-left:4px solid var(--mvp)">
+    <h3><span class="ph ph-mvp">MVP</span> &nbsp;The free local engine — <span style="color:var(--muted);font-weight:500">acquire &amp; prove value</span></h3>
+    <p><b>Goal:</b> one command, point at a repo, and get a symbol-accurate graph, plain-English answers with citations, a "fast AI coding" context boost on that repo, and a visible token-savings number — all offline, committable, free.</p>
+    <div class="chips">
+      <span class="chip"><b>F1</b> Provenance &amp; confidence</span>
+      <span class="chip"><b>F2</b> Symbol-level graph</span>
+      <span class="chip"><b>F3</b> Declarative + NL query</span>
+      <span class="chip"><b>F7</b> Live token accounting</span>
+      <span class="chip"><b>F8</b> Incremental + git hook</span>
+      <span class="chip"><b>F10</b> Rationale ("the why")</span>
+      <span class="chip"><b>F12</b> Distribution (skill/installer)</span>
+    </div>
+    <p class="note"><b>Monetization role:</b> pure acquisition. No charge yet — this is the value proof and the install surface where the cloud upsell will later be introduced.</p>
+  </div>
+
+  <div class="arrow">↓</div>
+  <div class="why"><b>Why MVP precedes V1.</b> <u>Technically:</u> V1's headline — auto-assembled context (F4) and analytics (F5) — are built <i>on top of</i> the MVP's graph (F2), retrieval (F3), and token budgeting (F7); they cannot exist first. <u>Commercially:</u> a cloud tier has nothing to amplify and nobody to convert until the free local tool is adopted and has <i>already proven</i> token savings. You earn the right to charge by giving value first.</div>
+
+  <div class="card" style="border-left:4px solid var(--v1)">
+    <h3><span class="ph ph-v1">V1</span> &nbsp;Cloud superpowers — <span style="color:var(--muted);font-weight:500">capture willingness-to-pay</span></h3>
+    <p><b>Goal:</b> turn the proven free engine into a team/cloud product. The agent gets <b>always-fresh, cross-repo, team-shared</b> context; leaders get <b>analytics and ROI</b>. This is the first real revenue.</p>
+    <div class="chips">
+      <span class="chip"><b>F4</b> Graph-aware context (pre-injection)</span>
+      <span class="chip"><b>F5</b> Graph analytics (hotspots/impact)</span>
+      <span class="chip"><b>F6</b> Multi-language extraction</span>
+      <span class="chip"><b>F9</b> Session/cross-session memory</span>
+      <span class="chip"><b>F13</b> Benchmark / ROI harness</span>
+      <span class="chip">+ cloud infra: hosted dashboard &amp; history, cross-repo graph, CI/PR impact bot</span>
+    </div>
+    <p class="note"><b>Monetization role:</b> the core paid tier (Pro + Team). F4-cloud and F5 are the superpowers; F13 + F7 prove they pay for themselves; F6 widens the addressable market.</p>
+  </div>
+
+  <div class="arrow">↓</div>
+  <div class="why"><b>Why V1 precedes Later.</b> <u>Technically:</u> enterprise breadth (whole-stack graph, export) extends the mature symbol graph, analytics, and multi-language base that V1 establishes. <u>Commercially:</u> governance and org-wide standardization only become buying criteria <i>after</i> teams are already paying for V1 and want to roll it out company-wide. You move up-market from product-market fit, not before it.</div>
+
+  <div class="card" style="border-left:4px solid var(--later)">
+    <h3><span class="ph ph-later">Later</span> &nbsp;Enterprise &amp; breadth — <span style="color:var(--muted);font-weight:500">expand ACV &amp; defensibility</span></h3>
+    <p><b>Goal:</b> become the org-wide standard — span app + data + infrastructure, integrate with enterprise tooling, and satisfy procurement.</p>
+    <div class="chips">
+      <span class="chip"><b>F11</b> Whole-stack (SQL/IaC/docs)</span>
+      <span class="chip"><b>F14</b> Graph export</span>
+      <span class="chip">+ governance: SSO/SCIM/RBAC, on-prem/VPC, audit, portfolio health, SLA</span>
+    </div>
+    <p class="note"><b>Monetization role:</b> Enterprise tier &amp; expansion revenue — higher ACV, multi-year, defensible.</p>
+  </div>
+
+  <!-- ───────────────── PART 2: WEIGHTED FEATURE LIST ───────────────── -->
+  <h2><span class="num">2</span>Weighted feature list</h2>
+  <p class="lead">Every feature scored 1–5 on four dimensions, combined into a weighted composite, ranked high-to-low. Weights reflect the brief: it asks for a <b>valuable tool</b> that we can <b>charge well</b> for, so <i>impact</i> and <i>monetization</i> dominate; <i>demand</i> validates the funnel; <i>build ease</i> is a sequencing tiebreaker, weighted lowest because a high-value feature is worth building even when it's hard.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3>Dimensions &amp; weights</h3>
+      <ul>
+        <li><b>Impact on core goal — 35%.</b> Does it advance "fast AI coding, local-first + cloud superpower"?</li>
+        <li><b>Monetization potential — 30%.</b> Can it capture willingness-to-pay / be cleanly gated?</li>
+        <li><b>User demand — 20%.</b> How loudly the market asks for it (validated by the landscape scan).</li>
+        <li><b>Build ease — 15%.</b> Scored as <b>ease, not effort</b>: 5 = quick win, 1 = heavy lift — so low effort contributes <i>positively</i>.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Composite formula</h3>
+      <div class="formula">composite =
+  0.35 · Impact
++ 0.30 · Monetization
++ 0.20 · Demand
++ 0.15 · Ease
+
+(every term 1–5 → composite 1.0–5.0)</div>
+      <p class="legend">Ease maps from build size: S→5, S/M→4, M→3, M/L→2, L→1.</p>
+    </div>
+  </div>
+
+  <table>
+    <tr>
+      <th class="c">Rank</th><th>Feature</th><th class="c">Phase</th>
+      <th class="c">Impact<br><span class="note">×35%</span></th>
+      <th class="c">Monetize<br><span class="note">×30%</span></th>
+      <th class="c">Demand<br><span class="note">×20%</span></th>
+      <th class="c">Ease<br><span class="note">×15%</span></th>
+      <th class="c">Composite</th>
+      <th class="c">Tier</th>
+    </tr>
+    <tr>
+      <td class="c rank">1</td><td><b>F4</b> · Graph-aware context (pre-injection)</td><td class="c"><span class="ph ph-v1">V1</span></td>
+      <td class="c">5</td><td class="c">5</td><td class="c">5</td><td class="c">2</td>
+      <td class="c"><div class="barwrap"><b>4.55</b><span class="bar" style="width:91px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Freemium→Paid</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">2</td><td><b>F5</b> · Graph analytics (hotspots / impact)</td><td class="c"><span class="ph ph-v1">V1</span></td>
+      <td class="c">4</td><td class="c">5</td><td class="c">4</td><td class="c">3</td>
+      <td class="c"><div class="barwrap"><b>4.15</b><span class="bar" style="width:83px"></span></div></td>
+      <td class="c"><span class="pill p-paid">Paid (Team)</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">3</td><td><b>F2</b> · Symbol-level graph</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">5</td><td class="c">4</td><td class="c">4</td><td class="c">1</td>
+      <td class="c"><div class="barwrap"><b>3.90</b><span class="bar" style="width:78px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Free→Paid@scale</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">4</td><td><b>F12</b> · Distribution (skill / installer)</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">5</td><td class="c">3</td><td class="c">4</td><td class="c">3</td>
+      <td class="c"><div class="barwrap"><b>3.90</b><span class="bar" style="width:78px"></span></div></td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">5</td><td><b>F7</b> · Live token accounting</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">4</td><td class="c">4</td><td class="c">3</td><td class="c">4</td>
+      <td class="c"><div class="barwrap"><b>3.80</b><span class="bar" style="width:76px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Free→Paid ROI</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">6</td><td><b>F3</b> · Declarative + NL query</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">4</td><td class="c">3</td><td class="c">5</td><td class="c">3</td>
+      <td class="c"><div class="barwrap"><b>3.75</b><span class="bar" style="width:75px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Freemium</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">7</td><td><b>F6</b> · Multi-language extraction</td><td class="c"><span class="ph ph-v1">V1</span></td>
+      <td class="c">4</td><td class="c">4</td><td class="c">5</td><td class="c">1</td>
+      <td class="c"><div class="barwrap"><b>3.75</b><span class="bar" style="width:75px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Free→Paid long-tail</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">8</td><td><b>F9</b> · Session / cross-session memory</td><td class="c"><span class="ph ph-v1">V1</span></td>
+      <td class="c">3</td><td class="c">4</td><td class="c">3</td><td class="c">4</td>
+      <td class="c"><div class="barwrap"><b>3.45</b><span class="bar" style="width:69px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Freemium</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">9</td><td><b>F11</b> · Whole-stack (SQL / IaC / docs)</td><td class="c"><span class="ph ph-later">Later</span></td>
+      <td class="c">3</td><td class="c">4</td><td class="c">3</td><td class="c">2</td>
+      <td class="c"><div class="barwrap"><b>3.15</b><span class="bar" style="width:63px"></span></div></td>
+      <td class="c"><span class="pill p-paid">Paid</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">10</td><td><b>F8</b> · Incremental + git hook</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">4</td><td class="c">2</td><td class="c">4</td><td class="c">2</td>
+      <td class="c"><div class="barwrap"><b>3.10</b><span class="bar" style="width:62px"></span></div></td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">11</td><td><b>F13</b> · Benchmark / ROI harness</td><td class="c"><span class="ph ph-v1">V1</span></td>
+      <td class="c">3</td><td class="c">4</td><td class="c">2</td><td class="c">3</td>
+      <td class="c"><div class="barwrap"><b>3.10</b><span class="bar" style="width:62px"></span></div></td>
+      <td class="c"><span class="pill p-fm">Free CLI→Paid hosted</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">12</td><td><b>F1</b> · Provenance &amp; confidence</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">3</td><td class="c">2</td><td class="c">3</td><td class="c">5</td>
+      <td class="c"><div class="barwrap"><b>3.00</b><span class="bar" style="width:60px"></span></div></td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">13</td><td><b>F10</b> · Rationale ("the why")</td><td class="c"><span class="ph ph-mvp">MVP</span></td>
+      <td class="c">3</td><td class="c">2</td><td class="c">3</td><td class="c">5</td>
+      <td class="c"><div class="barwrap"><b>3.00</b><span class="bar" style="width:60px"></span></div></td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+    </tr>
+    <tr>
+      <td class="c rank">14</td><td><b>F14</b> · Graph export</td><td class="c"><span class="ph ph-later">Later</span></td>
+      <td class="c">2</td><td class="c">3</td><td class="c">2</td><td class="c">4</td>
+      <td class="c"><div class="barwrap"><b>2.60</b><span class="bar" style="width:52px"></span></div></td>
+      <td class="c"><span class="pill p-paid">Paid</span></td>
+    </tr>
+  </table>
+  <p class="legend">Ties broken toward the more foundational / higher-impact feature (e.g. F2 over F12 at 3.90; F3 over F6 at 3.75). Reading: the top of the list (F4, F5) is exactly the cloud-superpower revenue core; the foundation (F2, F12, F7) is what must ship first to earn it; F14 ranks last as an integration nicety.</p>
+
+  <!-- ───────────────── PART 3: FREE VS PAID ───────────────── -->
+  <h2><span class="num">3</span>Free vs. paid breakdown</h2>
+  <p class="lead">Freemium logic applied: <b>free features drive acquisition and prove value</b> (and cost us no infra because they're local); <b>paid features capture willingness-to-pay from power users and teams</b> — gating <i>scale, sharing, history, and analytics</i> rather than core utility, so the free tier is never crippled.</p>
+
+  <h3>The tier model</h3>
+  <div class="grid3">
+    <div class="card tier f">
+      <span class="pill p-free">Free · Local / Community</span>
+      <p class="price">$0</p>
+      <p class="note">First-time programmers · experienced engineers · OSS</p>
+      <ul>
+        <li>Full local engine: analyze, single-repo symbol graph, FactsPack, MCP server</li>
+        <li>Structured + basic NL query, single-repo auto-context, token counter</li>
+        <li>Incremental + git hook, MEMORY.md + rationale, one-command install</li>
+        <li>Core languages</li>
+      </ul>
+      <p class="note"><b>Job:</b> acquisition + value proof.</p>
+    </div>
+    <div class="card tier pro">
+      <span class="pill" style="background:#e6effe;color:#1d4ed8;border-color:#c5d9fb">Pro · Individual cloud</span>
+      <p class="price">~$15–25<small>/mo *</small></p>
+      <p class="note">Serious solo engineers</p>
+      <ul>
+        <li>Hosted dashboard with history; remote context API across your machines</li>
+        <li>Higher NL/context caps; full language set; graph export</li>
+      </ul>
+      <p class="note"><b>Job:</b> convert power users; entry willingness-to-pay (anchored near $19–20 IDE-AI norms).</p>
+    </div>
+    <div class="card tier team">
+      <span class="pill p-paid">Team · Cloud superpowers</span>
+      <p class="price">~$30–50<small>/seat/mo *</small></p>
+      <p class="note">CTOs · leads · teams — the primary revenue</p>
+      <ul>
+        <li>Cross-repo org graph; team-shared context + memory</li>
+        <li>CI / PR impact bot; exec analytics (hotspots, knowledge-risk, portfolio)</li>
+        <li>Token-ROI dashboards</li>
+      </ul>
+      <p class="note"><b>Job:</b> "charge well, worth it." ROI-justified per seat.</p>
+    </div>
+  </div>
+  <div class="card tier ent" style="margin-top:14px">
+    <span class="pill" style="background:#eef1f6;color:#334155;border-color:#cdd5e1">Enterprise · Govern &amp; scale</span> &nbsp; <span class="price" style="display:inline;font-size:18px">Custom</span>
+    <p style="margin:8px 0 0">SSO/SCIM/RBAC · on-prem/VPC · whole-stack governance · export/integration connectors · audit · org portfolio health · SLA &amp; support. <span class="note">Job: expand ACV &amp; defensibility.</span></p>
+  </div>
+  <p class="note" style="margin-top:8px">* Indicative starting hypotheses to validate, benchmarked against the landscape (IDE-AI seats ~$19–20; engineering-intelligence / code-health platforms price per active author + enterprise). The ROI test: a Team seat at ~$40 must save more than $40/mo in agent tokens + engineer time — which F7/F13 measure directly.</p>
+
+  <h3>Per-feature recommendation</h3>
+  <table>
+    <tr><th>Feature</th><th class="c">Verdict</th><th>Where the line is (extent / cap)</th><th>Freemium justification</th></tr>
+
+    <tr><td><b>F4</b> · Graph-aware context <span class="note">(the crown jewel)</span></td>
+      <td class="c"><span class="pill p-fm">Freemium → Paid</span></td>
+      <td><b>Free:</b> single-repo, local pre-injected context (the core loop). <b>Paid:</b> cross-repo, team-shared, always-fresh <i>remote context API</i>.</td>
+      <td>This <i>is</i> "fast AI coding" — blocking it would betray local-first. Free proves it on your repo; the cloud version (the part that's genuinely impossible locally at scale) captures the WTP.</td></tr>
+
+    <tr><td><b>F5</b> · Graph analytics (hotspots / impact)</td>
+      <td class="c"><span class="pill p-paid">Paid (Team) + free teaser</span></td>
+      <td><b>Free:</b> one-shot impact / blast-radius query. <b>Paid:</b> historical hotspots, knowledge-risk/bus-factor, portfolio dashboards.</td>
+      <td>The single impact query is engineer utility (acquisition); the <i>historical, exec-facing</i> analytics are the CTO's reason to buy — highest WTP, cleanly gated behind hosted history.</td></tr>
+
+    <tr><td><b>F2</b> · Symbol-level graph</td>
+      <td class="c"><span class="pill p-fm">Free → Paid @ scale</span></td>
+      <td><b>Free:</b> single-repo graph (up to a repo-size / symbol cap). <b>Paid:</b> cross-repo &amp; very-large-monorepo cloud indexing.</td>
+      <td>The graph is core utility and must prove value free; cross-repo indexing is infra-heavy and only possible in the cloud — natural paid line.</td></tr>
+
+    <tr><td><b>F12</b> · Distribution (skill / installer)</td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+      <td>Always free. It's the install surface where the cloud upsell is introduced.</td>
+      <td>The acquisition engine. Gating install would kill the funnel — the opposite of freemium intent.</td></tr>
+
+    <tr><td><b>F7</b> · Live token accounting</td>
+      <td class="c"><span class="pill p-fm">Free → Paid ROI</span></td>
+      <td><b>Free:</b> local token counter + per-session savings. <b>Paid:</b> aggregated org/team ROI dashboards + history.</td>
+      <td>Savings <i>must</i> be free to prove — it's the value evidence. The org-level ROI rollup (a buyer artifact) is paid.</td></tr>
+
+    <tr><td><b>F3</b> · Declarative + NL query</td>
+      <td class="c"><span class="pill p-fm">Freemium</span></td>
+      <td><b>Free:</b> structured queries + basic NL up to a daily cap. <b>Paid:</b> unlimited + hosted/team-shared NL endpoint.</td>
+      <td>"Ask your codebase" is the acquisition magic, so it must be tasted free; heavy/hosted volume is where cost and value concentrate → cap it.</td></tr>
+
+    <tr><td><b>F6</b> · Multi-language extraction</td>
+      <td class="c"><span class="pill p-fm">Free core → Paid long-tail</span></td>
+      <td><b>Free:</b> top languages. <b>Paid:</b> exotic/enterprise languages + cloud bulk indexing.</td>
+      <td>Breadth grows the funnel, so popular languages stay free; the long tail and cloud-accelerated indexing are upsells.</td></tr>
+
+    <tr><td><b>F9</b> · Session / cross-session memory</td>
+      <td class="c"><span class="pill p-fm">Freemium</span></td>
+      <td><b>Free:</b> personal local memory. <b>Paid:</b> team-shared / org context store.</td>
+      <td>Personal continuity is a free retention hook; <i>sharing</i> memory across a team is a collaboration feature → paid.</td></tr>
+
+    <tr><td><b>F11</b> · Whole-stack (SQL / IaC / docs)</td>
+      <td class="c"><span class="pill p-paid">Paid (Team/Ent)</span></td>
+      <td><b>Free:</b> docs-as-nodes linking. <b>Paid:</b> SQL schema + IaC graph &amp; governance.</td>
+      <td>App+data+infra in one graph is an enterprise differentiator with clear WTP; the lightweight docs-linking stays free as a teaser.</td></tr>
+
+    <tr><td><b>F8</b> · Incremental + git hook</td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+      <td>Always free locally. (Cloud CI-scale refresh is part of Team infra, not a gate on the local hook.)</td>
+      <td>"Fast" is in the name — slow local refresh would cripple core utility. Table-stakes stay free.</td></tr>
+
+    <tr><td><b>F13</b> · Benchmark / ROI harness</td>
+      <td class="c"><span class="pill p-fm">Free CLI → Paid hosted</span></td>
+      <td><b>Free:</b> local benchmark CLI. <b>Paid:</b> hosted ROI/benchmark reporting for buyers.</td>
+      <td>A free CLI lets champions prove value bottoms-up (drives adoption + expansion); the polished buyer-facing report is a sales asset → paid.</td></tr>
+
+    <tr><td><b>F1</b> · Provenance &amp; confidence</td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+      <td>Always free.</td>
+      <td>A trust label that costs nothing to give and builds the credibility that underpins every paid claim. Gating it would erode trust.</td></tr>
+
+    <tr><td><b>F10</b> · Rationale ("the why")</td>
+      <td class="c"><span class="pill p-free">Free</span></td>
+      <td>Always free.</td>
+      <td>High onboarding value for first-time programmers and cheap to build — pure top-of-funnel acquisition.</td></tr>
+
+    <tr><td><b>F14</b> · Graph export</td>
+      <td class="c"><span class="pill p-paid">Paid (Pro/Ent)</span></td>
+      <td><b>Free:</b> basic GraphML. <b>Paid:</b> enterprise DB / tooling connectors.</td>
+      <td>A power-user/enterprise integration with low broad demand — reasonable to keep behind Pro+ without affecting core utility.</td></tr>
+  </table>
+
+  <div class="why" style="margin-top:16px">
+    <b>The one guardrail that ties it together:</b> the free tier always contains a <i>complete, useful local loop</i> — graph + query + single-repo context + token proof + install — so a solo user never hits a wall on core utility. Everything paid is an <b>amplifier</b> (scale, sharing, history, analytics, ROI), which is exactly where CTOs and teams have budget and where the cloud is genuinely better than local. That is how we "charge well" without ever making the tool feel crippled — and why the charge is "more than worth it."
+  </div>
+
+  <footer>
+    Factsv1 monetization &amp; roadmap · prepared 2026-06-07 · feature set per <code>docs/feature-plan.md</code>; WTP signals per <code>docs/competitive/landscape/</code>. Prices are indicative starting hypotheses to validate with design-partner pricing interviews, not commitments.
+  </footer>
+
+</div>
+</body>
+</html>

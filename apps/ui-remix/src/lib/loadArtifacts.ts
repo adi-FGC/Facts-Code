@@ -30,7 +30,7 @@ export interface DatasetFile {
   tokens: number;
   todos: number;
   todoEntries: Array<{ kind: string; line: number; text: string }>;
-  status: 'ok' | 'broken' | 'stale' | 'parse_error';
+  status: 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error';
   mtime: number;
   /** v0.3.8 — pre-computed read-through time in minutes. Undefined
    *  for older artifacts that pre-date the spec change. */
@@ -61,11 +61,31 @@ export interface Dataset {
     oneLiner: string;
     description: string;
     capabilities: Array<{ icon: string; head: string; sub: string }>;
-    health: { broken: number; stale: number; todos: number; secrets: number };
+    health: {
+      broken: number;
+      stale: number;
+      todos: number;
+      secrets: number;
+      /** Prose summary — required since the original schema (e.g.
+       *  "B · 84 — 2 secrets exposed, 9 import cycles"). */
+      headline: string;
+      /** v0.3 — composite grade. `score` 0–100, `grade` its letter (A–F),
+       *  `factors` the top deductions ({label,count,penalty}). All optional
+       *  for backward-compat with pre-v0.3 baked datasets — the Health card
+       *  falls back to the flat counts when the grade is absent. */
+      score?: number;
+      grade?: 'A' | 'B' | 'C' | 'D' | 'F';
+      factors?: Array<{ label: string; count: number; penalty: number }>;
+    };
   };
   stats: { files: number; loc: number; size: number; gzip: number; tokens: number };
   tree: DatasetTreeNode;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
+  /** F5 — per-node graph analytics (importance = normalized PageRank 0..1,
+   *  community = label-propagation cluster id). One entry per node that carries
+   *  metrics. Optional for backward-compat with pre-F5 baked datasets — the
+   *  Modules surface renders an empty state when absent. */
+  nodeMetrics?: Array<{ path: string; importance?: number; community?: number }>;
   entryPoints: Array<{ label: string; path: string; handlerFile: string; kind: string }>;
   /**
    * Detected routes from per-framework AST extraction. `framework` is

@@ -70,6 +70,41 @@ These are inviolable unless a feature explicitly renegotiates one.
 
 ---
 
+## 1a. Market evidence — why each feature is the right bet
+
+> Cross-references the CIO market landscape in `docs/competitive/landscape/`. The
+> §2 implementation specs stay tool-free by design; this table carries the
+> competitive rationale — what validates each feature in the market, and where
+> FACTS stays differentiated rather than copying. "Validated by" = someone has
+> proven demand/feasibility; "FACTS edge" = why our version is not a me-too.
+
+| # | Feature | Validated by (market evidence) | FACTS edge |
+|---|---|---|---|
+| **F1** | Provenance & confidence | Knowledge-graph tools ship `extracted/inferred/ambiguous` confidence labels | Embeddings-RAG engines can't label provenance; determinism makes it ~free here |
+| **F2** | Symbol-level graph | A ~25k-star LSP-over-MCP server, LSP/SCIP→graph libs, AST→graph-DB tools, and scope-graph name-binding frameworks all prove demand for precise symbol graphs | Built deterministically and emitted as a **compact wire format** — not a heavy graph DB or ephemeral live-LSP |
+| **F3** | Declarative query + NL→subgraph | MCP symbol-query tools, NL→graph-query research projects, IDE symbol-index querying, and agentic NL code search with citations | NL resolved **deterministically (no model in core)**, returns a minimal FactsPack subgraph + `file:line` citations |
+| **F4** | Graph-aware pre-injection | A leading CLI agent already does repo-map → personalized-PageRank → signature skeleton within a token budget (direct validation); cross-repo curate-and-compress engines | An **agent-agnostic, FactsPack-encoded** context payload — the gap nobody fills (every engine couples to one agent's prompt) |
+| **F5** | Importance / communities / impact | PageRank ranking in the repo-map approach; behavioral analysis (git-churn × complexity hotspots, change coupling, knowledge maps); impact-based test selection | Reuses FACTS's existing churn + graph; deterministic algorithms; one computation feeds **both** the agent and the exec dashboard |
+| **F6** | Multi-language extraction | tree-sitter/`web-tree-sitter` (305 grammars, WASM) is the de-facto substrate across the agent + infra categories; standard symbol-index formats give compiler-grade refs | Stays **isomorphic (browser + Node)** via wasm; optional index-format ingest for precision without a type-checker |
+| **F7** | Live token accounting | Per-file token counts are table-stakes across the packer category; AI-ROI is now an exec line item in eng-intelligence platforms | Proves FactsPack's savings **in-session** — quantifies the cost narrative that is the whole pitch |
+| **F8** | Incremental refresh + cache + hooks | Merkle-tree incremental invalidation (scaled IDE index), incremental graph updates (graph tools), SHA-256 caches across packers | Delta **`+`/`x` FactsPack** packs + committable artifact + git merge driver — git-native, not a re-index |
+| **F9** | Session / cross-session memory | Local long-term-memory tools (via MCP), session + context stores in context engines, emerging knowledge-graph memory | **Extends the existing learnings JSONL** (no new storage); local + diffable |
+| **F10** | Rationale ("the why") | Review agents invest in capturing *why* (recursive per-node descriptors, git-history tracing); knowledge maps | Nearly free — `NOTE/HACK` todos + docstrings are already extracted; just link them to symbol ids |
+| **F11** | Whole-stack (SQL/IaC/docs) | A flagship multimodal graph tool's headline is "app code + DB schema + infra in one graph"; cross-language fact DBs | Extends FACTS's existing routes/secrets extractors into one **deterministic** connected graph |
+| **F12** | Distribution: skill + installer + hooks | A 60k-star tool installs a skill into ~20 assistants with always-on query-first hooks; MCP servers spread the same way; wrapper CLIs self-update | The adoption engine FACTS lacks — and the `skills` package already renders the instruction files |
+| **F13** | Reproducible benchmark | Every serious entrant ships numbers (runnable worked-examples, $/turns/quality reports, named code-scale benchmarks, an open test-gen eval) | Reproducible **session-level** proof of FactsPack — credibility table-stakes |
+| **F14** | Graph export | Graph tools export to property-graph DBs; an open multimodal tool offers a graph-DB export extra; standard interchange formats exist | Optional export keeps the **zero-infra default** intact; mirrors the opt-in export-extra pattern |
+
+**Net positioning (from the landscape synthesis):** the market splits into
+*embeddings/probabilistic* (owns scale) and *structural/deterministic* (owns
+precision). FACTS lives in the structural camp — already validated by the
+repo-map agent and the LSP/MCP tools — and the **uncontested center** is the
+combination no vendor sells: deterministic + local + a compact tabular wire
+format + dual (agent *and* exec) audience. Build that center (F2–F5, F4); adopt
+open plumbing for the rest (tree-sitter, index formats, MCP conventions).
+
+---
+
 ## 2. Feature catalog
 
 ### F1 — Provenance & confidence on relationships

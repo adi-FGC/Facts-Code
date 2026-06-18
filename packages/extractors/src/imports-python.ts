@@ -65,7 +65,9 @@ export function extractPythonImports(source: string): RawImport[] {
     const key = specifier + '|' + kind;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ specifier, kind, line });
+    // F2 `names` (local bindings) is JS/TS-only for now — the symbol
+    // resolver runs on JS/TS outlines, so Python imports carry no bindings.
+    out.push({ specifier, kind, line, names: [] });
   }
 
   return out;

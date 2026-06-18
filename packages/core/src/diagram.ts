@@ -40,7 +40,11 @@ export type DiagramView = 'package' | 'hub' | 'focal';
  * without fabricating a whole artifact or casting. Depend on what you use.
  */
 export interface DiagramSource {
-  graph: { edges: AgentArtifact['graph']['edges'] };
+  /* buildDiagram reads only from/to/kind — keep the param to that minimal
+     structural shape (not the full `AgentArtifact['graph']['edges']`) so any
+     edge-bearing caller works, including the browser `Dataset` whose edges
+     omit the F1 `confidence` field. Extra fields (confidence, …) are fine. */
+  graph: { edges: ReadonlyArray<{ from: string; to: string; kind: string }> };
 }
 
 export interface DiagramOptions {

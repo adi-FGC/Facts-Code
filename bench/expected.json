@@ -1,0 +1,134 @@
+{
+  "corpus": {
+    "files": 14,
+    "loc": 372,
+    "totalTokens": 3487
+  },
+  "tasks": [
+    {
+      "id": "add-user-role",
+      "query": "add a role field to the user model",
+      "facts": {
+        "tokens": 587,
+        "turns": 1,
+        "recall": 1,
+        "anchors": [
+          "src/db/client.ts",
+          "src/models/user.ts"
+        ]
+      },
+      "naive": {
+        "tokens": 1324,
+        "turns": 4,
+        "recall": 1,
+        "files": [
+          "src/legacy/user-import.ts",
+          "src/models/order.ts",
+          "src/models/user.test.ts",
+          "src/models/user.ts"
+        ]
+      },
+      "savingsPct": 55.7
+    },
+    {
+      "id": "fix-session-timeout",
+      "query": "fix the login session timeout",
+      "facts": {
+        "tokens": 599,
+        "turns": 1,
+        "recall": 1,
+        "anchors": [
+          "src/auth/login.ts",
+          "src/auth/session.ts",
+          "src/db/client.ts"
+        ]
+      },
+      "naive": {
+        "tokens": 852,
+        "turns": 3,
+        "recall": 1,
+        "files": [
+          "docs/session-handling.md",
+          "src/auth/login.ts",
+          "src/auth/session.ts"
+        ]
+      },
+      "savingsPct": 29.7
+    },
+    {
+      "id": "list-api-routes",
+      "query": "where are the http api routes registered",
+      "facts": {
+        "tokens": 582,
+        "turns": 1,
+        "recall": 1,
+        "anchors": [
+          "src/api/routes.ts",
+          "src/db/client.ts"
+        ]
+      },
+      "naive": {
+        "tokens": 305,
+        "turns": 1,
+        "recall": 1,
+        "files": [
+          "src/api/routes.ts"
+        ]
+      },
+      "savingsPct": -90.8
+    },
+    {
+      "id": "currency-to-euros",
+      "query": "switch the currency format to euros",
+      "facts": {
+        "tokens": 583,
+        "turns": 1,
+        "recall": 1,
+        "anchors": [
+          "src/auth/login.ts",
+          "src/models/user.ts",
+          "src/util/format.ts"
+        ]
+      },
+      "naive": {
+        "tokens": 161,
+        "turns": 1,
+        "recall": 1,
+        "files": [
+          "src/util/format.ts"
+        ]
+      },
+      "savingsPct": -262.1
+    },
+    {
+      "id": "order-discounts",
+      "query": "adjust the order quantity discount thresholds",
+      "facts": {
+        "tokens": 597,
+        "turns": 1,
+        "recall": 1,
+        "anchors": [
+          "src/db/client.ts",
+          "src/models/order.ts"
+        ]
+      },
+      "naive": {
+        "tokens": 678,
+        "turns": 2,
+        "recall": 1,
+        "files": [
+          "src/models/order.ts",
+          "tests/order-flow.e2e.ts"
+        ]
+      },
+      "savingsPct": 11.9
+    }
+  ],
+  "aggregate": {
+    "factsTokens": 2948,
+    "naiveTokens": 3320,
+    "savingsPct": 11.2,
+    "meanFactsRecall": 1,
+    "meanNaiveRecall": 1
+  }
+}

@@ -34,7 +34,7 @@ export interface VizFile {
   tokens: number;
   todos: number;
   todoEntries: Array<{ kind: string; line: number; text: string }>;
-  status: 'ok' | 'broken' | 'stale' | 'parse_error';
+  status: 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error';
   mtime: number;
   /** v0.3.8 — read-through time estimate; absent when analyzer didn't compute it. */
   readingMinutes?: number;
@@ -72,11 +72,19 @@ export interface VizArtifact {
     oneLiner: string;
     description: string;
     capabilities: Array<{ icon: string; head: string; sub: string }>;
-    health: { broken: number; stale: number; todos: number; secrets: number };
+    /** Full composite health (v0.3): flat counts + headline + grade/score/
+     *  factors. Mirrors the spec so the in-browser FSA-scan Overview shows the
+     *  same grade as the CLI-baked dashboard (INV7 browser parity). */
+    health: HumanArtifact['summary']['health'];
   };
   stats: { files: number; loc: number; size: number; gzip: number; tokens: number };
   tree: VizTreeNode;
   edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
+  /** F5 — per-node graph analytics: `importance` (normalized PageRank, 0..1)
+   *  and `community` (label-propagation cluster id). One entry per node that
+   *  carries metrics; empty on pre-F5 artifacts. Drives the Modules surface,
+   *  importance-ranked key files, and community node coloring. */
+  nodeMetrics: Array<{ path: string; importance?: number; community?: number }>;
   entryPoints: Array<{ label: string; path: string; handlerFile: string; kind: string }>;
   /**
    * Detected URL routes — frontend pages + API endpoints.
@@ -278,12 +286,9 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
       // hidden in the Overview render.
       description: human.summary.intent || '',
       capabilities,
-      health: {
-        broken: human.summary.health.broken,
-        stale: human.summary.health.stale,
-        todos: human.summary.health.todos,
-        secrets: human.summary.health.secrets,
-      },
+      // Carry the whole health object — headline + grade/score/factors
+      // included — so the browser-scan dashboard grades identically (INV7).
+      health: { ...human.summary.health },
     },
     stats: {
       files: agent.stats.fileCount,
@@ -295,6 +300,16 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
     tree,
     edges: human.graph.edges.map((e) => ({ from: e.from, to: e.to, kind: e.kind })),
     cycles: human.graph.cycles ?? [],
+    // F5 — surface graph analytics per node (importance + community). Only
+    // nodes that carry metrics are emitted, conditional-spread for
+    // exactOptionalPropertyTypes.
+    nodeMetrics: agent.graph.nodes
+      .filter((n) => n.importance !== undefined || n.community !== undefined)
+      .map((n) => ({
+        path: n.path,
+        ...(n.importance !== undefined ? { importance: n.importance } : {}),
+        ...(n.community !== undefined ? { community: n.community } : {}),
+      })),
     entryPoints,
     routes: agent.routes.map((r) => ({
       framework: r.framework,

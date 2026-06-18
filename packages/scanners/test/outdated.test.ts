@@ -12,6 +12,7 @@ import {
   checkOutdated,
   cleanVersion,
   compareSemver,
+  parseSemver,
   summarizeOutdated,
   type OutdatedQuery,
 } from '../src/outdated.js';
@@ -154,6 +155,16 @@ describe('compareSemver', () => {
   it('returns null for an unparseable version', () => {
     expect(compareSemver('next', '1.0.0')).toBeNull();
     expect(compareSemver('1.0.0', 'workspace:*')).toBeNull();
+  });
+  it('rejects SemVer-invalid leading-zero identifiers (no silent valid compare)', () => {
+    // SemVer §2/§9: numeric identifiers carry no leading zeroes. These must
+    // read as unknown (null), not silently parse as a valid version.
+    expect(parseSemver('01.0.0')).toBeNull();
+    expect(parseSemver('1.0.0-01')).toBeNull();
+    expect(compareSemver('1.0.0-01', '1.0.0-1')).toBeNull(); // Codex finding
+    // A single zero is valid (not a leading-zero violation).
+    expect(parseSemver('1.0.0-0')).not.toBeNull();
+    expect(compareSemver('1.0.0-0', '1.0.0-1')! < 0).toBe(true);
   });
 });
 

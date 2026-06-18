@@ -1,0 +1,4 @@
+# F13 — the bench corpus must be BYTE-IDENTICAL on every checkout: token
+# counts derive from file bytes, so CRLF normalization on Windows would
+# silently shift every number in expected.json. Force LF everywhere.
+* text eol=lf

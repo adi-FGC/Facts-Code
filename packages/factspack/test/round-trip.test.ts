@@ -27,8 +27,12 @@ const HEADER: PackHeader = {
 };
 
 function roundTrip(tables: PackTable[]): PackTable[] {
-  const text = encode({ header: HEADER, tables });
+  /* v0.2 — every encode also rides a legend line so the fuzz exercises
+     `;` meta + trailer verification on every shape. */
+  const text = encode({ header: HEADER, tables, meta: { legend: ['fuzz legend'] } });
   const decoded = decode(text);
+  expect(decoded.meta).toContain('fuzz legend');
+  expect(decoded.trailer).toBeDefined();
   return Array.from(decoded.tables.values()).map((t) => ({
     name: t.name,
     columns: t.columns,
@@ -131,12 +135,61 @@ describe('round-trip — fixed cases', () => {
     ];
     expectTablesEqual(roundTrip(tables), tables);
   });
+
+  it('v0.2: header extras round-trip', () => {
+    const text = encode({
+      header: {
+        ...HEADER,
+        seq: 7,
+        parent: '0123456789ab',
+        kind: 'master',
+        generated: '2026-06-12T09:30:00.000Z',
+      },
+      tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['x']] }],
+    });
+    const h = decode(text).header;
+    expect(h.seq).toBe(7);
+    expect(h.parent).toBe('0123456789ab');
+    expect(h.kind).toBe('master');
+    expect(h.generated).toBe('2026-06-12T09:30:00.000Z');
+  });
+
+  it('v0.2: legend + hot meta lines round-trip into DecodedPack.meta', () => {
+    const text = encode({
+      header: HEADER,
+      tables: [{
+        name: 't',
+        columns: [{ name: 'F', internGroup: 'F' }],
+        rows: [['src/a.ts'], ['src/a.ts'], ['src/b.ts']],
+      }],
+      meta: { legend: ['line one', 'line two'], hot: { group: 'F' } },
+    });
+    const decoded = decode(text);
+    expect(decoded.meta).toEqual(['line one', 'line two', 'hot: F1~a.ts F2~b.ts']);
+    expect(decoded.trailer!.rows).toBe(3);
+  });
+
+  it('v0.2: internGroup-shared keys resolve identically across tables', () => {
+    const tables: PackTable[] = [
+      {
+        name: 'imports',
+        columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }, { name: 'T', internGroup: 'F' }],
+        rows: [['0', 'src/a.ts', 'src/b.ts'], ['1', 'src/b.ts', 'src/c.ts']],
+      },
+      {
+        name: 'risks',
+        columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }],
+        rows: [['0', 'src/c.ts'], ['1', 'src/a.ts']],
+      },
+    ];
+    expectTablesEqual(roundTrip(tables), tables);
+  });
 });
 
 describe('round-trip — incremental packs', () => {
   it('+ rows + x deletions decode back to addedRows + deletedIds', () => {
     const text = encodeIncremental({
-      header: HEADER,
+      header: { ...HEADER, kind: 'diff' }, // v0.2a: a diff must self-identify
       tables: [
         {
           name: 'symbols',
@@ -156,6 +209,25 @@ describe('round-trip — incremental packs', () => {
     expect(t.addedRows[0]).toEqual(['6', 'fn', 'src/auth.ts']);
     expect(t.addedRows[1]).toEqual(['7', 'cls', 'src/users.ts']);
     expect(t.deletedIds).toEqual(['3', '4']);
+    // v0.2: patch packs carry a verified trailer too (+ and x both count).
+    expect(decoded.trailer!.rows).toBe(4);
+  });
+
+  it('v0.2: incremental packs carry meta lines and survive the trailer check', () => {
+    const text = encodeIncremental({
+      header: { ...HEADER, kind: 'diff', seq: 2, parent: 'abcdefabcdef' },
+      tables: [{
+        name: 'symbols',
+        columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }],
+        addedRows: [['9', 'src/new.ts']],
+        deletedIds: ['1'],
+      }],
+      meta: { legend: ['diff pack'] },
+    });
+    const decoded = decode(text);
+    expect(decoded.header.kind).toBe('diff');
+    expect(decoded.meta).toEqual(['diff pack']);
+    expect(decoded.tables.get('symbols')!.addedRows).toEqual([['9', 'src/new.ts']]);
   });
 });
 

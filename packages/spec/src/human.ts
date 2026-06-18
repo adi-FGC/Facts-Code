@@ -57,13 +57,32 @@ export const ActivityEntrySchema = z.object({
   authorCount: z.number().int().nonnegative(),
 });
 
+/** One signal that pushed the health score below 100, e.g. {label:"import
+ *  cycles", count:9, penalty:18}. Largest-penalty factors lead the headline. */
+export const HealthFactorSchema = z.object({
+  label: z.string(),
+  count: z.number().int().nonnegative(),
+  penalty: z.number().int().nonnegative(),
+});
+export type HealthFactor = z.infer<typeof HealthFactorSchema>;
+
 export const HealthHeadlineSchema = z.object({
   broken: z.number().int().nonnegative(),
   todos: z.number().int().nonnegative(),
   secrets: z.number().int().nonnegative(),
   stale: z.number().int().nonnegative(),
   headline: z.string(),
+  /** v0.3 — composite project-health grade. `score` is 0–100 (100 = pristine),
+   *  `grade` its letter (A≥90, B≥80, C≥70, D≥60, else F), computed
+   *  security/correctness-first so cosmetic signals (TODOs, stale) can't tank an
+   *  otherwise-clean repo. `factors` holds the top deductions for the headline +
+   *  dashboard. Optional/defaulted for backward-compat with pre-v0.3 artifacts
+   *  (INV4); FACTS_SCHEMA_VERSION stays 0.1.0. */
+  score: z.number().int().min(0).max(100).optional(),
+  grade: z.enum(['A', 'B', 'C', 'D', 'F']).optional(),
+  factors: z.array(HealthFactorSchema).optional(),
 });
+export type HealthHeadline = z.infer<typeof HealthHeadlineSchema>;
 
 export const SummarySchema = z.object({
   oneLiner: z.string(),

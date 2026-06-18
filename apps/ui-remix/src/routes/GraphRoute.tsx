@@ -169,6 +169,15 @@ export function GraphRoute(handle: Handle<GraphProps>) {
     if (s === 'classic' || s === 'neo') styleMode = s;
   }
 
+  /* F5 secondary surface — color the diagram nodes by community
+     (label-propagation cluster). Default OFF to preserve the editorial
+     monochrome look; persisted like styleMode so a user who turns it on
+     stays on across visits. */
+  let colorByCommunity = false;
+  if (typeof localStorage !== 'undefined') {
+    colorByCommunity = localStorage.getItem('factstack:graph-color-by-community') === '1';
+  }
+
   /* Imperative reset handle that the SugiyamaDag exposes to us via
      the resetSink prop. We call this from the DagControls Reset
      button. Set on first SugiyamaDag mount; survives across renders. */
@@ -194,6 +203,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
     styleMode = next;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('factstack:graph-style-mode', next);
+    }
+    void handle.update();
+  }
+  function setColorByCommunity(next: boolean) {
+    if (next === colorByCommunity) return;
+    colorByCommunity = next;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('factstack:graph-color-by-community', next ? '1' : '0');
     }
     void handle.update();
   }
@@ -281,6 +298,19 @@ export function GraphRoute(handle: Handle<GraphProps>) {
     const symbolsAvailable = Array.isArray(
       (data as { symbolEdges?: unknown[] }).symbolEdges,
     );
+
+    /* F5 — path → community map for the optional node coloring overlay.
+       Sourced from data.nodeMetrics (the same metrics the Modules tab
+       consumes), keyed by path which IS the diagram's node id at file
+       granularity. Only entries that carry a community are included;
+       `communitiesAvailable` gates the DagControls toggle. Community is
+       a visual encoding only — it never feeds buildSugiyamaLayout, which
+       lays out purely from edges. */
+    const communityOf = new Map<string, number>();
+    for (const m of data.nodeMetrics ?? []) {
+      if (m.community !== undefined) communityOf.set(m.path, m.community);
+    }
+    const communitiesAvailable = communityOf.size > 0;
 
     /* Sugiyama layout — only computed when the user is on the diagram
        view (the barycenter sweeps cost ~5ms on 250 nodes; not
@@ -378,6 +408,9 @@ export function GraphRoute(handle: Handle<GraphProps>) {
                 onResetZoom={triggerReset}
                 styleMode={styleMode}
                 onStyleModeChange={setStyleMode}
+                colorByCommunity={colorByCommunity}
+                onColorByCommunityChange={setColorByCommunity}
+                communitiesAvailable={communitiesAvailable}
               />
               {/* Export the *full* in-project edge set (not the capped
                   Sugiyama subset) — the Mermaid renderer applies its own
@@ -392,6 +425,7 @@ export function GraphRoute(handle: Handle<GraphProps>) {
                 resetSink={captureResetApi}
                 onTransformChange={setZoomedOrPanned}
                 styleMode={styleMode}
+                communityOf={colorByCommunity && communitiesAvailable ? communityOf : undefined}
               />
             </Section>
           )}

@@ -27,6 +27,17 @@ export interface RawImport {
   specifier: string;
   kind: ImportKind;
   line: number;
+  /**
+   * Local binding names introduced by this import (F2). For
+   * `import { a, b as c } from 'm'` this is `['a', 'c']` — the LOCAL
+   * names, because that's what identifier references in the file use and
+   * what the symbol resolver keys its import map on. Empty for
+   * side-effect / dynamic / require imports and for `export … from`
+   * re-exports (which create no local binding). Aliased named imports
+   * keep the alias here, so they resolve to the file but fall back to the
+   * lower-confidence global tier in the resolver (a documented v1 gap).
+   */
+  names: string[];
 }
 
 /**
@@ -40,8 +51,23 @@ export function extractImports(source: string, ext: string, parsed?: ParsedFile 
   const pf = parsed ?? parseJS(source, ext);
   if (!pf) return [];
   // Babel AST is too dynamic to type fully; treat nodes as permissive any-records.
-  type AnyNode = { type?: string; source?: { value?: unknown }; importKind?: string; exportKind?: string; loc?: { start?: { line?: number } }; callee?: { type?: string }; arguments?: AnyNode[]; value?: unknown };
+  type AnyNode = { type?: string; source?: { value?: unknown }; importKind?: string; exportKind?: string; loc?: { start?: { line?: number } }; callee?: { type?: string }; arguments?: AnyNode[]; value?: unknown; specifiers?: AnyNode[]; local?: { name?: unknown } };
   const ast = pf.ast as { program?: { body?: AnyNode[] } };
+
+  /* Local binding names from an ImportDeclaration's specifiers. All three
+     specifier shapes (default / namespace / named) expose `local.name`;
+     for `import { x as y }` that's the alias `y`, which is what refs in the
+     file actually write. */
+  const bindingNames = (node: AnyNode): string[] => {
+    const specs = node.specifiers;
+    if (!Array.isArray(specs)) return [];
+    const names: string[] = [];
+    for (const s of specs) {
+      const nm = s?.local?.name;
+      if (typeof nm === 'string') names.push(nm);
+    }
+    return names;
+  };
 
   const out: RawImport[] = [];
   const body = ast?.program?.body ?? [];
@@ -56,16 +82,20 @@ export function extractImports(source: string, ext: string, parsed?: ParsedFile 
             specifier: node.source.value,
             kind: node.importKind === 'type' ? 'type-import' : 'import',
             line: node.loc?.start?.line ?? 0,
+            names: bindingNames(node),
           });
         }
         break;
       case 'ExportNamedDeclaration':
       case 'ExportAllDeclaration':
         if (typeof node.source?.value === 'string') {
+          // `export … from 'm'` re-exports: tracked as a file-level edge via
+          // `specifier`, but binds no local name → no symbol-resolver names.
           out.push({
             specifier: node.source.value,
             kind: node.exportKind === 'type' ? 'type-import' : 'import',
             line: node.loc?.start?.line ?? 0,
+            names: [],
           });
         }
         break;
@@ -83,6 +113,7 @@ export function extractImports(source: string, ext: string, parsed?: ParsedFile 
           specifier: arg.value,
           kind: 'dynamic-import',
           line: n.loc?.start?.line ?? 0,
+          names: [],
         });
       }
     }
@@ -98,6 +129,7 @@ export function extractImports(source: string, ext: string, parsed?: ParsedFile 
           specifier: arg.value,
           kind: 'require',
           line: n.loc?.start?.line ?? 0,
+          names: [],
         });
       }
     }
@@ -106,14 +138,22 @@ export function extractImports(source: string, ext: string, parsed?: ParsedFile 
   return dedupe(out);
 }
 
+/* Dedup by (specifier, kind), preserving first-seen order. When the same
+   module is imported twice (`import { a } from 'm'; import { b } from 'm'`),
+   union the binding names onto the first entry rather than dropping the
+   second — otherwise the resolver would lose `b`. */
 function dedupe(xs: RawImport[]): RawImport[] {
-  const seen = new Set<string>();
-  const out: RawImport[] = [];
+  const byKey = new Map<string, RawImport>();
+  const order: string[] = [];
   for (const x of xs) {
     const k = x.specifier + '|' + x.kind;
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(x);
+    const prev = byKey.get(k);
+    if (prev) {
+      for (const n of x.names) if (!prev.names.includes(n)) prev.names.push(n);
+    } else {
+      byKey.set(k, { ...x, names: [...x.names] });
+      order.push(k);
+    }
   }
-  return out;
+  return order.map((k) => byKey.get(k)!);
 }

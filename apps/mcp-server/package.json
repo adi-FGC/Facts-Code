@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/server.ts",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
     "lint": "echo 'no lint yet' && exit 0",
     "typecheck": "tsc --noEmit"
   },
@@ -21,12 +22,15 @@
     "@factstack/extractors": "workspace:*",
     "@factstack/factspack": "workspace:*",
     "@factstack/fs-node": "workspace:*",
+    "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "^1.29.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.0"
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
   }
 }

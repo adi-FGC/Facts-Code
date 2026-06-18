@@ -16,6 +16,7 @@
 export * from './types.js';
 export * from './extract.js';
 export * from './orchestrator.js';
+export * from './install.js';
 
 /* Direct renderer access — uncommon but useful for tests, browser
  * preview, and one-off composition. */

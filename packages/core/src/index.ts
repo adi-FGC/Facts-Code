@@ -20,6 +20,8 @@ import type {
   ProjectMetaSchema,
 } from '@factstack/spec';
 import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
+import { computeHealth } from './health.js';
+export { computeHealth } from './health.js';
 import { walk, type WalkedFile } from '@factstack/walker';
 import {
   applyRewrite,
@@ -43,35 +45,68 @@ import {
 import {
   detectFileBasedRoutes,
   detectSourceRoutes,
-  extractAstroFrontmatter,
-  extractEnvVars,
-  extractImports,
-  extractPythonImports,
-  extractSymbols,
   isAstro,
   isParseable,
   isPython,
-  parseJS,
   type DetectedRoute,
   type EnvVarRead,
   type ExtractedSymbol,
   type RawImport,
+  type RawRef,
 } from '@factstack/extractors';
 import {
   buildCallerIndex,
+  buildSymbolGraph,
   buildDependencyGraph,
   buildWorkspaceIndex,
   buildAliasIndex,
+  computeMetrics,
   resolveSpecifier,
   type ResolverContext,
 } from '@factstack/graph';
 import { buildDocFile, isDocFile } from './docs.js';
+import { buildRationale } from './rationale.js';
+import { buildEntities, type EntitySource } from './entities.js';
+import { extractFileCached, type ExtractionCache } from './extraction-cache.js';
 
 export { diffArtifacts } from './diff.js';
+export {
+  extractFile,
+  extractFileCached,
+  extractionCacheKey,
+  EXTRACTION_CACHE_VERSION,
+  type ExtractionCache,
+  type FileExtraction,
+} from './extraction-cache.js';
 export type { Endpoint as DiffEndpoint, DiffEndpointOverrides } from './diff.js';
 export { buildChangeVerdict, renderVerdictMarkdown } from './review.js';
 export { buildDocFile, isDocFile, parseMarkdownStructure, DOC_CONTENT_CAP } from './docs.js';
-export { executeQuery, type QueryOptions, type QueryResult } from './query.js';
+export {
+  executeQuery,
+  runGraphQuery,
+  findEntities,
+  suggestEntities,
+  expandWithHops,
+  type QueryOptions,
+  type QueryResult,
+  type SubgraphResult,
+  type HopExpansion,
+} from './query.js';
+export { planFromQuestion, type NlPlan, type NlResult } from './query-nl.js';
+export {
+  assembleContext,
+  type ContextRequest,
+  type ContextItem,
+  type ContextResult,
+} from './context.js';
+export {
+  runBench,
+  runBenchTask,
+  naiveReadSet,
+  type BenchTask,
+  type BenchTaskResult,
+  type BenchReport,
+} from './bench.js';
 export { buildMemory, MEMORY_SCHEMA_VERSION } from './memory.js';
 export {
   buildDiagram,
@@ -93,12 +128,26 @@ export {
   queryLearnings,
   selfCalibrateEvent,
   proposalEvent,
+  buildContextStore,
+  recentSessionEntities,
+  resolveCloseTarget,
+  lastServedEntities,
+  contextRecordEvent,
+  sessionActionEvent,
+  SESSION_ACTIONS,
+  CONTEXT_KINDS,
   LearningEventSchema,
   LearningOutcomeSchema,
   LEARNINGS_SCHEMA_VERSION,
   type LearningEvent,
   type LearningOutcome,
   type LearningQuery,
+  type ContextStore,
+  type ContextRecord,
+  type ContextKind,
+  type SessionAction,
+  type ContextRecordInput,
+  type SessionActionInput,
 } from './learnings.js';
 export {
   since,
@@ -129,6 +178,17 @@ export interface AnalyzeOptions {
   }> | undefined;
   /** Called with percent-complete (0–1) and the file being processed. */
   onProgress?: ((pct: number, file: string) => void) | undefined;
+  /** F2 — build the symbol-level graph (call/reference edges). Off by default
+   *  (the plan's `--symbols` rollout) so the per-file ref walk + resolver only
+   *  run when asked; `agent.graph.symbolNodes/symbolEdges` stay [] otherwise. */
+  symbols?: boolean | undefined;
+  /** F8 — content-hash extraction cache. When provided, per-file AST work
+   *  (parse + import/symbol/ref/env extraction) is served from the cache for
+   *  files whose content hash is unchanged — touching one file re-parses ~that
+   *  file. Keys carry the content hash, so output is IDENTICAL to an uncached
+   *  run (INV2). Omit for the pre-F8 path; the browser build omits it (INV7).
+   *  The Node CLI passes @factstack/emit's sqlite-backed store. */
+  extractionCache?: ExtractionCache | undefined;
 }
 
 export interface AnalysisResult {
@@ -162,6 +222,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   /* v0.8 — CSS sources for the styling audit (.css/.scss/.less + <style>
      blocks from HTML/SFCs). Audited in one pass after the walk. */
   const cssSources: CssSource[] = [];
+  /* F11 — whole-stack modalities. Collect SQL DDL + Terraform/HCL sources in
+     the walk; converted to entity nodes/edges after Phase 2 (mirrors the
+     deferred cssSources audit). */
+  const sqlSources: EntitySource[] = [];
+  const tfSources: EntitySource[] = [];
+  /* F6 — Go modules declared by go.mod files; feeds the resolver so
+     module-absolute Go imports become project-internal edges. */
+  const goModules: Array<{ module: string; dir: string }> = [];
   const allTodos: Array<{ file: string; entries: TodoEntry[] }> = [];
   const secrets: AgentArtifact['risks'] = [];
   const frameworksFromManifests: string[][] = [];
@@ -174,6 +242,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   /* v0.3.6 — env-var read sites collected per file, aggregated below
      into the top-level `config.envVars` table. */
   const envVarReadsByFile = new Map<string, EnvVarRead[]>();
+  /* F2 — per-file identifier references (call/read/jsx/type-ref), captured
+     only when opts.symbols is set; fed to buildSymbolGraph below. */
+  const refsByFile = new Map<string, RawRef[]>();
   let filesScanned = 0;
   let filesSkipped = 0;
   // Sources for the human-friendly one-liner, in priority order:
@@ -205,8 +276,27 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
           message: `File exceeds size cap (${f.size} bytes) — skipped.`,
         });
       }
-      // Still record the file so the tree contains it.
-      outlines.push(minimalOutline(f, 'ok'));
+      // A source-language extension that sniffed as binary (UTF-16 save,
+      // corrupted encoding) is NOT a normal asset like a .png — its zeroed
+      // metrics would read as "this file is empty". Same treatment as a
+      // read failure: non-ok status + a risk row.
+      const binarySource = f.skippedReason === 'binary' && detectLanguage(f.ext) != null;
+      if (f.skippedReason === 'read_error' || binarySource) {
+        secrets.push({
+          severity: 'medium',
+          category: 'read-error',
+          rule: f.skippedReason === 'read_error' ? 'read-error' : 'binary-source',
+          file: f.path,
+          message: f.skippedReason === 'read_error'
+            ? `File could not be read (${f.size} bytes on disk; failed after retry) — loc/tokens are unknown, not 0.`
+            : `Source file sniffed as binary (frequent NUL bytes — unusual encoding such as UTF-16?) — loc/tokens are unknown, not 0.`,
+        });
+      }
+      // Still record the file so the tree contains it. An unread file is
+      // marked `read_error` — NEVER `ok` — because a non-empty file shown
+      // as `ok` with loc 0 reads as "this file is empty" to consumers
+      // (an agent concluded exactly that from a misread pack row).
+      outlines.push(minimalOutline(f, f.skippedReason === 'read_error' || binarySource ? 'read_error' : 'ok'));
       continue;
     }
 
@@ -241,6 +331,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       if (cssText.trim()) cssSources.push({ path: f.path, css: cssText, origin: cssOrig });
     }
 
+    // F11 — collect data-layer (.sql) + infra (.tf/.hcl) sources for the
+    // whole-stack entity graph (parsed after the walk).
+    if (f.ext === '.sql') sqlSources.push({ path: f.path, text });
+    else if (f.ext === '.tf' || f.ext === '.hcl') tfSources.push({ path: f.path, text });
+
     // Scanners
     const todoEntries = scanTodos(text);
     if (todoEntries.length) allTodos.push({ file: f.path, entries: todoEntries });
@@ -266,6 +361,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
           preview: s.preview,
         });
       }
+    }
+
+    // F6 — capture Go module names so module-absolute Go imports resolve to
+    // project packages (the resolver's goModules context). Standalone check:
+    // go.mod is not part of the package.json manifest chain below.
+    if (f.name === 'go.mod') {
+      const mod = text.match(/^module\s+(\S+)/m)?.[1];
+      if (mod) goModules.push({ module: mod, dir: f.dir });
     }
 
     // Manifest scans (frameworks, scripts, license, description)
@@ -311,70 +414,18 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       if (fileLic) fileLicenses.set(f.path, fileLic);
     }
 
-    // AST-based extraction — parse each JS/TS file ONCE, then pass the
-    // shared AST to every consumer (imports, symbols, future call graph).
-    // Python still uses the regex extractor (tree-sitter is v0.3 scope).
-    // .astro files are pre-processed: we slice the `---`-fenced
-    // frontmatter (TypeScript) and feed it through the same JS/TS
-    // pipeline. Template-body imports are negligible — every component
-    // import lives in the frontmatter — so the import-graph stays correct.
-    let symbols: ExtractedSymbol[] = [];
-    if (lang && isParseable(f.ext)) {
-      const parsed = parseJS(text, f.ext);
-      if (parsed) {
-        const raws = extractImports(text, f.ext, parsed);
-        if (raws.length) importsByFile.set(f.path, raws);
-        symbols = extractSymbols(text, f.ext, parsed);
-        // v0.3.6 — env-var reads share the parsed AST (no double parse).
-        const envReads = extractEnvVars(text, f.ext, parsed);
-        if (envReads.length) envVarReadsByFile.set(f.path, envReads);
-      }
-    } else if (isAstro(f.ext)) {
-      /* v0.4.6 — Astro frontmatter extraction. Slice the `---` block
-         and parse it as TypeScript through the existing pipeline. The
-         synthesized ext='.ts' steers the extractors past their
-         isParseable() early-exit. Calibrated on RallyPro (86 .astro
-         files contributing 0 → ~hundreds of edges with this branch).
-
-         Line-number translation: Babel reports lines relative to the
-         frontmatter slice (1-based). Original-file lines are
-         `fm.lineOffset + babelLine`. We adjust env-var + symbol +
-         import line numbers post-extraction so the UI's file:line
-         deep-links land on the user's actual line — not "line 3 of
-         the frontmatter slice". */
-      const fm = extractAstroFrontmatter(text);
-      if (fm) {
-        const parsed = parseJS(fm.source, '.ts');
-        if (parsed) {
-          const raws = extractImports(fm.source, '.ts', parsed);
-          for (const r of raws) {
-            if (typeof r.line === 'number') r.line += fm.lineOffset;
-          }
-          if (raws.length) importsByFile.set(f.path, raws);
-          symbols = extractSymbols(fm.source, '.ts', parsed).map((s) => ({
-            ...s,
-            startLine: s.startLine + fm.lineOffset,
-            endLine: s.endLine + fm.lineOffset,
-            ...(s.children ? { children: s.children.map((c) => ({
-              ...c,
-              startLine: c.startLine + fm.lineOffset,
-              endLine: c.endLine + fm.lineOffset,
-            })) } : {}),
-          }));
-          const envReads = extractEnvVars(fm.source, '.ts', parsed).map((r) => ({
-            ...r,
-            line: r.line + fm.lineOffset,
-          }));
-          if (envReads.length) envVarReadsByFile.set(f.path, envReads);
-        }
-      }
-    } else if (isPython(f.ext)) {
-      const raws = extractPythonImports(text);
-      if (raws.length) importsByFile.set(f.path, raws);
-      // Python uses regex-based env-var detection (no AST yet).
-      const envReads = extractEnvVars(text, f.ext, null);
-      if (envReads.length) envVarReadsByFile.set(f.path, envReads);
-    }
+    /* AST-based extraction — lifted into extraction-cache.ts's pure
+       extractFile() (one Babel parse shared by every consumer; Astro
+       frontmatter sliced + line-shifted; Python/Go via regex extractors).
+       F8: when opts.extractionCache is provided, the quad is served by
+       content hash for unchanged files — touching one file re-parses ~that
+       file. Keys include the hash + ext + refs-flag, so cached output is
+       byte-identical to a fresh run (INV2). */
+    const extracted = extractFileCached(text, f.ext, !!opts.symbols, opts.extractionCache);
+    const symbols: ExtractedSymbol[] = extracted.symbols;
+    if (extracted.imports.length) importsByFile.set(f.path, extracted.imports);
+    if (opts.symbols && extracted.refs.length) refsByFile.set(f.path, extracted.refs);
+    if (extracted.envReads.length) envVarReadsByFile.set(f.path, extracted.envReads);
 
     // Routes — file-path-based (Next/Remix/pages) + source-based
     // (Express-style, FastAPI, Flask, Django). Both passes contribute.
@@ -398,7 +449,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       imports: (importsByFile.get(f.path) ?? []).map((r) => ({
         source: r.specifier,
         resolved: null,          // backfilled after the resolver runs
-        specifiers: [],
+        specifiers: r.names,     // F2 — local binding names drive symbol-graph import resolution
         isTypeOnly: r.kind === 'type-import',
       })),
       /* v0.3.9 — derive exports from declarations.filter(s => s.exported).
@@ -480,6 +531,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     files: new Set(outlines.map((o) => o.path)),
     workspaces: buildWorkspaceIndex(packageJsons),
     aliases: buildAliasIndex(tsconfigTexts),
+    ...(goModules.length ? { goModules } : {}), // F6
   };
   const depGraph = buildDependencyGraph(outlines, importsByFile, resolverCtx);
   // Backfill the `callers` field on every graph node so consumers can
@@ -490,7 +542,23 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (callers && callers.length) node.callers = callers;
   }
 
-  // Backfill `resolved` on each outline's imports + surface broken imports.
+  // F5 — graph analytics: importance (PageRank) + community (label propagation).
+  // Always-on for the file graph (cheap, deterministic); writes onto the shared
+  // depGraph.nodes so BOTH the agent and human artifacts (which spread depGraph)
+  // carry the metrics. Pure (INV1) + deterministic (INV2).
+  const metrics = computeMetrics(depGraph);
+  for (const node of depGraph.nodes) {
+    const imp = metrics.importance.get(node.path);
+    if (imp !== undefined) node.importance = imp;
+    const com = metrics.community.get(node.path);
+    if (com !== undefined) node.community = com;
+  }
+
+  // Backfill `resolved` on each outline's imports. This MUST run before
+  // buildSymbolGraph below: the symbol resolver maps an imported binding to
+  // its target file via `imp.resolved`, so leaving it null here would force
+  // every cross-file ref down the lower-confidence global-name fallback
+  // (the 0.9 "import-resolved" tier would never fire).
   for (const outline of outlines) {
     if (!outline.imports.length) continue;
     for (const imp of outline.imports) {
@@ -498,17 +566,56 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       imp.resolved = resolved;
     }
   }
+
+  // F2 — symbol-level graph (call/reference edges), gated behind opts.symbols
+  // until stable (the plan's `--symbols` rollout). Empty otherwise → the
+  // artifact's GraphSchema defaults ([]) apply, so existing consumers are
+  // unaffected and pre-F2 artifacts still validate.
+  const symbolGraph = opts.symbols
+    ? buildSymbolGraph(outlines, refsByFile)
+    : { symbolNodes: [], symbolEdges: [] };
+
+  // F10 — link rationale (NOTE/HACK/FIXME/TODO/XXX comments + docstrings) to the
+  // enclosing symbol (or file-level when no symbol graph). Pure; deterministic.
+  const rationale = buildRationale(outlines, symbolGraph.symbolNodes);
+
+  // F11 — whole-stack entity graph (SQL tables/views + IaC resources + doc
+  // nodes, bridged by `documents` edges). Pure + deterministic; attached to
+  // the graph below.
+  const { entities: stackEntities, entityEdges: stackEntityEdges } = buildEntities({
+    sqlSources,
+    tfSources,
+    docs,
+    filePaths: outlines.map((o) => o.path),
+  });
+
+  // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
-      if (imp.resolved == null && isProjectLocalSpecifier(imp.source, resolverCtx)) {
+      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, resolverCtx)) continue;
+      // The walker excludes dist/build/etc., so an import into build output
+      // is unresolvable HERE while perfectly valid after a build. Probe the
+      // real filesystem before diagnosing: "dependency removed or path
+      // stale" on an import that exists on disk is a wrong diagnosis
+      // (flagged in the facts+ real-world eval).
+      const diskPath = resolveRelativeSpecifier(outline.path, imp.source);
+      if (diskPath && (await existsOutsideScan(fs, rootPath, diskPath))) {
         secrets.push({
-          severity: 'medium',
+          severity: 'low',
           category: 'broken-import',
-          rule: 'unresolved-import',
+          rule: 'unscanned-import',
           file: outline.path,
-          message: `Unresolved import: "${imp.source}"`,
+          message: `Import target exists on disk but outside the scanned set (build output or ignored directory): "${imp.source}"`,
         });
+        continue;
       }
+      secrets.push({
+        severity: 'medium',
+        category: 'broken-import',
+        rule: 'unresolved-import',
+        file: outline.path,
+        message: `Unresolved import: "${imp.source}"`,
+      });
     }
   }
   for (const scc of depGraph.cycles) {
@@ -592,7 +699,15 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     generatedAt: new Date().toISOString(),
     project: projectMeta,
     files: outlines,
-    graph: depGraph,
+    graph: {
+      ...depGraph,
+      symbolNodes: symbolGraph.symbolNodes,
+      symbolEdges: symbolGraph.symbolEdges,
+      // F11 — whole-stack entity graph: SQL tables/views, IaC resources, doc
+      // nodes + cross-modality edges (fk / depends-on / documents).
+      entities: stackEntities,
+      entityEdges: stackEntityEdges,
+    },
     routes: reclassifyRoutes(dedupeRoutes(detectedRoutes), frameworks).map((r) => ({
       framework: r.framework,
       method: r.method,
@@ -622,29 +737,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     dependencyManifests,
     vulnerabilities: [],
     docs,
+    rationale,
     ...(styleAudit ? { styles: styleAudit } : {}),
   };
 
   // Build human artifact (dashboard).
-  // `broken` = number of distinct files that contributed at least one
-  // broken-import or parse-error risk. Aggregating by file avoids
-  // double-counting when one file has multiple unresolved imports.
-  const brokenFiles = new Set<string>();
-  for (const r of secrets) {
-    if ((r.category === 'broken-import' || r.category === 'parse-error') && r.file) {
-      brokenFiles.add(r.file);
-    }
-  }
-  const broken = brokenFiles.size;
-  const staleThreshold = 180 * 24 * 60 * 60 * 1000;
-  const now_ms = Date.now();
-  // "stale" is unchanged-in-over-6-months AND still has a TODO — signals
-  // rot rather than plain age. Files with no TODO are assumed intentional.
-  const stale = outlines.filter(
-    (o) => o.todos.length > 0 && o.lastModifiedMs && now_ms - o.lastModifiedMs > staleThreshold,
-  ).length;
-  const todoCount = allTodos.reduce((s, x) => s + x.entries.length, 0);
-
+  // Project-health grade (0–100 score + letter + top factors) is computed by
+  // the pure computeHealth(agent) below — security/correctness-first, derived
+  // entirely from the assembled artifact (no Date.now(); INV1/INV2).
   const human: HumanArtifact = {
     $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: FACTS_SCHEMA_VERSION,
@@ -663,22 +763,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         handlerFile: '',
         description: null,
       })),
-      health: (() => {
-        /* Single source of truth for the secret count. The `secrets`
-           variable is actually the FULL risks array (license, todo, etc.
-           all live in it), so the headline must use the SAME filtered
-           count the structured field reports — not `secrets.length`,
-           which is the total risk count and produced the "1 secret
-           exposed" false flag when the only risk was a missing license. */
-        const secretCount = secrets.filter((r) => r.category === 'secret').length;
-        return {
-          broken,
-          stale,
-          todos: todoCount,
-          secrets: secretCount,
-          headline: buildHealthHeadline(broken, stale, todoCount, secretCount),
-        };
-      })(),
+      health: computeHealth(agent),
     },
     stack: languages.map((l) => ({
       name: l.label,
@@ -688,7 +773,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       iconId: l.id,
     })),
     tree: buildHumanTree(outlines, rootName),
-    graph: depGraph,
+    // The human artifact isn't the symbol-graph carrier (that's the agent
+    // artifact + the pack); keep its graph the file-level dependency view.
+    graph: { ...depGraph, symbolNodes: [], symbolEdges: [], entities: [], entityEdges: [] },
     // Activity feed surfaces files a CXO would actually want to see —
     // skip lockfiles + tsbuildinfo + non-source artifacts so the panel
     // doesn't get hijacked by build cache mtime churn.
@@ -832,10 +919,50 @@ function isProjectLocalSpecifier(source: string, ctx: ResolverContext): boolean 
   return false;
 }
 
+/** Resolve a `./` / `../` import specifier against the importing file's
+ *  directory into a root-relative POSIX path. Returns null for bare
+ *  specifiers and for paths that escape the project root. */
+function resolveRelativeSpecifier(fromFile: string, spec: string): string | null {
+  if (!spec.startsWith('./') && !spec.startsWith('../')) return null;
+  const slash = fromFile.lastIndexOf('/');
+  const stack = slash >= 0 ? fromFile.slice(0, slash).split('/') : [];
+  for (const seg of spec.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      if (stack.length === 0) return null; // escapes the root — can't probe
+      stack.pop();
+    } else {
+      stack.push(seg);
+    }
+  }
+  return stack.length ? stack.join('/') : null;
+}
+
+/** Suffixes probed when checking whether an unresolved import exists on
+ *  disk outside the walked set. The literal path first (covers explicit
+ *  `./dist/x.js` imports); extensionless conventions after. Small on
+ *  purpose — this runs only for already-unresolved project-local imports. */
+const UNSCANNED_PROBE_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '/index.ts', '/index.js'];
+
+async function existsOutsideScan(fs: FactsFS, rootPath: string, relPath: string): Promise<boolean> {
+  for (const suffix of UNSCANNED_PROBE_SUFFIXES) {
+    try {
+      const st = await fs.stat(fs.join(rootPath, relPath + suffix));
+      if (st.isFile) return true;
+    } catch {
+      /* not there under this suffix — keep probing */
+    }
+  }
+  return false;
+}
+
 function minimalOutline(f: WalkedFile, status: FileOutline['status']): FileOutline {
   return {
     path: f.path,
-    language: 'other',
+    // Language comes from the extension, which we know even when the
+    // CONTENT was never read — an unreadable engine.ts is still
+    // TypeScript. `other` only for genuinely unknown extensions.
+    language: detectLanguage(f.ext)?.id ?? 'other',
     loc: f.loc,
     bytes: f.size,
     bundleSize: null,
@@ -1004,16 +1131,6 @@ function findFirstSentence(line: string): string {
   }
   // No terminator found — return the line capped.
   return line.length > cap ? line.slice(0, cap - 1) + '…' : line.trim();
-}
-
-function buildHealthHeadline(broken: number, stale: number, todos: number, secrets: number): string {
-  const parts: string[] = [];
-  if (broken) parts.push(`${broken} broken file${broken === 1 ? '' : 's'}`);
-  if (stale) parts.push(`${stale} stale file${stale === 1 ? '' : 's'}`);
-  if (secrets) parts.push(`${secrets} secret${secrets === 1 ? '' : 's'} exposed`);
-  if (todos) parts.push(`${todos} TODO${todos === 1 ? '' : 's'}`);
-  if (parts.length === 0) return 'Clean — no blockers detected.';
-  return parts.join(', ') + '.';
 }
 
 function countPackages(outlines: FileOutline[]): number {

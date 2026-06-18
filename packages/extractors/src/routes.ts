@@ -378,15 +378,19 @@ function toAstroRoute(fragment: string): string {
 
 function toRemixRoute(fragment: string): string {
   // Remix/React Router v7 flat routes: `users.$id` → `users/:id`
-  // Splat: `files.$` → `files/*`. Root indexes: `_index` AND `foo._index`
-  // both drop the index segment.
+  // Splat: `files.$` → `files/*`. Index routes drop the index segment in
+  // EVERY convention spelling: Remix v2 `_index` / `foo._index`, and the
+  // Remix v1 / React Router spelling without the underscore — bare
+  // `index`, dotted `foo.index`, and directory-style `foo/index`.
+  // (`routes/index.jsx` declaring `/` used to emit `/index` — a route
+  // that doesn't exist.)
   //
   // PascalCase → kebab-case: React Router v7 component files are often
   // PascalCase (Files.tsx, DashboardStudent.tsx). URLs are kebab-cased
   // by convention so a multi-word component name produces a multi-word
   // URL like `/dashboard-student`. Dynamic params (`:id`) and splats
   // (`*`) pass through untouched.
-  const stripped = fragment === '_index' ? '' : fragment.replace(/\._index$/, '');
+  const stripped = fragment.replace(/(^|[./])_?index$/i, '');
   return stripped
     .split('.')
     .map((seg) => {

@@ -20,17 +20,28 @@
  */
 
 export { encode, encodeIncremental, PackEncodeError } from './encode.js';
-export { decode, PackDecodeError } from './decode.js';
+export { decode, decodeStrict, decodeLegacy, PackDecodeError } from './decode.js';
+export { computeDiff, applyChain, type AppliedTable } from './chain.js';
 export { escapeCell, unescapeCell, PackEscapeError } from './escape.js';
+export { canonicalizePath, canonicalizeNumber } from './canonicalize.js';
+// Pure isomorphic SHA-256 — reused as a collision-resistant content hash for
+// the F8 extraction-cache key (a 32-bit djb2 key risked serving the wrong
+// file's parse on a hash collision, violating INV2).
+export { sha256hex } from './sha256.js';
 export {
   isInternedColumn,
+  STRICT_DEFAULT_LIMITS,
   type DecodedPack,
   type DecodedTable,
+  type DecodeLimits,
+  type DecodeMode,
+  type DecodeOptions,
   type EncodeOptions,
   type IncrementalEncodeOptions,
   type IncrementalTable,
   type PackColumn,
   type PackHeader,
+  type PackMeta,
   type PackRow,
   type PackTable,
 } from './types.js';

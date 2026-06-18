@@ -18,6 +18,28 @@ describe('extractSymbols — top-level declarations', () => {
     expect(fn!.exported).toBe(true);
   });
 
+  // Regression: JSDoc on `export function foo` attaches to the export wrapper,
+  // not the inner FunctionDeclaration — exported docstrings were silently dropped.
+  it('captures the docstring on an EXPORTED function', () => {
+    const fn = extractSymbols('/** Greets the user. */\nexport function greet(name) { return name; }', '.ts').find((s) => s.name === 'greet');
+    expect(fn!.docstring).toBe('Greets the user.');
+  });
+
+  it('captures the docstring on a non-exported function (control)', () => {
+    const fn = extractSymbols('/** Internal helper. */\nfunction helper() { return 1; }', '.ts').find((s) => s.name === 'helper');
+    expect(fn!.docstring).toBe('Internal helper.');
+  });
+
+  it('captures the docstring on an exported class', () => {
+    const cls = extractSymbols('/** A user service. */\nexport class UserSvc { run() {} }', '.ts').find((s) => s.name === 'UserSvc');
+    expect(cls!.docstring).toBe('A user service.');
+  });
+
+  it('captures the docstring on a default-exported function', () => {
+    const fn = extractSymbols('/** Default entry. */\nexport default function main() {}', '.ts').find((s) => s.name === 'main');
+    expect(fn!.docstring).toBe('Default entry.');
+  });
+
   it('extracts a non-exported function (still surfaced)', () => {
     const src = `function helper() { return 1; }`;
     const syms = extractSymbols(src, '.ts');

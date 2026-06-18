@@ -23,6 +23,7 @@ import { TreePanel } from './components/TreePanel.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Overview } from './routes/Overview.tsx';
 import { Architecture } from './routes/Architecture.tsx';
+import { Modules } from './routes/Modules.tsx';
 import { FilesTab } from './routes/FilesTab.tsx';
 import { Docs } from './routes/Docs.tsx';
 import { Review } from './routes/Review.tsx';
@@ -240,6 +241,7 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   switch (tab) {
     case 'overview':     return <Overview data={data} />;
     case 'architecture': return <Architecture data={data} />;
+    case 'modules':      return <Modules data={data} />;
     case 'files':        return <FilesTab data={data} />;
     case 'docs':         return <Docs data={data} />;
     case 'review':       return <Review data={data} />;

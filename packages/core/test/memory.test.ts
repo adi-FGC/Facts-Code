@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildMemory, MEMORY_SCHEMA_VERSION } from '../src/memory.js';
+import { buildContextStore, contextRecordEvent } from '../src/learnings.js';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 /**
@@ -81,6 +82,52 @@ function file(path: string, lang: string, loc: number, tokens: number) {
     lastModifiedMs: null, churnScore: null,
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────
+//  Edge-confidence summary (F1)
+// ─────────────────────────────────────────────────────────────────────
+
+describe('buildMemory — edge-confidence summary (F1)', () => {
+  function withEdges(edges: Array<Record<string, unknown>>): AgentArtifact {
+    return makeAgent({
+      graph: { nodes: [{ id: 'a.ts' }, { id: 'b.ts' }], edges, cycles: [] } as unknown as AgentArtifact['graph'],
+    });
+  }
+
+  it('omits the Edge confidence line when every edge is extracted', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'b.ts', to: 'a.ts', kind: 'import', confidence: 'extracted' },
+    ]), makeHuman());
+    expect(out).not.toContain('Edge confidence');
+  });
+
+  it('omits it for pre-F1 artifacts (missing confidence ⇒ treated as extracted)', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import' },
+    ]), makeHuman());
+    expect(out).not.toContain('Edge confidence');
+  });
+
+  it('shows counts + a "to verify" total once any edge is inferred/ambiguous', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+    ]), makeHuman());
+    expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred · 2 ambiguous _(3 to verify)_');
+  });
+
+  it('drops zero-count buckets from the breakdown', () => {
+    const out = buildMemory(withEdges([
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+    ]), makeHuman());
+    expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred _(1 to verify)_');
+    expect(out).not.toContain('ambiguous');
+  });
+});
 
 // ─────────────────────────────────────────────────────────────────────
 //  Section presence + ordering
@@ -263,6 +310,86 @@ describe('buildMemory — content correctness', () => {
     // c.ts and d.ts have in-degree 0 — should NOT appear in key files.
     expect(out).not.toMatch(/`c\.ts`.*\(imported by/);
     expect(out).not.toMatch(/`d\.ts`.*\(imported by/);
+  });
+
+  it('F5: importance reorders Key files above raw in-degree', () => {
+    // b.ts has higher in-degree (2) but a.ts has higher importance (1.0 vs 0.2).
+    // With importance present, a.ts must rank first.
+    const out = buildMemory(
+      makeAgent({
+        files: [
+          file('a.ts', 'typescript', 10, 100),
+          file('b.ts', 'typescript', 10, 100),
+          file('x.ts', 'typescript', 10, 100),
+          file('y.ts', 'typescript', 10, 100),
+        ],
+        graph: {
+          nodes: [
+            { id: 'a.ts', path: 'a.ts', importance: 1.0 },
+            { id: 'b.ts', path: 'b.ts', importance: 0.2 },
+            { id: 'x.ts', path: 'x.ts', importance: 0 },
+            { id: 'y.ts', path: 'y.ts', importance: 0 },
+          ],
+          edges: [
+            { from: 'x.ts', to: 'a.ts', kind: 'import' }, // a in-degree 1
+            { from: 'x.ts', to: 'b.ts', kind: 'import' }, // b in-degree 2
+            { from: 'y.ts', to: 'b.ts', kind: 'import' },
+          ],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    const ixA = out.indexOf('`a.ts`');
+    const ixB = out.indexOf('`b.ts`');
+    expect(ixA).toBeGreaterThan(0);
+    expect(ixA).toBeLessThan(ixB);                 // importance beats in-degree
+    expect(out).toContain('importance 1');         // the score is surfaced
+    expect(out).toMatch(/PageRank/);               // descriptor switched to importance wording
+  });
+
+  it('F5: Modules section lists communities named by their most-important member', () => {
+    const out = buildMemory(
+      makeAgent({
+        files: [
+          file('a.ts', 'typescript', 10, 100),
+          file('b.ts', 'typescript', 10, 100),
+          file('c.ts', 'typescript', 10, 100),
+          file('d.ts', 'typescript', 10, 100),
+        ],
+        graph: {
+          nodes: [
+            { id: 'a.ts', path: 'a.ts', importance: 1.0, community: 0 },
+            { id: 'b.ts', path: 'b.ts', importance: 0.2, community: 0 },
+            { id: 'c.ts', path: 'c.ts', importance: 0.5, community: 1 },
+            { id: 'd.ts', path: 'd.ts', importance: 0.9, community: 1 },
+          ],
+          edges: [],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    expect(out).toContain('## Modules');
+    // community 0 named by a.ts (imp 1.0 > 0.2); community 1 named by d.ts (0.9 > 0.5).
+    expect(out).toMatch(/\*\*`a\.ts`\*\* — 2 files/);
+    expect(out).toMatch(/\*\*`d\.ts`\*\* — 2 files/);
+    // single-member communities aren't modules → c.ts/b.ts are members, not names.
+  });
+
+  it('omits the Modules section when no community data is present', () => {
+    const out = buildMemory(
+      makeAgent({
+        files: [file('a.ts', 'typescript', 10, 100), file('b.ts', 'typescript', 10, 100)],
+        graph: {
+          nodes: [{ id: 'a.ts' }, { id: 'b.ts' }],
+          edges: [{ from: 'b.ts', to: 'a.ts', kind: 'import' }],
+          cycles: [],
+        } as unknown as AgentArtifact['graph'],
+      }),
+      makeHuman(),
+    );
+    expect(out).not.toContain('## Modules');
   });
 
   it('"Open risks" only includes severity high/critical', () => {
@@ -506,5 +633,30 @@ describe('buildMemory — edge cases', () => {
   it('exports MEMORY_SCHEMA_VERSION as a non-empty string', () => {
     expect(typeof MEMORY_SCHEMA_VERSION).toBe('string');
     expect(MEMORY_SCHEMA_VERSION.length).toBeGreaterThan(0);
+  });
+});
+
+describe('buildMemory — Working context (F9)', () => {
+  const T = '2026-06-09T00:0';
+  const store = buildContextStore([
+    contextRecordEvent({ kind: 'decision', key: 'db', text: 'use postgres for the store', timestamp: `${T}1:00.000Z` }),
+    contextRecordEvent({ kind: 'task', key: 't1', text: 'ship F9 session memory', timestamp: `${T}2:00.000Z` }),
+  ]);
+
+  it('renders open tasks + recent decisions when a context store is supplied', () => {
+    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: store });
+    expect(out).toContain('## Working context');
+    expect(out).toContain('- [ ] ship F9 session memory');
+    expect(out).toContain('use postgres for the store');
+    expect(out).not.toContain('**Open questions**'); // empty sub-section omitted
+  });
+
+  it('omits the section entirely when the store is empty', () => {
+    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: { decisions: [], tasks: [], openQuestions: [] } });
+    expect(out).not.toContain('## Working context');
+  });
+
+  it('omits the section when no store is passed (backward compat)', () => {
+    expect(buildMemory(makeAgent(), makeHuman())).not.toContain('## Working context');
   });
 });

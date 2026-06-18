@@ -5,7 +5,12 @@ export type { EmitProfile } from './orchestrator.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
 export { encodeAgentPack } from './pack.js';
+export { exportGraph, toGraphML, toJsonGraph, graphExportFilename } from './graph-export.js';
+export type { GraphExportFormat } from './graph-export.js';
 /* NodeFileWriter is exported for callers that need a Node-backed
  * FileWriter scoped to something other than `.facts/` (e.g.
  * `factstack export-skills` writes at the project root). */
 export { NodeFileWriter } from './node-writer.js';
+/* F8 — node:sqlite-backed content-hash extraction cache. Node-only (imports
+ * node:sqlite); the browser build never imports it. */
+export { SqliteExtractionCache, openExtractionCache } from './extraction-cache-sqlite.js';

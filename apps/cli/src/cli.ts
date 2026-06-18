@@ -20,7 +20,7 @@
 
 import { performance } from 'node:perf_hooks';
 import path from 'node:path';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, lstatSync, realpathSync, readdirSync, type Dirent } from 'node:fs';
+import { readFileSync, writeFileSync, appendFileSync, mkdirSync, existsSync, statSync, lstatSync, realpathSync, readdirSync, type Dirent } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmpdir, homedir } from 'node:os';
 import { createServer, type IncomingMessage } from 'node:http';
@@ -31,11 +31,27 @@ import open from 'open';
 import chokidar, { type FSWatcher } from 'chokidar';
 import {
   analyze,
+  assembleContext,
   buildChangeVerdict,
+  buildContextStore,
   buildDiagram,
   buildMemory,
+  computeHealth,
+  contextRecordEvent,
   diffArtifacts,
   executeQuery,
+  lastServedEntities,
+  parseLearningsJsonl,
+  planFromQuestion,
+  recentSessionEntities,
+  resolveCloseTarget,
+  runBench,
+  sessionActionEvent,
+  type BenchTask,
+  CONTEXT_KINDS,
+  type ContextKind,
+  type ContextStore,
+  type LearningEvent,
   renderVerdictMarkdown,
   formatLearningEvent,
   selfCalibrateEvent,
@@ -43,24 +59,39 @@ import {
   type DiffEndpoint,
 } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
-import { gzippedBytes, humanToViz, NodeFileWriter, readSnapshots, writeArtifacts } from '@factstack/emit';
+import { exportGraph, graphExportFilename, gzippedBytes, humanToViz, NodeFileWriter, openExtractionCache, readSnapshots, writeArtifacts, type SqliteExtractionCache } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
 import {
+  approximateTokens,
   flattenManifests,
   queryOsvBatch,
   osvResultsToVulnerabilities,
   normalizeNpmVersion,
   noopCache,
+  reconcileVulnerabilities,
   checkOutdated,
   summarizeOutdated,
   type OsvQuery,
   type OutdatedQuery,
 } from '@factstack/scanners';
-import { buildSkillsTo, ALL_FORMATS, type SkillFormatId } from '@factstack/skills';
+import {
+  buildSkillsTo,
+  ALL_FORMATS,
+  INSTALL_AGENTS,
+  INSTALL_TARGETS,
+  DEFAULT_MCP_COMMAND,
+  mergeMcpConfig,
+  parseServerCommand,
+  removeMcpConfig,
+  type SkillFormatId,
+  type InstallAgent,
+  type McpServerCommand,
+} from '@factstack/skills';
 import type { AgentArtifact, DiffArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
 import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
 import { renderCiReport } from './emitters/ci-report.js';
 import { installFreshnessHook, FRESHNESS_HOOK_COMMAND } from './agentHook.js';
+import { installGitHook, uninstallGitHook, GIT_HOOK_COMMAND } from './gitHook.js';
 import { createTelemetry } from './telemetry.js';
 
 /**
@@ -201,7 +232,9 @@ program
   .option('--no-progress', 'Suppress progress output')
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
   .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze.')
-  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean }) => {
+  .option('--symbols', 'F2 (beta): also build the symbol-level call/reference graph — declarations as nodes, refs as edges, each provenance-tagged (extracted/inferred/ambiguous). Adds a per-file AST ref walk; off by default until it stabilizes.')
+  .option('--no-cache', 'F8: disable the content-hash extraction cache (.facts/cache.db). Default-on caches per-file parse results keyed by content hash, so a re-analyze re-parses only changed files; output is byte-identical either way.')
+  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean; cache?: boolean }) => {
     // Inherit top-level --json if subcommand-local flag isn't set.
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
@@ -232,11 +265,26 @@ program
     const gitStats = mineGitStats(root);
     let lastPrinted = 0;
 
+    /* F8 — content-hash extraction cache (default-on). Keyed by content hash,
+       so a warm re-analyze re-parses only changed files; the artifact is
+       byte-identical to a cache-less run (INV2). Opening it is best-effort:
+       a sqlite failure (older Node, locked db) must never fail the analyze. */
+    let extractionCache: SqliteExtractionCache | undefined;
+    if (opts.cache !== false) {
+      try {
+        extractionCache = openExtractionCache(path.join(root, '.facts'));
+      } catch {
+        extractionCache = undefined; // node:sqlite unavailable → analyze cache-less
+      }
+    }
+
     const result = await analyze(fs, {
       root: '.',
       projectName,
       gzip: gzippedBytes,
       gitStats,
+      symbols: opts.symbols ?? false,
+      extractionCache,
       onProgress: showProgress
         ? (pct, file) => {
             const now = performance.now();
@@ -252,6 +300,14 @@ program
           }
         : undefined,
     });
+    restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
+
+    /* F8 — snapshot cache hit/miss for the report, then close the db. `hits` =
+       files served from cache.db (unchanged content) without re-parsing;
+       `misses` = freshly parsed (new/changed/never-seen). A warm re-analyze of
+       an unchanged tree is all hits — the incremental proof. */
+    const cacheStats = extractionCache ? { hits: extractionCache.hits, misses: extractionCache.misses } : null;
+    extractionCache?.close();
 
     /* Default `legacy` so the CLI's own downstream commands (diff,
        scan-vulns, export-skills/diagram, ci-report) — which read
@@ -266,7 +322,7 @@ program
       profile: minimal ? 'minimal' : 'legacy',
       addGitignoreEntry: opts.gitignoreEntry ?? true,
       ...(minimal ? {} : { writeSnapshot: true }),
-      memoryBody: buildMemory(result.agent, result.human),
+      memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }),
     });
 
     const elapsed = performance.now() - t0;
@@ -305,6 +361,7 @@ program
         ...written,
         stats: result.agent.stats,
         risks: result.agent.risks.length,
+        ...(cacheStats ? { cache: cacheStats } : {}),
       }, null, 2) + '\n');
       return;
     }
@@ -318,7 +375,29 @@ program
       `  files        ${kleur.white(String(s.fileCount))}`,
       `  LOC          ${kleur.white(formatCount(s.loc))}`,
       `  tokens       ${kleur.white(formatCount(s.totalTokenCost))}${kleur.dim(' (cl100k approx)')}`,
+      // F8 — incremental cache line (only when the cache ran). All-hits =
+      // nothing changed; partial = only changed files re-parsed.
+      ...(cacheStats && cacheStats.hits + cacheStats.misses > 0
+        ? [`  cache        ${kleur.white(`${cacheStats.hits}/${cacheStats.hits + cacheStats.misses}`)} ${kleur.dim(
+            cacheStats.hits === 0 ? 'files parsed (cold cache)' : `reused · ${cacheStats.misses} re-parsed (incremental)`,
+          )}`]
+        : []),
       `  risks        ${result.agent.risks.length === 0 ? kleur.green('0') : kleur.yellow(String(result.agent.risks.length))}`,
+      // v0.11 — vuln line only when a scan has ever run (carried forward by
+      // restoreVulnScan). Staleness nudges the refresh; "never scanned" stays
+      // quiet here because scan-vulns is the opt-in network step.
+      ...(result.agent.vulnerabilityScan
+        ? [(() => {
+            const scan = result.agent.vulnerabilityScan!;
+            const age = ageDays(scan.scannedAt);
+            const count = result.agent.vulnerabilities.length;
+            const countStr = count === 0 ? kleur.green('0') : kleur.yellow(String(count));
+            const ageStr = age >= VULN_SCAN_STALE_DAYS
+              ? kleur.yellow(`scanned ${age}d ago — refresh with \`factstack scan-vulns\``)
+              : kleur.dim(`scanned ${age === 0 ? 'today' : `${age}d ago`}`);
+            return `  vulns        ${countStr} ${ageStr}`;
+          })()]
+        : []),
       `  frameworks   ${kleur.white(result.agent.project.frameworks.join(', ') || '—')}`,
       '',
       kleur.bold('  Artifacts'),
@@ -368,7 +447,8 @@ program
       );
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
     let agent: AgentArtifact;
@@ -431,7 +511,8 @@ program
       resetIdle();
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human) });
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
       const fresh = humanToViz(result.agent, result.human);
       fresh.project.root = root;
       fresh.history = await readSnapshots(root);
@@ -460,7 +541,13 @@ program
       }
       const host = r.headers.host;
       if (host) return allowedHosts.has(host);
-      return true; // no Host header (HTTP/1.0) — vanishingly rare
+      // No Origin AND no Host: unreachable from a browser (Host is mandatory
+      // and browser-controlled on HTTP/1.1), so the CSRF/DNS-rebind vectors
+      // this guards are already caught above. The only requests landing here
+      // are non-browser clients (HTTP/1.0, raw sockets). Default-DENY — a
+      // server with a filesystem-write endpoint (/api/setup-agents) must never
+      // fall open. A scripted client can set an explicit Host header.
+      return false;
     }
 
     const server = createServer((req, res) => {
@@ -529,6 +616,10 @@ program
               ok: true,
               formats: result.formats,
               files: Object.keys(result.files),
+              // Report files left untouched (a hand-authored AGENTS.md) so the
+              // dashboard caller can tell the user it was preserved, not skipped
+              // silently — same contract as `export-skills`/`setup-agents` CLI.
+              preserved: result.preserved,
               bytesWritten: result.bytesWritten,
               hookInstalled,
               ...(hookError ? { hookError } : {}),
@@ -600,10 +691,17 @@ program
               if (!abs) { sendJson(403, { ok: false, error: 'path outside project' }); return; }
               fileTarget = abs;
             }
-            // Belt + suspenders: reject shell metacharacters in any path we
-            // pass, even though spawn() below never uses a shell.
-            const META = /[`$;&|\n\r%^<>!"]/;
-            if (META.test(root) || META.test(fileTarget)) { sendJson(400, { ok: false, error: 'invalid characters in path' }); return; }
+            // spawn() below uses shell:false + an arg array, so shell
+            // metacharacters in a path are inert — there's no shell to
+            // interpret them. The original broad filter ALSO rejected valid
+            // paths (`D:\R&D\factstack`, `C:\Users\A!B\repo`). Reject only NUL +
+            // C0 control chars: spawn() rejects NUL anyway, and no control char
+            // has a legitimate place in a filesystem path.
+            const hasControlChar = (s: string): boolean => {
+              for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) < 0x20) return true;
+              return false;
+            };
+            if (hasControlChar(root) || hasControlChar(fileTarget)) { sendJson(400, { ok: false, error: 'invalid control characters in path' }); return; }
 
             const EDITORS: Record<string, { bin: string; args: string[] }> = {
               code: { bin: 'code', args: [fileTarget] },
@@ -948,10 +1046,11 @@ program
 
 program
   .command('export [target]')
-  .description('Emit a self-contained HTML report (no server needed to view)')
+  .description('Emit a self-contained HTML report — or the dependency/symbol graph with --graph (no server needed)')
   .option('-o, --out <dir>', 'Output directory (default ./dist)', './dist')
   .option('--name <name>', 'Output filename (default facts-report.html)', 'facts-report.html')
-  .action(async (target: string | undefined, opts: { out: string; name: string }) => {
+  .option('--graph <format>', 'F14 — export the graph instead of HTML: graphml | json-graph')
+  .action(async (target: string | undefined, opts: { out: string; name: string; graph?: string }) => {
     const root = path.resolve(target ?? '.');
     const factsDir = path.join(root, '.facts');
     const agentPath = path.join(factsDir, 'agent.json');
@@ -961,7 +1060,8 @@ program
       process.stderr.write(kleur.dim('  no existing .facts/ — analyzing first…\n'));
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
     let agent: AgentArtifact;
@@ -974,6 +1074,27 @@ program
       process.stderr.write(kleur.dim('  run `factstack analyze .` to regenerate.\n'));
       process.exit(1);
     }
+
+    // F14 — graph export branch: emit GraphML / JSON Graph instead of the HTML
+    // report. Pure, deterministic serialization over the file + symbol graph.
+    if (opts.graph) {
+      const fmt = opts.graph.toLowerCase();
+      if (fmt !== 'graphml' && fmt !== 'json-graph') {
+        process.stderr.write(kleur.red('factstack export: ') + `unknown --graph format "${opts.graph}". Expected: graphml | json-graph\n`);
+        process.exit(1);
+      }
+      const format = fmt as 'graphml' | 'json-graph';
+      const content = exportGraph(agent, format);
+      const outDir = path.resolve(opts.out);
+      mkdirSync(outDir, { recursive: true });
+      const gPath = path.join(outDir, graphExportFilename(format));
+      writeFileSync(gPath, content, 'utf8');
+      const nodes = (agent.graph.nodes?.length ?? 0) + (agent.graph.symbolNodes?.length ?? 0);
+      const edges = (agent.graph.edges?.length ?? 0) + (agent.graph.symbolEdges?.length ?? 0);
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · exported ') + kleur.cyan(relativize(gPath, process.cwd())) + kleur.dim(` (${format} · ${nodes} nodes, ${edges} edges)`) + '\n');
+      return;
+    }
+
     const viz = humanToViz(agent, human);
     viz.project.root = root;
     viz.history = await readSnapshots(root);
@@ -996,6 +1117,43 @@ program
   });
 
 program
+  .command('why <target>')
+  .description('F10 — show the design rationale (NOTE/HACK/FIXME comments + docstrings) attached to a symbol, file, or name. e.g. `factstack why buildMemory`')
+  .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .action((target: string, opts: { json?: boolean; root: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(opts.root);
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    let agent: AgentArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack why: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first (add --symbols for symbol-level links).\n'));
+      process.exit(1);
+    }
+    const needle = target.toLowerCase();
+    const items = (agent.rationale ?? []).filter((r) => {
+      const sym = (r.symbol ?? '').toLowerCase();
+      return sym.includes(needle) || r.file.toLowerCase().includes(needle);
+    });
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ target, count: items.length, rationale: items }, null, 2) + '\n');
+      return;
+    }
+    if (!items.length) {
+      process.stdout.write(kleur.dim(`No rationale found for "${target}". `) + 'Try a symbol name, file path, or run `factstack analyze . --symbols`.\n');
+      return;
+    }
+    process.stdout.write(kleur.bold(`Rationale for "${target}" (${items.length})\n\n`));
+    for (const r of items) {
+      const loc = r.symbol ?? `${r.file}:${r.line}`;
+      process.stdout.write(`  ${kleur.cyan(r.kind.toUpperCase())} ${kleur.dim(loc)}\n    ${r.text}\n\n`);
+    }
+  });
+
+program
   .command('quick [target]')
   .description('Scan a project and open a self-contained viewer in your browser — no server, no setup. The 5-second look.')
   .option('--reanalyze', 'Force a fresh analysis even if .facts/ already exists')
@@ -1013,7 +1171,8 @@ program
       process.stderr.write(kleur.dim('  scanning ') + kleur.reset(path.basename(root)) + kleur.dim('…\n'));
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human) });
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
+      await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
     let agent: AgentArtifact;
@@ -1277,14 +1436,35 @@ program
        writeArtifacts so the .pack + .jsonl companions also refresh
        (they're regenerated from the same in-memory artifact every
        write, so stale companion files would lie about the new vulns). */
-    const nextAgent: AgentArtifact = { ...agent, vulnerabilities };
+    const previousScan = agent.vulnerabilityScan;
+    const nextAgent: AgentArtifact = {
+      ...agent,
+      vulnerabilities,
+      /* v0.11 — the scan metadata is the staleness anchor + the explicit
+         "scanned and clean" marker (empty list + scannedAt = verified clean).
+         restoreVulnScan carries it across future re-analyzes. */
+      vulnerabilityScan: {
+        scannedAt: new Date().toISOString(),
+        source: 'osv.dev',
+        packagesQueried: queries.length,
+        packagesSkipped: skippedNonRegistry,
+        findings: vulnerabilities.length,
+      },
+    };
+    /* v0.3 — re-grade health now that fresh CVEs are on the agent, so the
+       score/headline reflects the scan in both human.json and MEMORY.md. */
+    human.summary.health = computeHealth(nextAgent);
     await writeArtifacts({
       root,
       agent: nextAgent,
       human,
       addGitignoreEntry: false,
-      memoryBody: buildMemory(nextAgent, human),
+      memoryBody: buildMemory(nextAgent, human, { contextStore: loadContextStore(root) }),
     });
+    if (previousScan) {
+      const age = ageDays(previousScan.scannedAt);
+      process.stderr.write(kleur.dim(`  refreshed — previous scan was ${age === 0 ? 'earlier today' : `${age}d old`} (${previousScan.findings} finding${previousScan.findings === 1 ? '' : 's'}).\n`));
+    }
 
     /* Explicit shape (not Record<string, number>) so noUncheckedIndexedAccess
        can prove each key exists at read time. */
@@ -1478,29 +1658,31 @@ program
   });
 
 program
-  .command('query <verb> [target]')
-  .description('Query the dependency graph. Verbs: callers <path> | imports <path> | cycles | orphans')
+  .command('query <selector> [target...]')
+  .description('Query the graph. Structured: query <verb> <target...> (verbs: callers | imports | cycles | orphans | neighbors | references | implementers | impact | path-between <from> <to>). Free-text: query "who calls buildMemory" — resolved deterministically against real entity names.')
   .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
   .option('-r, --root <path>', 'Project root (default cwd)', '.')
   .option('-f, --filter <glob>', 'Restrict results to matching paths')
   .option('-l, --limit <n>', 'Max results (default 200)', '200')
-  .option('-d, --depth <n>', 'Transitive depth for `imports` verb (default 1)', '1')
-  .action(async (verb: string, target: string | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string }) => {
+  .option('-d, --depth <n>', 'Transitive depth for imports/neighbors/references (default 1)', '1')
+  .option('--direction <dir>', 'Direction for `neighbors`: out | in | both (default both)')
+  .option('--min-confidence <level>', 'Keep only edges at least this certain: extracted | inferred | ambiguous')
+  .action(async (selector: string, targetArr: string[] | undefined, opts: { json?: boolean; root: string; filter?: string; limit: string; depth: string; direction?: string; minConfidence?: string }) => {
     if (opts.json === undefined && program.opts().json) opts.json = true;
-    // Verb set is the single-source-of-truth `QUERY_VERBS` from @factstack/spec.
-    if (!(QUERY_VERBS as readonly string[]).includes(verb)) {
-      process.stderr.write(kleur.red('factstack query: ') + `unknown verb "${verb}". Expected: ${QUERY_VERBS.join(', ')}\n`);
+    const targets = targetArr ?? [];
+    const isVerb = (QUERY_VERBS as readonly string[]).includes(selector);
+
+    const CONF_LEVELS = ['extracted', 'inferred', 'ambiguous'] as const;
+    if (opts.minConfidence && !(CONF_LEVELS as readonly string[]).includes(opts.minConfidence)) {
+      process.stderr.write(kleur.red('factstack query: ') + `unknown --min-confidence "${opts.minConfidence}". Expected: ${CONF_LEVELS.join(', ')}\n`);
       process.exit(1);
     }
-    if ((verb === 'callers' || verb === 'imports') && !target) {
-      process.stderr.write(kleur.red('factstack query: ') + `verb "${verb}" requires a target path.\n`);
-      process.stderr.write(kleur.dim(`  example: factstack query ${verb} packages/core/src/index.ts\n`));
+    if (opts.direction && !['out', 'in', 'both'].includes(opts.direction)) {
+      process.stderr.write(kleur.red('factstack query: ') + `unknown --direction "${opts.direction}". Expected: out | in | both\n`);
       process.exit(1);
     }
-    // Numeric option guards — `Number('nope')` is NaN, which the
-    // downstream `slice(0, NaN)` and `for (let i = 0; i < NaN; …)` paths
-    // silently treat as 0, producing empty results with no signal. Parse
-    // strictly + clamp to sane positive integers, falling back to defaults.
+    // Numeric option guards — `Number('nope')` is NaN, which downstream
+    // slice(0, NaN) paths silently treat as 0 (empty result, no signal).
     const limit = parseIntInRange(opts.limit, 200, 1, 100_000);
     const depth = parseIntInRange(opts.depth, 1,   0, 50);
     const root = path.resolve(opts.root);
@@ -1513,10 +1695,68 @@ program
       process.stderr.write(kleur.dim('  run `factstack analyze .` first.\n'));
       process.exit(1);
     }
+
+    // ── Free-text path: selector isn't a known verb → treat selector + targets
+    //    as a natural-language question and map it deterministically (INV3). ──
+    if (!isVerb) {
+      const question = [selector, ...targets].join(' ');
+      const plan = planFromQuestion(agent, question);
+      if (!plan.ok) {
+        if (opts.json) {
+          process.stdout.write(JSON.stringify({ ok: false, reason: plan.reason, candidates: plan.candidates }, null, 2) + '\n');
+        } else {
+          process.stderr.write(kleur.yellow('factstack query: ') + plan.reason + '\n');
+          for (const c of plan.candidates) process.stderr.write(kleur.dim('  • ') + c + '\n');
+          if (!plan.candidates.length) process.stderr.write(kleur.dim('  (no candidates — try `factstack query callers <path>`)\n'));
+        }
+        process.exit(plan.candidates.length ? 0 : 1);
+      }
+      // Lift the plan to a verb call for uniform list rendering: GraphQuery
+      // plans become `neighbors` with the resolved direction.
+      const p = plan.plan;
+      const result = p.graphQuery
+        ? executeQuery(agent, {
+            verb: 'neighbors',
+            ...(p.graphQuery.start.id ? { path: p.graphQuery.start.id } : {}),
+            direction: p.graphQuery.traverse?.direction ?? 'both',
+            depth: p.graphQuery.traverse?.maxDepth ?? 1,
+            limit,
+          })
+        : executeQuery(agent, {
+            verb: p.verb!,
+            ...(p.path ? { path: p.path } : {}),
+            ...(p.to ? { to: p.to } : {}),
+            limit,
+          });
+      if (opts.json) {
+        process.stdout.write(JSON.stringify({ interpretation: p.interpretation, entities: p.entities, ...result }, null, 2) + '\n');
+        return;
+      }
+      process.stderr.write(kleur.dim(p.interpretation) + '\n');
+      printQueryResult(result);
+      return;
+    }
+
+    // ── Structured verb path ────────────────────────────────────────────────
+    const verb = selector as typeof QUERY_VERBS[number];
+    const target = targets[0];
+    const needsTarget = ['callers', 'imports', 'neighbors', 'references', 'implementers', 'path-between', 'impact'];
+    if (needsTarget.includes(verb) && !target) {
+      process.stderr.write(kleur.red('factstack query: ') + `verb "${verb}" requires a target path/symbol.\n`);
+      process.stderr.write(kleur.dim(`  example: factstack query ${verb} packages/core/src/index.ts\n`));
+      process.exit(1);
+    }
+    if (verb === 'path-between' && !targets[1]) {
+      process.stderr.write(kleur.red('factstack query: ') + 'verb "path-between" requires two targets: <from> <to>.\n');
+      process.exit(1);
+    }
     const result = executeQuery(agent, {
-      verb: verb as typeof QUERY_VERBS[number],
+      verb,
       ...(target ? { path: target } : {}),
+      ...(targets[1] ? { to: targets[1] } : {}),
+      ...(opts.direction ? { direction: opts.direction as 'out' | 'in' | 'both' } : {}),
       ...(opts.filter ? { filter: opts.filter } : {}),
+      ...(opts.minConfidence ? { minConfidence: opts.minConfidence as (typeof CONF_LEVELS)[number] } : {}),
       limit,
       depth,
     });
@@ -1524,20 +1764,474 @@ program
       process.stdout.write(JSON.stringify(result, null, 2) + '\n');
       return;
     }
-    const header = target
-      ? `${verb}(${target}) — ${result.count} result${result.count === 1 ? '' : 's'}`
+    const label = result.target ?? target;
+    const header = label
+      ? `${verb}(${label}) — ${result.count} result${result.count === 1 ? '' : 's'}`
       : `${verb} — ${result.count} result${result.count === 1 ? '' : 's'}`;
     process.stderr.write(kleur.bold(header) + '\n');
-    const rows = result.results as unknown;
-    if (verb === 'cycles') {
-      // cycles are arrays of paths; print one cycle per indented block.
-      for (const cyc of rows as string[][]) {
-        process.stderr.write(kleur.dim('  ─── cycle ───\n'));
-        for (const p of cyc) process.stderr.write('  ' + p + '\n');
-      }
-    } else {
-      for (const r of rows as string[]) process.stderr.write('  ' + r + '\n');
+    printQueryResult(result);
+  });
+
+program
+  .command('context <task...>')
+  .description('F4 — assemble a ranked, token-budgeted context block for a coding task. e.g. `factstack context "add a role field to User"`. Resolves seeds from the task against real entity names, expands the graph, ranks by importance + proximity + name-match + recency, and packs the best anchors under a token budget. Run `analyze . --symbols` first for symbol-level anchors.')
+  .option('--json', 'Emit structured JSON on stdout instead of a TTY list')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .option('-b, --budget <n>', 'Token budget for the assembled context (default 8000)', '8000')
+  .option('--max-hops <n>', 'Graph expansion radius from the seeds (default 2)', '2')
+  .option('-s, --seeds <list>', 'Comma-separated explicit seed file paths or symbol ids to anchor on')
+  .action((taskArr: string[], opts: { json?: boolean; root: string; budget: string; maxHops: string; seeds?: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const query = taskArr.join(' ');
+    const budgetTokens = parseIntInRange(opts.budget, 8000, 1, 100_000_000);
+    const maxHops = parseIntInRange(opts.maxHops, 2, 0, 20);
+    const seeds = opts.seeds
+      ? opts.seeds.split(',').map((s) => s.trim()).filter(Boolean)
+      : undefined;
+    const root = path.resolve(opts.root);
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    let agent: AgentArtifact;
+    try {
+      agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack context: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first (add --symbols for symbol-level anchors).\n'));
+      process.exit(1);
     }
+    // F9 — boost what this project's agents recently served/read/edited, and
+    // record what WE serve so the next call re-ranks toward it. Both sides are
+    // best-effort reads/writes of .facts/learnings.jsonl.
+    const sessionEvents = readLearningEvents(root);
+    const recent = recentSessionEntities(sessionEvents);
+    const result = assembleContext(agent, {
+      query,
+      ...(seeds && seeds.length ? { seeds } : {}),
+      budgetTokens,
+      maxHops,
+      ...(recent.length ? { recentEntities: recent } : {}),
+    });
+    try {
+      const servedIds = result.items.map((i) => i.id);
+      // Consecutive-dedup: re-running the same query adds no signal — don't
+      // grow the log one identical `served` line per repeat.
+      if (JSON.stringify(servedIds) !== JSON.stringify(lastServedEntities(sessionEvents))) {
+        appendLearningLine(root, sessionActionEvent({
+          action: 'served',
+          entities: servedIds,
+          tokens: result.totalTokens,
+        }));
+      }
+    } catch { /* never fail the command on a log write */ }
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(result, null, 2) + '\n');
+      return;
+    }
+    // TTY: a header (cold-start is called out), a budget line, then ranked
+    // anchors. ● = a seed, ○ = a graph-reached anchor.
+    const head = result.coldStart
+      ? kleur.yellow(`no seed matched "${query}" — showing the project's most important files (cold start)`)
+      : kleur.bold(`context for "${query}"`);
+    process.stderr.write(head + '\n');
+    const budgetNote =
+      `${result.items.length} anchor${result.items.length === 1 ? '' : 's'} · ` +
+      `${result.totalTokens}/${result.budgetTokens} tokens` +
+      (result.truncated ? kleur.yellow(' · truncated (budget)') : '');
+    process.stderr.write(kleur.dim(budgetNote) + '\n\n');
+    for (const it of result.items) {
+      const loc = it.line != null ? `${it.path}:${it.line}` : it.path;
+      const seedMark = it.isSeed ? kleur.green('●') : kleur.dim('○');
+      const kindTag = it.kind === 'file' ? '' : kleur.dim(` ${it.kind} ${it.name}`);
+      process.stdout.write(
+        `  ${seedMark} ${kleur.cyan(loc)}${kindTag} ${kleur.dim(`(${it.tokenCost}t · ${it.score})`)}\n`,
+      );
+    }
+    if (!result.items.length) {
+      process.stdout.write(kleur.dim('  (nothing assembled — try a different task or run `factstack analyze . --symbols`)\n'));
+    }
+  });
+
+program
+  .command('remember <kind> <text...>')
+  .description(`F9 — record durable working context in .facts/learnings.jsonl: a ${CONTEXT_KINDS.join(' | ')}. Tasks/questions start open; re-run with the same --key and --done to close one. Surfaces in MEMORY.md's "Working context" and biases \`factstack context\`. e.g. \`factstack remember decision "auth uses session cookies, not JWTs"\``)
+  .option('-k, --key <key>', 'Stable key so a later `remember` supersedes this one (default: the text itself)')
+  .option('--done', 'Close the task/question with this key (records outcome accepted)')
+  .option('-e, --entities <list>', 'Comma-separated file paths / symbol ids this record is about')
+  .option('-a, --agent <id>', 'Recording agent id', 'cli-user')
+  .option('--json', 'Emit machine-readable JSON on stdout')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .action((kind: string, textArr: string[], opts: { key?: string; done?: boolean; entities?: string; agent: string; json?: boolean; root: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    if (!(CONTEXT_KINDS as readonly string[]).includes(kind)) {
+      process.stderr.write(kleur.red('factstack remember: ') + `unknown kind "${kind}". Expected: ${CONTEXT_KINDS.join(' | ')}\n`);
+      process.exit(1);
+    }
+    const root = path.resolve(opts.root);
+    const text = textArr.join(' ');
+    const entities = opts.entities ? opts.entities.split(',').map((s) => s.trim()).filter(Boolean) : undefined;
+    /* F9 — a close must land on the SAME dedup key as the open record, or it
+       creates a NEW closed record while the keyed one silently stays open.
+       resolveCloseTarget matches by (kind, key-or-text) first, then by exact
+       text (adopting that record's key); matched:false → warn, don't claim
+       "closed". */
+    let keyForEvent = opts.key;
+    let closeMatched = true;
+    if (opts.done && (kind === 'task' || kind === 'question')) {
+      const target = resolveCloseTarget(loadContextStore(root), kind as ContextKind, opts.key, text);
+      keyForEvent = target.key;
+      closeMatched = target.matched;
+    }
+    let event: LearningEvent;
+    try {
+      event = contextRecordEvent({
+        kind: kind as ContextKind,
+        text,
+        agent: opts.agent,
+        ...(opts.done ? { status: 'accepted' as const } : {}),
+        ...(keyForEvent !== undefined ? { key: keyForEvent } : {}),
+        ...(entities !== undefined ? { entities } : {}),
+      });
+      appendLearningLine(root, event);
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack remember: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+    /* DoD: a recorded decision shows up in MEMORY.md without waiting for the
+       next analyze. Regenerate it in place when both artifacts exist; if they
+       don't, the next analyze folds the record in. Best-effort. */
+    let memoryRefreshed = false;
+    try {
+      const agentPath = path.join(root, '.facts', 'agent.json');
+      const humanPath = path.join(root, '.facts', 'human.json');
+      if (existsSync(agentPath) && existsSync(humanPath)) {
+        const agent = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+        const human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+        writeFileSync(
+          path.join(root, '.facts', 'MEMORY.md'),
+          buildMemory(agent, human, { contextStore: loadContextStore(root) }),
+          'utf8',
+        );
+        memoryRefreshed = true;
+      }
+    } catch { /* MEMORY refresh is a bonus, not the record of truth (the log is) */ }
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: true, kind, key: keyForEvent ?? text, status: event.outcome, timestamp: event.timestamp, memoryRefreshed, ...(opts.done ? { closedExisting: closeMatched } : {}) }) + '\n');
+      return;
+    }
+    const verb = opts.done ? (closeMatched ? 'closed' : 'recorded (already-closed)') : 'recorded';
+    process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(` · ${verb} ${kind}: `) + text + '\n');
+    if (opts.done && !closeMatched && (kind === 'task' || kind === 'question')) {
+      process.stderr.write(kleur.yellow(`  note: no OPEN ${kind} matched this text/key — nothing was closed. `) + kleur.dim('Run `factstack context-store` to see the open one, then pass its exact text or --key.\n'));
+    }
+    process.stderr.write(kleur.dim(memoryRefreshed
+      ? '  MEMORY.md updated — agents see it in the Working context section.\n'
+      : '  logged; it will surface in MEMORY.md on the next `factstack analyze`.\n'));
+  });
+
+program
+  .command('context-store')
+  .description('F9 — show the durable working context aggregated from .facts/learnings.jsonl: recent decisions/facts, open tasks, open questions (most-recent-wins per key).')
+  .option('--json', 'Emit the aggregate as JSON on stdout')
+  .option('-r, --root <path>', 'Project root (default cwd)', '.')
+  .action((opts: { json?: boolean; root: string }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(opts.root);
+    const store = loadContextStore(root);
+    if (opts.json) {
+      process.stdout.write(JSON.stringify(store, null, 2) + '\n');
+      return;
+    }
+    const total = store.decisions.length + store.tasks.length + store.openQuestions.length;
+    if (!total) {
+      process.stdout.write(kleur.dim('No working context recorded yet. Try `factstack remember decision "…"` or `factstack remember task "…"`.\n'));
+      return;
+    }
+    const section = (title: string, rows: typeof store.tasks, bullet: (t: string) => string): void => {
+      if (!rows.length) return;
+      process.stdout.write(kleur.bold(`${title} (${rows.length})\n`));
+      for (const r of rows) {
+        process.stdout.write(`  ${bullet(r.text)} ${kleur.dim(`— ${r.agent} · ${r.timestamp.slice(0, 10)}`)}\n`);
+      }
+      process.stdout.write('\n');
+    };
+    section('Open tasks', store.tasks, (t) => `${kleur.yellow('[ ]')} ${t}`);
+    section('Decisions & facts', store.decisions, (t) => `${kleur.green('•')} ${t}`);
+    section('Open questions', store.openQuestions, (t) => `${kleur.cyan('?')} ${t}`);
+  });
+
+program
+  .command('bench')
+  .description('F13 — reproducible context-savings benchmark. For each task in the committed set, compares tokens-to-context via graph-aware assembly (F4 get_context) vs a naive path-grep that reads every hit in full. Deterministic over the committed corpus bytes. `--update` pins the report as bench/expected.json; `--check` exits 1 on drift (CI).')
+  .option('-c, --corpus <dir>', 'Corpus project to analyze', 'bench/corpus')
+  .option('-t, --tasks <file>', 'Task-set JSON', 'bench/tasks.json')
+  .option('--update', 'Write the report as the committed expected output (expected.json beside the task file)')
+  .option('--check', 'Exit 1 unless the report matches the committed expected output')
+  .option('--json', 'Emit the full report as JSON on stdout')
+  .action(async (opts: { corpus: string; tasks: string; update?: boolean; check?: boolean; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    if (opts.update && opts.check) {
+      // Together these would write expected.json and then "check" against the
+      // file just written — a CI gate that can never fail. Refuse loudly.
+      process.stderr.write(kleur.red('factstack bench: ') + '--update and --check are mutually exclusive (updating first would make the check vacuous).\n');
+      process.exit(1);
+    }
+    const corpusDir = path.resolve(opts.corpus);
+    const tasksFile = path.resolve(opts.tasks);
+    if (!existsSync(corpusDir)) {
+      process.stderr.write(kleur.red('factstack bench: ') + `corpus dir not found: ${corpusDir}\n`);
+      process.exit(1);
+    }
+    let tasks: BenchTask[];
+    try {
+      const raw: unknown = JSON.parse(readFileSync(tasksFile, 'utf8'));
+      if (
+        !Array.isArray(raw) ||
+        raw.some((t) => !t || typeof t.id !== 'string' || typeof t.query !== 'string' || !Array.isArray(t.expectedAnchors))
+      ) {
+        throw new Error('each task needs { id: string, query: string, expectedAnchors: string[] }');
+      }
+      // A zero/negative/non-numeric budget would silently starve the FACTS
+      // side down to the seed floor and fabricate a huge "savings" figure that
+      // --update would then commit — fail loudly instead.
+      if (raw.some((t) => t.budgetTokens !== undefined && !(typeof t.budgetTokens === 'number' && Number.isFinite(t.budgetTokens) && t.budgetTokens > 0))) {
+        throw new Error('budgetTokens, when present, must be a positive number');
+      }
+      tasks = raw as BenchTask[];
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack bench: ') + `bad task file ${tasksFile} — ${(err as Error).message}\n`);
+      process.exit(1);
+    }
+
+    /* Deterministic analyze: NO gitStats (churn stays null) and NO gzip — every
+       number must derive from the committed corpus bytes alone, so the report
+       reproduces byte-identically on any machine (the corpus .gitattributes
+       pins LF for the same reason). */
+    const result = await analyze(nodeFS(corpusDir), { root: '.', symbols: true });
+    const report = runBench(result.agent, tasks);
+    const body = JSON.stringify(report, null, 2) + '\n';
+
+    const expectedFile = path.join(path.dirname(tasksFile), 'expected.json');
+    let verdict: 'updated' | 'match' | 'drift' | 'none' = 'none';
+    if (opts.update) {
+      writeFileSync(expectedFile, body, 'utf8');
+      verdict = 'updated';
+    } else if (existsSync(expectedFile)) {
+      verdict = readFileSync(expectedFile, 'utf8') === body ? 'match' : 'drift';
+    }
+
+    if (opts.json) {
+      process.stdout.write(body);
+    } else {
+      const c = report.corpus;
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · bench — corpus ') + kleur.cyan(relativize(corpusDir, process.cwd())) + kleur.dim(` (${c.files} files · ${formatCount(c.loc)} LOC · ${formatCount(c.totalTokens)} tokens)`) + '\n\n');
+      const head = `  ${'task'.padEnd(22)} ${'FACTS'.padStart(10)} ${'naive'.padStart(14)} ${'savings'.padStart(9)}  recall F/N`;
+      process.stdout.write(kleur.dim(head) + '\n');
+      for (const r of report.tasks) {
+        const facts = `${formatCount(r.facts.tokens)}t·1`;
+        const naive = `${formatCount(r.naive.tokens)}t·${r.naive.turns}r`;
+        // Pad BEFORE colorizing — ANSI escapes would count toward the width.
+        const savRaw = `${r.savingsPct}%`.padStart(9);
+        const sav = r.savingsPct >= 0 ? kleur.green(savRaw) : kleur.yellow(savRaw);
+        const rec = `${r.facts.recall.toFixed(2)}/${r.naive.recall.toFixed(2)}`;
+        process.stdout.write(`  ${r.id.padEnd(22)} ${facts.padStart(10)} ${naive.padStart(14)} ${sav}  ${rec}\n`);
+      }
+      const a = report.aggregate;
+      process.stdout.write(kleur.bold(`  ${'TOTAL'.padEnd(22)} ${`${formatCount(a.factsTokens)}t`.padStart(10)} ${`${formatCount(a.naiveTokens)}t`.padStart(14)} ${`${a.savingsPct}%`.padStart(9)}  ${a.meanFactsRecall.toFixed(2)}/${a.meanNaiveRecall.toFixed(2)}\n`));
+      process.stdout.write('\n');
+    }
+
+    const expectedRel = relativize(expectedFile, process.cwd());
+    if (verdict === 'updated') process.stderr.write(kleur.green(`  ✓ wrote ${expectedRel}\n`));
+    if (verdict === 'match') process.stderr.write(kleur.green(`  ✓ matches committed ${expectedRel}\n`));
+    if (verdict === 'drift') process.stderr.write(kleur.yellow(`  ✗ drifts from committed ${expectedRel} — run \`factstack bench --update\` after intentional corpus/task changes\n`));
+    if (verdict === 'none') process.stderr.write(kleur.dim(`  no ${expectedRel} committed yet — run with --update to pin the numbers\n`));
+    if (opts.check && verdict !== 'match' && verdict !== 'updated') process.exit(1);
+  });
+
+program
+  .command('install [target]')
+  .description(`F12 — wire FACTS into a coding agent in ONE command: instruction files (skills) + MCP server registration in the agent's config (+ the freshness hook where the agent supports hooks). Agents: ${INSTALL_AGENTS.join(' | ')} | all. Idempotent — safe to re-run after every analyze. e.g. \`factstack install --agent claude\``)
+  .option('-a, --agent <name>', `Agent to wire: ${INSTALL_AGENTS.join(' | ')} | all`, 'claude')
+  .option('--server-command <cmd>', 'Override the MCP stdio launch command (default: `npx -y factstack-mcp`). First token is the command; quote any path containing spaces (e.g. \'node "C:\\Program Files\\factstack\\server.js"\').')
+  .option('--json', 'Emit a machine-readable summary on stdout')
+  .action(async (target: string | undefined, opts: { agent: string; serverCommand?: string; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+
+    const agents: InstallAgent[] = opts.agent === 'all'
+      ? [...INSTALL_AGENTS]
+      : (INSTALL_AGENTS as readonly string[]).includes(opts.agent)
+        ? [opts.agent as InstallAgent]
+        : [];
+    if (!agents.length) {
+      process.stderr.write(kleur.red('factstack install: ') + `unknown agent "${opts.agent}". Supported: ${INSTALL_AGENTS.join(', ')}, all\n`);
+      process.exit(1);
+    }
+
+    /* Pre-flight: artifacts must exist — install renders the skills FROM the
+       analysis, and (like export-skills) writing user-visible files should
+       follow an explicit "analyze happened" decision. */
+    const agentPath = path.join(root, '.facts', 'agent.json');
+    const humanPath = path.join(root, '.facts', 'human.json');
+    if (!existsSync(agentPath) || !existsSync(humanPath)) {
+      process.stderr.write(kleur.red('factstack install: ') + 'no .facts artifacts found.\n');
+      process.stderr.write(kleur.dim('  run `factstack analyze .` first; then re-run install.\n'));
+      process.exit(1);
+    }
+    let agentArtifact: AgentArtifact;
+    let human: HumanArtifact;
+    try {
+      agentArtifact = loadAndValidate<AgentArtifact>(agentPath, 'agent');
+      human = loadAndValidate<HumanArtifact>(humanPath, 'human');
+    } catch (err) {
+      process.stderr.write(kleur.red('factstack install: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+      process.exit(1);
+    }
+
+    let server: McpServerCommand = DEFAULT_MCP_COMMAND;
+    if (opts.serverCommand) {
+      // Quote-aware parsing — a naive whitespace split would shred paths with
+      // spaces ("C:\Program Files\...") into a broken command array.
+      const parsed = parseServerCommand(opts.serverCommand);
+      if (!parsed) {
+        process.stderr.write(kleur.red('factstack install: ') + 'bad --server-command (empty or unterminated quote). Quote paths with spaces: --server-command \'node "C:\\Program Files\\factstack\\server.js"\'\n');
+        process.exit(1);
+      }
+      server = parsed;
+    }
+
+    interface AgentSummary {
+      agent: InstallAgent;
+      skills: string[];
+      mcpConfig: string;
+      mcpStatus: 'written' | 'already-installed' | 'failed';
+      mcpError?: string;
+      hook: 'installed' | 'failed' | 'not-supported';
+      hookError?: string;
+    }
+    const summaries: AgentSummary[] = [];
+    let anyFailure = false;
+
+    for (const a of agents) {
+      const t = INSTALL_TARGETS[a];
+      /* 1. Instruction files via the existing renderer pipeline. AGENTS.md is
+         preserved when hand-authored (same rule as export-skills' default). */
+      const writer = new NodeFileWriter(root, '');
+      const skills = await buildSkillsTo(writer, agentArtifact, human, [...t.skillFormats], {
+        preserveExisting: ['agents'],
+      });
+
+      /* 2. MCP server registration — pure merge, never clobbers. */
+      const cfgPath = path.join(root, t.mcpConfigPath);
+      const existing = existsSync(cfgPath) ? readFileSync(cfgPath, 'utf8') : null;
+      const merged = mergeMcpConfig(a, existing, server);
+      let mcpStatus: AgentSummary['mcpStatus'];
+      let mcpError: string | undefined;
+      if (!merged.ok) {
+        mcpStatus = 'failed';
+        mcpError = merged.reason;
+        anyFailure = true;
+      } else if (merged.changed) {
+        mkdirSync(path.dirname(cfgPath), { recursive: true });
+        writeFileSync(cfgPath, merged.content, 'utf8');
+        mcpStatus = 'written';
+      } else {
+        mcpStatus = 'already-installed';
+      }
+
+      /* 3. Freshness hook where the host supports hooks (Claude Code). The
+         instruction files carry the query-first guidance everywhere else. */
+      let hook: AgentSummary['hook'] = 'not-supported';
+      let hookError: string | undefined;
+      if (t.supportsHooks) {
+        try {
+          installFreshnessHook(root, process.env.FACTSTACK_HOOK_COMMAND || undefined);
+          hook = 'installed';
+        } catch (e) {
+          hook = 'failed';
+          hookError = e instanceof Error ? e.message : String(e);
+        }
+      }
+
+      summaries.push({
+        agent: a,
+        skills: Object.keys(skills.files),
+        mcpConfig: t.mcpConfigPath,
+        mcpStatus,
+        ...(mcpError !== undefined ? { mcpError } : {}),
+        hook,
+        ...(hookError !== undefined ? { hookError } : {}),
+      });
+    }
+
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: !anyFailure, server, agents: summaries }, null, 2) + '\n');
+    } else {
+      process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · install\n'));
+      for (const s of summaries) {
+        const mcp = s.mcpStatus === 'written'
+          ? kleur.green(`✓ ${s.mcpConfig} (factstack server registered)`)
+          : s.mcpStatus === 'already-installed'
+            ? kleur.dim(`✓ ${s.mcpConfig} (already registered)`)
+            : kleur.red(`✗ ${s.mcpConfig} — ${s.mcpError}`);
+        process.stderr.write(`  ${kleur.bold(s.agent)}\n`);
+        for (const f of s.skills) process.stderr.write(`    ${kleur.green('✓')} ${f}\n`);
+        process.stderr.write(`    ${mcp}\n`);
+        if (s.hook === 'installed') process.stderr.write(`    ${kleur.green('✓')} .claude/settings.local.json (freshness hook)\n`);
+        if (s.hook === 'failed') process.stderr.write(`    ${kleur.yellow('!')} freshness hook failed: ${s.hookError}\n`);
+      }
+      process.stderr.write(kleur.dim(`  server command: ${server.command} ${server.args.join(' ')}\n`));
+      process.stderr.write(kleur.dim('  re-run after `factstack analyze` to refresh the instruction files; `factstack uninstall` reverses the MCP registration.\n'));
+    }
+    if (anyFailure) process.exit(1);
+  });
+
+program
+  .command('uninstall [target]')
+  .description('F12 — reverse `factstack install`: remove the FACTS MCP server registration from agent configs. Instruction files (SKILL.md / .cursorrules / copilot-instructions / AGENTS.md) are left in place — they are plain docs; delete manually if unwanted.')
+  .option('-a, --agent <name>', `Agent to unwire: ${INSTALL_AGENTS.join(' | ')} | all`, 'all')
+  .option('--json', 'Emit a machine-readable summary on stdout')
+  .action((target: string | undefined, opts: { agent: string; json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    const root = path.resolve(target ?? '.');
+    const agents: InstallAgent[] = opts.agent === 'all'
+      ? [...INSTALL_AGENTS]
+      : (INSTALL_AGENTS as readonly string[]).includes(opts.agent)
+        ? [opts.agent as InstallAgent]
+        : [];
+    if (!agents.length) {
+      process.stderr.write(kleur.red('factstack uninstall: ') + `unknown agent "${opts.agent}". Supported: ${INSTALL_AGENTS.join(', ')}, all\n`);
+      process.exit(1);
+    }
+    const results: Array<{ agent: InstallAgent; mcpConfig: string; status: 'removed' | 'not-registered' | 'absent' | 'failed'; error?: string }> = [];
+    for (const a of agents) {
+      const t = INSTALL_TARGETS[a];
+      const cfgPath = path.join(root, t.mcpConfigPath);
+      if (!existsSync(cfgPath)) {
+        results.push({ agent: a, mcpConfig: t.mcpConfigPath, status: 'absent' });
+        continue;
+      }
+      const removed = removeMcpConfig(a, readFileSync(cfgPath, 'utf8'));
+      if (!removed.ok) {
+        results.push({ agent: a, mcpConfig: t.mcpConfigPath, status: 'failed', error: removed.reason });
+        continue;
+      }
+      if (removed.changed) writeFileSync(cfgPath, removed.content, 'utf8');
+      results.push({ agent: a, mcpConfig: t.mcpConfigPath, status: removed.changed ? 'removed' : 'not-registered' });
+    }
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ ok: results.every((r) => r.status !== 'failed'), results }, null, 2) + '\n');
+      return;
+    }
+    process.stderr.write(kleur.bold().green('FACTS') + kleur.dim(' · uninstall\n'));
+    for (const r of results) {
+      const line = r.status === 'removed'
+        ? kleur.green(`✓ ${r.mcpConfig} — factstack server removed`)
+        : r.status === 'failed'
+          ? kleur.red(`✗ ${r.mcpConfig} — ${r.error}`)
+          : kleur.dim(`· ${r.mcpConfig} — ${r.status === 'absent' ? 'no config file' : 'factstack was not registered'}`);
+      process.stderr.write(`  ${kleur.bold(r.agent)}  ${line}\n`);
+    }
+    process.stderr.write(kleur.dim('  instruction files + the .claude/settings.local.json freshness hook are left in place — remove manually if unwanted.\n'));
   });
 
 program
@@ -1745,6 +2439,45 @@ program
   });
 
 program
+  .command('hook <action> [target]')
+  .description('F8 — manage the git post-commit hook that auto-refreshes .facts/ after each commit (offline, never blocks the commit). Actions: install | uninstall')
+  .option('--command <cmd>', 'Analyze command the hook runs (self-hosting repos override the default `npx factstack …`)', process.env.FACTSTACK_HOOK_COMMAND || GIT_HOOK_COMMAND)
+  .action((action: string, target: string | undefined, opts: { command: string }) => {
+    const root = path.resolve(target ?? '.');
+    if (action === 'install') {
+      try {
+        const r = installGitHook(root, opts.command);
+        const lines = [
+          kleur.bold().green('FACTS') + kleur.dim(' · hook install'),
+          `  ${kleur.green('✓')} ${relativize(r.hookPath, root)} ${kleur.dim(r.changed ? '(post-commit hook installed)' : '(already up to date)')}`,
+          kleur.dim(`      runs after each commit: ${r.command} .`),
+          '',
+        ];
+        process.stderr.write(lines.join('\n') + '\n');
+      } catch (err) {
+        process.stderr.write(kleur.red('factstack hook install: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+        process.exitCode = 1;
+      }
+      return;
+    }
+    if (action === 'uninstall') {
+      try {
+        const r = uninstallGitHook(root);
+        process.stderr.write(
+          kleur.bold().green('FACTS') + kleur.dim(' · hook uninstall') + '\n' +
+          `  ${kleur.green('✓')} ${relativize(r.hookPath, root)} ${kleur.dim(r.changed ? '(post-commit hook removed)' : '(no factstack hook present)')}` + '\n\n',
+        );
+      } catch (err) {
+        process.stderr.write(kleur.red('factstack hook uninstall: ') + (err instanceof Error ? err.message : String(err)) + '\n');
+        process.exitCode = 1;
+      }
+      return;
+    }
+    process.stderr.write(kleur.red('factstack hook: ') + `unknown action "${action}" (expected: install | uninstall)\n`);
+    process.exitCode = 1;
+  });
+
+program
   .command('export-diagram [target]')
   .description('Emit a Mermaid flowchart of the project graph (package / hub / focal views)')
   .option('--view <view>', 'Diagram view: package | hub | focal (default: package)', 'package')
@@ -1941,6 +2674,40 @@ program
         process.exit(1);
       }
     }
+  });
+
+program
+  .command('tokens [target]')
+  .description('Estimate the AI-context token cost of a file (or stdin with `-`). Char-based cl100k approximation, within ~8% of tiktoken — the same estimate analyze uses for per-file tokenCost.')
+  .option('--json', 'Emit machine-readable JSON to stdout')
+  .action((target: string | undefined, opts: { json?: boolean }) => {
+    if (opts.json === undefined && program.opts().json) opts.json = true;
+    let text: string;
+    let label: string;
+    if (!target || target === '-') {
+      if (process.stdin.isTTY) {
+        process.stderr.write(kleur.red('factstack tokens: ') + 'provide a file path, or pipe text via stdin (e.g. `cat file.ts | factstack tokens -`).\n');
+        process.exit(1);
+      }
+      // fd 0 = stdin; synchronous read of piped input.
+      try { text = readFileSync(0, 'utf8'); } catch { text = ''; }
+      label = '<stdin>';
+    } else {
+      const abs = path.resolve(target);
+      if (!existsSync(abs)) {
+        process.stderr.write(kleur.red('factstack tokens: ') + `file not found: ${target}\n`);
+        process.exit(1);
+      }
+      text = readFileSync(abs, 'utf8');
+      label = target;
+    }
+    const tokens = approximateTokens(text);
+    if (opts.json) {
+      process.stdout.write(JSON.stringify({ path: label, chars: text.length, tokens }) + '\n');
+      return;
+    }
+    const human = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : String(tokens);
+    process.stdout.write(`${kleur.bold(human + ' tokens')}  ${kleur.dim(`(${text.length} chars · ${label})`)}\n`);
   });
 
 program
@@ -2189,11 +2956,12 @@ function loadDiffEndpoint(p: string): DiffEndpoint | null {
       generatedAt: raw.at ?? new Date().toISOString(),
       project: { name: '', root: '', languages: [], frameworks: [], entryPoints: [], monorepo: null },
       files: [],
-      graph: { nodes: [], edges: [], cycles: [] },
+      graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], entities: [], entityEdges: [] },
       routes: [],
       scripts: {},
       capabilities: [],
       docs: [],
+      rationale: [],
       /* Clamp risk-count synthesis: snapshots are on-disk data we
          don't fully trust (corrupted file, mis-written by an older
          FACTS, etc.). `new Array(1e9).fill(...)` would OOM the CLI
@@ -2313,6 +3081,23 @@ function parseIntInRange(raw: string | number, def: number, min: number, max: nu
   return Math.max(min, Math.min(max, n));
 }
 
+/**
+ * Render a QueryResult to stderr as an indented list. `cycles` is an array of
+ * path arrays (one indented block per cycle); every other verb is a flat
+ * string list (paths, symbol ids, or an ordered path-between sequence).
+ */
+function printQueryResult(result: { verb: string; results: unknown }): void {
+  const rows = result.results;
+  if (result.verb === 'cycles') {
+    for (const cyc of (rows as string[][]) ?? []) {
+      process.stderr.write(kleur.dim('  ─── cycle ───\n'));
+      for (const p of cyc) process.stderr.write('  ' + p + '\n');
+    }
+    return;
+  }
+  for (const r of (rows as string[]) ?? []) process.stderr.write('  ' + r + '\n');
+}
+
 /** Returns true iff `candidate` is `root` itself or a descendant of it. */
 function isInside(root: string, candidate: string): boolean {
   const rel = path.relative(root, candidate);
@@ -2349,6 +3134,77 @@ function loadAndValidate<T>(p: string, kind: 'agent' | 'human'): T {
   }
   return result.data as T;
 }
+
+/* ─── F9 — session/cross-session memory helpers (learnings.jsonl) ────────
+ * All best-effort: the log is auxiliary state, so a missing or corrupt file
+ * degrades to "no memory", never to a failed command. */
+
+/** Read + parse .facts/learnings.jsonl; [] when absent/unreadable. */
+function readLearningEvents(root: string): LearningEvent[] {
+  try {
+    const p = path.join(root, '.facts', 'learnings.jsonl');
+    if (!existsSync(p)) return [];
+    return parseLearningsJsonl(readFileSync(p, 'utf8')).events;
+  } catch {
+    return [];
+  }
+}
+
+/** Append one validated event to the log (creates .facts/ if needed). */
+function appendLearningLine(root: string, event: LearningEvent): void {
+  const factsDir = path.join(root, '.facts');
+  if (!existsSync(factsDir)) mkdirSync(factsDir, { recursive: true });
+  appendFileSync(path.join(factsDir, 'learnings.jsonl'), formatLearningEvent(event), 'utf8');
+}
+
+/** Aggregate the durable context records for MEMORY's Working-context section.
+ *  Always returns a store (possibly empty) so call sites can pass it
+ *  unconditionally — buildMemory omits the section when the store is empty. */
+function loadContextStore(root: string): ContextStore {
+  return buildContextStore(readLearningEvents(root));
+}
+
+/* v0.11 — carry the last vulnerability scan ACROSS a re-analyze. analyze()
+ * itself never touches the network (INV6) and returns an empty vulnerability
+ * list, which used to WIPE previously scanned CVEs on every refresh — after a
+ * re-analyze the artifact looked "never scanned". Restore the prior scan from
+ * the old artifact, RECONCILED against the fresh manifests so removed or
+ * upgraded deps drop their stale findings (no zombie CVEs). `scannedAt` is
+ * kept from the original scan — carrying forward never makes data look
+ * fresher than it is. Best-effort: no/unreadable prior artifact just means
+ * nothing to carry. */
+function restoreVulnScan(root: string, agent: AgentArtifact, human?: HumanArtifact): void {
+  try {
+    const p = path.join(root, '.facts', 'agent.json');
+    if (existsSync(p)) {
+      /* Raw parse, not loadAndValidate: the prior artifact may predate the
+         current schema; we only need two additive fields. */
+      const prev = JSON.parse(readFileSync(p, 'utf8')) as Partial<AgentArtifact>;
+      if (prev.vulnerabilityScan) {
+        agent.vulnerabilities = reconcileVulnerabilities(prev.vulnerabilities ?? [], agent.dependencyManifests);
+        /* `findings` is the spec's scanned-and-clean marker and must mirror the
+           (now reconciled) vulnerabilities array — copying the prior scan verbatim
+           would leave a stale count contradicting agent.vulnerabilities.length when
+           reconcile drops a removed/upgraded dep. scannedAt/packagesQueried stay as
+           the original scan event's metadata. */
+        agent.vulnerabilityScan = { ...prev.vulnerabilityScan, findings: agent.vulnerabilities.length };
+      }
+    }
+  } catch { /* unreadable prior artifact — start clean; scan-vulns rebuilds */ }
+  /* v0.3 — re-grade health AFTER the CVE carry-forward so vulnerabilities land
+     in the score/headline (analyze() grades before this restore runs). Idempotent
+     when there are no vulns; `human` is threaded from every artifact-write path. */
+  if (human) human.summary.health = computeHealth(agent);
+}
+
+/** Age of an ISO timestamp in whole days (floored, never negative). */
+function ageDays(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000));
+}
+
+/** Days after which a vulnerability scan counts as stale — new CVEs are
+ *  published daily, so a week-old scan can miss disclosures. */
+const VULN_SCAN_STALE_DAYS = 7;
 
 /**
  * Locate the shipped prototype HTML. In dev (tsx) we live at

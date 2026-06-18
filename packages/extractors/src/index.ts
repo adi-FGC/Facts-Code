@@ -9,8 +9,9 @@
 
 export * from './imports.js';
 export { extractPythonImports, isPython } from './imports-python.js';
+export { extractGoImports, extractGoSymbols, isGo } from './imports-go.js';
 export { detectFileBasedRoutes, detectSourceRoutes, type DetectedRoute } from './routes.js';
-export { parseJS, isParseable, walkAst, type ParsedFile } from './parse.js';
+export { parseJS, isParseable, walkAst, djb2, type ParsedFile } from './parse.js';
 export {
   extractAstroFrontmatter,
   parseAstro,

@@ -8,3 +8,5 @@
 export * from './resolver.js';
 export * from './dependency.js';
 export { buildCallerIndex, type CallerIndex } from './callers.js';
+export { buildSymbolGraph, type SymbolGraph } from './symbol-resolver.js';
+export { computeMetrics, type GraphMetrics } from './metrics.js';

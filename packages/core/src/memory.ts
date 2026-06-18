@@ -20,16 +20,28 @@
  */
 
 import type { AgentArtifact, HumanArtifact, Risk } from '@factstack/spec';
+import type { ContextStore } from './learnings.js';
 
 export const MEMORY_SCHEMA_VERSION = 'factstack-memory.v1' as const;
 
 const TRUNCATE_FRAMEWORKS = 8;
+const TRUNCATE_WORKING_TASKS = 5;
+const TRUNCATE_WORKING_DECISIONS = 3;
+const TRUNCATE_WORKING_QUESTIONS = 3;
+const WORKING_TEXT_MAX = 140;
 const TRUNCATE_RISKS = 8;
 const TRUNCATE_ACTIVITY = 5;
 const TRUNCATE_KEY_FILES = 8;
+const TRUNCATE_MODULES = 6;
 const TRUNCATE_ROUTES_PER_GROUP = 6;
 const TRUNCATE_CAPABILITIES = 6;
 const ONELINER_MAX_LEN = 280;
+
+/** Collapse whitespace + cap a working-context line so the section stays small. */
+function truncateWorking(s: string): string {
+  const t = s.replace(/\s+/g, ' ').trim();
+  return t.length > WORKING_TEXT_MAX ? t.slice(0, WORKING_TEXT_MAX - 1) + '…' : t;
+}
 
 /**
  * Render a MEMORY.md brief for the given analysis.
@@ -37,7 +49,11 @@ const ONELINER_MAX_LEN = 280;
  * Caller (CLI / MCP server) is responsible for writing to disk. This
  * module stays isomorphic — no Node imports.
  */
-export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string {
+export function buildMemory(
+  agent: AgentArtifact,
+  human: HumanArtifact,
+  opts: { contextStore?: ContextStore } = {},
+): string {
   const sections: string[] = [];
 
   // ── Header ────────────────────────────────────────────────────────
@@ -81,9 +97,45 @@ export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string 
       `${formatNum(agent.stats.loc)} LOC · ${formatTokens(agent.stats.totalTokenCost)} tokens`,
   );
   sections.push(`- **Health**: ${human.summary.health.headline}`);
+  // F1 — edge-confidence breakdown, shown only when some edge is NOT
+  // `extracted` (the section-omission contract). Today every edge is
+  // `extracted`, so this stays hidden until F2's resolver emits
+  // inferred/ambiguous edges that warrant a human glance.
+  const conf = edgeConfidence(agent);
+  if (conf.uncertain > 0) {
+    const parts = [`${conf.extracted} extracted`];
+    if (conf.inferred) parts.push(`${conf.inferred} inferred`);
+    if (conf.ambiguous) parts.push(`${conf.ambiguous} ambiguous`);
+    sections.push(`- **Edge confidence**: ${parts.join(' · ')} _(${conf.uncertain} to verify)_`);
+  }
   if (agent.stats.fileCount === 0) {
     sections.push('');
     sections.push('_No source files yet — analyze a populated project to fill out this brief._');
+  }
+
+  // ── Working context (F9) — durable tasks / decisions / questions an agent
+  //    or human recorded in the learnings log. Omitted entirely when empty
+  //    (section-omission contract). Capped + text-truncated to defend the size
+  //    budget. The caller passes the aggregated store (read from the log). ──
+  const store = opts.contextStore;
+  if (store && (store.tasks.length || store.decisions.length || store.openQuestions.length)) {
+    sections.push('');
+    sections.push('## Working context');
+    if (store.tasks.length) {
+      sections.push('');
+      sections.push('**Open tasks**');
+      for (const t of store.tasks.slice(0, TRUNCATE_WORKING_TASKS)) sections.push(`- [ ] ${truncateWorking(t.text)}`);
+    }
+    if (store.decisions.length) {
+      sections.push('');
+      sections.push('**Recent decisions**');
+      for (const d of store.decisions.slice(0, TRUNCATE_WORKING_DECISIONS)) sections.push(`- ${truncateWorking(d.text)}`);
+    }
+    if (store.openQuestions.length) {
+      sections.push('');
+      sections.push('**Open questions**');
+      for (const q of store.openQuestions.slice(0, TRUNCATE_WORKING_QUESTIONS)) sections.push(`- ${truncateWorking(q.text)}`);
+    }
   }
 
   // ── Capabilities ──────────────────────────────────────────────────
@@ -133,16 +185,36 @@ export function buildMemory(agent: AgentArtifact, human: HumanArtifact): string 
     }
   }
 
-  // ── Key files (highest in-degree = most-imported = hubs) ──────────
+  // ── Key files (ranked by F5 importance when present, else in-degree) ──
   const keyFiles = topImportedFiles(agent, TRUNCATE_KEY_FILES);
   if (keyFiles.length) {
+    const ranked = keyFiles.some((k) => typeof k.importance === 'number');
     sections.push('');
     sections.push('## Key files');
     sections.push('');
-    sections.push('Files most-imported by the rest of the codebase — read these first to understand the API surface.');
+    sections.push(ranked
+      ? 'Most important files by graph centrality (PageRank over the import graph) — read these first to understand the API surface.'
+      : 'Files most-imported by the rest of the codebase — read these first to understand the API surface.');
     sections.push('');
     for (const k of keyFiles) {
-      sections.push(`- \`${k.path}\` (imported by ${k.inDegree})`);
+      const imp = typeof k.importance === 'number' ? `, importance ${k.importance}` : '';
+      sections.push(`- \`${k.path}\` (imported by ${k.inDegree}${imp})`);
+    }
+  }
+
+  // ── Modules (F5 communities; each named by its most important member) ──
+  const modules = topModules(agent);
+  if (modules.length) {
+    sections.push('');
+    sections.push('## Modules');
+    sections.push('');
+    sections.push('Clusters of files that import each other — each named by its most important member.');
+    sections.push('');
+    for (const m of modules.slice(0, TRUNCATE_MODULES)) {
+      sections.push(`- **\`${m.name}\`** — ${m.memberCount} files`);
+    }
+    if (modules.length > TRUNCATE_MODULES) {
+      sections.push(`- _+${modules.length - TRUNCATE_MODULES} more modules_`);
     }
   }
 
@@ -223,16 +295,83 @@ function topLanguages(agent: AgentArtifact): Array<{ id: string; pct: number }> 
  * Files sorted by in-degree (count of edges pointing TO them) descending.
  * Files with in-degree 0 are excluded — they're not hubs by definition.
  */
-function topImportedFiles(agent: AgentArtifact, limit: number): Array<{ path: string; inDegree: number }> {
+function topImportedFiles(
+  agent: AgentArtifact,
+  limit: number,
+): Array<{ path: string; inDegree: number; importance?: number }> {
   const inDeg = new Map<string, number>();
   for (const e of agent.graph.edges) {
     inDeg.set(e.to, (inDeg.get(e.to) ?? 0) + 1);
   }
+  // F5 — when importance (PageRank) is present, reorder hubs by it: a file
+  // imported by a few *important* files can outrank one imported by many
+  // trivial ones. The in-degree>0 gate stays — importance only reorders hubs,
+  // it doesn't promote runtime-only entrypoints (in-degree 0) into "read first".
+  const importance = new Map<string, number>();
+  for (const n of agent.graph.nodes) {
+    if (typeof n.importance === 'number') importance.set(n.path, n.importance);
+  }
+  const hasImportance = importance.size > 0;
   return [...inDeg.entries()]
     .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-    .slice(0, limit)
-    .map(([path, inDegree]) => ({ path, inDegree }));
+    .map(([path, inDegree]) => {
+      const imp = importance.get(path);
+      return imp !== undefined ? { path, inDegree, importance: imp } : { path, inDegree };
+    })
+    .sort((a, b) => {
+      if (hasImportance) {
+        const diff = (b.importance ?? 0) - (a.importance ?? 0);
+        if (diff !== 0) return diff;
+      }
+      return b.inDegree - a.inDegree || a.path.localeCompare(b.path);
+    })
+    .slice(0, limit);
+}
+
+/**
+ * F5 — group nodes into modules by their `community` id (from label
+ * propagation). A real module has ≥2 files (singletons aren't modules). Each is
+ * named by its highest-importance member. Largest modules first; ties break on
+ * the name path for determinism. Returns every qualifying module (the caller
+ * caps + adds the "+N more" trailer). Empty when no community data is present.
+ */
+function topModules(agent: AgentArtifact): Array<{ name: string; memberCount: number }> {
+  const byCommunity = new Map<number, Array<{ path: string; importance: number }>>();
+  for (const n of agent.graph.nodes) {
+    if (typeof n.community !== 'number') continue;
+    const entry = { path: n.path, importance: typeof n.importance === 'number' ? n.importance : 0 };
+    const arr = byCommunity.get(n.community);
+    if (arr) arr.push(entry);
+    else byCommunity.set(n.community, [entry]);
+  }
+  return [...byCommunity.values()]
+    .filter((members) => members.length >= 2)
+    .map((members) => {
+      const named = [...members].sort(
+        (a, b) => b.importance - a.importance || a.path.localeCompare(b.path),
+      )[0]!;
+      return { name: named.path, memberCount: members.length };
+    })
+    .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+}
+
+/**
+ * Count graph edges by F1 confidence (`extracted`/`inferred`/`ambiguous`),
+ * plus `uncertain` = inferred + ambiguous. Drives the optional
+ * edge-confidence line in "At a glance". Treats a missing field as
+ * `extracted` (pre-F1 artifacts) so old inputs never inflate "to verify".
+ */
+function edgeConfidence(agent: AgentArtifact): {
+  extracted: number; inferred: number; ambiguous: number; uncertain: number;
+} {
+  let extracted = 0, inferred = 0, ambiguous = 0;
+  for (const e of agent.graph.edges) {
+    const c = e.confidence ?? 'extracted';
+    if (c === 'inferred') inferred++;
+    else if (c === 'ambiguous') ambiguous++;
+    else extracted++;
+  }
+  return { extracted, inferred, ambiguous, uncertain: inferred + ambiguous };
 }
 
 /**

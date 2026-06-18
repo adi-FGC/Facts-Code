@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { ConfidenceSchema } from './agent.js';
 
 export const FACTS_MCP_URI_SCHEME = 'facts' as const;
 
@@ -66,34 +67,149 @@ export const ReanalyzeFileInputSchema = z.object({
  *  `QueryVerb` type both derive from it so there's exactly one place
  *  to add a verb. */
 export const QUERY_VERBS = [
-  'callers',    // files that import the given path
-  'imports',    // files imported BY the given path
-  'cycles',     // all SCCs in the dependency graph
-  'orphans',    // files with zero incoming edges
+  'callers',       // files that import the given path
+  'imports',       // files imported BY the given path
+  'cycles',        // all SCCs in the dependency graph
+  'orphans',       // files with zero incoming edges
+  // F3 — declarative-engine verbs (sugar over runGraphQuery). The first four
+  // stay as-is; these add symbol-graph reach + path finding.
+  'neighbors',     // nodes adjacent to a target (direction-controlled)
+  'path-between',  // shortest path from `path` to `to`
+  'references',    // symbols that reference a target symbol (symbol graph, in-edges)
+  'implementers',  // symbols that implement/extend a target symbol (symbol graph)
+  // F5 — blast radius: everything transitively affected by changing the target.
+  'impact',        // reverse reachability (in-edges, depth-bounded)
 ] as const;
 export const QueryVerbSchema = z.enum(QUERY_VERBS);
 export type QueryVerb = z.infer<typeof QueryVerbSchema>;
+
+/* ─────────── F3 declarative graph-query model ───────────
+ *
+ * One small pattern query interpreted over in-memory adjacency. The four
+ * legacy verbs above are reimplemented as `GraphQuery` literals in
+ * `@factstack/core` so the verb set can't drift from the engine.
+ */
+
+/** Every edge kind across BOTH graph levels. A `GraphQuery` picks which level
+ *  it walks purely by which `edgeKinds` it allows: file paths only connect via
+ *  import kinds, symbol ids only via symbol kinds — the two id-spaces never
+ *  share an edge. Mirrors `GraphEdgeSchema.kind` + `SymbolEdgeSchema.kind` in
+ *  agent.ts; keep in sync if either enum changes. */
+export const EDGE_KINDS = [
+  'import', 'dynamic-import', 'type-import',                  // file-level (GraphEdge)
+  'call', 'read', 'jsx', 'type-ref', 'implements', 'extends', // symbol-level (SymbolEdge)
+] as const;
+export const EdgeKindSchema = z.enum(EDGE_KINDS);
+export type EdgeKind = z.infer<typeof EdgeKindSchema>;
+
+/** How to seed a query: one or more of an exact id, a glob, a name, a kind.
+ *  An "id" is a file path OR a symbol id (`path#name@line`). Multiple fields
+ *  AND together (e.g. `{ kind: 'function', glob: 'src/auth/*' }`). */
+export const NodeSelectorSchema = z
+  .object({
+    id: z.string().optional(),
+    glob: z.string().optional(),
+    name: z.string().optional(),
+    kind: z.string().optional(),
+  })
+  .refine((s) => Boolean(s.id || s.glob || s.name || s.kind), {
+    message: 'NodeSelector needs at least one of id / glob / name / kind.',
+  });
+export type NodeSelector = z.infer<typeof NodeSelectorSchema>;
+
+export const TraverseSchema = z.object({
+  /** Limit traversal to these edge kinds. Omit → all kinds (which also picks
+   *  the graph level implicitly via the seed id-space). */
+  edgeKinds: z.array(EdgeKindSchema).optional(),
+  direction: z.enum(['out', 'in', 'both']).default('out'),
+  maxDepth: z.number().int().nonnegative().default(1),
+});
+export type Traverse = z.infer<typeof TraverseSchema>;
+
+export const GraphWhereSchema = z.object({
+  /** Keep only nodes of this symbol kind (function/class/…); ignored for files. */
+  kind: z.string().optional(),
+  /** Keep only nodes whose path matches this glob. */
+  pathGlob: z.string().optional(),
+  /** Drop edges below this certainty during traversal (`extracted` > `inferred`
+   *  > `ambiguous`). */
+  minConfidence: ConfidenceSchema.optional(),
+});
+export type GraphWhere = z.infer<typeof GraphWhereSchema>;
+
+export const GraphQuerySchema = z.object({
+  start: NodeSelectorSchema,
+  traverse: TraverseSchema.optional(),
+  where: GraphWhereSchema.optional(),
+  select: z.enum(['nodes', 'edges', 'subgraph']).default('subgraph'),
+  limit: z.number().int().positive().default(200),
+});
+export type GraphQuery = z.infer<typeof GraphQuerySchema>;
+
+/** Input for the F3 `query` MCP tool: either a free-text question (`q`,
+ *  resolved deterministically to a plan — INV3) or a structured `GraphQuery`.
+ *  Exactly one is required. */
+export const QueryInputSchema = z
+  .object({
+    q: z.string().optional(),
+    query: GraphQuerySchema.optional(),
+  })
+  .refine((v) => Boolean(v.q) !== Boolean(v.query), {
+    message: 'query requires exactly one of `q` (free-text) or `query` (structured GraphQuery).',
+  });
+export type QueryInput = z.infer<typeof QueryInputSchema>;
 
 export const QueryGraphInputSchema = z.object({
   /** Structured verb selector. Defaults to `callers` for backward compat
    *  with tool callers that only pass a `filter`. */
   verb: QueryVerbSchema.default('callers'),
-  /** Target path for `callers` / `imports` — REQUIRED for those verbs.
-   *  Ignored for `cycles` / `orphans`. The schema's refine guards this
-   *  so callers don't silently get empty results when they forget. */
+  /** Target path/symbol-id for the single-target verbs (`callers`, `imports`,
+   *  `neighbors`, `references`, `implementers`) and the source endpoint for
+   *  `path-between` — REQUIRED for those. Ignored for `cycles` / `orphans`.
+   *  The schema's refine guards this so callers don't silently get empty
+   *  results when they forget. */
   path: z.string().optional(),
+  /** F3 — destination endpoint for `path-between` (the `path` field is the
+   *  source). Ignored by every other verb. */
+  to: z.string().optional(),
+  /** F3 — traversal direction for `neighbors` (`out` = depends-on,
+   *  `in` = depended-on-by, `both` = either). Defaults to `both` in the
+   *  engine; other verbs fix their own direction. */
+  direction: z.enum(['out', 'in', 'both']).optional(),
   /** Glob-style filter matching file paths in the graph. Optional; when
    *  present, further restricts the result set for any verb. */
   filter: z.string().optional(),
   /** Maximum nodes to return. Default prevents accidentally huge responses. */
   limit: z.number().int().positive().default(200),
-  /** Include transitive imports up to this depth from each matching node. */
-  depth: z.number().int().nonnegative().default(1),
+  /** Include transitive imports up to this depth from each matching node.
+   *  Also bounds `neighbors` / `references` / `implementers` / `impact` reach.
+   *  Intentionally NOT defaulted here: `executeQuery` applies the
+   *  verb-appropriate default when omitted (1 for most verbs, 3 for `impact`'s
+   *  blast radius). A blanket `.default(1)` here would mask `impact`'s deeper
+   *  default — the omitted value would arrive as 1, never reaching the `?? 3`
+   *  fallback. */
+  depth: z.number().int().nonnegative().optional(),
+  /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
+   *  `ambiguous`). Omit for all edges. `cycles` ignores it (SCCs are
+   *  precomputed). */
+  minConfidence: ConfidenceSchema.optional(),
 }).refine(
-  (v) => !((v.verb === 'callers' || v.verb === 'imports') && !v.path),
+  // Single-target verbs need `path`.
+  (v) => !(
+    (v.verb === 'callers' || v.verb === 'imports' || v.verb === 'neighbors' ||
+     v.verb === 'references' || v.verb === 'implementers' || v.verb === 'path-between' ||
+     v.verb === 'impact') && !v.path
+  ),
   {
-    message: 'verb "callers" and "imports" require a `path` argument.',
+    message: 'this verb requires a `path` argument (the target symbol/file).',
     path: ['path'],
+  },
+).refine(
+  // `path-between` additionally needs a destination.
+  (v) => !(v.verb === 'path-between' && !v.to),
+  {
+    message: 'verb "path-between" requires a `to` argument (the destination).',
+    path: ['to'],
   },
 );
 
@@ -109,6 +225,7 @@ export const ListRisksInputSchema = z.object({
       'license',
       'supply-chain',
       'parse-error',
+      'read-error',
       'broken-import',
       'stale',
       'large-file',
@@ -137,6 +254,7 @@ export const ListRisksInputSchema = z.object({
 export const MCP_TOOL_NAMES = [
   'analyze',
   'query_graph',
+  'query',
   'get_outline',
   'list_risks',
   'read_memory',
@@ -148,6 +266,9 @@ export const MCP_TOOL_NAMES = [
   'list_vulnerabilities',
   'get_diagram',
   'review_change',
+  'count_tokens',
+  'get_context',
+  'sync_pack',
 ] as const;
 
 /** Union of every tool name the FACTS MCP server ships. */
@@ -164,6 +285,7 @@ export type ShippedMcpToolName = (typeof MCP_TOOL_NAMES)[number];
 export const MCP_TOOL = {
   analyze: 'analyze',
   query_graph: 'query_graph',
+  query: 'query',
   get_outline: 'get_outline',
   list_risks: 'list_risks',
   read_memory: 'read_memory',
@@ -175,7 +297,47 @@ export const MCP_TOOL = {
   list_vulnerabilities: 'list_vulnerabilities',
   get_diagram: 'get_diagram',
   review_change: 'review_change',
+  count_tokens: 'count_tokens',
+  get_context: 'get_context',
+  sync_pack: 'sync_pack',
 } as const satisfies { [K in ShippedMcpToolName]: K };
+
+/** F7 — input for the `count_tokens` tool: count a project file's tokens (by
+ *  `path`, from the cached artifact or a live read) OR a raw `text` snippet.
+ *  Exactly one is required. */
+export const CountTokensInputSchema = z
+  .object({
+    path: z.string().optional(),
+    text: z.string().optional(),
+  })
+  .refine((v) => Boolean(v.path) !== Boolean(v.text), {
+    message: 'count_tokens requires exactly one of `path` or `text`.',
+  });
+export type CountTokensInput = z.infer<typeof CountTokensInputSchema>;
+
+/** F4 — input for the `get_context` tool. A free-text task `query` is resolved
+ *  to graph seeds deterministically (INV3); `seeds` adds explicit file/symbol
+ *  anchors. The assembled subgraph is expanded `maxHops` from the seeds and
+ *  packed greedily up to `budgetTokens`. Seeds are never dropped — when they
+ *  alone exceed the budget the result is marked `truncated`. */
+export const ContextInputSchema = z.object({
+  query: z.string(),
+  seeds: z.array(z.string()).optional(),
+  budgetTokens: z.number().int().positive().default(8000),
+  maxHops: z.number().int().nonnegative().default(2),
+});
+export type ContextInput = z.infer<typeof ContextInputSchema>;
+
+/** F8 consumer — input for `sync_pack`. `have` is the 12-hex sha256 of the
+ *  `agent.pack` master the caller currently holds (read from the trailer line
+ *  of a pack a prior `sync_pack` returned). Omit it on the first fetch. When it
+ *  matches the previous master, the server returns just the small diff; when it
+ *  matches the current master, the server returns "current" (nothing changed);
+ *  otherwise it returns the full master. */
+export const SyncPackInputSchema = z.object({
+  have: z.string().optional(),
+});
+export type SyncPackInput = z.infer<typeof SyncPackInputSchema>;
 
 /* ─────────── (legacy) partial input-schema catalog ─────────── */
 

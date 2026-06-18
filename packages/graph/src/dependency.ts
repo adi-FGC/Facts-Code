@@ -5,15 +5,16 @@
  * { nodes, edges, cycles } triple. Cycles are detected with a single DFS.
  */
 
-import type { FileOutline } from '@factstack/spec';
+import type { FileOutline, Confidence } from '@factstack/spec';
 import type { RawImport } from '@factstack/extractors';
 import { resolveSpecifier, type ResolverContext } from './resolver.js';
 
 export interface DependencyGraph {
   // `callers` is optional and populated by `buildCallerIndex` after the
-  // graph is built — mirrors the `GraphNodeSchema` shape in @factstack/spec.
-  nodes: Array<{ id: string; path: string; language: string; loc: number; tokenCost: number; status: FileOutline['status']; callers?: string[] }>;
-  edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import' }>;
+  // graph is built. `importance`/`community` are populated by `computeMetrics`
+  // (F5). All three mirror the `GraphNodeSchema` shape in @factstack/spec.
+  nodes: Array<{ id: string; path: string; language: string; loc: number; tokenCost: number; status: FileOutline['status']; callers?: string[]; importance?: number; community?: number }>;
+  edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import'; confidence: Confidence; confidenceScore?: number }>;
   cycles: string[][];
 }
 
@@ -46,7 +47,9 @@ export function buildDependencyGraph(
       const key = from + '|' + to + '|' + kind;
       if (seen.has(key)) continue;
       seen.add(key);
-      edges.push({ from, to, kind });
+      // F1 — import edges are read directly from source, so always `extracted`.
+      // Score omitted (implicitly 1.0); F2 sets it for inferred/ambiguous edges.
+      edges.push({ from, to, kind, confidence: 'extracted' });
     }
   }
 
