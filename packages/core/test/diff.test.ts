@@ -112,6 +112,32 @@ describe('diffArtifacts — incomplete flag (snapshot endpoints)', () => {
   });
 });
 
+describe('diffArtifacts — deterministic generatedAt (DET-1)', () => {
+  it('derives generatedAt from the "to" artifact, never the wall clock', () => {
+    const a = makeArtifact({ generatedAt: '2026-05-01T00:00:00Z', files: [file('a.ts', 10, 50)] });
+    const b = makeArtifact({ generatedAt: '2026-05-09T08:30:00Z', files: [file('a.ts', 12, 60)] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.generatedAt).toBe('2026-05-09T08:30:00Z');
+  });
+
+  it('produces byte-identical output across repeated calls (INV2)', () => {
+    const a = makeArtifact({ generatedAt: '2026-05-01T00:00:00Z', files: [file('a.ts', 10, 50)] });
+    const b = makeArtifact({ generatedAt: '2026-05-09T08:30:00Z', files: [file('a.ts', 12, 60)] });
+    const d1 = diffArtifacts({ artifact: a }, { artifact: b });
+    const d2 = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(JSON.stringify(d1)).toBe(JSON.stringify(d2));
+  });
+
+  it('tiebreaks equal-magnitude token deltas by path (DET-3)', () => {
+    // c.ts and b.ts both move by |20|; a.ts by |10|. The |20| pair must order
+    // by path (b before c) so the sort is total and deterministic.
+    const a = makeArtifact({ files: [file('a.ts', 10, 50), file('b.ts', 10, 50), file('c.ts', 10, 50)] });
+    const b = makeArtifact({ files: [file('a.ts', 10, 60), file('b.ts', 10, 70), file('c.ts', 10, 30)] });
+    const d = diffArtifacts({ artifact: a }, { artifact: b });
+    expect(d.files.changed.map((c) => c.path)).toEqual(['b.ts', 'c.ts', 'a.ts']);
+  });
+});
+
 describe('diffArtifacts — stats deltas', () => {
   it('computes before/after/delta for each headline metric', () => {
     const a = makeArtifact({

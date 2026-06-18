@@ -97,7 +97,9 @@ function toIso(ms: number | null): string | null {
 export function sinceFromMtime(current: AgentArtifact, since: string): SinceReport {
   const sinceMs = Date.parse(since);
   if (!Number.isFinite(sinceMs)) {
-    return { ...EMPTY, generatedAt: new Date().toISOString(), since };
+    // DET-2: pure tier — derive the stamp from the input artifact, never the
+    // wall clock (matches the success path below, keeps output deterministic).
+    return { ...EMPTY, generatedAt: current.generatedAt, since };
   }
 
   const files: SinceFileSummary[] = [];
@@ -161,7 +163,9 @@ function routeKey(r: RouteDecl): string {
 export function sinceFromBaseline(current: AgentArtifact, prior: AgentArtifact, since: string): SinceReport {
   const sinceMs = Date.parse(since);
   if (!Number.isFinite(sinceMs)) {
-    return { ...EMPTY, generatedAt: new Date().toISOString(), since };
+    // DET-2: pure tier — derive the stamp from the input artifact, never the
+    // wall clock (matches the success path below, keeps output deterministic).
+    return { ...EMPTY, generatedAt: current.generatedAt, since };
   }
 
   const priorByPath = new Map(prior.files.map((f) => [fileKey(f.path), f]));

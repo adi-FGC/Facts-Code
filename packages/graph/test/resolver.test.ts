@@ -178,6 +178,20 @@ describe('resolveAlias — scoping (monorepo)', () => {
   });
 });
 
+describe('resolveSpecifier — relative-path escape containment (AE-2)', () => {
+  it('returns null for a relative import that climbs above the project root', () => {
+    // From a root-level file, `..` must not fabricate a path outside the repo
+    // (previously over-escaping produced a corrupt root-relative join).
+    const c = ctxA(['a.ts', 'b.ts'], []);
+    expect(resolveSpecifier('../../etc/passwd', 'a.ts', c)).toBeNull();
+  });
+
+  it('still resolves a legitimate parent-relative import within the tree', () => {
+    const c = ctxA(['src/app.ts', 'shared/util.ts'], []);
+    expect(resolveSpecifier('../shared/util', 'src/app.ts', c)).toBe('shared/util.ts');
+  });
+});
+
 describe('buildAliasIndex', () => {
   it('resolves wildcard paths against baseUrl + tsconfig dir', () => {
     const rules = buildAliasIndex([

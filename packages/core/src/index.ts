@@ -60,6 +60,7 @@ import {
   buildDependencyGraph,
   buildWorkspaceIndex,
   buildAliasIndex,
+  aliasInScope,
   computeMetrics,
   resolveSpecifier,
   type ResolverContext,
@@ -592,7 +593,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
-      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, resolverCtx)) continue;
+      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, outline.path, resolverCtx)) continue;
       // The walker excludes dist/build/etc., so an import into build output
       // is unresolvable HERE while perfectly valid after a build. Probe the
       // real filesystem before diagnosing: "dependency removed or path
@@ -911,10 +912,26 @@ function resolveIfLocal(source: string, importerPath: string, ctx: ResolverConte
 /** True iff a specifier looks like something that SHOULD resolve to a project
  *  file — either relative, or a known workspace name. External packages are
  *  allowed to "resolve to null" without becoming a risk. */
-function isProjectLocalSpecifier(source: string, ctx: ResolverContext): boolean {
+function isProjectLocalSpecifier(source: string, importerPath: string, ctx: ResolverContext): boolean {
   if (source.startsWith('./') || source.startsWith('../')) return true;
   for (const ws of ctx.workspaces.values()) {
     if (source === ws.name || source.startsWith(ws.name + '/')) return true;
+  }
+  // AE-1: a specifier matching a tsconfig `paths` alias pattern is project-local
+  // by intent — if it failed to resolve it's a broken import worth surfacing,
+  // not an external package to drop silently. Mirror resolveAlias EXACTLY:
+  // scope-filter first (a rule only governs files inside its tsconfig's subtree),
+  // THEN the wildcard prefix/suffix/length test. Skipping the scope filter would
+  // wrongly flag an external pkg whose name collides with another package's
+  // alias prefix in a scoped-alias monorepo.
+  for (const rule of ctx.aliases ?? []) {
+    if (!aliasInScope(rule, importerPath)) continue;
+    if (rule.wildcard) {
+      if (source.length < rule.prefix.length + rule.suffix.length) continue;
+      if (source.startsWith(rule.prefix) && (rule.suffix === '' || source.endsWith(rule.suffix))) return true;
+    } else if (source === rule.prefix) {
+      return true;
+    }
   }
   return false;
 }

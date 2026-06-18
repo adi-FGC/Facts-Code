@@ -177,7 +177,10 @@ export async function writeArtifactsTo(
       // Only diff a verifiable, same-schema master: the trailer sha anchors
       // the chain (the consumer verifies it before applying), and a schema
       // mismatch (e.g. an agent-v3 pack on disk) makes the rows incomparable.
-      if (prev.trailer && prev.header.schema === next.header.schema) {
+      // PACK-3: the prev MUST be a master — diffing against a diff (kind:'diff')
+      // would compute a delta-of-a-delta the consumer could never apply. decode
+      // treats an absent kind as a legacy master, so reject only explicit diffs.
+      if (prev.trailer && prev.header.kind !== 'diff' && prev.header.schema === next.header.schema) {
         const header: PackHeader = {
           producer: next.header.producer,
           schema: next.header.schema,

@@ -377,6 +377,75 @@ describe('analyze — tsconfig path aliases (#15)', () => {
     const imp = app.imports.find((i) => i.source === '@lib/util');
     expect(imp?.resolved).toBeNull();
   });
+
+  // AE-1: an alias-shaped import that fails to resolve is a broken import, not
+  // an external package to drop silently. It must surface as a risk so a reader
+  // sees the dangling dependency.
+  it('flags an unresolved aliased import as a broken-import risk (AE-1)', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'aliased' }),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { baseUrl: '.', paths: { '@lib/*': ['src/lib/*'] } },
+      }),
+      'src/app.ts': `import { gone } from '@lib/missing';\nexport const x = 1;\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'aliased' });
+    // The fixture's only broken import in src/app.ts is `@lib/missing`, so a
+    // broken-import risk on that file can only have come from the alias gate.
+    const risk = r.agent.risks.find(
+      (rk) => rk.category === 'broken-import' && rk.file === 'src/app.ts',
+    );
+    expect(risk).toBeDefined();
+    expect(risk!.category).toBe('broken-import');
+  });
+
+  it('does NOT flag the same alias-shaped import as broken without a tsconfig (control)', async () => {
+    // No alias rules → `@lib/missing` reads as an ordinary external package,
+    // so it must NOT be reported as a broken project-local import.
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'aliased' }),
+      'src/app.ts': `import { gone } from '@lib/missing';\nexport const x = 1;\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'aliased' });
+    const risk = r.agent.risks.find(
+      (rk) => rk.category === 'broken-import' && rk.file === 'src/app.ts',
+    );
+    expect(risk).toBeUndefined();
+  });
+
+  // AE-1 scope regression: an alias rule only governs files inside its tsconfig's
+  // subtree. A file OUTSIDE that subtree importing a real external package whose
+  // name happens to collide with the alias prefix must NOT be flagged broken —
+  // while an in-scope import of a missing alias target still must be.
+  it('respects AliasRule.scope in a scoped-alias monorepo (AE-1)', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'monorepo' }),
+      // @lib/* is scoped to apps/web only.
+      'apps/web/tsconfig.json': JSON.stringify({
+        compilerOptions: { baseUrl: '.', paths: { '@lib/*': ['src/lib/*'] } },
+      }),
+      'apps/web/src/lib/real.ts': 'export const real = 1;\n',
+      // In apps/web: one resolvable alias import + one in-scope-but-missing one.
+      'apps/web/main.ts': `import { real } from '@lib/real';\nimport { ghost } from '@lib/ghost';\nexport const x = real + (ghost as unknown as number);\n`,
+      // In apps/api (NO tsconfig): `@lib/external` is a real external package,
+      // out of scope for the apps/web rule — must read as external, not broken.
+      'apps/api/main.ts': `import { ext } from '@lib/external';\nexport const y = ext;\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'monorepo' });
+
+    // In-scope missing target → flagged (AE-1 still works where it should).
+    const webRisk = r.agent.risks.find(
+      (rk) => rk.category === 'broken-import' && rk.file === 'apps/web/main.ts',
+    );
+    expect(webRisk).toBeDefined();
+
+    // Out-of-scope external package → NOT flagged (the scope-blind bug the
+    // adversarial review caught; this fails without the aliasInScope guard).
+    const apiRisk = r.agent.risks.find(
+      (rk) => rk.category === 'broken-import' && rk.file === 'apps/api/main.ts',
+    );
+    expect(apiRisk).toBeUndefined();
+  });
 });
 
 describe('analyze — symbol graph (F2)', () => {

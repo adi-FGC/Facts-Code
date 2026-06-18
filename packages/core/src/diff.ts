@@ -71,7 +71,9 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   // Sort for deterministic output.
   added.sort();
   removed.sort();
-  changed.sort((x, y) => Math.abs(y.tokenDelta) - Math.abs(x.tokenDelta));
+  // DET-3: tiebreak by path so equal-magnitude deltas sort deterministically
+  // (matches the codebase-wide deterministic-sort convention).
+  changed.sort((x, y) => Math.abs(y.tokenDelta) - Math.abs(x.tokenDelta) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
 
   const delta = (aVal: number, bVal: number) => ({ before: aVal, after: bVal, delta: bVal - aVal });
 
@@ -116,7 +118,10 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   return {
     $schema: 'https://factstack.dev/schema/diff.v1.json',
     factsVersion: a.factsVersion,
-    generatedAt: new Date().toISOString(),
+    // DET-1: pure tier — derive the stamp from the 'to' artifact's own timestamp,
+    // never the wall clock. Restores INV1/INV2: identical (from,to) inputs now
+    // produce byte-identical output.
+    generatedAt: b.generatedAt,
     from: { at: a.generatedAt, ...(from.snapshotFile ? { snapshotFile: from.snapshotFile } : {}) },
     to:   { at: b.generatedAt, ...(to.snapshotFile   ? { snapshotFile: to.snapshotFile   } : {}) },
     stats: {

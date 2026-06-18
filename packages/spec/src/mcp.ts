@@ -335,7 +335,16 @@ export type ContextInput = z.infer<typeof ContextInputSchema>;
  *  matches the current master, the server returns "current" (nothing changed);
  *  otherwise it returns the full master. */
 export const SyncPackInputSchema = z.object({
-  have: z.string().optional(),
+  // SEC-4: `have` is the consumer's held trailer sha — exactly 12 lowercase hex
+  // chars in practice (decode.ts trailer), bounded ≤64 for headroom. The `+`
+  // (not `*`) and min(12) reject empty/too-short/oversized/non-hex input at the
+  // boundary before it reaches the pack-resolution logic. Omit it on first fetch.
+  have: z
+    .string()
+    .min(12)
+    .max(64)
+    .regex(/^[0-9a-f]+$/, 'have must be lowercase hex')
+    .optional(),
 });
 export type SyncPackInput = z.infer<typeof SyncPackInputSchema>;
 

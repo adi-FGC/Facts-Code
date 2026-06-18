@@ -220,7 +220,15 @@ const CAP_MAIN_JS_GZ = 102 * 1024;
 // previous build sat at 598.9/600 with no headroom. The BINDING wire-cost rail
 // (gz 200 KB) is untouched with ~26 KB headroom (173.6 used) — this bump only
 // moves the raw sanity rail to match feature reality.
-const CAP_WORKER_JS_RAW = 640 * 1024;
+// 2026-06-18 — lazy JS raw 640 → 648 KB. The production-readiness hardening pass
+// added real analyzer code that the in-browser scanner worker bundles (INV7
+// browser parity): the alias broken-import detector in @factstack/core
+// (isProjectLocalSpecifier), the OSV per-request timeout helper in
+// @factstack/scanners, and the deterministic-diff path. Net ~0.3 KB raw pushed
+// 640.30/640 over the sanity rail. The BINDING wire-cost rail (gz 200 KB) is
+// untouched with ~15 KB headroom (185.05 used) — this only nudges the raw rail
+// to match the hardening reality; the user-facing wire cost barely moved.
+const CAP_WORKER_JS_RAW = 648 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;
 const CAP_CSS_GZ = 8 * 1024;

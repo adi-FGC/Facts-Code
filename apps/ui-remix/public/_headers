@@ -19,6 +19,8 @@
   # 'unsafe-inline' — so it survives strict CSP; the hash is re-verified at build
   # time by scripts/check-bundle-size.mjs (fails the build if the script drifts).
   # The baked dataset is <script type="application/json"> (data, not executed).
-  # connect-src allows the OSV CVE API; style/font-src allow Google Fonts;
-  # worker-src covers the in-browser scanner worker.
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev; manifest-src 'self'
+  # connect-src allows the OSV CVE API + GitHub (the in-browser GitHub-repo
+  # scanner fetches the tree/blobs from api.github.com + raw.githubusercontent.com;
+  # the scan runs in a Web Worker whose fetches are governed by THIS page CSP, so
+  # worker-src alone does not cover them). style/font-src allow Google Fonts.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'

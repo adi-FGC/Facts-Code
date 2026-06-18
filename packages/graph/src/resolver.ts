@@ -180,6 +180,7 @@ export function resolveSpecifier(
   if (isRelative(spec)) {
     const baseDir = dirname(importerPath);
     const joined = normalize(baseDir, spec);
+    if (joined === null) return null; // relative import escapes the project root → not resolvable in-tree
     return probe(joined, ctx.files);
   }
 
@@ -243,8 +244,12 @@ export function resolveAlias(
   return null;
 }
 
-/** Whether an alias rule governs the importing file (by scope subtree). */
-function aliasInScope(rule: AliasRule, importerPath: string): boolean {
+/** Whether an alias rule governs the importing file (by scope subtree).
+ *  Exported so callers that ask "should this specifier have resolved?" share the
+ *  exact scope semantics resolveAlias uses to decide "did it resolve?" — keeping
+ *  the two in lockstep (a drift here once produced false-positive broken-import
+ *  risks in scoped-alias monorepos). */
+export function aliasInScope(rule: AliasRule, importerPath: string): boolean {
   const scope = rule.scope;
   if (scope === undefined || scope === '') return true;
   return importerPath === scope || importerPath.startsWith(`${scope}/`);
@@ -290,13 +295,19 @@ function dirname(p: string): string {
   return i < 0 ? '' : p.slice(0, i);
 }
 
-/** POSIX-style normalize("packages/core/src", "../../spec") → "packages/spec". */
-function normalize(baseDir: string, rel: string): string {
+/** POSIX-style normalize("packages/core/src", "../../spec") → "packages/spec".
+ *  Returns null when the path escapes the project root (more `..` than depth) —
+ *  the caller must NOT fabricate an in-project edge for a target outside the
+ *  tree. Previously the over-bounds `..` was silently swallowed, mapping e.g.
+ *  `../../../../x` to a phantom root-relative file. */
+function normalize(baseDir: string, rel: string): string | null {
   const parts = baseDir === '' ? [] : baseDir.split('/');
   for (const seg of rel.split('/')) {
     if (seg === '' || seg === '.') continue;
-    if (seg === '..') parts.pop();
-    else parts.push(seg);
+    if (seg === '..') {
+      if (parts.length === 0) return null; // escaped the root
+      parts.pop();
+    } else parts.push(seg);
   }
   return parts.join('/');
 }
@@ -407,6 +418,7 @@ export function buildAliasIndex(
     // `paths` resolve relative to baseUrl, which is relative to the tsconfig
     // dir. Absent baseUrl ⇒ relative to the tsconfig dir (baseUrl === '.').
     const effectiveBase = normalize(tsconfigDir, baseUrl);
+    if (effectiveBase === null) continue; // degenerate baseUrl escaping the root
 
     for (const [pattern, targetsRaw] of Object.entries(pathsRaw as Record<string, unknown>)) {
       if (!Array.isArray(targetsRaw)) continue;
@@ -420,8 +432,10 @@ export function buildAliasIndex(
       for (const t of targetsRaw) {
         if (typeof t !== 'string') continue;
         if (t.split('*').length > 2) continue;
-        // normalize() preserves `*` (an ordinary path segment char).
-        targets.push(normalize(effectiveBase, t));
+        // normalize() preserves `*` (an ordinary path segment char); null = the
+        // target escapes the root, so skip it rather than push a phantom path.
+        const nt = normalize(effectiveBase, t);
+        if (nt !== null) targets.push(nt);
       }
       if (targets.length > 0) rules.push({ prefix, suffix, wildcard, targets, scope: tsconfigDir });
     }

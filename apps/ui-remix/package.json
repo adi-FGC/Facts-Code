@@ -9,7 +9,7 @@
     "build": "vite build && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "build:static": "vite build --mode static && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "start": "vite preview --port 3000",
-    "deploy:cf": "pnpm build && npx --yes wrangler@4 pages deploy dist --project-name factstack --branch main --commit-dirty=true",
+    "deploy:cf": "pnpm build:static && npx --yes wrangler@4 pages deploy dist --project-name factstack --branch main",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

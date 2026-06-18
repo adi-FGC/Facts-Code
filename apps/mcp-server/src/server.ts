@@ -34,6 +34,7 @@
 
 import * as path from 'node:path';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { resolveInRoot } from './paths.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -716,7 +717,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       }
       return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: outline.declarations, refs: fileRefs }) }] };
     }
-    const abs = path.resolve(root, relPath);
+    const abs = resolveInRoot(root, relPath); // SEC: reject paths escaping the project root
     if (!existsSync(abs)) throw new Error(`File not found: ${relPath}`);
     try {
       const source = readFileSync(abs, 'utf8');
@@ -896,7 +897,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     } catch (err) {
       return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: (err as Error).message }) }] };
     }
-    appendLearning(event);
+    try {
+      appendLearning(event);
+    } catch (appendErr) {
+      // The write can fail (ENOSPC / EACCES / EROFS / Windows EBUSY). The event
+      // validated, so report a structured failure rather than throwing a raw MCP
+      // protocol error — mirrors the wrapped append in get_context.
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `event validated but write failed: ${appendErr instanceof Error ? appendErr.message : String(appendErr)}` }) }], isError: true };
+    }
     return { content: [{ type: 'text', text: JSON.stringify({ ok: true, timestamp: event.timestamp }) }] };
   }
 
@@ -969,7 +977,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (fileEntry) {
       return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: fileEntry.tokenCost, source: 'artifact' }) }] };
     }
-    const abs = path.resolve(root, relPath);
+    let abs: string;
+    try {
+      abs = resolveInRoot(root, relPath); // SEC: reject paths escaping the project root
+    } catch {
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Path outside project root' }) }], isError: true };
+    }
     if (!existsSync(abs)) {
       return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `File not found: ${relPath}` }) }], isError: true };
     }
@@ -1130,11 +1143,17 @@ function appendLearning(event: LearningEvent): void {
 }
 
 function readLearnings(): LearningEvent[] {
-  const p = learningsPath();
-  if (!existsSync(p)) return [];
-  const text = readFileSync(p, 'utf8');
-  const { events } = parseLearningsJsonl(text);
-  return events;
+  // Best-effort: a missing, locked (Windows EBUSY), or otherwise unreadable
+  // learnings log must NOT throw inside a tool handler — return []. Mirrors the
+  // CLI's readLearningEvents. Callers treat absence as "no working context".
+  try {
+    const p = learningsPath();
+    if (!existsSync(p)) return [];
+    const text = readFileSync(p, 'utf8');
+    return parseLearningsJsonl(text).events;
+  } catch {
+    return [];
+  }
 }
 
 /* v0.11 — carry the last vulnerability scan across the server's own

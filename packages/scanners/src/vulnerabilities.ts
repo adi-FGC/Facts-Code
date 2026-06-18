@@ -42,9 +42,29 @@ type FetchFn = (
 ) => Promise<{ ok: boolean; status: number; statusText: string; json: () => Promise<unknown> }>;
 interface AbortSignal { readonly aborted: boolean; }
 declare const fetch: FetchFn;
+/* `AbortSignal.timeout(ms)` is a Node 18+/browser global the bare ES2022 lib
+ * types only as an interface, not a value. Declare the slice we use (same
+ * tactic as `fetch` above; same approach as outdated.ts). */
+declare const AbortSignal: { timeout(ms: number): AbortSignal };
 
 const OSV_BATCH_ENDPOINT = 'https://api.osv.dev/v1/querybatch';
 const OSV_VULN_ENDPOINT = 'https://api.osv.dev/v1/vulns/';
+/** RES-1: default per-request timeout so a stalled OSV.dev TCP connection can
+ *  never hang the CLI/MCP forever. A caller-supplied `opts.signal` overrides it. */
+const DEFAULT_OSV_TIMEOUT_MS = 30_000;
+
+/** RES-1: a best-effort abort signal that fires after the default timeout.
+ *  Returns undefined on ancient runtimes without `AbortSignal.timeout` so the
+ *  fetch proceeds untimed rather than throwing (mirrors outdated.ts). */
+function defaultOsvSignal(): AbortSignal | undefined {
+  try {
+    return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(DEFAULT_OSV_TIMEOUT_MS)
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 /* OSV uses ecosystem labels that differ slightly from our ManifestEcosystem
  * enum (e.g. their 'PyPI' vs our 'pypi'). This map normalizes our enum
@@ -174,11 +194,14 @@ export async function queryOsvBatch(
         version: q.version,
       })),
     });
+    // RES-1: never hang forever on a stalled OSV.dev connection. A caller
+    // signal wins; otherwise each request gets a fresh 30s timeout.
+    const sig = opts.signal ?? defaultOsvSignal();
     const res = await fetch(OSV_BATCH_ENDPOINT, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body,
-      ...(opts.signal ? { signal: opts.signal } : {}),
+      ...(sig ? { signal: sig } : {}),
     });
     if (!res.ok) {
       throw new Error(`OSV batch failed: ${res.status} ${res.statusText}`);
@@ -198,8 +221,9 @@ export async function queryOsvBatch(
     const slice = ids.slice(i, i + CONCURRENT_DETAIL);
     await Promise.all(slice.map(async (id) => {
       try {
+        const sig = opts.signal ?? defaultOsvSignal();
         const res = await fetch(OSV_VULN_ENDPOINT + encodeURIComponent(id), {
-          ...(opts.signal ? { signal: opts.signal } : {}),
+          ...(sig ? { signal: sig } : {}),
         });
         if (!res.ok) return;
         const detail = await res.json() as OsvVuln;

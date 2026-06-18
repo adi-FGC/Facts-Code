@@ -68,6 +68,18 @@ function route(p: string, method: string | null = 'GET'): RouteDecl {
   return { framework: 'express', method, path: p, handlerFile: 'src/x.ts', handlerSymbol: null };
 }
 
+describe('since — deterministic generatedAt on an invalid timestamp (DET-2)', () => {
+  it('sinceFromMtime stamps from the input artifact, not the wall clock', () => {
+    const r = sinceFromMtime(baseAgent, 'not-a-date');
+    expect(r.generatedAt).toBe(baseAgent.generatedAt);
+  });
+
+  it('sinceFromBaseline stamps from the input artifact, not the wall clock', () => {
+    const r = sinceFromBaseline(baseAgent, baseAgent, 'not-a-date');
+    expect(r.generatedAt).toBe(baseAgent.generatedAt);
+  });
+});
+
 describe('sinceFromMtime — mtime-only mode', () => {
   it('returns no files when none have lastModifiedMs after the cutoff', () => {
     const current = {

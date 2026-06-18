@@ -156,6 +156,24 @@ describe('writeArtifactsTo — F8 diff sidecar', () => {
     expect(r.diffName).toBeNull();
     expect(writer.has('agent.diff.pack')).toBe(false);
   });
+
+  it('skips the diff when the previous pack is itself a diff, not a master (PACK-3)', async () => {
+    // Produce a REAL diff pack the way the producer does (cold master → warm diff).
+    await writeArtifactsTo(writer, makeAgent(), makeHuman());
+    const masterA = writer.get('agent.pack')!;
+    const w2 = new MemoryFileWriter();
+    await writeArtifactsTo(w2, agentWithRisk(), makeHuman(), { prevPackBody: masterA });
+    const realDiff = w2.get('agent.diff.pack')!;
+    expect(decode(realDiff).header.kind).toBe('diff'); // sanity: it really is a diff
+
+    // Feeding that diff (not a master) as the prev must NOT produce a
+    // delta-of-a-delta — the consumer could never apply it. Master stays sole truth.
+    const w3 = new MemoryFileWriter();
+    const r = await writeArtifactsTo(w3, agentWithRisk(), makeHuman(), { prevPackBody: realDiff });
+    expect(r.diffName).toBeNull();
+    expect(w3.has('agent.diff.pack')).toBe(false);
+    expect(w3.has('agent.pack')).toBe(true);
+  });
 });
 
 describe('writeArtifactsTo — snapshots', () => {
