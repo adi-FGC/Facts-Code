@@ -169,6 +169,21 @@ renders them to the `agent.diff.pack` wire form; `applyChain(master,
 diffs[])` reconstructs the row set (content, not order). Defined in
 `packages/factspack/src/chain.ts` + `encode.ts`; INV1-pure.
 
+### `sync_pack` (MCP tool — the F8 consumer)
+The reader half of the diff-chain. An agent passes `have` (the 12-hex
+sha256 of the master it currently holds) and gets back the smallest
+correct response as a JSON envelope `{ status, sha, pack? }`:
+`current` (you are up to date — no pack), `diff` (pack is the small
+delta; apply it onto your held master), or `full` (pack is the whole
+master — adopt it). `sha` is the current master's sha — pass it back as
+`have` next time. The branch logic is the pure `resolveSyncPack`
+(`apps/mcp-server/src/sync-pack.ts`), extracted from the server handler
+so it is unit-testable without the stdio transport; the handler reads
+`.facts/agent.pack` + `agent.diff.pack` and delegates. Input schema:
+`SyncPackInputSchema` in `@factstack/spec`. Turns the producer's on-disk
+`agent.diff.pack` into an end-to-end token win (≈2% of the master for a
+one-step-behind caller).
+
 ---
 
 ## Security tier — vocabulary introduced 2026-05-27

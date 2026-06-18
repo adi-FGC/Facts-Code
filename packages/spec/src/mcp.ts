@@ -268,6 +268,7 @@ export const MCP_TOOL_NAMES = [
   'review_change',
   'count_tokens',
   'get_context',
+  'sync_pack',
 ] as const;
 
 /** Union of every tool name the FACTS MCP server ships. */
@@ -298,6 +299,7 @@ export const MCP_TOOL = {
   review_change: 'review_change',
   count_tokens: 'count_tokens',
   get_context: 'get_context',
+  sync_pack: 'sync_pack',
 } as const satisfies { [K in ShippedMcpToolName]: K };
 
 /** F7 — input for the `count_tokens` tool: count a project file's tokens (by
@@ -325,6 +327,17 @@ export const ContextInputSchema = z.object({
   maxHops: z.number().int().nonnegative().default(2),
 });
 export type ContextInput = z.infer<typeof ContextInputSchema>;
+
+/** F8 consumer — input for `sync_pack`. `have` is the 12-hex sha256 of the
+ *  `agent.pack` master the caller currently holds (read from the trailer line
+ *  of a pack a prior `sync_pack` returned). Omit it on the first fetch. When it
+ *  matches the previous master, the server returns just the small diff; when it
+ *  matches the current master, the server returns "current" (nothing changed);
+ *  otherwise it returns the full master. */
+export const SyncPackInputSchema = z.object({
+  have: z.string().optional(),
+});
+export type SyncPackInput = z.infer<typeof SyncPackInputSchema>;
 
 /* ─────────── (legacy) partial input-schema catalog ─────────── */
 
