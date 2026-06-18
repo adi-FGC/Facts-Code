@@ -20,6 +20,8 @@ import type {
   ProjectMetaSchema,
 } from '@factstack/spec';
 import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
+import { computeHealth } from './health.js';
+export { computeHealth } from './health.js';
 import { walk, type WalkedFile } from '@factstack/walker';
 import {
   applyRewrite,
@@ -740,28 +742,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   };
 
   // Build human artifact (dashboard).
-  // `broken` = number of distinct files that contributed at least one
-  // broken-import, parse-error, or read-error risk. Aggregating by file
-  // avoids double-counting when one file has multiple unresolved imports.
-  // `unscanned-import` rows are excluded: the target exists on disk, so
-  // the file builds fine — counting it as broken would overstate health.
-  const brokenFiles = new Set<string>();
-  for (const r of secrets) {
-    if (r.rule === 'unscanned-import') continue;
-    if ((r.category === 'broken-import' || r.category === 'parse-error' || r.category === 'read-error') && r.file) {
-      brokenFiles.add(r.file);
-    }
-  }
-  const broken = brokenFiles.size;
-  const staleThreshold = 180 * 24 * 60 * 60 * 1000;
-  const now_ms = Date.now();
-  // "stale" is unchanged-in-over-6-months AND still has a TODO — signals
-  // rot rather than plain age. Files with no TODO are assumed intentional.
-  const stale = outlines.filter(
-    (o) => o.todos.length > 0 && o.lastModifiedMs && now_ms - o.lastModifiedMs > staleThreshold,
-  ).length;
-  const todoCount = allTodos.reduce((s, x) => s + x.entries.length, 0);
-
+  // Project-health grade (0–100 score + letter + top factors) is computed by
+  // the pure computeHealth(agent) below — security/correctness-first, derived
+  // entirely from the assembled artifact (no Date.now(); INV1/INV2).
   const human: HumanArtifact = {
     $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: FACTS_SCHEMA_VERSION,
@@ -780,22 +763,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         handlerFile: '',
         description: null,
       })),
-      health: (() => {
-        /* Single source of truth for the secret count. The `secrets`
-           variable is actually the FULL risks array (license, todo, etc.
-           all live in it), so the headline must use the SAME filtered
-           count the structured field reports — not `secrets.length`,
-           which is the total risk count and produced the "1 secret
-           exposed" false flag when the only risk was a missing license. */
-        const secretCount = secrets.filter((r) => r.category === 'secret').length;
-        return {
-          broken,
-          stale,
-          todos: todoCount,
-          secrets: secretCount,
-          headline: buildHealthHeadline(broken, stale, todoCount, secretCount),
-        };
-      })(),
+      health: computeHealth(agent),
     },
     stack: languages.map((l) => ({
       name: l.label,
@@ -1163,16 +1131,6 @@ function findFirstSentence(line: string): string {
   }
   // No terminator found — return the line capped.
   return line.length > cap ? line.slice(0, cap - 1) + '…' : line.trim();
-}
-
-function buildHealthHeadline(broken: number, stale: number, todos: number, secrets: number): string {
-  const parts: string[] = [];
-  if (broken) parts.push(`${broken} broken file${broken === 1 ? '' : 's'}`);
-  if (stale) parts.push(`${stale} stale file${stale === 1 ? '' : 's'}`);
-  if (secrets) parts.push(`${secrets} secret${secrets === 1 ? '' : 's'} exposed`);
-  if (todos) parts.push(`${todos} TODO${todos === 1 ? '' : 's'}`);
-  if (parts.length === 0) return 'Clean — no blockers detected.';
-  return parts.join(', ') + '.';
 }
 
 function countPackages(outlines: FileOutline[]): number {

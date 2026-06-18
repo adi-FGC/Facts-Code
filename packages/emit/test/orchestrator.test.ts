@@ -15,6 +15,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { writeArtifactsTo } from '../src/orchestrator.js';
 import { MemoryFileWriter } from './helpers/memory-writer.js';
+import { applyChain, decode, encode } from '@factstack/factspack';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 let writer: MemoryFileWriter;
@@ -91,6 +92,69 @@ describe('writeArtifactsTo — basic write', () => {
     // Invalid: stats.loc must be non-negative integer
     (bad as any).stats.loc = -1;
     await expect(writeArtifactsTo(writer, bad, makeHuman())).rejects.toThrow();
+  });
+});
+
+describe('writeArtifactsTo — F8 diff sidecar', () => {
+  /** A risk row is the simplest thing that changes a pack table between
+   *  runs (the risks table gains a row). Avoids needing a full File shape. */
+  function agentWithRisk(): AgentArtifact {
+    return {
+      ...makeAgent(),
+      risks: [{ severity: 'low', category: 'large-file', rule: 'big-file', message: 'oversized', file: 'src/big.ts' }],
+    } as AgentArtifact;
+  }
+
+  it('writes no diff on a cold run (no prevPackBody)', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman());
+    expect(r.diffName).toBeNull();
+    expect(writer.has('agent.diff.pack')).toBe(false);
+  });
+
+  it('emits agent.diff.pack on a warm run, and the diff applies back to the new master', async () => {
+    // Cold run captures the prior master.
+    await writeArtifactsTo(writer, makeAgent(), makeHuman());
+    const master = writer.get('agent.pack')!;
+
+    // Warm run: one new risk row vs the master, with the prior pack supplied.
+    const w2 = new MemoryFileWriter();
+    const r = await writeArtifactsTo(w2, agentWithRisk(), makeHuman(), { prevPackBody: master });
+
+    expect(r.diffName).toBe('agent.diff.pack');
+    expect(w2.has('agent.diff.pack')).toBe(true);
+
+    const diff = decode(w2.get('agent.diff.pack')!);
+    expect(diff.header.kind).toBe('diff');
+    expect(diff.header.seq).toBe(2);
+    expect(diff.header.parent).toBe(decode(master).trailer!.sha256);
+
+    // Applying the diff onto the prior master reconstructs the new master's
+    // risks table (the chain round-trips through the real emit path). Assert
+    // row CONTENT, not just the count — a count-only check would pass on a
+    // corrupted-but-right-length diff.
+    const rebuilt = applyChain(decode(master), [diff]);
+    const newMasterRisks = decode(w2.get('agent.pack')!).tables.get('risks')!;
+    expect(newMasterRisks.rows.length).toBe(1); // sanity: the master really changed
+    expect(rebuilt.get('risks')!.rows).toEqual(newMasterRisks.rows);
+  });
+
+  it('skips the diff (no throw) when prevPackBody is corrupt — master stays authoritative', async () => {
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { prevPackBody: 'not a pack at all' });
+    expect(r.diffName).toBeNull();
+    expect(writer.has('agent.diff.pack')).toBe(false);
+    expect(writer.has('agent.pack')).toBe(true);
+  });
+
+  it('skips the diff when the previous pack has a different schema', async () => {
+    // A valid v0.2 master stamped under an OLD schema name (agent-v3): it
+    // decodes fine, but the schema guard must refuse to diff across it.
+    const oldSchemaPack = encode({
+      header: { producer: 'factstack/0.0.0', schema: 'agent-v3', snapshotId: 'old', rowCount: null, seq: 1, parent: '-', kind: 'master', generated: 'old' },
+      tables: [{ name: 'files', columns: [{ name: 'path' }], rows: [['a.ts']] }],
+    });
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { prevPackBody: oldSchemaPack });
+    expect(r.diffName).toBeNull();
+    expect(writer.has('agent.diff.pack')).toBe(false);
   });
 });
 

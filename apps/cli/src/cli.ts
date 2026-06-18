@@ -36,6 +36,7 @@ import {
   buildContextStore,
   buildDiagram,
   buildMemory,
+  computeHealth,
   contextRecordEvent,
   diffArtifacts,
   executeQuery,
@@ -299,7 +300,7 @@ program
           }
         : undefined,
     });
-    restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+    restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
 
     /* F8 — snapshot cache hit/miss for the report, then close the db. `hits` =
        files served from cache.db (unchanged content) without re-parsing;
@@ -446,7 +447,7 @@ program
       );
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
@@ -510,7 +511,7 @@ program
       resetIdle();
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
       const fresh = humanToViz(result.agent, result.human);
       fresh.project.root = root;
@@ -1059,7 +1060,7 @@ program
       process.stderr.write(kleur.dim('  no existing .facts/ — analyzing first…\n'));
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
@@ -1170,7 +1171,7 @@ program
       process.stderr.write(kleur.dim('  scanning ') + kleur.reset(path.basename(root)) + kleur.dim('…\n'));
       const fs = nodeFS(root);
       const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
-      restoreVulnScan(root, result.agent); // v0.11 — a re-analyze must not wipe the last CVE scan
+      restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
 
@@ -1450,6 +1451,9 @@ program
         findings: vulnerabilities.length,
       },
     };
+    /* v0.3 — re-grade health now that fresh CVEs are on the agent, so the
+       score/headline reflects the scan in both human.json and MEMORY.md. */
+    human.summary.health = computeHealth(nextAgent);
     await writeArtifacts({
       root,
       agent: nextAgent,
@@ -3169,22 +3173,28 @@ function loadContextStore(root: string): ContextStore {
  * kept from the original scan — carrying forward never makes data look
  * fresher than it is. Best-effort: no/unreadable prior artifact just means
  * nothing to carry. */
-function restoreVulnScan(root: string, agent: AgentArtifact): void {
+function restoreVulnScan(root: string, agent: AgentArtifact, human?: HumanArtifact): void {
   try {
     const p = path.join(root, '.facts', 'agent.json');
-    if (!existsSync(p)) return;
-    /* Raw parse, not loadAndValidate: the prior artifact may predate the
-       current schema; we only need two additive fields. */
-    const prev = JSON.parse(readFileSync(p, 'utf8')) as Partial<AgentArtifact>;
-    if (!prev.vulnerabilityScan) return; // never scanned — nothing to carry
-    agent.vulnerabilities = reconcileVulnerabilities(prev.vulnerabilities ?? [], agent.dependencyManifests);
-    /* `findings` is the spec's scanned-and-clean marker and must mirror the
-       (now reconciled) vulnerabilities array — copying the prior scan verbatim
-       would leave a stale count contradicting agent.vulnerabilities.length when
-       reconcile drops a removed/upgraded dep. scannedAt/packagesQueried stay as
-       the original scan event's metadata. */
-    agent.vulnerabilityScan = { ...prev.vulnerabilityScan, findings: agent.vulnerabilities.length };
+    if (existsSync(p)) {
+      /* Raw parse, not loadAndValidate: the prior artifact may predate the
+         current schema; we only need two additive fields. */
+      const prev = JSON.parse(readFileSync(p, 'utf8')) as Partial<AgentArtifact>;
+      if (prev.vulnerabilityScan) {
+        agent.vulnerabilities = reconcileVulnerabilities(prev.vulnerabilities ?? [], agent.dependencyManifests);
+        /* `findings` is the spec's scanned-and-clean marker and must mirror the
+           (now reconciled) vulnerabilities array — copying the prior scan verbatim
+           would leave a stale count contradicting agent.vulnerabilities.length when
+           reconcile drops a removed/upgraded dep. scannedAt/packagesQueried stay as
+           the original scan event's metadata. */
+        agent.vulnerabilityScan = { ...prev.vulnerabilityScan, findings: agent.vulnerabilities.length };
+      }
+    }
   } catch { /* unreadable prior artifact — start clean; scan-vulns rebuilds */ }
+  /* v0.3 — re-grade health AFTER the CVE carry-forward so vulnerabilities land
+     in the score/headline (analyze() grades before this restore runs). Idempotent
+     when there are no vulns; `human` is threaded from every artifact-write path. */
+  if (human) human.summary.health = computeHealth(agent);
 }
 
 /** Age of an ISO timestamp in whole days (floored, never negative). */

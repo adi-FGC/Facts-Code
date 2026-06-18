@@ -126,6 +126,64 @@ Thin top-level export from `packages/emit-browser/`. Constructs an
 permission), calls `writeArtifactsTo`. Backward-compatible surface
 for the in-browser scan flow.
 
+## F8 diff-chain — vocabulary introduced 2026-06-16
+
+### `agent.diff.pack`
+The incremental sidecar artifact. When a previous `agent.pack` exists,
+`writeArtifactsTo` additionally writes this: the row-level delta from
+that prior master to the new one. It is a **best-effort accelerator,
+not a canonical artifact** — `agent.pack` stays a full, self-contained
+master that every existing consumer reads directly. A consumer that
+already holds the prior master applies this small diff instead of
+re-reading the whole pack. Absent on the first run; lives under
+`.facts/` (gitignored), so it never enters commits or determinism
+checks. The win scales with the *kind* of change: a pure content edit
+is tiny (~2% of the master), but adding/removing files ripples PageRank
+`importance` across the `nodeMetrics`/`top` rows, so structural change
+diffs are larger (~27% dogfooded on FACTS itself).
+
+### diff-chain (depth-1)
+The design: each diff applies onto the **immediately preceding master**,
+never onto another diff. So a consumer applies at most one diff to reach
+current state, and there is no growing chain, no manifest, and no
+compaction step. The diff header carries `kind='diff'`,
+`seq=(prev.seq ?? 1)+1`, and `parent=prev.trailer.sha256` (the 12-hex
+the encoder already stamped on the master), which the consumer verifies
+before applying — a mismatch means "stale master, read the full pack."
+
+### `prevPackBody` (orchestrator option)
+The shim-threaded prior master. The `FileWriter` interface was
+deliberately **not** given a `readText` method; instead each shim
+(`writeArtifacts` Node, `writeBrowserArtifacts` browser) pre-reads
+`.facts/agent.pack` before it is overwritten and passes the body in via
+this option. The orchestrator stays write-only and isomorphic. The diff
+emission is wrapped in try/catch and only fires when the prior pack
+decodes, carries a trailer, and shares the new master's schema — any
+failure skips the diff and leaves the master authoritative.
+
+### `computeDiff` / `applyChain` / `encodeIncremental` (factspack)
+The pure isomorphic primitives the orchestrator composes.
+`computeDiff(prevDecoded, nextDecoded)` returns the per-table
+added/deleted rows (omitting unchanged tables); `encodeIncremental`
+renders them to the `agent.diff.pack` wire form; `applyChain(master,
+diffs[])` reconstructs the row set (content, not order). Defined in
+`packages/factspack/src/chain.ts` + `encode.ts`; INV1-pure.
+
+### `sync_pack` (MCP tool — the F8 consumer)
+The reader half of the diff-chain. An agent passes `have` (the 12-hex
+sha256 of the master it currently holds) and gets back the smallest
+correct response as a JSON envelope `{ status, sha, pack? }`:
+`current` (you are up to date — no pack), `diff` (pack is the small
+delta; apply it onto your held master), or `full` (pack is the whole
+master — adopt it). `sha` is the current master's sha — pass it back as
+`have` next time. The branch logic is the pure `resolveSyncPack`
+(`apps/mcp-server/src/sync-pack.ts`), extracted from the server handler
+so it is unit-testable without the stdio transport; the handler reads
+`.facts/agent.pack` + `agent.diff.pack` and delegates. Input schema:
+`SyncPackInputSchema` in `@factstack/spec`. Turns the producer's on-disk
+`agent.diff.pack` into an end-to-end token win (≈2% of the master for a
+one-step-behind caller).
+
 ---
 
 ## Security tier — vocabulary introduced 2026-05-27

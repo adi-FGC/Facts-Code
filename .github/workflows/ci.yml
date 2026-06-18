@@ -17,9 +17,9 @@ jobs:
         with:
           fetch-depth: 50
 
+      # pnpm version comes from package.json "packageManager" (pnpm@11.3.0).
+      # Do NOT also set `version:` here — action-setup@v4 errors on a dual spec.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
@@ -40,14 +40,19 @@ jobs:
       - name: Smoke — analyze self
         shell: bash
         run: |
-          ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts analyze . --json > /tmp/smoke.json
+          # cwd-relative path, not /tmp: bash's `> /tmp/x` and Node's
+          # readFileSync('/tmp/x') disagree on the Windows runner (Node maps
+          # /tmp to D:\tmp → ENOENT). A relative file resolves identically for
+          # both. Cleaned up after so no later tree-clean step sees it.
+          ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts analyze . --json > smoke.json
           node -e "
-            const j = JSON.parse(require('fs').readFileSync('/tmp/smoke.json','utf8'));
+            const j = JSON.parse(require('fs').readFileSync('smoke.json','utf8'));
             if (!j.ok) throw new Error('analyze failed');
             if (!j.stats || j.stats.fileCount < 10) throw new Error('fileCount too low: ' + j.stats?.fileCount);
             if (typeof j.agentPath !== 'string') throw new Error('agentPath missing');
             console.log('[smoke] files=' + j.stats.fileCount + ' loc=' + j.stats.loc + ' risks=' + j.risks);
           "
+          rm -f smoke.json
 
       # Determinism gate (F13): re-run the benchmark over the committed corpus and
       # fail if the byte output drifts from bench/expected.json. Runs on every OS in

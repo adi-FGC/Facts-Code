@@ -20,6 +20,8 @@
  *     log_learning          — append a proposal/outcome to learnings.jsonl (v0.3.4)
  *     query_learnings       — filter the learnings log (v0.3.4)
  *     get_config            — env-var inventory + read sites (v0.3.6)
+ *     sync_pack             — fetch agent.pack as a small diff when the caller
+ *                             already holds the prior master (F8 consumer)
  *
  * Designed for agent consumption: every resource returns JSON matching
  * the Zod schemas in `@factstack/spec` so tools can validate.
@@ -47,6 +49,7 @@ import {
   buildChangeVerdict,
   buildContextStore,
   buildMemory,
+  computeHealth,
   buildDiagram,
   lastServedEntities,
   recentSessionEntities,
@@ -77,6 +80,7 @@ import {
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
 import { mineGitStats, nodeFS } from '@factstack/fs-node';
+import { resolveSyncPack } from './sync-pack.js';
 import {
   approximateTokens,
   flattenManifests,
@@ -96,6 +100,7 @@ import {
   QueryInputSchema,
   CountTokensInputSchema,
   ContextInputSchema,
+  SyncPackInputSchema,
   jsonSchemaByKind,
   MCP_TOOL,
   type AgentArtifact,
@@ -131,6 +136,9 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
   // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
   // network-free per INV6 and returns an empty list). Mirrors the CLI.
   restoreVulnScanInto(result.agent);
+  // v0.3 — re-grade health after the CVE carry-forward so vulnerabilities land
+  // in the score/headline (analyze() grades before the restore). Mirrors the CLI.
+  result.human.summary.health = computeHealth(result.agent);
   // F9 — fold the durable context store (decisions / open tasks / questions
   // recorded in learnings.jsonl) into MEMORY.md's "Working context" section.
   const memoryBody = buildMemory(result.agent, result.human, {
@@ -505,6 +513,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ['query'],
       },
     },
+    {
+      name: MCP_TOOL.sync_pack,
+      description: 'F8 — fetch the current agent.pack as a SMALL DIFF when you already hold the previous master, instead of re-reading the whole pack. Pass `have` = the 12-hex sha256 from the trailer of the pack you last received (omit on first fetch). JSON envelope: `{ status, sha, pack? }`. status="current" (you are up to date; no pack), "diff" (pack is the row-level delta — read the + added / x removed rows and apply them onto your held master), or "full" (pack is the complete master — adopt it). `sha` is the current master sha; pass it back as `have` next time. Reads the cached analysis (call `analyze` first to refresh against changed code).',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          have: {
+            type: 'string',
+            description: 'The 12-hex sha256 of the agent.pack master you currently hold (from a prior sync_pack `sha` / the pack trailer). Omit on first fetch.',
+          },
+        },
+      },
+    },
   ],
 }));
 
@@ -772,9 +793,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             findings: vulnerabilities.length,
           },
         };
-        const memoryBody = buildMemory(nextAgent, cached!.human, { contextStore: buildContextStore(readLearnings()) });
-        await writeArtifacts({ root, agent: nextAgent, human: cached!.human, addGitignoreEntry: false, memoryBody });
-        cached = { agent: nextAgent, human: cached!.human, memory: memoryBody };
+        // v0.3 — re-grade health so the freshly-fetched CVEs land in the
+        // score/headline written to human.json + MEMORY.md. Build the updated
+        // human immutably and only swap `cached` AFTER the write succeeds — a
+        // failed write must leave the in-memory cache consistent (old agent +
+        // old health together), matching the catch block's "stale data stays
+        // untouched" promise.
+        const updatedHuman: HumanArtifact = {
+          ...cached!.human,
+          summary: { ...cached!.human.summary, health: computeHealth(nextAgent) },
+        };
+        const memoryBody = buildMemory(nextAgent, updatedHuman, { contextStore: buildContextStore(readLearnings()) });
+        await writeArtifacts({ root, agent: nextAgent, human: updatedHuman, addGitignoreEntry: false, memoryBody });
+        cached = { agent: nextAgent, human: updatedHuman, memory: memoryBody };
       } catch (err) {
         /* A failed refresh must NEVER look like a successful empty scan —
            return an explicit error; the stale data stays untouched on disk. */
@@ -988,6 +1019,44 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { content: [{ type: 'text', text: contextToPack(result, snapshotId) }] };
     }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+
+  if (name === MCP_TOOL.sync_pack) {
+    if (!cached) await ensureAnalyzed();
+    const parsed = SyncPackInputSchema.safeParse(args);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'invalid sync_pack input', issues }) }],
+        isError: true,
+      };
+    }
+    const have = parsed.data.have;
+    const masterPath = path.join(root, '.facts', 'agent.pack');
+    const diffPath = path.join(root, '.facts', 'agent.diff.pack');
+
+    // The on-disk master IS the current pack — analyze() writes it in lockstep
+    // with cached.agent. Read it + the diff sidecar (best-effort) and let the
+    // pure resolver decide current/diff/full.
+    let masterBody: string;
+    try {
+      masterBody = readFileSync(masterPath, 'utf8');
+    } catch {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'no readable agent.pack — run analyze first' }) }],
+        isError: true,
+      };
+    }
+    let diffBody: string | undefined;
+    if (existsSync(diffPath)) {
+      try { diffBody = readFileSync(diffPath, 'utf8'); } catch { diffBody = undefined; }
+    }
+
+    const result = resolveSyncPack(masterBody, diffBody, have);
+    return {
+      content: [{ type: 'text', text: JSON.stringify(result) }],
+      ...(result.status === 'error' ? { isError: true } : {}),
+    };
   }
 
   throw new Error(`Unknown tool: ${name}`);
