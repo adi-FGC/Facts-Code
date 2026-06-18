@@ -17,9 +17,9 @@ jobs:
         with:
           fetch-depth: 50
 
+      # pnpm version comes from package.json "packageManager" (pnpm@11.3.0).
+      # Do NOT also set `version:` here — action-setup@v4 errors on a dual spec.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
 
       - uses: actions/setup-node@v4
         with:
