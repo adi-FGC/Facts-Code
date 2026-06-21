@@ -271,6 +271,12 @@ export function sinceFromBaseline(current: AgentArtifact, prior: AgentArtifact, 
 /** Top-level convenience that picks the right mode based on whether
  *  a baseline was supplied. */
 export function since(current: AgentArtifact, sinceTs: string, baseline?: AgentArtifact): SinceReport {
-  if (baseline) return sinceFromBaseline(current, baseline, sinceTs);
+  // A baseline only supports a file-level diff if it actually carries files[].
+  // Rolled-up "stats only" snapshots (what the MCP server writes on every boot)
+  // omit it; guarding here keeps sinceFromBaseline's `prior.files.map(...)` from
+  // throwing a TypeError for any caller that hands us a fileless artifact — we
+  // degrade to mtime-only mode instead of crashing. (The MCP server also asks
+  // readLatestSnapshot for requireFull=true; this is the defense-in-depth layer.)
+  if (baseline && Array.isArray(baseline.files)) return sinceFromBaseline(current, baseline, sinceTs);
   return sinceFromMtime(current, sinceTs);
 }

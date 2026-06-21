@@ -882,10 +882,14 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!cached) await ensureAnalyzed();
     const ts = typeof args.timestamp === 'string' ? args.timestamp : '';
     if (!ts) throw new Error("since: 'timestamp' (ISO 8601) is required");
-    /* Try to load the most recent snapshot as a baseline. We pick the
-       latest .facts/snapshots/<dir>/agent.json by sort order — snapshot
-       directories are date-stamped so lexical sort = chronological. */
-    const baseline = readLatestSnapshot();
+    /* Load the most recent PRIOR full snapshot as a baseline. requireFull=true
+       skips stats-only rollup snapshots (which lack files[]) — without it,
+       sinceFromBaseline runs prior.files.map(...) and throws a TypeError on
+       essentially every real call (the server writes a rollup snapshot each
+       boot). Excluding the head's own generatedAt avoids a head-vs-head no-op
+       diff, mirroring review_change. No full baseline -> undefined -> the
+       since() dispatcher falls back to mtime-only mode. */
+    const baseline = readLatestSnapshot(cached!.agent.generatedAt, true);
     const report = buildSinceReport(cached!.agent, ts, baseline ?? undefined);
     return { content: [{ type: 'text', text: JSON.stringify(report) }] };
   }

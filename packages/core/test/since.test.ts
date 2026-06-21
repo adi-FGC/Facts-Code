@@ -228,6 +228,18 @@ describe('since — top-level dispatch', () => {
     expect(r.hasBaseline).toBe(true);
     expect(r.files[0]?.kind).toBe('added');
   });
+
+  it('falls back to mtime-only when the baseline lacks files[] (stats-only rollup)', () => {
+    // Reproduces the MCP `since` P1: the server writes a rolled-up "stats only"
+    // snapshot each boot (no files[]). Handing that to since() must NOT throw a
+    // TypeError on prior.files.map(...); it degrades to mtime-only mode.
+    const current = { ...baseAgent, files: [file('a.ts', Date.parse('2026-05-02T00:00:00Z'))] };
+    const rollup = { at: '2026-05-01T00:00:00Z', stats: { loc: 0 } } as unknown as AgentArtifact;
+    expect(() => since(current, '2026-05-01T00:00:00Z', rollup)).not.toThrow();
+    const r = since(current, '2026-05-01T00:00:00Z', rollup);
+    expect(r.hasBaseline).toBe(false);
+    expect(r.files.map((f) => f.path)).toEqual(['a.ts']);
+  });
 });
 
 describe('determinism', () => {

@@ -145,15 +145,56 @@ function resolveGoSpecifier(spec: string, ctx: ResolverContext): string | null {
   return null;
 }
 
-/** Python stdlib modules we shouldn't try to resolve inside the project. */
+/**
+ * Python stdlib modules we shouldn't try to resolve inside the project.
+ * Matched against the FIRST dotted segment (`spec.split('.')[0]`), so
+ * `import os.path` / `xml.etree` / `concurrent.futures` are covered by
+ * 'os' / 'xml' / 'concurrent'. A comprehensive top-level list matters: a
+ * project file that shadows a stdlib name (e.g. a root `glob.py`) would
+ * otherwise capture `import glob` and emit a false internal dependency edge,
+ * polluting cycle detection + health metrics deterministically.
+ */
 const PYTHON_STDLIB = new Set([
-  'os', 'sys', 're', 'json', 'math', 'datetime', 'time', 'random', 'subprocess',
-  'threading', 'asyncio', 'collections', 'functools', 'itertools', 'typing',
-  'pathlib', 'hashlib', 'logging', 'argparse', 'io', 'csv', 'sqlite3', 'urllib',
-  'http', 'socket', 'tempfile', 'shutil', 'enum', 'abc', 'dataclasses', 'copy',
-  'unittest', 'warnings', 'traceback', 'inspect', 'pickle', 'gzip', 'zipfile',
-  'tarfile', 'xml', 'html', 'ast', 'token', 'string', 'struct', 'array', 'uuid',
-  'secrets', 'statistics', 'decimal', 'fractions', 'numbers', 'operator', 'weakref',
+  // core runtime / language services
+  '__future__', 'builtins', 'sys', 'os', 'io', 'time', 'types', 'typing', 'abc',
+  'gc', 'inspect', 'atexit', 'traceback', 'warnings', 'contextlib', 'contextvars',
+  'dataclasses', 'enum', 'weakref', 'copy', 'copyreg', 'pickle', 'pickletools',
+  'marshal', 'importlib', 'pkgutil', 'modulefinder', 'runpy', 'keyword', 'token',
+  'tokenize', 'ast', 'symtable', 'dis', 'code', 'codeop', 'sysconfig', 'site',
+  // data structures / numeric / functional
+  'collections', 'functools', 'itertools', 'operator', 'heapq', 'bisect', 'array',
+  'queue', 'graphlib', 'numbers', 'decimal', 'fractions', 'statistics', 'math',
+  'cmath', 'random', 'secrets',
+  // text / binary / serialization
+  're', 'string', 'stringprep', 'textwrap', 'unicodedata', 'struct', 'codecs',
+  'difflib', 'pprint', 'reprlib', 'locale', 'gettext', 'base64', 'binascii',
+  'quopri', 'json', 'csv', 'html', 'xml', 'configparser', 'tomllib', 'netrc',
+  'plistlib',
+  // dates / scheduling
+  'datetime', 'calendar', 'zoneinfo', 'sched',
+  // filesystem / os services
+  'pathlib', 'glob', 'fnmatch', 'linecache', 'fileinput', 'stat', 'filecmp',
+  'shutil', 'tempfile', 'errno', 'getopt', 'argparse', 'getpass', 'platform',
+  'ctypes', 'mmap', 'shlex', 'signal', 'selectors', 'select',
+  // compression / archives / persistence
+  'zlib', 'gzip', 'bz2', 'lzma', 'zipfile', 'tarfile', 'zipapp', 'dbm', 'shelve',
+  'sqlite3',
+  // concurrency / subprocess
+  'threading', '_thread', 'multiprocessing', 'concurrent', 'subprocess', 'asyncio',
+  // networking / IPC / internet protocols
+  'socket', 'ssl', 'socketserver', 'http', 'urllib', 'ftplib', 'poplib', 'imaplib',
+  'smtplib', 'telnetlib', 'uuid', 'ipaddress', 'email', 'mailbox', 'mimetypes',
+  'xmlrpc', 'wsgiref', 'webbrowser', 'cgi', 'cgitb',
+  // crypto / hashing
+  'hashlib', 'hmac',
+  // logging / debug / test / profiling
+  'logging', 'unittest', 'doctest', 'pdb', 'bdb', 'faulthandler', 'trace',
+  'tracemalloc', 'timeit', 'profile', 'cProfile', 'pstats', 'py_compile',
+  'compileall', 'venv', 'ensurepip',
+  // unix-only stdlib (still stdlib names to treat as external)
+  'pwd', 'grp', 'fcntl', 'termios', 'tty', 'pty', 'resource', 'syslog', 'posix',
+  // stdlib UI / interactive
+  'tkinter', 'turtle', 'curses', 'cmd', 'readline', 'rlcompleter',
 ]);
 
 /**

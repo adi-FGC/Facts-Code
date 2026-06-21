@@ -74,6 +74,24 @@ describe('resolveSpecifier — Python', () => {
     expect(resolveSpecifier('os', 'app.py', ctx(['app.py']))).toBeNull();
     expect(resolveSpecifier('json', 'app.py', ctx(['app.py']))).toBeNull();
     expect(resolveSpecifier('asyncio', 'app.py', ctx(['app.py']))).toBeNull();
+    // Newly-allowlisted common modules that the old set was missing.
+    expect(resolveSpecifier('glob', 'app.py', ctx(['app.py']))).toBeNull();
+    expect(resolveSpecifier('contextlib', 'app.py', ctx(['app.py']))).toBeNull();
+    expect(resolveSpecifier('queue', 'app.py', ctx(['app.py']))).toBeNull();
+  });
+
+  it('treats a stdlib module as external even when a local file shadows it', () => {
+    // A root `glob.py` must NOT capture `import glob` (the stdlib) — otherwise
+    // the analyzer emits a false internal dependency edge that pollutes cycle
+    // detection + health metrics.
+    expect(resolveSpecifier('glob', 'app.py', ctx(['app.py', 'glob.py']))).toBeNull();
+    expect(resolveSpecifier('queue', 'app.py', ctx(['app.py', 'queue.py']))).toBeNull();
+    // Dotted stdlib import is matched on its head segment.
+    expect(resolveSpecifier('concurrent.futures', 'app.py', ctx(['app.py', 'concurrent/futures.py']))).toBeNull();
+  });
+
+  it('still resolves a genuinely-local (non-stdlib) module a file provides', () => {
+    expect(resolveSpecifier('myutils', 'app.py', ctx(['app.py', 'myutils.py']))).toBe('myutils.py');
   });
 });
 
