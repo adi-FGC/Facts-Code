@@ -128,7 +128,7 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
         })}
         {/* The sliding rail. transform driven by activeIdx so it
             tweens between segments via the CSS transition above. */}
-        <span aria-hidden="true" mix={activeRail} style={`transform: translateX(${activeIdx * 100}%)`} />
+        <span aria-hidden="true" mix={[activeRail, css({ transform: `translateX(${activeIdx * 100}%)` })]} />
       </div>
     );
   };

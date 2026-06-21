@@ -454,7 +454,7 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                     y={padding + headerHeight / 2 - 2}
                     text-anchor="middle"
                     fill="var(--fg)"
-                    style="font-size: 12px"
+                    font-size="12"
                   >
                     {label.length > Math.floor((columnWidth - 30) / 7) ? label.slice(0, Math.floor((columnWidth - 30) / 7) - 1) + '…' : label}
                   </text>
@@ -475,7 +475,7 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
               const stepX = 6;
               return (
                 <g key={`msg-${idx}`} class="seq-msg" data-step={String(m.step)}>
-                  <text x={stepX} y={y + 4} fill="var(--fg-faint)" style="font-size: 9px">{m.step}</text>
+                  <text x={stepX} y={y + 4} fill="var(--fg-faint)" font-size="9">{m.step}</text>
                   <a href={`/files?p=${encodeURIComponent(m.to)}`}>
                     <title>{`${m.from} ${m.isReturn ? '↩︎' : '→'} ${m.to}${m.isCycle ? ' (cycle)' : ''}`}</title>
                     {/* Hit-area rect to make the click target generous. */}
@@ -504,7 +504,7 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                       y={y - 6}
                       text-anchor="middle"
                       fill="var(--fg-faint)"
-                      style="font-size: 9px"
+                      font-size="9"
                     >
                       {m.isReturn ? 'returns' : m.isCycle ? 'imports (cycle)' : 'imports'}
                       {isReverse && !m.isReturn && ' ←'}

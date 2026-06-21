@@ -298,8 +298,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                 <a
                   key={tier}
                   href={`/files`}
-                  mix={laneGroup}
-                  style={`--row: ${i}`}
+                  mix={[laneGroup, css({ '--row': String(i) })]}
                   data-tier={tier}
                 >
                   <title>{TIER_LABEL[tier]} — {count} file{count === 1 ? '' : 's'}</title>
@@ -319,7 +318,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={padding + 16}
                     y={y + 24}
                     fill="var(--fg-faint)"
-                    style="font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase"
+                    font-size="9" letter-spacing="0.14em" mix={css({ textTransform: 'uppercase' })}
                   >
                     {TIER_LABEL[tier]}
                   </text>
@@ -327,7 +326,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={padding + 16}
                     y={y + 60}
                     fill="var(--fg)"
-                    style="font-size: 28px; font-family: var(--font-display, var(--font-body)); font-variant-numeric: tabular-nums"
+                    font-size="28" font-family="var(--font-display, var(--font-body))" mix={css({ fontVariantNumeric: 'tabular-nums' })}
                   >
                     {count}
                   </text>
@@ -335,7 +334,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={padding + 16}
                     y={y + 80}
                     fill="var(--fg-faint)"
-                    style="font-size: 10px"
+                    font-size="10"
                   >
                     file{count === 1 ? '' : 's'}
                   </text>
@@ -347,7 +346,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                       x={padding + labelColumnWidth + 12}
                       y={y + 22 + k * 18}
                       fill="var(--fg-muted)"
-                      style="font-size: 11px; font-family: var(--font-mono)"
+                      font-size="11" font-family="var(--font-mono)"
                     >
                       <title>{p}</title>
                       {shortPath(p)}
@@ -358,7 +357,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                       x={padding + labelColumnWidth + 12}
                       y={y + 22 + samples.length * 18}
                       fill="var(--fg-faint)"
-                      style="font-size: 10px; letter-spacing: 0.06em"
+                      font-size="10" letter-spacing="0.06em"
                     >
                       + {count - samples.length} more
                     </text>
@@ -398,7 +397,7 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={labelX}
                     y={labelY + 3}
                     fill="var(--fg-faint)"
-                    style="font-size: 10px; font-variant-numeric: tabular-nums"
+                    font-size="10" mix={css({ fontVariantNumeric: 'tabular-nums' })}
                   >
                     {edge.count}
                   </text>

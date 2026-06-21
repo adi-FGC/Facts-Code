@@ -22,5 +22,11 @@
   # connect-src allows the OSV CVE API + GitHub (the in-browser GitHub-repo
   # scanner fetches the tree/blobs from api.github.com + raw.githubusercontent.com;
   # the scan runs in a Web Worker whose fetches are governed by THIS page CSP, so
-  # worker-src alone does not cover them). style/font-src allow Google Fonts.
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'
+  # worker-src alone does not cover them). font-src allows Google Fonts; the
+  # Google Fonts stylesheet is a <link> (style-src-elem 'self' + the fonts origin).
+  # SEC-3: style-src carries NO 'unsafe-inline'. The css() runtime injects rules
+  # via constructable adoptedStyleSheets (CSSOM — CSP-exempt), static CSS ships as
+  # <link> assets, and every inline style= attribute was converted to a css()
+  # class or SVG presentation attribute. check-bundle-size.mjs fails the build if
+  # 'unsafe-inline' ever creeps back into style-src.
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'

@@ -345,6 +345,34 @@ try {
           `Update the Content-Security-Policy hash in apps/ui-remix/public/_headers AND netlify.toml.`,
       );
     }
+    // CSP value extractor — both files describe directives in prose comments too,
+    // so isolate the actual policy string before matching directives.
+    //   _headers form:     `Content-Security-Policy: <value>` (to EOL)
+    //   netlify.toml form: `Content-Security-Policy = "<value>"`
+    const cspValue = (s) => {
+      const quoted = s.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
+      if (quoted) return quoted[1];
+      const bare = s.match(/Content-Security-Policy:\s*([^\n]*)/);
+      return bare ? bare[1] : null;
+    };
+    const styleSrc = (s) => {
+      const csp = cspValue(s);
+      if (!csp) return null;
+      const mm = csp.match(/style-src ([^;]*)/);
+      return mm ? mm[1].trim() : null;
+    };
+    // SEC-3: style-src must NOT carry 'unsafe-inline'. The css() runtime injects
+    // rules via constructable adoptedStyleSheets (CSSOM — CSP-exempt), and every
+    // inline style= attribute was converted to a css() class or SVG presentation
+    // attribute, so the dashboard renders fully under a strict style-src.
+    // Re-adding 'unsafe-inline' would silently undo that hardening — fail here.
+    const headersStyle = styleSrc(headers);
+    if (headersStyle && headersStyle.includes("'unsafe-inline'")) {
+      failures.push(
+        "CSP guard: _headers style-src must not contain 'unsafe-inline' (SEC-3) — " +
+          'inline styles were eliminated; the css() runtime uses adopted stylesheets.',
+      );
+    }
     // OPD-1/OPD-4: the Netlify CSP (root netlify.toml) must stay in lockstep
     // with the Cloudflare CSP (_headers). They drifted once — netlify.toml's
     // connect-src omitted the GitHub origins, silently breaking the in-browser
@@ -363,16 +391,7 @@ try {
           `CSP guard: netlify.toml script-src must also pin '${token}' (drifted from _headers).`,
         );
       }
-      // Isolate the actual CSP *value* first (both files describe connect-src in
-      // prose comments too, so a naive /connect-src/ match would compare comments).
-      // _headers form: `Content-Security-Policy: <value>` (to EOL);
-      // netlify.toml form: `Content-Security-Policy = "<value>"`.
-      const cspValue = (s) => {
-        const quoted = s.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
-        if (quoted) return quoted[1];
-        const bare = s.match(/Content-Security-Policy:\s*([^\n]*)/);
-        return bare ? bare[1] : null;
-      };
+      // connect-src + style-src parity reuse the hoisted cspValue extractor.
       const connectSrc = (s) => {
         const csp = cspValue(s);
         if (!csp) return null;
@@ -384,6 +403,16 @@ try {
       if (hc && nc && hc !== nc) {
         failures.push(
           `CSP guard: connect-src drift — _headers has [${hc}] but netlify.toml has [${nc}]. Keep the two CSPs in sync.`,
+        );
+      }
+      // SEC-3: style-src must also stay byte-equal across the two hosts (and thus
+      // both free of 'unsafe-inline' — netlify can't pass if it diverges from the
+      // _headers value already asserted clean above).
+      const ns = styleSrc(netlifyToml);
+      const norm = (v) => v.trim().split(/\s+/).sort().join(' ');
+      if (headersStyle && ns && norm(headersStyle) !== norm(ns)) {
+        failures.push(
+          `CSP guard: style-src drift — _headers has [${headersStyle}] but netlify.toml has [${ns}]. Keep the two CSPs in sync.`,
         );
       }
     }

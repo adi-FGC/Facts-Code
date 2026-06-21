@@ -65,8 +65,12 @@
     # at build); connect-src allows the OSV CVE API + GitHub (the in-browser
     # GitHub-repo scanner fetches the tree/blobs from api.github.com +
     # raw.githubusercontent.com, governed by THIS page CSP since the scan runs in
-    # a Web Worker); style/font-src allow Google Fonts; worker-src covers the worker.
-    Content-Security-Policy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'"
+    # a Web Worker); font-src + the fonts-stylesheet <link> allow Google Fonts;
+    # worker-src covers the worker. SEC-3: style-src has NO 'unsafe-inline' — the
+    # css() runtime injects via adopted stylesheets and all inline style= props
+    # were converted to css() classes / SVG presentation attributes (guarded by
+    # check-bundle-size.mjs, which also asserts style-src parity with _headers).
+    Content-Security-Policy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'"
 
 ###############################################################################
 # SPA-style fallback: client-side routing in React Router v7 owns paths

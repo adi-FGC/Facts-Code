@@ -111,6 +111,15 @@ const entryMeta = css({
   whiteSpace: 'nowrap',
 });
 
+/* Inline mono command reference inside prose — replaces the inline
+   style="font-family:var(--font-mono);font-size:0.92em;color:var(--fg)"
+   so the CSP can drop style-src 'unsafe-inline'. */
+const monoCode = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.92em',
+  color: 'var(--fg)',
+});
+
 /** HTTP method → mono tag color. Reads as a glance signal in dense lists. */
 const METHOD_COLOR: Record<string, string> = {
   GET:    'var(--info)',
@@ -149,7 +158,7 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
             <h1 mix={headline}>No routes surfaced.</h1>
             <p mix={lede}>
               The analyzer didn't detect HTTP routes, page handlers, or CLI
-              entry points in this project. Run <code style="font-family:var(--font-mono);font-size:0.92em;color:var(--fg)">factstack analyze</code>{' '}
+              entry points in this project. Run <code mix={monoCode}>factstack analyze</code>{' '}
               with framework detection enabled to populate this page.
             </p>
           </div>

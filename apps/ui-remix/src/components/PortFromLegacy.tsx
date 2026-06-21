@@ -78,6 +78,11 @@ const featureText = css({
   lineHeight: '1.5',
 });
 
+/* Inline code size in the "Tracked in" chip — replaces the inline
+   style="font-size:var(--fs-11)" so the CSP can drop style-src
+   'unsafe-inline'. */
+const trackedCode = css({ fontSize: 'var(--fs-11)' });
+
 export function PortFromLegacy(handle: Handle<PortFromLegacyProps>) {
   return () => {
     const { tab, legacyHash, summary, features, status = 'porting' } = handle.props;
@@ -113,7 +118,7 @@ export function PortFromLegacy(handle: Handle<PortFromLegacyProps>) {
             </a>
           </FootnoteChip>
           <FootnoteChip label="Tracked in">
-            <code class="mono" style="font-size:var(--fs-11)">apps/ui-remix/TASKS.md</code>
+            <code class="mono" mix={trackedCode}>apps/ui-remix/TASKS.md</code>
           </FootnoteChip>
         </MarginColumn>
       </ContentWithMargin>

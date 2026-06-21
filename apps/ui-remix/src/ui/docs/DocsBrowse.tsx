@@ -64,6 +64,11 @@ const outlineLink = (depth: number) => css({ display: 'block', fontSize: 'var(--
 const note = css({ fontSize: 'var(--fs-12)', color: 'var(--warn)', fontFamily: 'var(--font-mono)', marginBottom: 'var(--space-3)' });
 const empty = css({ color: 'var(--fg-subtle)', fontSize: 'var(--fs-13)' });
 
+/* Static inline styles hoisted to classes so the CSP can drop style-src
+   'unsafe-inline'. */
+const groupCount = css({ color: 'var(--fg-faint)' });
+const ellipsis = css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' });
+
 const FMT_LABEL: Record<string, string> = {
   markdown: 'MD', html: 'HTML', text: 'TXT', rst: 'RST', asciidoc: 'ADOC',
   openapi: 'API', 'json-schema': 'SCHEMA', notebook: 'IPYNB', other: 'DOC',
@@ -103,7 +108,7 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
           {groups.length === 0 ? <p mix={empty}>No docs match.</p> : null}
           {groups.map((g) => (
             <div key={g.dir}>
-              <div mix={groupHead}>{g.dir}/ <span style="color:var(--fg-faint)">{String(g.docs.length)}</span></div>
+              <div mix={groupHead}>{g.dir}/ <span mix={groupCount}>{String(g.docs.length)}</span></div>
               {g.docs.map((d) => (
                 <button
                   key={d.path}
@@ -112,7 +117,7 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
                 >
                   <span mix={docName}>
                     <span mix={fmtBadge}>{FMT_LABEL[d.format] ?? 'DOC'}</span>
-                    <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{d.name}</span>
+                    <span mix={ellipsis}>{d.name}</span>
                   </span>
                   <span mix={docMeta}>
                     {d.headings.length}h · {d.todos.length}t{d.diagrams.length ? ` · ${d.diagrams.length}◇` : ''} · {d.readingMinutes}m

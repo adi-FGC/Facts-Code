@@ -165,8 +165,7 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
             })}
             <span
               aria-hidden="true"
-              mix={rail}
-              style={`width: calc(100% / ${views.length}); transform: translateX(${activeIdx * 100}%)`}
+              mix={[rail, css({ width: `calc(100% / ${views.length})`, transform: `translateX(${activeIdx * 100}%)` })]}
             />
           </div>
         </div>

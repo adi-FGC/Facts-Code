@@ -129,6 +129,11 @@ const legendSwatch = css({
   verticalAlign: 'middle',
 });
 
+/* Pushes the scale note to the right edge of the legend row. Replaces
+   inline style="margin-left:auto" so the CSP can drop style-src
+   'unsafe-inline'. */
+const legendNote = css({ marginLeft: 'auto' });
+
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
@@ -189,7 +194,7 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
           <span>
             <span mix={[legendSwatch, css({ background: 'color-mix(in oklab, var(--accent) 60%, transparent)' })]} /> Many
           </span>
-          <span style="margin-left:auto">log scale · max {fmt(maxCell)} edges</span>
+          <span mix={legendNote}>log scale · max {fmt(maxCell)} edges</span>
         </div>
       </div>
     );

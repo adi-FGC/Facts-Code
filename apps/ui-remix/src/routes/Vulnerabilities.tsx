@@ -329,6 +329,13 @@ const sectionLabel = css({
   marginBottom: 'var(--space-2)',
 });
 
+/* Package-header inline pieces — shared by both the artifact and the
+   live-scan vulnerable-package headers. Replace inline style= attrs so
+   the CSP can drop style-src 'unsafe-inline'. */
+const pkgName = css({ color: 'var(--accent)' });
+const pkgVersion = css({ color: 'var(--fg-muted)', marginLeft: '8px' });
+const pkgAside = css({ color: 'var(--fg-faint)', marginLeft: '8px' });
+
 /* ─────────── component ─────────── */
 
 export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
@@ -477,11 +484,11 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                         background: 'var(--surface-1)',
                         borderTop: '1px solid var(--hairline)',
                       })}>
-                        <strong style="color: var(--accent)">{head.package}</strong>
-                        <span style="color: var(--fg-muted); margin-left: 8px">@ {head.installedVersion}</span>
-                        <span style="color: var(--fg-faint); margin-left: 8px">· {group.length} {group.length === 1 ? 'advisory' : 'advisories'}</span>
+                        <strong mix={pkgName}>{head.package}</strong>
+                        <span mix={pkgVersion}>@ {head.installedVersion}</span>
+                        <span mix={pkgAside}>· {group.length} {group.length === 1 ? 'advisory' : 'advisories'}</span>
                         {head.manifestPath && (
-                          <span style="color: var(--fg-faint); margin-left: 8px">· {head.manifestPath}</span>
+                          <span mix={pkgAside}>· {head.manifestPath}</span>
                         )}
                       </div>
                       {group.map((v) => {
@@ -621,9 +628,9 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                         background: 'var(--surface-1)',
                         borderTop: '1px solid var(--hairline)',
                       })}>
-                        <strong style="color: var(--accent)">{r.query.name}</strong>
-                        <span style="color: var(--fg-muted); margin-left: 8px">@ {r.query.version}</span>
-                        <span style="color: var(--fg-faint); margin-left: 8px">· {r.vulns.length} {r.vulns.length === 1 ? 'advisory' : 'advisories'}</span>
+                        <strong mix={pkgName}>{r.query.name}</strong>
+                        <span mix={pkgVersion}>@ {r.query.version}</span>
+                        <span mix={pkgAside}>· {r.vulns.length} {r.vulns.length === 1 ? 'advisory' : 'advisories'}</span>
                       </div>
                       {r.vulns.map((v) => {
                         /* Inline the severity bucketing + advisory URL

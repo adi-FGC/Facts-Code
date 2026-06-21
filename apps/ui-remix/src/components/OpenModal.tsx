@@ -1506,7 +1506,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                 <span mix={progressLabel}>{progressLabelText}</span>
                 <span mix={progressPct}>{progress ? pct + '%' : '--'}</span>
                 <span mix={progressBarTrack}>
-                  <span mix={progressBarFill} style={{ width: pct + '%' }} />
+                  <span mix={[progressBarFill, css({ width: pct + '%' })]} />
                 </span>
               </div>
             )}
@@ -1553,12 +1553,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                 type="button"
                 aria-current={isActive ? 'true' : undefined}
                 title={`Re-open ${recentLabel(r)}`}
-                /* Inline style sets --i so the recentRow's animationDelay
-                   calc reads it. Inline style here (not on the mix
-                   descriptor) because css() doesn't expose a way to set
-                   custom properties per-instance. */
-                style={`--i: ${i}`}
-                mix={[recentRow, isActive ? recentRowActive : null, on('click', () => { void openRecent(r); })]}
+                /* css() sets --i per-instance so the recentRow's
+                   animationDelay calc reads it. CSSProps' index signature
+                   accepts custom properties, and the css mixin injects via
+                   adopted stylesheets (CSP-clean — no inline style attr). */
+                mix={[recentRow, isActive ? recentRowActive : null, css({ '--i': String(i) }), on('click', () => { void openRecent(r); })]}
               >
                 <span aria-hidden="true" mix={[recentGlyphCell, isActive ? recentGlyphActive : null]}>
                   {recentGlyph(r)}
@@ -1826,7 +1825,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     return (
       <>
         <p mix={lede}>
-          Analyzed <strong style="color:var(--fg)">{projectName}</strong> — the dashboard
+          Analyzed <strong mix={css({ color: 'var(--fg)' })}>{projectName}</strong> — the dashboard
           behind this modal is now showing the fresh data. Save the artifacts so the AI
           tier (<span class="mono">agent.json</span>, <span class="mono">agent.pack</span>,{' '}
           <span class="mono">MEMORY.md</span>) lands on disk for downstream agents.
@@ -1861,7 +1860,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                     <> · plus {savedSummary.rulesFiles} agent-rules file{savedSummary.rulesFiles === 1 ? '' : 's'} at the project root (<span class="mono">AGENTS.md</span>, <span class="mono">.cursorrules</span>, …)</>
                   ) : null}
                   {savedSummary.rulesError ? (
-                    <> · <span style="color:var(--warn)">agent-rules files couldn’t be written: {savedSummary.rulesError}</span></>
+                    <> · <span mix={css({ color: 'var(--warn)' })}>agent-rules files couldn’t be written: {savedSummary.rulesError}</span></>
                   ) : null}
                   {savedSummary.rulesPreserved && savedSummary.rulesPreserved.length > 0 ? (
                     <> · kept your existing <span class="mono">{savedSummary.rulesPreserved.join(', ')}</span> (not overwritten)</>
@@ -1990,7 +1989,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           />
         </div>
         <div>
-          <label mix={inputLabel} for="ghpat">Personal access token <span style="text-transform:none;letter-spacing:0">(optional)</span></label>
+          <label mix={inputLabel} for="ghpat">Personal access token <span mix={css({ textTransform: 'none', letterSpacing: '0' })}>(optional)</span></label>
           <input
             id="ghpat"
             type="password"

@@ -61,6 +61,15 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
+/* Inline mono command reference inside prose — replaces the inline
+   style="font-family:var(--font-mono);font-size:0.92em;color:var(--fg)"
+   so the CSP can drop style-src 'unsafe-inline'. */
+const monoCode = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.92em',
+  color: 'var(--fg)',
+});
+
 export function History(handle: Handle<HistoryProps>) {
   return () => {
     const { data } = handle.props;
@@ -73,7 +82,7 @@ export function History(handle: Handle<HistoryProps>) {
             <h1 mix={headline}>One snapshot so far.</h1>
             <p mix={lede}>
               Trend lines populate after multiple analyses. Re-run{' '}
-              <code style="font-family:var(--font-mono);font-size:0.92em;color:var(--fg)">factstack analyze</code>{' '}
+              <code mix={monoCode}>factstack analyze</code>{' '}
               on a recurring schedule (a CI step, a watch loop, or a cron)
               to populate LOC, risk count, and token-cost evolution here.
             </p>

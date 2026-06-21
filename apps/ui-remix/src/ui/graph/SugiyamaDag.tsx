@@ -250,7 +250,7 @@ const nodeGroup = css({
      reposition") instead. */
   /* Entrance choreography — see ensureSugiyamaKeyframes(). */
   animation: 'sugiyama-node-rise 260ms var(--ease-out-quart) both',
-  animationDelay: 'calc(min(var(--L, 0), 8) * 28ms)',
+  animationDelay: 'calc(min(var(--layer, 0), 8) * 28ms)',
   transformBox: 'fill-box',
   transformOrigin: 'center',
 });
@@ -936,7 +936,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
             {totalNodeCount != null && totalNodeCount !== layout.nodes.size && ` of ${totalNodeCount}`}
             {' '}nodes · {layout.edges.length} edges
             {nodeOffsets.size > 0 && (
-              <span style="color: var(--accent); margin-left: 8px">· {nodeOffsets.size} moved</span>
+              <span mix={css({ color: 'var(--accent)', marginLeft: '8px' })}>· {nodeOffsets.size} moved</span>
             )}
           </span>
         </div>
@@ -946,8 +946,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
             {legend.slice(0, LEGEND_CAP).map(([community, count]) => (
               <span key={community} mix={legendItem}>
                 <span
-                  mix={legendSwatch}
-                  style={`background:${communityFill(community)}`}
+                  mix={[legendSwatch, css({ background: communityFill(community) })]}
                   aria-hidden="true"
                 />
                 <span mix={legendText}>#{community} · {count}</span>
@@ -1050,7 +1049,8 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                         font-size="9px"
                         font-weight="600"
                         letter-spacing="0.05em"
-                        style="pointer-events: none; text-transform: uppercase;"
+                        pointer-events="none"
+                        mix={css({ textTransform: 'uppercase' })}
                       >
                         {label}
                       </text>
@@ -1126,8 +1126,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                   <a
                     key={n.id}
                     href={`/files?p=${encodeURIComponent(n.id)}`}
-                    mix={nodeGroup}
-                    style={`--L: ${n.layer}`}
+                    mix={[nodeGroup, css({ '--layer': String(n.layer) })]}
                     data-node-id={n.id}
                   >
                     <title>{n.id} · degree {n.degree}{nodeOffsets.has(n.id) ? ' · moved' : ''}</title>
@@ -1155,7 +1154,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                            context, so the brighter resting state is
                            safe. */
                         fill="var(--fg)"
-                        style="pointer-events:none"
+                        pointer-events="none"
                       >
                         {label.length > 18 ? label.slice(0, 16) + '…' : label}
                       </text>

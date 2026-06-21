@@ -240,6 +240,14 @@ const ledeText = css({
   marginBottom: 'var(--space-12)',
 });
 
+/* Emphasized figures inside the lede — same weight/color the inline
+   style="font-weight:600;color:var(--fg)" used to set, hoisted to a
+   class so the CSP can drop style-src 'unsafe-inline'. */
+const ledeStrong = css({
+  fontWeight: '600',
+  color: 'var(--fg)',
+});
+
 export function Overview(handle: Handle<OverviewProps>) {
   return () => {
     const { data } = handle.props;
@@ -270,11 +278,11 @@ export function Overview(handle: Handle<OverviewProps>) {
           </div>
           <h1 mix={headline}>{summary.oneLiner}</h1>
           <p mix={ledeText}>
-            {project.name} spans <strong style="font-weight:600;color:var(--fg)">{fmt(stats.files)} files</strong>
+            {project.name} spans <strong mix={ledeStrong}>{fmt(stats.files)} files</strong>
             {' '}and{' '}
-            <strong style="font-weight:600;color:var(--fg)">{fmt(stats.loc)} lines</strong>
+            <strong mix={ledeStrong}>{fmt(stats.loc)} lines</strong>
             , a roughly{' '}
-            <strong style="font-weight:600;color:var(--fg)">{fmt(stats.tokens)}-token</strong>
+            <strong mix={ledeStrong}>{fmt(stats.tokens)}-token</strong>
             {' '}context window. Every metric below links to its source.
           </p>
 

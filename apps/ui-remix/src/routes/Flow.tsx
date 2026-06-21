@@ -338,7 +338,7 @@ export function Flow(handle: Handle<FlowProps>) {
                   </button>
                 );
               })}
-              <span aria-hidden="true" mix={toggleRail} style={`transform: translateX(${activeIdx * 100}%)`} />
+              <span aria-hidden="true" mix={[toggleRail, css({ transform: `translateX(${activeIdx * 100}%)` })]} />
             </div>
             <span mix={toggleHint}>
               {viewMode === 'swimlanes' && 'Tier-grouped diagram'}

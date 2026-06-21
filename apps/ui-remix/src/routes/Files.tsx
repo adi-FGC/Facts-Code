@@ -106,6 +106,13 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
+/* Lets long unbroken file names wrap inside the headline. Replaces the
+   inline style="word-break:break-all" so the CSP can drop style-src
+   'unsafe-inline'. */
+const headlineBreak = css({
+  wordBreak: 'break-all',
+});
+
 /* Mono crumbs for the detail view header. Matches Routes' breadcrumb
    pattern (path-as-trail) so a user moving between tabs reads the same
    visual grammar. */
@@ -246,7 +253,7 @@ export function Files(handle: Handle<FilesProps>) {
             <a href="/files" mix={backLink}>← All files</a>
             <div mix={kicker}>Files · {file.language?.label ?? 'Unknown'}</div>
             {dir && <div mix={crumbs}>{dir}/</div>}
-            <h1 mix={headline} style="word-break:break-all">{name}</h1>
+            <h1 mix={[headline, headlineBreak]}>{name}</h1>
             <p mix={lede}>
               {file.language?.label ?? 'Unknown'} · {fmt(file.loc)} lines ·{' '}
               {fmt(file.tokens)} tokens · last touched{' '}

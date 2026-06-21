@@ -136,7 +136,7 @@ export function HealthGrade(handle: Handle<HealthGradeProps>): () => RemixNode {
       <FootnoteChip label="Health" tone={tone}>
         {/* --tone scopes the grade letter + deduction bars to the severity
             color without re-deriving it. */}
-        <div style={`--tone:${HEALTH_TONE_COLOR[tone]}`}>
+        <div mix={css({ '--tone': HEALTH_TONE_COLOR[tone] })}>
           <div
             mix={marque}
             role="img"
@@ -159,8 +159,7 @@ export function HealthGrade(handle: Handle<HealthGradeProps>): () => RemixNode {
                   <span mix={barTrack}>
                     <span
                       aria-hidden="true"
-                      mix={barFill}
-                      style={`--w:${Math.round((f.penalty / maxPenalty) * 100)}%`}
+                      mix={[barFill, css({ '--w': `${Math.round((f.penalty / maxPenalty) * 100)}%` })]}
                     />
                   </span>
                 </li>

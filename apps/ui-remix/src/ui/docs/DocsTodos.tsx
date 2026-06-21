@@ -28,6 +28,9 @@ const doneText = css({ color: 'var(--fg-subtle)', textDecoration: 'line-through'
 const openText = css({ color: 'var(--fg-muted)' });
 const lineRef = css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-10)', color: 'var(--fg-subtle)' });
 const empty = css({ color: 'var(--fg-subtle)', fontSize: 'var(--fs-13)', paddingBlock: 'var(--space-6)' });
+/* Footer doc-path spacing — replaces inline style="margin-top:var(--space-2)"
+   so the CSP can drop style-src 'unsafe-inline'. */
+const cardPathFoot = css({ marginTop: 'var(--space-2)' });
 
 export function DocsTodos(handle: Handle<{ data: Dataset }>) {
   let showDone = true;
@@ -71,7 +74,7 @@ export function DocsTodos(handle: Handle<{ data: Dataset }>) {
                   <span mix={lineRef}>:{t.line}</span>
                 </div>
               ))}
-              <div mix={cardPath} style="margin-top:var(--space-2)">{b.docPath}</div>
+              <div mix={[cardPath, cardPathFoot]}>{b.docPath}</div>
             </div>
           );
         })}
