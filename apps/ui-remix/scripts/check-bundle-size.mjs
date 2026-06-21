@@ -345,6 +345,48 @@ try {
           `Update the Content-Security-Policy hash in apps/ui-remix/public/_headers AND netlify.toml.`,
       );
     }
+    // OPD-1/OPD-4: the Netlify CSP (root netlify.toml) must stay in lockstep
+    // with the Cloudflare CSP (_headers). They drifted once — netlify.toml's
+    // connect-src omitted the GitHub origins, silently breaking the in-browser
+    // GitHub scan on every Netlify deploy. Assert BOTH the script-src hash and
+    // the connect-src directive match. Skip silently when netlify.toml is absent
+    // (a non-Netlify checkout); only enforce parity when the file exists.
+    let netlifyToml = null;
+    try {
+      netlifyToml = readFileSync(join(APP_DIR, '..', '..', 'netlify.toml'), 'utf8');
+    } catch {
+      /* no netlify.toml here — nothing to keep in sync */
+    }
+    if (netlifyToml) {
+      if (!netlifyToml.includes(token)) {
+        failures.push(
+          `CSP guard: netlify.toml script-src must also pin '${token}' (drifted from _headers).`,
+        );
+      }
+      // Isolate the actual CSP *value* first (both files describe connect-src in
+      // prose comments too, so a naive /connect-src/ match would compare comments).
+      // _headers form: `Content-Security-Policy: <value>` (to EOL);
+      // netlify.toml form: `Content-Security-Policy = "<value>"`.
+      const cspValue = (s) => {
+        const quoted = s.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
+        if (quoted) return quoted[1];
+        const bare = s.match(/Content-Security-Policy:\s*([^\n]*)/);
+        return bare ? bare[1] : null;
+      };
+      const connectSrc = (s) => {
+        const csp = cspValue(s);
+        if (!csp) return null;
+        const mm = csp.match(/connect-src ([^;]*)/);
+        return mm ? mm[1].trim().split(/\s+/).sort().join(' ') : null;
+      };
+      const hc = connectSrc(headers);
+      const nc = connectSrc(netlifyToml);
+      if (hc && nc && hc !== nc) {
+        failures.push(
+          `CSP guard: connect-src drift — _headers has [${hc}] but netlify.toml has [${nc}]. Keep the two CSPs in sync.`,
+        );
+      }
+    }
   }
 } catch (e) {
   failures.push(`CSP guard: could not read built files (${e?.message || e}).`);

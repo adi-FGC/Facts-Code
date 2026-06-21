@@ -49,3 +49,10 @@ export interface FactsFS {
   /** Join path segments in a platform-agnostic way. */
   join(...segments: string[]): string;
 }
+
+/** Deterministic code-unit string comparator (INV2). Unlike localeCompare,
+ *  `<`/`>` compare UTF-16 code units, giving identical ordering across every
+ *  runtime/locale — required for byte-identical artifact output. */
+export function byCodeUnit(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}

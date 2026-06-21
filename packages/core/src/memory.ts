@@ -20,6 +20,7 @@
  */
 
 import type { AgentArtifact, HumanArtifact, Risk } from '@factstack/spec';
+import { byCodeUnit } from '@factstack/spec';
 import type { ContextStore } from './learnings.js';
 
 export const MEMORY_SCHEMA_VERSION = 'factstack-memory.v1' as const;
@@ -37,10 +38,18 @@ const TRUNCATE_ROUTES_PER_GROUP = 6;
 const TRUNCATE_CAPABILITIES = 6;
 const ONELINER_MAX_LEN = 280;
 
-/** Collapse whitespace + cap a working-context line so the section stays small. */
+/** Collapse whitespace + cap a working-context line so the section stays small.
+ *  SEC-MEM: this text is agent-supplied (e.g. a log_learning `reasoning`) and
+ *  lands in MEMORY.md, which agents read as TRUSTED project context. The
+ *  whitespace collapse already defangs block constructs (headers/fences need a
+ *  line start); we then neutralize the inline injection vectors — code spans,
+ *  links/images, autolinks, raw HTML — by backslash-escaping ` [ ] < > (and \
+ *  itself). Ordinary prose, parentheses, and punctuation stay readable. Escape
+ *  AFTER truncating so a cut can't strip a trailing escape backslash. */
 function truncateWorking(s: string): string {
   const t = s.replace(/\s+/g, ' ').trim();
-  return t.length > WORKING_TEXT_MAX ? t.slice(0, WORKING_TEXT_MAX - 1) + '…' : t;
+  const capped = t.length > WORKING_TEXT_MAX ? t.slice(0, WORKING_TEXT_MAX - 1) + '…' : t;
+  return capped.replace(/[\\`[\]<>]/g, (c) => '\\' + c);
 }
 
 /**
@@ -170,11 +179,12 @@ export function buildMemory(
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(r);
     }
-    const sortedFrameworks = [...groups.keys()].sort((a, b) => a.localeCompare(b));
+    // DI-1: code-unit (not locale) for INV2 byte-determinism
+    const sortedFrameworks = [...groups.keys()].sort((a, b) => byCodeUnit(a, b));
     for (const fw of sortedFrameworks) {
       sections.push(`### ${fw}`);
       sections.push('');
-      const list = groups.get(fw)!.slice().sort((a, b) => (a.path || '').localeCompare(b.path || ''));
+      const list = groups.get(fw)!.slice().sort((a, b) => byCodeUnit(a.path || '', b.path || ''));
       for (const r of list.slice(0, TRUNCATE_ROUTES_PER_GROUP)) {
         sections.push(`- ${r.method ?? 'GET'} \`${r.path}\``);
       }
@@ -323,7 +333,7 @@ function topImportedFiles(
         const diff = (b.importance ?? 0) - (a.importance ?? 0);
         if (diff !== 0) return diff;
       }
-      return b.inDegree - a.inDegree || a.path.localeCompare(b.path);
+      return b.inDegree - a.inDegree || byCodeUnit(a.path, b.path);
     })
     .slice(0, limit);
 }
@@ -348,11 +358,11 @@ function topModules(agent: AgentArtifact): Array<{ name: string; memberCount: nu
     .filter((members) => members.length >= 2)
     .map((members) => {
       const named = [...members].sort(
-        (a, b) => b.importance - a.importance || a.path.localeCompare(b.path),
+        (a, b) => b.importance - a.importance || byCodeUnit(a.path, b.path),
       )[0]!;
       return { name: named.path, memberCount: members.length };
     })
-    .sort((a, b) => b.memberCount - a.memberCount || a.name.localeCompare(b.name));
+    .sort((a, b) => b.memberCount - a.memberCount || byCodeUnit(a.name, b.name));
 }
 
 /**

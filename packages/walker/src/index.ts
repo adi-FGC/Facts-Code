@@ -22,6 +22,7 @@
 // Bundler resolution (used by walker's own build) and NodeNext.
 import * as ignoreModule from 'ignore';
 import type { Ignore } from 'ignore';
+import { byCodeUnit } from '@factstack/spec';
 const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default
   ?? (ignoreModule as unknown as () => Ignore)) as () => Ignore;
 import type { Dirent, FactsFS } from '@factstack/spec';
@@ -152,7 +153,8 @@ async function* walkDir(
   entries.sort((a, b) => {
     // Directories first, then files, alphabetical within each.
     if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-    return a.name.localeCompare(b.name);
+    // DI-1: code-unit (not locale) for INV2 byte-determinism
+    return byCodeUnit(a.name, b.name);
   });
 
   for (const entry of entries) {

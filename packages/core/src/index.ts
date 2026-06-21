@@ -19,7 +19,7 @@ import type {
   HumanArtifact,
   ProjectMetaSchema,
 } from '@factstack/spec';
-import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
+import { FACTS_SCHEMA_VERSION, byCodeUnit } from '@factstack/spec';
 import { computeHealth } from './health.js';
 export { computeHealth } from './health.js';
 import { walk, type WalkedFile } from '@factstack/walker';
@@ -860,7 +860,8 @@ function dedupeRoutes(routes: DetectedRoute[]): DetectedRoute[] {
       byKey.set(key, r);
     }
   }
-  return [...byKey.values()].sort((a, b) => a.path.localeCompare(b.path));
+  // DI-1: code-unit (not locale) for INV2 byte-determinism
+  return [...byKey.values()].sort((a, b) => byCodeUnit(a.path, b.path));
 }
 
 /**

@@ -56,6 +56,7 @@ import {
 } from '../lib/recents.ts';
 import { computeEnvChecks, type EnvCheck } from '../lib/envChecks.ts';
 import { getEmitProfile, setEmitProfile, type EmitProfile } from '../lib/emitProfile.ts';
+import { adoptCss } from '../lib/adoptCss.ts';
 
 type Mode = 'local' | 'github';
 /* Phases:
@@ -80,11 +81,7 @@ const GH_TOKEN_KEY = 'factstack:gh-token';
  * preference see instant state swaps instead. */
 const ANIM_KEYFRAMES_ID = 'open-modal-keyframes';
 function ensureAnimKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(ANIM_KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = ANIM_KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(ANIM_KEYFRAMES_ID, `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes openmodal-overlay-in {
         from { opacity: 0 }
@@ -99,8 +96,7 @@ function ensureAnimKeyframes() {
         to   { opacity: 1; transform: translateY(0) }
       }
     }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 const overlay = css({

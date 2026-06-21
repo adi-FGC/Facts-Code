@@ -35,6 +35,7 @@ import {
   recentLabel,
   type Recent,
 } from '../lib/recents.ts';
+import { adoptCss } from '../lib/adoptCss.ts';
 
 interface SourceChipProps {
   /** Fallback display when there's no current source — the project
@@ -50,19 +51,14 @@ interface SourceChipProps {
  * you're looking at is now THIS source." */
 const FLASH_KEYFRAMES_ID = 'source-chip-keyframes';
 function ensureFlashKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(FLASH_KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = FLASH_KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(FLASH_KEYFRAMES_ID, `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes source-chip-flash {
         0%   { background: var(--accent-soft); border-left-color: var(--accent) }
         100% { background: transparent;        border-left-color: var(--border)  }
       }
     }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 const wrap = css({

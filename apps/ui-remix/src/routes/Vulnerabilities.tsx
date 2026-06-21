@@ -757,9 +757,13 @@ function pickFixedVersionLocal(v: OsvVuln): string | null {
   return null;
 }
 function pickAdvisoryUrlLocal(v: OsvVuln): string {
-  const ref = (v.references ?? []).find((r) => r.type === 'ADVISORY')
-    ?? (v.references ?? []).find((r) => r.url.includes('github.com/advisories'))
-    ?? (v.references ?? [])[0];
+  // SEC-1: only consider http(s) refs (mirror of scanners' pickAdvisoryUrl) so a
+  // poisoned javascript:/data: reference URL can never become a rendered href.
+  const isHttp = (u: string) => /^https?:\/\//i.test(u);
+  const refs = v.references ?? [];
+  const ref = refs.find((r) => r.type === 'ADVISORY' && isHttp(r.url))
+    ?? refs.find((r) => isHttp(r.url) && r.url.includes('github.com/advisories'))
+    ?? refs.find((r) => isHttp(r.url));
   return ref?.url ?? `https://osv.dev/vulnerability/${v.id}`;
 }
 

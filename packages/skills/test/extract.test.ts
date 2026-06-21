@@ -231,8 +231,9 @@ describe('agentToSkillSpec — onboarding + determinism', () => {
 describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () => {
   it('breaks equal in-degree ties alphabetically (determinism guard)', () => {
     /* The existing keyFiles test uses distinct in-degrees, so it never
-       exercises the `|| a[0].localeCompare(b[0])` tiebreak — the line
-       that keeps .cursorrules / AGENTS.md byte-identical across runs. */
+       exercises the `|| byCodeUnit(a[0], b[0])` tiebreak (DI-1: code-unit, not
+       locale, for INV2 byte-determinism) — the line that keeps .cursorrules /
+       AGENTS.md byte-identical across runs. */
     const agent = makeAgent({
       graph: {
         nodes: [],

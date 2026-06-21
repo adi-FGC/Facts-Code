@@ -67,11 +67,13 @@ export function computeDiff(
     const p = prev.tables.get(name);
     const n = next.tables.get(name);
 
-    // table only in next → every row is an addition
+    // table only in next → every row is an addition. DI-2: emit even a ZERO-row
+    // new table so applyChain materializes the new (schema-only) table —
+    // previously an empty new table was silently dropped, so a schema-only
+    // addition couldn't propagate through the diff chain. encodeIncremental
+    // always emits the table's schema-decl line, so this round-trips cleanly.
     if (n && !p) {
-      if (n.rows.length > 0) {
-        out.push({ name, columns: n.columns, addedRows: n.rows.map((r) => r.slice()), deletedIds: [] });
-      }
+      out.push({ name, columns: n.columns, addedRows: n.rows.map((r) => r.slice()), deletedIds: [] });
       continue;
     }
     // table only in prev → delete every row by key

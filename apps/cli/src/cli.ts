@@ -1437,6 +1437,10 @@ program
        (they're regenerated from the same in-memory artifact every
        write, so stale companion files would lie about the new vulns). */
     const previousScan = agent.vulnerabilityScan;
+    // EH-3: how many advisories degraded to id-only (detail fetch failed) so
+    // readers can tell a clean scan from a degraded one. Computed once (mirrors
+    // the server.ts builder) — reused by the guard + the value below.
+    const detailsFailed = results.reduce((n, r) => n + (r.detailsFailed ?? 0), 0);
     const nextAgent: AgentArtifact = {
       ...agent,
       vulnerabilities,
@@ -1449,6 +1453,7 @@ program
         packagesQueried: queries.length,
         packagesSkipped: skippedNonRegistry,
         findings: vulnerabilities.length,
+        ...(detailsFailed > 0 ? { detailsFailed } : {}),
       },
     };
     /* v0.3 — re-grade health now that fresh CVEs are on the agent, so the

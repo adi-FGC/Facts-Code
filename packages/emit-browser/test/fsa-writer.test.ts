@@ -183,6 +183,20 @@ describe('writeBrowserArtifacts — complete artifact write', () => {
     expect(root.hasFile('.facts/MEMORY.md')).toBe(true);
     expect((await new FsaFileWriter(root.asHandle()).listKeys('snapshots')).length).toBe(1);
   });
+
+  it('TC-2: emits agent.diff.pack on a warm run (reads the prior agent.pack)', async () => {
+    const root = new MemoryFsaDirectory('');
+    // Cold run seeds .facts/agent.pack (the prior master).
+    const cold = await writeBrowserArtifacts({ root: root.asHandle(), agent: makeAgent(), human: makeHuman(), memoryBody: '# d\n' });
+    expect(cold.diffName).toBeNull(); // no prior master on a cold run
+    expect(root.hasFile('.facts/agent.pack')).toBe(true);
+
+    // Warm run with a CHANGED agent (one new risk) → the F8 diff sidecar.
+    const changed = { ...makeAgent(), risks: [{ severity: 'low', category: 'large-file', rule: 'big-file', message: 'oversized', file: 'src/big.ts' }] } as AgentArtifact;
+    const warm = await writeBrowserArtifacts({ root: root.asHandle(), agent: changed, human: makeHuman(), memoryBody: '# d\n' });
+    expect(warm.diffName).toBe('agent.diff.pack');
+    expect(root.hasFile('.facts/agent.diff.pack')).toBe(true);
+  });
 });
 
 function makeAgent(): AgentArtifact {
@@ -368,7 +382,13 @@ class MemoryFsaFileHandle {
     }
     const bytes = this.dir.files.get(this.name) ?? new Uint8Array();
     const size = root.reportedSizeOverrides.get(path) ?? bytes.byteLength;
-    return { size } as File;
+    // TC-2: real File exposes async text()/arrayBuffer(); the F8 warm-run path
+    // (write.ts reads the prior agent.pack via getFile().text()) needs them.
+    return {
+      size,
+      async text() { return new TextDecoder().decode(bytes); },
+      async arrayBuffer() { return bytes.slice().buffer; },
+    } as unknown as File;
   }
 }
 

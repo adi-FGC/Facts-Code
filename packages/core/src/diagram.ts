@@ -27,6 +27,7 @@
  */
 
 import type { AgentArtifact } from '@factstack/spec';
+import { byCodeUnit } from '@factstack/spec';
 
 /* ─────────── public API ─────────── */
 
@@ -149,7 +150,8 @@ export function buildPackageDiagram(
     }
     const keep = new Set(
       [...weight.entries()]
-        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        // DI-1: code-unit (not locale) for INV2 byte-determinism
+        .sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
         .slice(0, maxNodes)
         .map(([p]) => p),
     );
@@ -173,7 +175,7 @@ export function buildPackageDiagram(
   /* Edges sorted alphabetically by (from, to) for deterministic
    * output across runs. */
   const sortedEdges = [...edgeMap.values()].sort(
-    (a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to),
+    (a, b) => byCodeUnit(a.from, b.from) || byCodeUnit(a.to, b.to),
   );
   for (const edge of sortedEdges) {
     const arrow = pickArrowForKinds(edge.kinds);
@@ -216,7 +218,7 @@ export function buildHubDiagram(
 
   const hubs = [...inDegree.entries()]
     .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
     .slice(0, topHubs)
     .map(([path, n]) => ({ path, inDegree: n }));
 
@@ -228,7 +230,7 @@ export function buildHubDiagram(
   const hubData = hubs.map((hub) => {
     const importers = (incoming.get(hub.path) ?? [])
       .slice()
-      .sort((a, b) => a.from.localeCompare(b.from))
+      .sort((a, b) => byCodeUnit(a.from, b.from))
       .slice(0, importersPerHub);
     return { ...hub, importers };
   });
@@ -354,7 +356,7 @@ export function buildFocalDiagram(
     const next: string[] = [];
     for (const node of frontier) {
       const incoming = callers.get(node) ?? [];
-      const sortedIncoming = incoming.slice().sort((a, b) => a.from.localeCompare(b.from));
+      const sortedIncoming = incoming.slice().sort((a, b) => byCodeUnit(a.from, b.from));
       for (const inc of sortedIncoming) {
         if (visited.size >= maxNodes) break;
         if (!visited.has(inc.from)) {

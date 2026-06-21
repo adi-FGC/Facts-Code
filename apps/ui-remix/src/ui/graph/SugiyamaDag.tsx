@@ -46,6 +46,7 @@
 import type { Handle } from 'remix/ui';
 import { css, on, ref } from 'remix/ui';
 import type { SugiyamaLayout, SugiyamaNode } from '../../lib/graphAnalysis.ts';
+import { adoptCss } from '../../lib/adoptCss.ts';
 
 interface SugiyamaDagProps {
   layout: SugiyamaLayout;
@@ -105,11 +106,7 @@ interface SugiyamaDagProps {
 
 const SUGIYAMA_KEYFRAMES_ID = 'sugiyama-keyframes';
 function ensureSugiyamaKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(SUGIYAMA_KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = SUGIYAMA_KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(SUGIYAMA_KEYFRAMES_ID, `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes sugiyama-edge-draw {
         from { opacity: 0 }
@@ -120,8 +117,7 @@ function ensureSugiyamaKeyframes() {
         to   { opacity: 1; transform: translateY(0) }
       }
     }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 /* ─────────── styles ─────────── */

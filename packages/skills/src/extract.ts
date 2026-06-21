@@ -21,6 +21,7 @@
  */
 
 import type { AgentArtifact, HumanArtifact, Risk } from '@factstack/spec';
+import { byCodeUnit } from '@factstack/spec';
 import {
   CAPS,
   ONBOARDING_SEQUENCE,
@@ -100,7 +101,8 @@ function topImportedFiles(agent: AgentArtifact, limit: number): SkillKeyFile[] {
   }
   return [...inDegree.entries()]
     .filter(([, n]) => n > 0)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    // DI-1: code-unit (not locale) for INV2 byte-determinism
+    .sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
     .slice(0, limit)
     .map(([path, n]) => ({ path, inDegree: n }));
 }
@@ -114,9 +116,9 @@ function pickRoutes(agent: AgentArtifact, limit: number): SkillRoute[] {
   return routes
     .slice()
     .sort((a, b) => {
-      const fw = (a.framework || '').localeCompare(b.framework || '');
+      const fw = byCodeUnit(a.framework || '', b.framework || '');
       if (fw !== 0) return fw;
-      return (a.path || '').localeCompare(b.path || '');
+      return byCodeUnit(a.path || '', b.path || '');
     })
     .slice(0, limit)
     .map((r) => ({

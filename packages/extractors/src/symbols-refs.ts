@@ -32,6 +32,7 @@
  */
 
 import { isParseable, parseJS, walkAst, type ParsedFile } from './parse.js';
+import { byCodeUnit } from '@factstack/spec';
 
 export type RefKind = 'call' | 'read' | 'jsx' | 'type-ref';
 
@@ -223,7 +224,8 @@ function dedupe(refs: RawRef[]): RawRef[] {
     out.push(r);
   }
   // Stable sort: line asc, then kind, then name.
-  out.sort((a, b) => a.line - b.line || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  // DI-1: code-unit (not locale) for INV2 byte-determinism
+  out.sort((a, b) => a.line - b.line || byCodeUnit(a.kind, b.kind) || byCodeUnit(a.name, b.name));
   return out;
 }
 

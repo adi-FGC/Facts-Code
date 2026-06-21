@@ -659,4 +659,21 @@ describe('buildMemory — Working context (F9)', () => {
   it('omits the section when no store is passed (backward compat)', () => {
     expect(buildMemory(makeAgent(), makeHuman())).not.toContain('## Working context');
   });
+
+  // SEC-MEM: agent-supplied working-context text lands in MEMORY.md, which agents
+  // read as trusted context. The inline markdown-injection vectors (links, code
+  // spans, autolinks, raw HTML) must be backslash-escaped. This test fails if the
+  // escape in truncateWorking is reverted.
+  it('escapes markdown-injection chars in agent-supplied working-context text (SEC-MEM)', () => {
+    const injection = 'see [click me](https://evil.example) and `rm -rf` and <img src=x>';
+    const store = buildContextStore([
+      contextRecordEvent({ kind: 'task', key: 'x', text: injection, timestamp: '2026-06-09T00:01:00.000Z' }),
+    ]);
+    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: store });
+    // The dangerous constructs are neutralized (escaped), not live.
+    expect(out).not.toContain('[click me](https://evil.example)');
+    expect(out).toContain('\\[click me\\]');
+    expect(out).toContain('\\`rm -rf\\`');
+    expect(out).toContain('\\<img src=x\\>');
+  });
 });

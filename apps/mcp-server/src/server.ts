@@ -783,6 +783,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       try {
         const results = await queryOsvBatch(queries, { cache: noopCache });
         const vulnerabilities = osvResultsToVulnerabilities(results);
+        // EH-3: surface how many advisories degraded to id-only (detail fetch
+        // failed) so a degraded scan is distinguishable from a clean one.
+        const detailsFailed = results.reduce((n, r) => n + (r.detailsFailed ?? 0), 0);
         const nextAgent: AgentArtifact = {
           ...cached!.agent,
           vulnerabilities,
@@ -792,6 +795,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
             packagesQueried: queries.length,
             packagesSkipped: skipped,
             findings: vulnerabilities.length,
+            ...(detailsFailed > 0 ? { detailsFailed } : {}),
           },
         };
         // v0.3 — re-grade health so the freshly-fetched CVEs land in the
@@ -805,8 +809,19 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           summary: { ...cached!.human.summary, health: computeHealth(nextAgent) },
         };
         const memoryBody = buildMemory(nextAgent, updatedHuman, { contextStore: buildContextStore(readLearnings()) });
-        await writeArtifacts({ root, agent: nextAgent, human: updatedHuman, addGitignoreEntry: false, memoryBody });
-        cached = { agent: nextAgent, human: updatedHuman, memory: memoryBody };
+        // CONC-1: serialize this write+swap through the SAME fence `analyze`
+        // uses, so a concurrent analyze + refresh can't interleave two
+        // writeArtifacts calls (which would leave disk and `cached` pointing at
+        // different graph states). Mirror enqueueAnalyze: keep the chain alive
+        // with `.catch`, but `await work` (not the chain) so a failed write
+        // still propagates to the catch below — preserving the "swap `cached`
+        // only after the write succeeds" crash-safety contract above.
+        const work = analyzeChain.then(async () => {
+          await writeArtifacts({ root, agent: nextAgent, human: updatedHuman, addGitignoreEntry: false, memoryBody });
+          cached = { agent: nextAgent, human: updatedHuman, memory: memoryBody };
+        });
+        analyzeChain = work.catch(() => undefined);
+        await work;
       } catch (err) {
         /* A failed refresh must NEVER look like a successful empty scan —
            return an explicit error; the stale data stays untouched on disk. */
@@ -895,7 +910,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         ...(Array.isArray(args.tags) ? { tags: args.tags as string[] } : {}),
       });
     } catch (err) {
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: (err as Error).message }) }] };
+      // EH-1: a validation failure is a caller error — signal it with
+      // isError:true (clients gate on that, like every other validation path in
+      // this file) and surface structured Zod issues when available.
+      const issues = err && typeof err === 'object' && Array.isArray((err as { issues?: unknown }).issues)
+        ? (err as { issues: Array<{ path?: unknown[]; message?: unknown }> }).issues.map((i) => ({
+            field: Array.isArray(i.path) ? i.path.join('.') : '',
+            message: String(i.message ?? ''),
+          }))
+        : undefined;
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: (err as Error).message, ...(issues ? { issues } : {}) }) }], isError: true };
     }
     try {
       appendLearning(event);
@@ -944,8 +968,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     // compare against the PRIOR state, not head-vs-head.
     const baseline = readLatestSnapshot(cached!.agent.generatedAt, true);
     if (!baseline) {
+      // EH-2: a missing baseline is an actionable precondition failure, not a
+      // silent empty result — signal isError:true so clients surface it.
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'No baseline snapshot in .facts/snapshots/ to compare against. Run `factstack analyze` after a change to create one, then retry.' }) }],
+        isError: true,
       };
     }
     const verdict = buildChangeVerdict(baseline, cached!.agent);

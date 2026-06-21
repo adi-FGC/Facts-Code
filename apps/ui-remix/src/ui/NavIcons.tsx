@@ -13,23 +13,19 @@
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
 import { activeTab } from '../lib/routes.ts';
+import { adoptCss } from '../lib/adoptCss.ts';
 
 /* Keyframes live in an injected <style> (the css() runtime renders rules,
    not @keyframes). Injected once, guarded by id. */
 const KEYFRAMES_ID = 'nav-icon-keyframes';
 function ensureKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(KEYFRAMES_ID, `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes nav-gear-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
       @keyframes nav-about-q { 0%,100% { opacity: 1; transform: rotateY(0) } 45% { opacity: 0; transform: rotateY(90deg) } 55% { opacity: 0 } }
       @keyframes nav-about-x { 0%,45% { opacity: 0 } 55% { opacity: 1; transform: rotateY(0) } 0%,100% { opacity: 0; transform: rotateY(-90deg) } }
     }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 /* ─────────── shared button shell ─────────── */

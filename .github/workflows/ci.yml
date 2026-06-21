@@ -54,6 +54,14 @@ jobs:
           "
           rm -f smoke.json
 
+      # OPD-2: build the web dashboard in CI so bundler errors, the bundle-size
+      # caps, AND the CSP-hash/connect-src drift guard (check-bundle-size.mjs)
+      # run pre-deploy — not silently first on Netlify/Cloudflare. Runs after
+      # Smoke so the `analyze .` above has populated .facts/ for inject-data to
+      # bake. Uses build:static to mirror the production (map-free) deploy.
+      - name: Build web dashboard (bundle + CSP guards)
+        run: pnpm --filter @factstack/ui-remix build:static
+
       # Determinism gate (F13): re-run the benchmark over the committed corpus and
       # fail if the byte output drifts from bench/expected.json. Runs on every OS in
       # the matrix, which also verifies the corpus .gitattributes LF pinning keeps

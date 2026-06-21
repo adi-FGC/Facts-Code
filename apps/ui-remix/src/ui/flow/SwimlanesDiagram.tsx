@@ -47,6 +47,7 @@ import {
   type Tier,
   type TierEdge,
 } from '../../lib/flowAnalysis.ts';
+import { adoptCss } from '../../lib/adoptCss.ts';
 
 interface SwimlanesDiagramProps {
   result: FlowResult;
@@ -56,11 +57,7 @@ interface SwimlanesDiagramProps {
 
 const KEYFRAMES_ID = 'swimlanes-keyframes';
 function ensureKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(KEYFRAMES_ID, `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes swimlanes-lane-in {
         from { opacity: 0; transform: translateY(-4px) }
@@ -71,8 +68,7 @@ function ensureKeyframes() {
         to   { stroke-dashoffset: 0 }
       }
     }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 /* ─────────── styles ─────────── */

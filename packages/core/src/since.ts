@@ -27,6 +27,7 @@
  */
 
 import type { AgentArtifact, FileOutline, Risk, RouteDecl } from '@factstack/spec';
+import { byCodeUnit } from '@factstack/spec';
 
 export interface SinceFileSummary {
   path: string;
@@ -121,7 +122,8 @@ export function sinceFromMtime(current: AgentArtifact, since: string): SinceRepo
     declarationsAdded += f.declarations.length;
   }
   // Most recent first.
-  files.sort((a, b) => (b.lastModified ?? '').localeCompare(a.lastModified ?? ''));
+  // DI-1: code-unit (not locale) for INV2 byte-determinism
+  files.sort((a, b) => byCodeUnit(b.lastModified ?? '', a.lastModified ?? ''));
 
   return {
     generatedAt: current.generatedAt,
@@ -249,7 +251,7 @@ export function sinceFromBaseline(current: AgentArtifact, prior: AgentArtifact, 
   files.sort((a, b) => {
     const order = { added: 0, modified: 1, removed: 2 };
     if (a.kind !== b.kind) return order[a.kind] - order[b.kind];
-    return (b.lastModified ?? '').localeCompare(a.lastModified ?? '');
+    return byCodeUnit(b.lastModified ?? '', a.lastModified ?? '');
   });
 
   return {

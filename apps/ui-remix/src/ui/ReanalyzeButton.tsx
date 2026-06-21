@@ -19,6 +19,7 @@
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
 import { requestReanalyze } from '../lib/loadArtifacts.ts';
+import { adoptCss } from '../lib/adoptCss.ts';
 
 type State = 'idle' | 'running' | 'static' | 'error';
 
@@ -100,15 +101,10 @@ const progressBar = css({
    <style> tag injected on first render. */
 const KEYFRAMES_ID = 'reanalyze-keyframes';
 function ensureKeyframes() {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById(KEYFRAMES_ID)) return;
-  const s = document.createElement('style');
-  s.id = KEYFRAMES_ID;
-  s.textContent = `
+  adoptCss(KEYFRAMES_ID, `
     @keyframes reanalyze-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
     @keyframes reanalyze-sweep { 0% { left: -30% } 100% { left: 100% } }
-  `;
-  document.head.appendChild(s);
+  `);
 }
 
 export function ReanalyzeButton(handle: Handle) {

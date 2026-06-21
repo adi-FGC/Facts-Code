@@ -119,6 +119,10 @@ export interface OsvVuln {
 export interface OsvResult {
   query: OsvQuery;
   vulns: OsvVuln[];
+  /** EH-3: how many of this query's advisories had their stage-2 detail fetch
+   *  fail (so they degraded to id-only / severity 'unknown'). Present only when
+   *  > 0, so a clean scan is distinguishable from a degraded one. */
+  detailsFailed?: number;
 }
 
 /* ─────────── cache abstraction ─────────── */
@@ -235,10 +239,15 @@ export async function queryOsvBatch(
     }));
   }
 
+  // EH-3: ids whose detail fetch failed (non-ok or threw) never made it into
+  // vulnDetails — they degrade to id-only below. Track them so each result can
+  // report how many of its advisories are degraded (silent before).
+  const failedIds = new Set(ids.filter((id) => !vulnDetails.has(id)));
   const results: OsvResult[] = queries.map((q, i) => {
     const refs = stage1[i]?.vulns ?? [];
     const vulns: OsvVuln[] = refs.map((r) => vulnDetails.get(r.id) ?? { id: r.id });
-    return { query: q, vulns };
+    const detailsFailed = refs.reduce((n, r) => n + (failedIds.has(r.id) ? 1 : 0), 0);
+    return detailsFailed > 0 ? { query: q, vulns, detailsFailed } : { query: q, vulns };
   });
 
   cache.set(cacheKey, results);
@@ -323,31 +332,58 @@ export function pickFixedVersion(v: OsvVuln): string | null {
   return null;
 }
 
-/** Best-effort advisory URL from the references array, falling back
- *  to osv.dev's canonical page for the vuln id. */
+/** SEC-1: allowlist http(s) URLs only. A poisoned OSV record could carry a
+ *  `javascript:`/`data:` reference URL; rejecting non-http(s) here stops it
+ *  from flowing into the artifact (and any href the CLI/UI renders). */
+function isHttpUrl(s: string): boolean {
+  return /^https?:\/\//i.test(s);
+}
+
+/** Best-effort advisory URL from the references array, falling back to osv.dev's
+ *  canonical page for the vuln id. Only http(s) references are considered (SEC-1);
+ *  the osv.dev fallback is always a safe https URL. */
 export function pickAdvisoryUrl(v: OsvVuln): string {
-  const ref = (v.references ?? []).find((r) => r.type === 'ADVISORY')
-    ?? (v.references ?? []).find((r) => r.url.includes('github.com/advisories'))
-    ?? (v.references ?? [])[0];
+  const refs = v.references ?? [];
+  const ref = refs.find((r) => r.type === 'ADVISORY' && isHttpUrl(r.url))
+    ?? refs.find((r) => isHttpUrl(r.url) && r.url.includes('github.com/advisories'))
+    ?? refs.find((r) => isHttpUrl(r.url));
   return ref?.url ?? `https://osv.dev/vulnerability/${v.id}`;
 }
 
 /* ─────────── cache-key hash ─────────── */
 
 /** Stable hash of the query set — sorted by ecosystem+name+version so
- *  two equal scans get the same key regardless of input order. */
+ *  two equal scans get the same key regardless of input order.
+ *
+ *  CONC-3: the old key used a 32-bit djb2 hash. As a persisted (UI localStorage)
+ *  cache key spanning many projects, 32 bits collides at the ~birthday bound of
+ *  a few tens of thousands of distinct query sets — a collision silently returns
+ *  another project's scan. cyrb53 gives a 53-bit space (same sync, isomorphic,
+ *  no crypto), making collision astronomically unlikely for realistic caches.
+ *  The `v2:` namespace prevents an old 32-bit-keyed entry from ever matching a
+ *  new key (old entries simply expire by TTL). */
 export function makeCacheKey(queries: OsvQuery[]): string {
   const stamp = queries
     .map((q) => `${q.ecosystem}|${q.name}@${q.version}`)
     .sort()
     .join('\n');
-  return 'osv:' + djb2(stamp).toString(36);
+  return 'osv:v2:' + cyrb53(stamp);
 }
 
-function djb2(s: string): number {
-  let h = 5381;
-  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
-  return h;
+/** cyrb53 — a fast 53-bit string hash (public domain, by bryc). Sync and
+ *  isomorphic (Math.imul only), so it runs identically in Node + the browser. */
+function cyrb53(s: string, seed = 0): string {
+  let h1 = 0xdeadbeef ^ seed;
+  let h2 = 0x41c6ce57 ^ seed;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  const n = 4294967296 * (2097151 & h2) + (h1 >>> 0);
+  return n.toString(36);
 }
 
 /* ─────────── version normalization ─────────── */

@@ -76,6 +76,25 @@ describe('computeDiff — table-level add/remove and unchanged omission', () => 
   });
 });
 
+describe('computeDiff — DI-2: a new EMPTY table still propagates through the chain', () => {
+  it('emits a zero-row new table so applyChain materializes the schema-only addition', () => {
+    const prev = pack([{ name: 'files', columns: [{ name: 'path' }], rows: [['a.ts']] }]);
+    const next = pack([
+      { name: 'files', columns: [{ name: 'path' }], rows: [['a.ts']] }, // unchanged
+      { name: 'symbols', columns: [{ name: 'id' }], rows: [] }, // NEW, empty
+    ]);
+    const diff = computeDiff(prev, next);
+    const sym = diff.find((t) => t.name === 'symbols');
+    expect(sym).toBeDefined(); // before DI-2 a zero-row new table was dropped
+    expect(sym!.addedRows).toEqual([]);
+    // round-trips through the wire: encode the diff, decode strict, apply onto prev
+    const diffDec = decode(encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: diff }));
+    const rebuilt = applyChain(prev, [diffDec]);
+    expect(rebuilt.has('symbols')).toBe(true);
+    expect(rebuilt.get('symbols')!.rows).toEqual([]);
+  });
+});
+
 describe('full chain round-trip — master + encoded diff, applied, equals next', () => {
   it('encodeIncremental(computeDiff(...)) decodes strict and applyChain reconstructs next', () => {
     const prev = pack([

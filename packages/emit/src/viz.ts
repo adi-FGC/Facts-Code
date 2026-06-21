@@ -12,6 +12,7 @@
  */
 
 import type { AgentArtifact, DependencyManifest, DocFile, HumanArtifact, StyleAudit, Vulnerability } from '@factstack/spec';
+import { byCodeUnit } from '@factstack/spec';
 
 export interface VizLanguage {
   id: string;
@@ -388,8 +389,9 @@ function toVizTree(
     }
   }
   // Prototype convention: directories first alpha, then files alpha.
-  viz.children.sort((a, b) => a.name.localeCompare(b.name));
-  viz.files.sort((a, b) => a.name.localeCompare(b.name));
+  // DI-1: code-unit (not locale) for INV2 byte-determinism
+  viz.children.sort((a, b) => byCodeUnit(a.name, b.name));
+  viz.files.sort((a, b) => byCodeUnit(a.name, b.name));
   return viz;
 }
 

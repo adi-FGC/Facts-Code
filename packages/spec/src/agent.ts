@@ -498,8 +498,13 @@ export const VulnerabilitySchema = z.object({
    *  or when the OSV record doesn't carry a `fixed` event. */
   fixedVersion: z.string().nullable(),
   /** Best-effort URL to the advisory (GHSA page, vendor advisory,
-   *  fallback to osv.dev/vulnerability/{id}). */
-  advisoryUrl: z.string(),
+   *  fallback to osv.dev/vulnerability/{id}). SEC-1: must be an http(s) URL —
+   *  rejects a poisoned `javascript:`/`data:` advisory URL at the artifact
+   *  boundary (the producer already filters, this is the schema backstop). '' is
+   *  tolerated so a legacy artifact with a blank URL still loads. */
+  advisoryUrl: z.string().refine((s) => s === '' || /^https?:\/\//i.test(s), {
+    message: 'advisoryUrl must be an http(s) URL',
+  }),
   /** UNIX ms timestamp when scan-vulns last queried for this finding.
    *  The UI uses this to decide whether to re-query live or trust the
    *  artifact's snapshot. */
@@ -535,6 +540,11 @@ export const VulnerabilityScanSchema = z.object({
   /** Findings count at scan time — with an empty list this is the explicit
    *  "scanned and clean" marker. */
   findings: z.number().int().nonnegative(),
+  /** EH-3: how many advisories degraded to id-only because their OSV detail
+   *  fetch failed during this scan. Absent/0 = a fully-hydrated scan; > 0 means
+   *  some severities may read 'unknown' purely from fetch failure, not truth.
+   *  Optional + additive (INV4): older artifacts simply omit it. */
+  detailsFailed: z.number().int().nonnegative().optional(),
 });
 export type VulnerabilityScan = z.infer<typeof VulnerabilityScanSchema>;
 
