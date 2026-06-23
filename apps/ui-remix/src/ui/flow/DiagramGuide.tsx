@@ -25,7 +25,7 @@
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
 
-export type DiagramGuideMode = 'swimlanes' | 'sequence' | 'entities' | 'text';
+export type DiagramGuideMode = 'swimlanes' | 'sequence' | 'sankey' | 'entities' | 'text';
 
 interface Inference {
   /** Short bold lead term — the scannable anchor. */
@@ -73,6 +73,19 @@ const GUIDES: Record<DiagramGuideMode, GuideContent> = {
       { lead: 'Central deps first', body: 'the walk expands the most-imported target first, so the early arrows are your most-depended-on files.' },
       { lead: 'Truncation', body: 'a "truncated" badge means a cap was hit (depth 5, 8 branches per node, or 60 messages) — the real tree is larger.' },
       { lead: 'Import order, not call order', body: 'this is what loads when the entry boots, not what executes at request time. Runtime call sequencing needs symbol-level analysis (later).' },
+    ],
+  },
+  sankey: {
+    howToRead:
+      'Tiers run left to right in the order data flows — entry first, data and external boundaries last. Each node’s height is its throughput: the larger of all imports flowing in or out. Every ribbon aggregates the imports from one tier to another, and its thickness is proportional to that exact count (hover for the number). Imports inside a single tier aren’t drawn — a ribbon can’t loop back to its own column — so the header carries the cross-tier total instead.',
+    infers: [
+      { lead: 'Dominant flow', body: 'the fattest ribbon is the heaviest dependency between any two layers — the path most imports actually travel.' },
+      { lead: 'Throughput, not headcount', body: 'a tall node moves a lot of imports, which is not the same as holding the most files; Swimlanes shows file counts, this shows flow.' },
+      { lead: 'Layering leaks', body: 'a ribbon running right-to-left (e.g. Data → UI) is a back-edge against the intended top-down layering.' },
+      { lead: 'Boundary load', body: 'ribbons landing in External or Lib show how hard the app leans on third-party and platform code.' },
+      { lead: 'Chokepoints', body: 'many ribbons converging into one node marks a tier that nearly everything upstream routes through.' },
+      { lead: 'Conservation', body: 'a node’s inbound ribbons and outbound ribbons each sum to its height — what flows in flows back out.' },
+      { lead: 'Same data as Swimlanes', body: 'this is the swimlane arrows re-encoded as proportional flow; the counts match exactly, the emphasis differs.' },
     ],
   },
   entities: {

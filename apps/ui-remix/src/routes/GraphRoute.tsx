@@ -48,6 +48,7 @@ import {
   layerByLongestPath,
   tarjanSCC,
   topLevelFolder,
+  type HeatmapResult,
 } from '../lib/graphAnalysis.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -60,6 +61,7 @@ import { HubsTable } from '../ui/graph/HubsTable.tsx';
 import { CouplingsTable } from '../ui/graph/CouplingsTable.tsx';
 import { SugiyamaDag } from '../ui/graph/SugiyamaDag.tsx';
 import { DagControls, type Granularity } from '../ui/graph/DagControls.tsx';
+import { SankeyDiagram } from '../ui/SankeyDiagram.tsx';
 import { ExportMermaidButton } from '../ui/graph/ExportMermaidButton.tsx';
 import {
   ViewModeToggle,
@@ -142,6 +144,34 @@ function fmt(n: number): string {
   if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
   if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
   return n.toLocaleString('en-US');
+}
+
+/* Folder-coupling Sankey adapter. Bipartite: every folder can be both an
+   importer (left column) and an import target (right column), so each gets
+   two node ids (src:/dst:). Intra-folder coupling (the matrix diagonal) is
+   skipped — that's the Heatmap's specially-tinted diagonal, and as a ribbon
+   it would only be a flat self-band. Folders carrying no cross-module flow
+   are dropped by the layout, so the diagram shows just the real coupling. */
+function folderCouplingSankey(heatmap: HeatmapResult) {
+  const { folders, matrix } = heatmap;
+  const nodes = [
+    ...folders.map((f, i) => ({
+      id: `src:${f}`,
+      label: f,
+      column: 0,
+      color: `oklch(64% 0.12 ${(248 + i * 37) % 360})`,
+    })),
+    ...folders.map((f) => ({ id: `dst:${f}`, label: f, column: 1, color: 'var(--fg-subtle)' })),
+  ];
+  const links: Array<{ source: string; target: string; value: number }> = [];
+  for (let i = 0; i < folders.length; i++) {
+    for (let j = 0; j < folders.length; j++) {
+      if (i === j) continue;
+      const v = matrix[i]![j]!;
+      if (v > 0) links.push({ source: `src:${folders[i]}`, target: `dst:${folders[j]}`, value: v });
+    }
+  }
+  return { nodes, links };
 }
 
 /* Node count cap for the SVG diagram. Past this, the layout becomes
@@ -383,6 +413,7 @@ export function GraphRoute(handle: Handle<GraphProps>) {
             <span mix={toggleHint}>
               {viewMode === 'heatmap' && 'Folder × folder coupling'}
               {viewMode === 'diagram' && `Top ${SUGIYAMA_NODE_CAP} by degree`}
+              {viewMode === 'sankey'  && 'Folder → folder import flow'}
               {viewMode === 'layers'  && 'Files grouped by depth'}
             </span>
           </div>
@@ -429,6 +460,21 @@ export function GraphRoute(handle: Handle<GraphProps>) {
               />
             </Section>
           )}
+
+          {viewMode === 'sankey' && (() => {
+            const sankey = folderCouplingSankey(heatmap);
+            return (
+              <Section label="Sankey" title={`${heatmap.folders.length} modules, ${edges.length} edges`}>
+                <SankeyDiagram
+                  nodes={sankey.nodes}
+                  links={sankey.links}
+                  formatValue={fmt}
+                  height={Math.max(360, Math.min(820, heatmap.folders.length * 32))}
+                  ariaLabel={`Folder-to-folder import flow across ${heatmap.folders.length} modules`}
+                />
+              </Section>
+            );
+          })()}
 
           {viewMode === 'layers' && (
             <Section label="Layers" title="Files at each depth">

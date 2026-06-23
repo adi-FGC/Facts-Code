@@ -18,6 +18,7 @@
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
+import { moveRoving } from '../lib/roving.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
@@ -460,7 +461,7 @@ export function Config(handle: Handle<ConfigProps>) {
                 to the chosen mode.
               </span>
             </div>
-            <div mix={segWrap} role="radiogroup" aria-label="Theme">
+            <div mix={[segWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, THEMES, theme, setTheme, 'radio')) e.preventDefault(); })]} role="radiogroup" aria-label="Theme">
               {THEMES.map((t, i) => {
                 const active = t.key === theme;
                 return (
@@ -469,6 +470,7 @@ export function Config(handle: Handle<ConfigProps>) {
                     type="button"
                     role="radio"
                     aria-checked={active ? 'true' : 'false'}
+                    tabIndex={active ? 0 : -1}
                     mix={[
                       seg,
                       i === THEMES.length - 1 ? segLast : null,
@@ -523,7 +525,7 @@ export function Config(handle: Handle<ConfigProps>) {
                 long files lists or dense risk reports.
               </span>
             </div>
-            <div mix={segWrap} role="radiogroup" aria-label="Density">
+            <div mix={[segWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, DENSITIES, density, setDensity, 'radio')) e.preventDefault(); })]} role="radiogroup" aria-label="Density">
               {DENSITIES.map((d, i) => {
                 const active = d.key === density;
                 return (
@@ -532,6 +534,7 @@ export function Config(handle: Handle<ConfigProps>) {
                     type="button"
                     role="radio"
                     aria-checked={active ? 'true' : 'false'}
+                    tabIndex={active ? 0 : -1}
                     mix={[
                       seg,
                       i === DENSITIES.length - 1 ? segLast : null,

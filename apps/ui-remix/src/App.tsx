@@ -16,7 +16,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
-import { activeTab } from './lib/routes.ts';
+import { activeTab, TABS } from './lib/routes.ts';
 import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
 import { Header } from './components/Header.tsx';
 import { TreePanel } from './components/TreePanel.tsx';
@@ -196,6 +196,11 @@ function Shell(handle: Handle<{ data: Dataset }>) {
             <RouteView data={data} />
           </main>
           <StatusBar data={data} />
+          {/* a11y: polite live region; RouteView.onChange writes the active
+              view name here on client-side navigation so screen-reader users
+              get the route-change signal a SPA otherwise swallows. Visually
+              hidden via .sr-only (a class, not an inline style — CSP-clean). */}
+          <div id="route-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
         </div>
         {/* Command palette overlays everything when open. The component
             attaches its own document-level ⌘K listener so it doesn't
@@ -225,6 +230,17 @@ function Shell(handle: Handle<{ data: Dataset }>) {
 function RouteView(handle: Handle<{ data: Dataset }>) {
   const onChange = () => {
     void handle.update();
+    /* a11y: after the route subtree patches, announce the new view to assistive
+       tech and move focus into <main> so a subsequent Tab resumes in the new
+       content rather than the header nav. rAF waits for the patched DOM (same
+       pattern as NumberedNav.scrollActiveIntoView). preventScroll keeps the
+       viewport put — the new content already starts at the top of <main>. */
+    requestAnimationFrame(() => {
+      const label = TABS.find((t) => t.key === activeTab(location.pathname))?.label ?? 'Page';
+      const announcer = document.getElementById('route-announcer');
+      if (announcer) announcer.textContent = `${label} view loaded`;
+      (document.getElementById('main') as HTMLElement | null)?.focus({ preventScroll: true });
+    });
   };
   window.addEventListener('popstate', onChange);
   window.addEventListener('factstack:nav', onChange);

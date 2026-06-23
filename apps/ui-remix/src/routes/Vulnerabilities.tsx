@@ -36,6 +36,7 @@ import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 import { LabelNumberRow, LabelNumber } from '../ui/LabelNumber.tsx';
+import { SankeyDiagram } from '../ui/SankeyDiagram.tsx';
 /* Type-only import — runtime symbols are dynamic-imported below so the
  * OSV client + cache + parser code only downloads when the user actually
  * hits Scan. */
@@ -336,6 +337,51 @@ const pkgName = css({ color: 'var(--accent)' });
 const pkgVersion = css({ color: 'var(--fg-muted)', marginLeft: '8px' });
 const pkgAside = css({ color: 'var(--fg-faint)', marginLeft: '8px' });
 
+/* ─────────── severity-flow Sankey ─────────── */
+
+type ArtifactVuln = NonNullable<Dataset['vulnerabilities']>[number];
+
+const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'unknown'] as const;
+const SEV_FLOW_COLOR: Record<(typeof SEV_ORDER)[number], string> = {
+  critical: 'var(--danger)',
+  high: 'var(--warn)',
+  medium: 'var(--accent)',
+  low: 'var(--fg-muted)',
+  unknown: 'var(--fg-faint)',
+};
+
+/* Severity -> package flow. Severity sits in the LEFT column so each ribbon
+   inherits its severity colour (red = critical, amber = high, ...) as it
+   fans out to the packages carrying that severity, putting the colour on the
+   axis a reader scans first. Advisories are aggregated per (severity,
+   package) pair; link objects live directly in the map so there's no
+   separator to collide with a package name. Severities and packages with no
+   advisories never appear (the layout drops zero-flow nodes). */
+function vulnSeveritySankey(vulns: ReadonlyArray<ArtifactVuln>) {
+  const sevPresent = SEV_ORDER.filter((s) => vulns.some((v) => v.severity === s));
+  const pkgLabel = new Map<string, string>();
+  const linkByPair = new Map<string, { source: string; target: string; value: number }>();
+  for (const v of vulns) {
+    const pkgId = `pkg:${v.ecosystem}|${v.package}`;
+    const sevId = `sev:${v.severity}`;
+    pkgLabel.set(pkgId, v.package);
+    const pairKey = `${sevId}>${pkgId}`;
+    const existing = linkByPair.get(pairKey);
+    if (existing) existing.value += 1;
+    else linkByPair.set(pairKey, { source: sevId, target: pkgId, value: 1 });
+  }
+  const nodes = [
+    ...sevPresent.map((s) => ({
+      id: `sev:${s}`,
+      label: s.charAt(0).toUpperCase() + s.slice(1),
+      column: 0,
+      color: SEV_FLOW_COLOR[s],
+    })),
+    ...[...pkgLabel].map(([id, label]) => ({ id, label, column: 1, color: 'var(--fg-muted)' })),
+  ];
+  return { nodes, links: [...linkByPair.values()] };
+}
+
 /* ─────────── component ─────────── */
 
 export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
@@ -469,6 +515,22 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                 <LabelNumber label="Low"      value={artifactCounts.low} />
                 <LabelNumber label="Packages" value={artifactByPackage.size} last />
               </LabelNumberRow>
+
+              {artifactByPackage.size > 0 && (
+                <Section label="Severity flow" title={`${artifactByPackage.size} package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`}>
+                  {(() => {
+                    const sankey = vulnSeveritySankey(artifactVulns);
+                    return (
+                      <SankeyDiagram
+                        nodes={sankey.nodes}
+                        links={sankey.links}
+                        height={Math.max(240, Math.min(720, artifactByPackage.size * 30))}
+                        ariaLabel={`Severity-to-package flow: ${artifactVulns.length} advisories across ${artifactByPackage.size} packages`}
+                      />
+                    );
+                  })()}
+                </Section>
+              )}
 
               <Section label="Vulnerable (from artifact)">
                 {[...artifactByPackage.entries()].map(([key, group]) => {

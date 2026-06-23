@@ -27,7 +27,7 @@
   --fg:        oklch(14% 0.018 65);    /* deep warm-black */
   --fg-muted:  oklch(38% 0.014 65);    /* AA over bg */
   --fg-subtle: oklch(52% 0.010 65);    /* AA over bg */
-  --fg-faint:  oklch(68% 0.008 65);    /* hairline-grade text */
+  --fg-faint:  oklch(54% 0.008 65);    /* AA over bg, ~4.9:1 (#302) */
 
   --border:        color-mix(in oklab, oklch(20% 0.018 65) 12%, transparent);
   --border-strong: color-mix(in oklab, oklch(20% 0.018 65) 24%, transparent);
@@ -170,7 +170,7 @@
   --fg:        oklch(94% 0.020 60);    /* cream, ~14.5:1 against bg */
   --fg-muted:  oklch(75% 0.018 60);    /* AA on bg */
   --fg-subtle: oklch(58% 0.014 60);    /* AA on bg */
-  --fg-faint:  oklch(42% 0.012 60);    /* hairline-grade text */
+  --fg-faint:  oklch(58% 0.012 60);    /* AA on bg, ~4.6:1 (#302) */
 
   /* Hairlines warm-tinted (hue 60°, matches fg) instead of cool —
      gives them more presence against the navy than a same-hue rule
@@ -239,7 +239,7 @@
     --fg:        oklch(94% 0.020 60);
     --fg-muted:  oklch(75% 0.018 60);
     --fg-subtle: oklch(58% 0.014 60);
-    --fg-faint:  oklch(42% 0.012 60);
+    --fg-faint:  oklch(58% 0.012 60);    /* AA on bg, ~4.6:1 (#302) */
 
     --border:        color-mix(in oklab, oklch(85% 0.04 60) 22%, transparent);
     --border-strong: color-mix(in oklab, oklch(85% 0.04 60) 44%, transparent);

@@ -16,8 +16,9 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
+import { moveRoving } from '../../lib/roving.ts';
 
-export type GraphViewMode = 'heatmap' | 'diagram' | 'layers';
+export type GraphViewMode = 'heatmap' | 'diagram' | 'sankey' | 'layers';
 
 const STORAGE_KEY = 'factstack:graph-view-mode';
 
@@ -84,7 +85,7 @@ const activeRail = css({
   position: 'absolute',
   bottom: '0',
   left: '0',
-  width: 'calc(100% / 3)',
+  width: 'calc(100% / 4)',
   height: '2px',
   background: 'var(--accent)',
   transition: 'transform 240ms var(--ease-out-quart)',
@@ -94,6 +95,7 @@ const activeRail = css({
 const MODES: ReadonlyArray<{ key: GraphViewMode; label: string; hint: string }> = [
   { key: 'heatmap', label: 'Heatmap', hint: 'Folder × folder coupling matrix' },
   { key: 'diagram', label: 'Diagram', hint: 'Sugiyama layered DAG' },
+  { key: 'sankey',  label: 'Sankey',  hint: 'Folder → folder import flow' },
   { key: 'layers',  label: 'Layers',  hint: 'Files grouped by depth + cycles' },
 ];
 
@@ -106,7 +108,7 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
        Nth slot. */
     const activeIdx = MODES.findIndex((m) => m.key === value);
     return (
-      <div mix={wrap} role="tablist" aria-label="Graph view mode">
+      <div mix={[wrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, MODES, value, (k) => { onChange(k); writeStoredMode(k); }, 'tab')) e.preventDefault(); })]} role="tablist" aria-label="Graph view mode">
         {MODES.map((m) => {
           const isActive = m.key === value;
           return (
@@ -115,6 +117,7 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
               type="button"
               role="tab"
               aria-selected={isActive ? 'true' : 'false'}
+              tabIndex={isActive ? 0 : -1}
               title={m.hint}
               mix={[segment, isActive ? segmentActive : null, on('click', () => {
                 if (isActive) return;
@@ -140,7 +143,7 @@ export function readStoredMode(): GraphViewMode {
   if (typeof localStorage === 'undefined') return 'heatmap';
   try {
     const v = localStorage.getItem(STORAGE_KEY);
-    if (v === 'heatmap' || v === 'diagram' || v === 'layers') return v;
+    if (v === 'heatmap' || v === 'diagram' || v === 'sankey' || v === 'layers') return v;
   } catch {
     /* swallow */
   }

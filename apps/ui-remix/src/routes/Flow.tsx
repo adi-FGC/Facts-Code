@@ -32,6 +32,7 @@ import {
   TIER_LABEL,
   TIER_ORDER,
   type Tier,
+  type FlowResult,
 } from '../lib/flowAnalysis.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -42,7 +43,9 @@ import { EntityList } from '../ui/flow/EntityList.tsx';
 import { FlowText } from '../ui/flow/FlowText.tsx';
 import { SequenceDiagram } from '../ui/flow/SequenceDiagram.tsx';
 import { DiagramGuide } from '../ui/flow/DiagramGuide.tsx';
+import { SankeyDiagram } from '../ui/SankeyDiagram.tsx';
 import { buildSequenceFlow, pickDefaultEntryPoint } from '../lib/sequenceFlow.ts';
+import { moveRoving } from '../lib/roving.ts';
 
 interface FlowProps {
   data: Dataset;
@@ -50,7 +53,7 @@ interface FlowProps {
 
 /* ─────────── flow-view-mode (own localStorage key) ─────────── */
 
-type FlowViewMode = 'swimlanes' | 'sequence' | 'entities' | 'text';
+type FlowViewMode = 'swimlanes' | 'sequence' | 'entities' | 'text' | 'sankey';
 
 const VIEW_STORAGE_KEY = 'factstack:flow-view-mode';
 const SEQ_ENTRY_STORAGE_KEY = 'factstack:flow-seq-entry';
@@ -59,7 +62,7 @@ function readStoredMode(): FlowViewMode {
   if (typeof localStorage === 'undefined') return 'swimlanes';
   try {
     const v = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (v === 'swimlanes' || v === 'sequence' || v === 'entities' || v === 'text') return v;
+    if (v === 'swimlanes' || v === 'sequence' || v === 'entities' || v === 'text' || v === 'sankey') return v;
   } catch { /* swallow */ }
   return 'swimlanes';
 }
@@ -213,10 +216,11 @@ const toggleRail = css({
   position: 'absolute',
   bottom: '0',
   left: '0',
-  /* Width is 1/N where N is the number of modes. Updated from 1/3 to
-     1/4 when the Sequence mode landed. The transform: translateX(idx*100%)
-     formula auto-scales because it's relative to the rail's own width. */
-  width: 'calc(100% / 4)',
+  /* Width is 1/N where N is the number of modes. 1/3 → 1/4 when Sequence
+     landed; 1/4 → 1/5 when the Sankey mode landed. The transform:
+     translateX(idx*100%) formula auto-scales because it's relative to the
+     rail's own width. */
+  width: 'calc(100% / 5)',
   height: '2px',
   background: 'var(--accent)',
   transition: 'transform 240ms var(--ease-out-quart)',
@@ -241,9 +245,30 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
+/* Tier-flow Sankey adapter. Tiers become columns in their architectural order
+   (entry → ui → … → data → external); cross-tier import counts become ribbons,
+   sized by how much code actually flows between the layers. Self-loops (a tier
+   importing within itself) are dropped — a Sankey ribbon can't begin and end in
+   the same column. Node colours walk the OKLCH hue wheel so adjacent tiers stay
+   visually distinct without leaving the restrained palette. */
+function tierFlowSankey(result: FlowResult) {
+  const present = TIER_ORDER.filter((t) => (result.tierCounts.get(t) ?? 0) > 0);
+  const nodes = present.map((t, i) => ({
+    id: t,
+    label: TIER_LABEL[t],
+    column: TIER_ORDER.indexOf(t),
+    color: `oklch(64% 0.12 ${(248 + i * 42) % 360})`,
+  }));
+  const links = result.tierEdges
+    .filter((e) => e.from !== e.to && e.count > 0)
+    .map((e) => ({ source: e.from, target: e.to, value: e.count }));
+  return { nodes, links };
+}
+
 const MODES: ReadonlyArray<{ key: FlowViewMode; label: string; hint: string }> = [
   { key: 'swimlanes', label: 'Swimlanes', hint: 'Horizontal-lane architecture diagram' },
   { key: 'sequence',  label: 'Sequence',  hint: 'swimlanes.io-style sequence: pick an entry, see what it imports in order' },
+  { key: 'sankey',    label: 'Sankey',    hint: 'Tier-to-tier import flow as weighted ribbons' },
   { key: 'entities',  label: 'Entities',  hint: 'Data-tier files with referrer counts' },
   { key: 'text',      label: 'Text',      hint: 'swimlanes.io-style copy-pasteable breakdown' },
 ];
@@ -322,7 +347,7 @@ export function Flow(handle: Handle<FlowProps>) {
           </LabelNumberRow>
 
           <div mix={toggleRow}>
-            <div mix={toggleWrap} role="tablist" aria-label="Flow view mode">
+            <div mix={[toggleWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, MODES, viewMode, setViewMode, 'tab')) e.preventDefault(); })]} role="tablist" aria-label="Flow view mode">
               {MODES.map((m) => {
                 const isActive = m.key === viewMode;
                 return (
@@ -331,6 +356,7 @@ export function Flow(handle: Handle<FlowProps>) {
                     type="button"
                     role="tab"
                     aria-selected={isActive ? 'true' : 'false'}
+                    tabIndex={isActive ? 0 : -1}
                     title={m.hint}
                     mix={[toggleSeg, isActive ? toggleSegActive : null, on('click', () => setViewMode(m.key))]}
                   >
@@ -343,6 +369,7 @@ export function Flow(handle: Handle<FlowProps>) {
             <span mix={toggleHint}>
               {viewMode === 'swimlanes' && 'Tier-grouped diagram'}
               {viewMode === 'sequence'  && 'swimlanes.io-style sequence'}
+              {viewMode === 'sankey'    && 'Weighted tier-flow ribbons'}
               {viewMode === 'entities'  && `${entityCount} data file${entityCount === 1 ? '' : 's'}`}
               {viewMode === 'text'      && 'Plain-text breakdown'}
             </span>
@@ -356,6 +383,21 @@ export function Flow(handle: Handle<FlowProps>) {
           )}
 
           {viewMode === 'sequence' && renderSequence()}
+
+          {viewMode === 'sankey' && (() => {
+            const sankey = tierFlowSankey(result);
+            return (
+              <Section label="Sankey" title={`${activeTiers.length} tiers, ${fmt(crossEdges)} cross-tier edges`}>
+                <SankeyDiagram
+                  nodes={sankey.nodes}
+                  links={sankey.links}
+                  formatValue={fmt}
+                  ariaLabel={`Tier-to-tier import flow across ${activeTiers.length} tiers`}
+                />
+                <DiagramGuide mode="sankey" />
+              </Section>
+            );
+          })()}
 
           {viewMode === 'entities' && (
             <Section label="Entities" title={`${entityCount} data-tier file${entityCount === 1 ? '' : 's'}`}>

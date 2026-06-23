@@ -170,7 +170,23 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
  *                stays the next perf lever; this small bump unblocks the feature
  *                without that refactor.
  */
-const CAP_MAIN_JS_RAW = 380 * 1024;
+// 2026-06-24 — main JS raw 380→392 KB after the Sankey feature landed across
+// four surfaces: a Flow tier-flow view mode, a Graph folder-coupling view mode,
+// the Overview token-economics flow, and the Vulnerabilities severity→package
+// flow. The weight is one reusable core — lib/sankey.ts (pure computeSankey
+// layout, ~150 LOC) + ui/SankeyDiagram.tsx (CSP-clean SVG renderer) — plus four
+// thin per-surface adapters and the DiagramGuide 'sankey' reading guide. It
+// lands in main because the app keeps all routes in main (route-split still
+// tracked) AND Overview's token Sankey is eager first-paint content.
+// 2026-06-24 — main JS raw 392→396 KB after the Files "Map" treemap landed:
+// lib/treemap.ts (a pure squarified-treemap layout) + ui/Treemap.tsx (CSP-clean
+// SVG renderer, paint-order haloed labels). It's a code map — tile area = token
+// cost, colour = language — behind a "Tables | Map" toggle on the Files index.
+// It rides main because Files is a top-level route; since the Map is opt-in
+// (default Tables), lazy-loading just the Treemap is the clean future win, but
+// that's the same route-split refactor tracked below — bumping keeps the rail
+// honest until then.
+const CAP_MAIN_JS_RAW = 396 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint
 // feature that finally crossed the long-flagged 80 KB line. The severity model
@@ -213,7 +229,17 @@ const CAP_MAIN_JS_RAW = 380 * 1024;
 // crossed the 100 KB line that had zero headroom. Route-level code-splitting
 // remains the committed structural fix; this 2 KB keeps the binding gz rail
 // honest until that lands.
-const CAP_MAIN_JS_GZ = 102 * 1024;
+// 2026-06-24 — main JS gz 102→106 KB for the Sankey feature (see the raw-cap
+// note above for the per-surface breakdown). Net wire cost is ~2.8 KB gz: the
+// layout math + SVG renderer + four adapters compress heavily (css() atoms +
+// SVG presentation attributes, no new dependencies). Route-level code-splitting
+// remains the structural fix that would claw first-paint back toward ~55 KB;
+// this bump keeps the binding gz rail honest until that lands.
+// 2026-06-24 — main JS gz 106→108 KB for the Files treemap (see the raw-cap note
+// above). Net wire cost is ~1.5 KB gz (the squarified layout + SVG renderer; no
+// new deps). Route-level code-splitting — which would also let the opt-in Map view
+// lazy-load — remains the structural fix; this keeps the binding gz rail honest.
+const CAP_MAIN_JS_GZ = 108 * 1024;
 // 2026-06-10 — lazy JS raw 600 → 640 KB. The graph-intelligence wave's lazy
 // chunks grew ~13 KB raw (Sugiyama community coloring in SugiyamaDag/DagControls
 // + entity-aware graph views riding the dynamically-imported route chunks); the

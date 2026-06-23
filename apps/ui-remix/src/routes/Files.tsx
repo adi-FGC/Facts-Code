@@ -22,7 +22,7 @@
  * into the route component.
  */
 import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -30,6 +30,8 @@ import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../ui/RuledColumn.tsx';
 import { StatusChip } from '../ui/StatusChip.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
+import { Treemap } from '../ui/Treemap.tsx';
+import { moveRoving } from '../lib/roving.ts';
 
 interface FilesProps {
   data: Dataset;
@@ -209,7 +211,89 @@ function splitDirAndName(path: string): { dir: string; name: string } {
   return { dir: path.slice(0, i), name: path.slice(i + 1) };
 }
 
+/* ──────────────────────────────────────────────────────────────────
+ * Index view mode — the tables (default) or the treemap "Map". Persisted
+ * so a reload returns to the chosen lens. The Map answers "where is the
+ * weight, and what is it made of?" in one glance: tile area = token cost,
+ * tile colour = language.
+ * ────────────────────────────────────────────────────────────────── */
+type IndexMode = 'tables' | 'map';
+const INDEX_MODES: ReadonlyArray<{ key: IndexMode; label: string }> = [
+  { key: 'tables', label: 'Tables' },
+  { key: 'map', label: 'Map' },
+];
+/** Tiles shown in the treemap — the heaviest files; the long tail of tiny
+ *  files would be unreadable slivers and only adds SVG nodes. */
+const MAP_CAP = 90;
+const INDEX_VIEW_KEY = 'factstack:files-index-view';
+function readIndexMode(): IndexMode {
+  if (typeof localStorage === 'undefined') return 'tables';
+  try {
+    const v = localStorage.getItem(INDEX_VIEW_KEY);
+    if (v === 'tables' || v === 'map') return v;
+  } catch { /* swallow */ }
+  return 'tables';
+}
+function writeIndexMode(v: IndexMode): void {
+  if (typeof localStorage === 'undefined') return;
+  try { localStorage.setItem(INDEX_VIEW_KEY, v); } catch { /* swallow */ }
+}
+
+/* Segmented control — same grammar as the Flow / Graph view toggles. */
+const modeToggle = css({
+  display: 'inline-flex',
+  alignItems: 'stretch',
+  border: '1px solid var(--border)',
+  height: '30px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  marginBottom: 'var(--space-6)',
+});
+const modeSeg = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: '76px',
+  paddingInline: 'var(--space-3)',
+  background: 'transparent',
+  border: 'none',
+  borderRight: '1px solid var(--border)',
+  color: 'var(--fg-muted)',
+  cursor: 'pointer',
+  font: 'inherit',
+  letterSpacing: 'inherit',
+  textTransform: 'inherit',
+  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  '&:last-child': { borderRight: 'none' },
+  '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
+  '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
+});
+const modeSegActive = css({ color: 'var(--fg)', background: 'var(--accent-soft)' });
+
+/* Language legend under the map. Swatch colours come from the dataset's
+   per-language palette, injected via css() (adopted stylesheets, CSP-clean). */
+const legendRow = css({
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: 'var(--space-2) var(--space-4)',
+  marginTop: 'var(--space-4)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-subtle)',
+});
+const legendItem = css({ display: 'inline-flex', alignItems: 'center', gap: '6px' });
+const legendSwatch = css({ width: '10px', height: '10px', borderRadius: '2px', flex: '0 0 auto' });
+
 export function Files(handle: Handle<FilesProps>) {
+  let indexMode: IndexMode = readIndexMode();
+  function setIndexMode(next: IndexMode) {
+    if (next === indexMode) return;
+    indexMode = next;
+    writeIndexMode(next);
+    void handle.update();
+  }
   return () => {
     const { data } = handle.props;
     const all = flattenFiles(data.tree);
@@ -408,6 +492,18 @@ export function Files(handle: Handle<FilesProps>) {
     const totalLoc    = all.reduce((s, f) => s + f.loc, 0);
     const brokenCount = all.filter((f) => f.status === 'broken' || f.status === 'parse_error' || f.status === 'read_error').length;
 
+    /* Treemap tiles: the heaviest files by token cost, coloured by language. */
+    const mapItems = [...all]
+      .sort((a, b) => b.tokens - a.tokens)
+      .slice(0, MAP_CAP)
+      .map((f) => ({
+        id: f.path,
+        label: f.name,
+        value: f.tokens,
+        color: f.language?.iconColor ?? 'var(--fg-muted)',
+      }));
+    const legend = [...data.project.languages].sort((a, b) => b.tokens - a.tokens).slice(0, 8);
+
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1', minWidth: '0' })}>
@@ -426,6 +522,55 @@ export function Files(handle: Handle<FilesProps>) {
             <LabelNumber label="At risk" value={brokenCount + attention.filter(a => a.status === 'stale').length} last />
           </LabelNumberRow>
 
+          <div
+            mix={[modeToggle, on<HTMLDivElement>('keydown', (e) => {
+              if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, INDEX_MODES, indexMode, setIndexMode, 'tab')) e.preventDefault();
+            })]}
+            role="tablist"
+            aria-label="Files index view"
+          >
+            {INDEX_MODES.map((m) => {
+              const active = m.key === indexMode;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active ? 'true' : 'false'}
+                  tabIndex={active ? 0 : -1}
+                  title={m.key === 'map' ? 'Treemap — area = tokens, colour = language' : 'Ranked tables'}
+                  mix={[modeSeg, active ? modeSegActive : null, on('click', () => setIndexMode(m.key))]}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {indexMode === 'map' && (
+            <Section label="Code map" title={`${mapItems.length} heaviest files · area = tokens, colour = language`}>
+              <Treemap
+                items={mapItems}
+                height={480}
+                formatValue={fmt}
+                linkFor={(id) => `/files?p=${encodeURIComponent(id)}`}
+                ariaLabel={`Treemap of the ${mapItems.length} heaviest files by token cost, coloured by language`}
+              />
+              {legend.length > 0 && (
+                <div mix={legendRow}>
+                  {legend.map((l) => (
+                    <span key={l.id} mix={legendItem}>
+                      <span mix={[legendSwatch, css({ background: l.iconColor })]} aria-hidden="true" />
+                      {l.label} · {fmt(l.tokens)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+
+          {indexMode === 'tables' && (
+            <>
           <Section label="Heaviest" title="Top 25 by token cost">
             <RuledTable minWidth="38rem" cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto auto">
               <RuledRow header>
@@ -484,6 +629,8 @@ export function Files(handle: Handle<FilesProps>) {
                 })}
               </RuledTable>
             </Section>
+          )}
+            </>
           )}
         </div>
 

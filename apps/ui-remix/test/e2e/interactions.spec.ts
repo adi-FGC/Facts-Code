@@ -157,6 +157,17 @@ test.describe('config controls', () => {
     await expect(page.locator('html')).toHaveAttribute('data-density', 'compact');
   });
 
+  test('radiogroup arrow keys move + activate (roving keyboard model)', async ({ page }) => {
+    /* WAI-ARIA radiogroup keyboard model: the checked radio is the single tab
+     * stop; an arrow moves selection AND focus to the neighbour, and exactly
+     * one radio stays checked. Order-robust so it survives THEMES reordering. */
+    const themeGroup = page.getByRole('radiogroup', { name: 'Theme' });
+    await themeGroup.locator('[role="radio"][aria-checked="true"]').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(themeGroup.locator('[role="radio"][aria-checked="true"]')).toBeFocused();
+    await expect(themeGroup.locator('[role="radio"][aria-checked="true"]')).toHaveCount(1);
+  });
+
   test('theme choice persists across a reload (localStorage)', async ({ page }) => {
     /* The persistTheme() call writes to localStorage; on reload the
      * App re-applies it. This is the contract that makes the setting
@@ -199,6 +210,19 @@ test.describe('Flow view modes', () => {
       'aria-selected',
       'false',
     );
+  });
+
+  test('arrow keys move + activate tabs (roving keyboard model)', async ({ page }) => {
+    /* Focus the selected tab, press ArrowRight: selection leaves Swimlanes and
+     * the newly-selected tab is focused (roving tabindex + automatic
+     * activation). Order-robust: asserts via the selected-tab locator. */
+    const tablist = page.getByRole('tablist', { name: 'Flow view mode' });
+    const swim = tablist.getByRole('tab', { name: 'Swimlanes' });
+    await swim.focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(swim).toHaveAttribute('aria-selected', 'false');
+    await expect(tablist.locator('[role="tab"][aria-selected="true"]')).toBeFocused();
+    await expect(tablist.locator('[role="tab"][aria-selected="true"]')).toHaveCount(1);
   });
 
   test('switching to Sequence view reveals the entry-point picker', async ({ page }) => {

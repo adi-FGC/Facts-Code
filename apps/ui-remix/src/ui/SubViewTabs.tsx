@@ -22,6 +22,7 @@
  */
 import type { Handle, RemixNode } from 'remix/ui';
 import { css, on } from 'remix/ui';
+import { moveRoving } from '../lib/roving.ts';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 
 export interface SubView {
@@ -148,7 +149,7 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
     return (
       <>
         <div mix={bar}>
-          <div mix={segWrap} role="tablist" aria-label={ariaLabel}>
+          <div mix={[segWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, views, active, setActive, 'tab')) e.preventDefault(); })]} role="tablist" aria-label={ariaLabel}>
             {views.map((v) => {
               const isActive = v.key === active;
               return (
@@ -157,6 +158,7 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
                   type="button"
                   role="tab"
                   aria-selected={isActive ? 'true' : 'false'}
+                  tabIndex={isActive ? 0 : -1}
                   mix={[seg, isActive ? segActive : null, on('click', () => setActive(v.key))]}
                 >
                   {v.label}

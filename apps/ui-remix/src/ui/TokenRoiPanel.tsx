@@ -15,6 +15,7 @@
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
 import type { Dataset } from '../lib/loadArtifacts.ts';
+import { SankeyDiagram } from './SankeyDiagram.tsx';
 import {
   computeTokenRoi,
   dollars,
@@ -206,6 +207,21 @@ const caption = css({
 
 const captionRate = css({ color: 'var(--fg-faint)' });
 
+/* The split rendered as a flow: one whole-codebase source fanning into the
+   small artifact you actually pay for + the tokens you save. Sits between
+   the numeric rows and the caption — the rows give exact figures, this
+   gives the at-a-glance proportion. */
+const flowWrap = css({ marginTop: 'var(--space-6)' });
+
+const flowKicker = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.16em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+  marginBottom: 'var(--space-3)',
+});
+
 /* ─────────── component ─────────── */
 
 export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
@@ -281,6 +297,27 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           <span mix={saveNum}>{fmtTokens(roi.savedTokens)}</span>
           <span mix={saveNum}>{fmtUsd(savedCost)}</span>
         </div>
+
+        {roi.savedTokens > 0 && (
+          <div mix={flowWrap}>
+            <div mix={flowKicker}>Where the tokens go</div>
+            <SankeyDiagram
+              width={760}
+              height={148}
+              formatValue={fmtTokens}
+              ariaLabel={`Token flow: ${fmtTokens(roi.fullTokens)} for the whole codebase splits into ${fmtTokens(roi.artifactTokens)} loaded as the FACTS artifact plus ${fmtTokens(roi.savedTokens)} saved`}
+              nodes={[
+                { id: 'full', label: 'Whole codebase', column: 0, color: 'var(--fg-muted)' },
+                { id: 'artifact', label: 'FACTS artifact', column: 1, color: 'var(--accent)' },
+                { id: 'saved', label: 'Tokens saved', column: 1, color: 'var(--ok)' },
+              ]}
+              links={[
+                { source: 'full', target: 'artifact', value: roi.artifactTokens, color: 'var(--accent)' },
+                { source: 'full', target: 'saved', value: roi.savedTokens, color: 'var(--ok)' },
+              ]}
+            />
+          </div>
+        )}
 
         <p mix={caption}>
           Codebase tokens are exact (cl100k, from the analyzer); the artifact is estimated at ~4 chars/token,

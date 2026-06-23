@@ -18,6 +18,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
+import { moveRoving } from '../lib/roving.ts';
 import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -264,7 +265,7 @@ export function Library(handle: Handle<LibraryProps>) {
               "Sort by" label without disturbing Section's heading. */}
           <div mix={sortRow}>
             <span>Sort by</span>
-            <div mix={sortBar} role="radiogroup" aria-label="Sort packages by">
+            <div mix={[sortBar, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, SORT_LABELS, sortMode, setSort, 'radio')) e.preventDefault(); })]} role="radiogroup" aria-label="Sort packages by">
               {SORT_LABELS.map((s) => {
                 const active = s.key === sortMode;
                 return (
@@ -273,6 +274,7 @@ export function Library(handle: Handle<LibraryProps>) {
                     type="button"
                     role="radio"
                     aria-checked={active ? 'true' : 'false'}
+                    tabIndex={active ? 0 : -1}
                     mix={[
                       sortSeg,
                       active ? sortSegActive : null,

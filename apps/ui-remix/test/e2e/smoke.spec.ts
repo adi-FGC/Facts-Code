@@ -126,6 +126,14 @@ test.describe('global shell', () => {
     await page.waitForURL('**/architecture');
     await expect(archTab).toHaveAttribute('aria-selected', 'true');
 
+    /* a11y on client-side route change (App.tsx RouteView.onChange):
+     *   - focus moves into <main> so a subsequent Tab resumes in the new
+     *     content, not back in the header nav, and
+     *   - the polite #route-announcer carries the new view name so screen
+     *     readers get the navigation signal a SPA otherwise swallows. */
+    await expect(page.locator('main#main')).toBeFocused();
+    await expect(page.locator('#route-announcer')).toHaveText('Architecture view loaded');
+
     /* About is now a right-side icon link (?↔!), not a numbered tab. It
      * lives in the header banner and signals active state via
      * aria-current — the link-role analogue of a tab's aria-selected.
