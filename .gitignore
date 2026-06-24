@@ -69,6 +69,10 @@ packages/*/probe*.mjs
 # fresh per commit as a review aid; not source, kept local only.
 docs/cto-eli5-audit-*.html
 
+# Generated adversarial-review reports (multi-agent review output). Same
+# category as the ELI5 audits above: a per-pass review aid, not source.
+docs/adversarial-review-*.md
+
 # Local MCP client config for this repo (per-machine install state written
 # by `factstack install`/uninstall). Not source.
 /.mcp.json

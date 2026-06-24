@@ -1,10 +1,16 @@
 /**
  * Playwright config for apps/ui-remix end-to-end tests.
  *
- * Boots `pnpm dev` automatically (via `webServer`) and points tests at
- * the local Vite dev server. The `reuseExistingServer` flag means if
- * you already have `pnpm dev` running (local iteration), Playwright
- * won't fight for the port — it'll just connect.
+ * Boots the preview server automatically (via `webServer`: `pnpm build
+ * && pnpm start`) and points tests at it — NOT `pnpm dev`. The `webServer`
+ * block below explains why: the dataset must be build-time inlined, which
+ * only `pnpm build` (→ `inject-data.mjs`) does; `pnpm dev` doesn't.
+ *
+ * The `reuseExistingServer` flag (local only) means if a *preview* server
+ * (`pnpm start`) is already on :3000, Playwright connects instead of
+ * rebuilding. Heads-up: a `pnpm dev` server on :3000 gets reused too, but
+ * serves NO inlined data (it proxies to `factstack ui` on :4848), so every
+ * test hangs in the loading skeleton — stop it before running e2e.
  *
  * Chromium-only by default. The dashboard's primary target is
  * Chromium (Chrome + Edge cover ~70% of dev tooling usage); cross-
