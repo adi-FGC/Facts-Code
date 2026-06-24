@@ -491,6 +491,11 @@ export function Files(handle: Handle<FilesProps>) {
     const totalTokens = all.reduce((s, f) => s + f.tokens, 0);
     const totalLoc    = all.reduce((s, f) => s + f.loc, 0);
     const brokenCount = all.filter((f) => f.status === 'broken' || f.status === 'parse_error' || f.status === 'read_error').length;
+    /* Count stale over the FULL list, not the capped `attention` slice, so the
+       "At risk" headline sums two terms over one population. (The slice ranks
+       broken-family files above stale, so >25 broken files would otherwise
+       push stale out of the window and silently undercount it.) */
+    const staleCount = all.filter((f) => f.status === 'stale').length;
 
     /* Treemap tiles: the heaviest files by token cost, coloured by language. */
     const mapItems = [...all]
@@ -519,7 +524,7 @@ export function Files(handle: Handle<FilesProps>) {
             <LabelNumber label="All files" value={fmt(all.length)} />
             <LabelNumber label="Lines"   value={fmt(totalLoc)} />
             <LabelNumber label="Tokens"  value={fmt(totalTokens)} unit="cl100k" />
-            <LabelNumber label="At risk" value={brokenCount + attention.filter(a => a.status === 'stale').length} last />
+            <LabelNumber label="At risk" value={brokenCount + staleCount} last />
           </LabelNumberRow>
 
           <div
