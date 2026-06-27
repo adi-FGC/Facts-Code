@@ -93,9 +93,9 @@ const activeRail = css({
 });
 
 const MODES: ReadonlyArray<{ key: GraphViewMode; label: string; hint: string }> = [
-  { key: 'heatmap', label: 'Heatmap', hint: 'Folder × folder coupling matrix' },
+  { key: 'heatmap', label: 'Heatmap', hint: 'Module × module coupling matrix' },
   { key: 'diagram', label: 'Diagram', hint: 'Sugiyama layered DAG' },
-  { key: 'sankey',  label: 'Sankey',  hint: 'Folder → folder import flow' },
+  { key: 'sankey',  label: 'Sankey',  hint: 'Module → module import flow' },
   { key: 'layers',  label: 'Layers',  hint: 'Files grouped by depth + cycles' },
 ];
 

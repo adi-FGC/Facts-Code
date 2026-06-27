@@ -44,10 +44,11 @@ import {
   buildHeatmap,
   buildHubs,
   buildSugiyamaLayout,
+  capHeatmap,
   findCycles,
   layerByLongestPath,
+  moduleOf,
   tarjanSCC,
-  topLevelFolder,
   type HeatmapResult,
 } from '../lib/graphAnalysis.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
@@ -146,32 +147,92 @@ function fmt(n: number): string {
   return n.toLocaleString('en-US');
 }
 
-/* Folder-coupling Sankey adapter. Bipartite: every folder can be both an
-   importer (left column) and an import target (right column), so each gets
-   two node ids (src:/dst:). Intra-folder coupling (the matrix diagonal) is
-   skipped — that's the Heatmap's specially-tinted diagonal, and as a ribbon
-   it would only be a flat self-band. Folders carrying no cross-module flow
-   are dropped by the layout, so the diagram shows just the real coupling. */
-function folderCouplingSankey(heatmap: HeatmapResult) {
-  const { folders, matrix } = heatmap;
-  const nodes = [
-    ...folders.map((f, i) => ({
-      id: `src:${f}`,
-      label: f,
-      column: 0,
-      color: `oklch(64% 0.12 ${(248 + i * 37) % 360})`,
-    })),
-    ...folders.map((f) => ({ id: `dst:${f}`, label: f, column: 1, color: 'var(--fg-subtle)' })),
-  ];
-  const links: Array<{ source: string; target: string; value: number }> = [];
-  for (let i = 0; i < folders.length; i++) {
+/* Past this many modules the bipartite layout becomes an unreadable wall, so
+   the Sankey keeps the top N by cross-module throughput and the title says
+   "top N of M". 18 leaves both columns legible at the default height. */
+const MODULE_SANKEY_CAP = 18;
+
+/* The heatmap is an N×N grid; past this many modules the rotated column labels
+   and cell density stop being readable, so it shows the top N by total degree
+   (a no-op on smaller repos) with a "top N of M" title. */
+const HEATMAP_MODULE_CAP = 24;
+
+interface ModuleSankey {
+  nodes: Array<{ id: string; label: string; column: number; color?: string }>;
+  links: Array<{ source: string; target: string; value: number }>;
+  /** Modules actually drawn (≤ cap). */
+  shownModules: number;
+  /** Modules with any cross-module coupling (the honest denominator). */
+  totalModules: number;
+  /** Cross-module import edges among the drawn modules. */
+  shownEdges: number;
+  /** All cross-module import edges (matrix off-diagonal sum). */
+  totalCrossEdges: number;
+}
+
+/* Module-coupling Sankey adapter. Bipartite: every module can be both an
+   importer (left column, `src:`) and an import target (right column, `dst:`),
+   so each gets two node ids. Intra-module edges (the matrix diagonal) are
+   skipped — that's the Heatmap's tinted diagonal, and as a ribbon it would
+   only be a flat self-band. Modules carrying NO cross-module flow are dropped
+   entirely (a leaf util that nobody imports across a boundary adds nothing to
+   a coupling diagram), and on large repos only the top `cap` by throughput
+   are kept so the picture stays readable. */
+function moduleFlowSankey(coupling: HeatmapResult, cap = MODULE_SANKEY_CAP): ModuleSankey {
+  const { folders, matrix } = coupling;
+
+  /* Cross-module throughput per module = off-diagonal row + column sums
+     (everything it imports across a boundary + everything that imports it). */
+  const throughput = folders.map((_, i) => {
+    let t = 0;
     for (let j = 0; j < folders.length; j++) {
-      if (i === j) continue;
-      const v = matrix[i]![j]!;
-      if (v > 0) links.push({ source: `src:${folders[i]}`, target: `dst:${folders[j]}`, value: v });
+      if (j === i) continue;
+      t += matrix[i]![j]! + matrix[j]![i]!;
+    }
+    return t;
+  });
+
+  const coupled = folders
+    .map((f, i) => ({ f, i, t: throughput[i]! }))
+    .filter((m) => m.t > 0);
+  const kept = coupled
+    .slice()
+    .sort((a, b) => b.t - a.t || (a.f < b.f ? -1 : a.f > b.f ? 1 : 0))
+    .slice(0, cap);
+
+  const nodes = [
+    ...kept.map((m, k) => ({
+      id: `src:${m.f}`,
+      label: m.f,
+      column: 0,
+      /* Distinct hue per importer; stepping by 33° spreads up to ~11 before
+         hues repeat, which is plenty once the cap and zero-flow drop bite. */
+      color: `oklch(64% 0.13 ${(248 + k * 33) % 360})`,
+    })),
+    ...kept.map((m) => ({ id: `dst:${m.f}`, label: m.f, column: 1, color: 'var(--fg-subtle)' })),
+  ];
+
+  const links: ModuleSankey['links'] = [];
+  let shownEdges = 0;
+  for (const a of kept) {
+    for (const b of kept) {
+      if (a.i === b.i) continue;
+      const v = matrix[a.i]![b.i]!;
+      if (v > 0) {
+        links.push({ source: `src:${a.f}`, target: `dst:${b.f}`, value: v });
+        shownEdges += v;
+      }
     }
   }
-  return { nodes, links };
+
+  return {
+    nodes,
+    links,
+    shownModules: kept.length,
+    totalModules: coupled.length,
+    shownEdges,
+    totalCrossEdges: coupling.crossEdges,
+  };
 }
 
 /* Node count cap for the SVG diagram. Past this, the layout becomes
@@ -268,10 +329,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
     const inProject = new Set<string>(all.map((f) => f.path));
     const edges = (data.edges ?? []).filter((e) => inProject.has(e.from) && inProject.has(e.to));
 
-    /* Heatmap math — folders, matrix, max cell. */
-    const heatmap = buildHeatmap(all, edges);
+    /* Coupling math at MODULE granularity (apps/ui-remix, packages/spec, …),
+       shared by the Heatmap, Couplings table, Sankey, and the stats row. Not
+       top-level (apps vs packages): on a monorepo that collapses everything
+       into a 2-bucket matrix. `dropIsolated` removes doc/config dirs that have
+       files but no imports, so every row/column is a real participant. */
+    const heatmap = buildHeatmap(all, edges, moduleOf, { dropIsolated: true });
 
-    /* Per-folder file count for the stats row. */
+    /* Count of modules participating in the import graph (stats row + kicker). */
     const folderCount = heatmap.folders.length;
 
     /* Cycles + layers — needed by both Layers view AND the always-visible
@@ -411,19 +476,26 @@ export function GraphRoute(handle: Handle<GraphProps>) {
           <div mix={toggleRow}>
             <ViewModeToggle value={viewMode} onChange={setViewMode} />
             <span mix={toggleHint}>
-              {viewMode === 'heatmap' && 'Folder × folder coupling'}
+              {viewMode === 'heatmap' && 'Module × module coupling'}
               {viewMode === 'diagram' && `Top ${SUGIYAMA_NODE_CAP} by degree`}
-              {viewMode === 'sankey'  && 'Folder → folder import flow'}
+              {viewMode === 'sankey'  && 'Module → module import flow'}
               {viewMode === 'layers'  && 'Files grouped by depth'}
             </span>
           </div>
 
           {/* The primary view changes with the toggle. */}
-          {viewMode === 'heatmap' && (
-            <Section label="Heatmap" title={`${heatmap.folders.length} modules, ${edges.length} edges`}>
-              <Heatmap data={heatmap} />
-            </Section>
-          )}
+          {viewMode === 'heatmap' && (() => {
+            const grid = capHeatmap(heatmap, HEATMAP_MODULE_CAP);
+            const capped = grid.folders.length < heatmap.folders.length;
+            const title = capped
+              ? `top ${grid.folders.length} of ${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`
+              : `${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`;
+            return (
+              <Section label="Heatmap" title={title}>
+                <Heatmap data={grid} />
+              </Section>
+            );
+          })()}
 
           {viewMode === 'diagram' && sugiyamaLayout && (
             <Section label="Diagram" title={`${sugiyamaLayout.layerCount} layers, ${sugiyamaLayout.nodes.size} nodes`}>
@@ -462,15 +534,25 @@ export function GraphRoute(handle: Handle<GraphProps>) {
           )}
 
           {viewMode === 'sankey' && (() => {
-            const sankey = folderCouplingSankey(heatmap);
+            /* Reuses the shared module-level `heatmap` (apps/ui-remix,
+               packages/spec, …). moduleFlowSankey drops the diagonal + any
+               module with no cross-module flow, so this is the import-coupling
+               half of the same matrix the Heatmap draws. */
+            const sankey = moduleFlowSankey(heatmap);
+            const truncated = sankey.shownModules < sankey.totalModules;
+            const title = sankey.totalCrossEdges === 0
+              ? 'no cross-module imports'
+              : truncated
+                ? `top ${sankey.shownModules} of ${sankey.totalModules} modules · ${sankey.totalCrossEdges} cross-module imports`
+                : `${sankey.shownModules} modules · ${sankey.totalCrossEdges} cross-module imports`;
             return (
-              <Section label="Sankey" title={`${heatmap.folders.length} modules, ${edges.length} edges`}>
+              <Section label="Sankey" title={title}>
                 <SankeyDiagram
                   nodes={sankey.nodes}
                   links={sankey.links}
                   formatValue={fmt}
-                  height={Math.max(360, Math.min(820, heatmap.folders.length * 32))}
-                  ariaLabel={`Folder-to-folder import flow across ${heatmap.folders.length} modules`}
+                  height={Math.max(320, Math.min(900, Math.max(sankey.shownModules, 1) * 52))}
+                  ariaLabel={`Module-to-module import flow across ${sankey.shownModules} modules`}
                 />
               </Section>
             );

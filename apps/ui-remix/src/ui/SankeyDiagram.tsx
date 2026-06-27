@@ -107,7 +107,12 @@ export function SankeyDiagram(handle: Handle<SankeyDiagramProps>) {
                 stroke={l.color ?? 'var(--accent)'}
                 stroke-width={l.width}
                 stroke-opacity="0.32"
-                stroke-linecap="round"
+                /* `butt`, never `round`: a round cap on a thick ribbon draws a
+                   half-circle of radius = strokeWidth/2 at each end, which on a
+                   dominant flow balloons hundreds of px past the node and (with
+                   the figure's visible overflow) bleeds across the page. Butt
+                   caps meet the node rects flush — standard Sankey rendering. */
+                stroke-linecap="butt"
               >
                 <title>{`${l.source} → ${l.target} · ${formatValue(l.value)}`}</title>
               </path>

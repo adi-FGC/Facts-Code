@@ -375,26 +375,71 @@ export function topLevelFolder(path: string): string {
   return path.slice(0, i);
 }
 
+/**
+ * The MODULE a file belongs to — one level deeper than `topLevelFolder`.
+ *
+ * In a monorepo the top level is only "apps" vs "packages" (two buckets,
+ * useless for coupling), but the unit a reader actually reasons about is the
+ * workspace package: "apps/ui-remix", "packages/spec". This takes the first
+ * two *directory* segments when the path is nested at least that deep, else
+ * the first directory; root files group under "·".
+ *
+ * For a single-package repo the same rule yields "src/lib", "src/routes",
+ * which is the natural module unit there too — so callers get a meaningful
+ * N-way grouping regardless of layout. Pure + deterministic.
+ */
+export function moduleOf(path: string): string {
+  const slash = path.lastIndexOf('/');
+  if (slash < 0) return '·'; // root-level file, no directory
+  const dir = path.slice(0, slash);
+  const segs = dir.split('/');
+  if (segs.length >= 2) return `${segs[0]}/${segs[1]}`;
+  return segs[0] || '·';
+}
+
+export interface BuildHeatmapOptions {
+  /** Drop folders/modules that carry NO edge at all (in, out, or self). At
+   *  module granularity this removes doc/config dirs (`docs`, `.github`, …)
+   *  that have files but no imports, so the matrix shows only the modules
+   *  that actually participate in the dependency graph. */
+  dropIsolated?: boolean;
+}
+
 export function buildHeatmap(
   files: ReadonlyArray<{ path: string }>,
   edges: ReadonlyArray<{ from: string; to: string }>,
+  /** How to bucket a path into a folder/module. Defaults to top-level dir;
+   *  pass `moduleOf` for package-level (the Sankey's granularity). */
+  keyOf: (path: string) => string = topLevelFolder,
+  opts: BuildHeatmapOptions = {},
 ): HeatmapResult {
   const folderCount = new Map<string, number>();
   for (const f of files) {
-    const k = topLevelFolder(f.path);
+    const k = keyOf(f.path);
     folderCount.set(k, (folderCount.get(k) ?? 0) + 1);
   }
-  const folders = Array.from(folderCount.entries())
+  let folders = Array.from(folderCount.entries())
     .sort((a, b) => b[1] - a[1])
     .map(([k]) => k);
   const folderIdx = new Map<string, number>(folders.map((f, i) => [f, i]));
 
-  const matrix: number[][] = folders.map(() => folders.map(() => 0));
+  let matrix: number[][] = folders.map(() => folders.map(() => 0));
   for (const e of edges) {
-    const i = folderIdx.get(topLevelFolder(e.from));
-    const j = folderIdx.get(topLevelFolder(e.to));
+    const i = folderIdx.get(keyOf(e.from));
+    const j = folderIdx.get(keyOf(e.to));
     if (i == null || j == null) continue;
     matrix[i]![j]!++;
+  }
+
+  if (opts.dropIsolated) {
+    const active = folders.map((_, i) => {
+      let deg = 0;
+      for (let j = 0; j < folders.length; j++) deg += matrix[i]![j]! + matrix[j]![i]!;
+      return deg > 0;
+    });
+    const keepIdx = folders.map((_, i) => i).filter((i) => active[i]);
+    folders = keepIdx.map((i) => folders[i]!);
+    matrix = keepIdx.map((i) => keepIdx.map((j) => matrix[i]![j]!));
   }
 
   let maxCell = 0;
@@ -408,6 +453,45 @@ export function buildHeatmap(
   }
 
   return { folders, matrix, maxCell, totalEdges: edges.length, crossEdges };
+}
+
+/**
+ * Restrict a heatmap to its top-`n` folders by total degree (row + column
+ * sums), so a large monorepo's module matrix stays a legible square instead
+ * of an unreadable wall. `crossEdges` / `maxCell` are recomputed over the
+ * kept submatrix; `totalEdges` is preserved (it's a project-wide count). A
+ * no-op when there are already ≤ n folders. Pure + deterministic.
+ */
+export function capHeatmap(h: HeatmapResult, n: number): HeatmapResult {
+  if (h.folders.length <= n) return h;
+  const degree = (i: number): number => {
+    let d = 0;
+    for (let j = 0; j < h.folders.length; j++) d += h.matrix[i]![j]! + h.matrix[j]![i]!;
+    return d;
+  };
+  const kept = h.folders
+    .map((f, i) => ({ f, i, d: degree(i) }))
+    .sort((a, b) => b.d - a.d || (a.f < b.f ? -1 : a.f > b.f ? 1 : 0))
+    .slice(0, n);
+  const folders = kept.map((k) => k.f);
+  const matrix = kept.map((a) => kept.map((b) => h.matrix[a.i]![b.i]!));
+  let maxCell = 0;
+  let crossEdges = 0;
+  for (let i = 0; i < folders.length; i++) {
+    for (let j = 0; j < folders.length; j++) {
+      const v = matrix[i]![j]!;
+      if (v > maxCell) maxCell = v;
+      if (i !== j) crossEdges += v;
+    }
+  }
+  return { folders, matrix, maxCell, totalEdges: h.totalEdges, crossEdges };
+}
+
+/** The leaf of a module key for a compact axis label, e.g. "packages/spec"
+ *  → "spec". The full key stays available for hover/title. */
+export function moduleLeaf(m: string): string {
+  const i = m.lastIndexOf('/');
+  return i < 0 ? m : m.slice(i + 1);
 }
 
 /* ─────────── hubs + couplings ─────────── */

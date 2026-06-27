@@ -1,11 +1,11 @@
 /**
- * CouplingsTable — top-N cross-folder dependency edges, ranked.
+ * CouplingsTable — top-N cross-module dependency edges, ranked.
  *
  * The "if I touch X, what else moves?" list. Sourced from the same
- * heatmap matrix the visualization uses, but linearized: every
- * off-diagonal cell becomes a row sorted by edge count.
+ * module-coupling matrix the Heatmap + Sankey use, but linearized:
+ * every off-diagonal cell becomes a row sorted by edge count.
  *
- * Diagonal cells (intra-folder coupling) are excluded — those don't
+ * Diagonal cells (intra-module coupling) are excluded — those don't
  * tell you anything about *cross-cutting* dependencies, which is
  * what this table is for.
  */

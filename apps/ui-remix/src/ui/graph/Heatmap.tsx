@@ -23,7 +23,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
-import type { HeatmapResult } from '../../lib/graphAnalysis.ts';
+import { moduleLeaf, type HeatmapResult } from '../../lib/graphAnalysis.ts';
 
 interface HeatmapProps {
   data: HeatmapResult;
@@ -134,6 +134,16 @@ const legendSwatch = css({
    'unsafe-inline'. */
 const legendNote = css({ marginLeft: 'auto' });
 
+/* Shown when there is nothing to chart — e.g. a project with files but no
+   in-project imports between modules, where dropIsolated leaves zero rows.
+   Without this the grid would render a lone 160px corner stub. */
+const emptyNote = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-faint)',
+  padding: 'var(--space-4)',
+});
+
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
@@ -145,6 +155,9 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
   return () => {
     const { data } = handle.props;
     const { folders, matrix: matrixData, maxCell } = data;
+    if (folders.length === 0) {
+      return <div mix={emptyNote}>No cross-module coupling to chart for this view yet.</div>;
+    }
     const logMax = Math.log10(maxCell + 1) || 1;
     const intensity = (n: number): number =>
       n === 0 ? 0 : Math.log10(n + 1) / logMax;
@@ -154,11 +167,16 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
         <div mix={[matrix, css({ gridTemplateColumns: `160px repeat(${folders.length}, minmax(44px, 1fr))` })]}>
           <div mix={corner} />
           {folders.map((f) => (
-            <div key={`col-${f}`} mix={colLabel}><span>{f}</span></div>
+            /* Both axes show the module leaf ("spec") with the full key
+               ("packages/spec") on hover: the rotated column band is only 88px,
+               and the row track is a fixed 160px that the longest real keys
+               (e.g. "packages/emit-browser") overflow. The Couplings table
+               below carries the full from/to keys. */
+            <div key={`col-${f}`} mix={colLabel} title={f}><span>{moduleLeaf(f)}</span></div>
           ))}
           {folders.map((rowName, i) => (
             <>
-              <div key={`row-${rowName}`} mix={rowLabel}>{rowName}</div>
+              <div key={`row-${rowName}`} mix={rowLabel} title={rowName}>{moduleLeaf(rowName)}</div>
               {folders.map((_, j) => {
                 const v = matrixData[i]![j]!;
                 const t = intensity(v);
