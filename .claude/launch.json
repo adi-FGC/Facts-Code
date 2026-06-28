@@ -42,6 +42,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "http-server", "apps/ui-remix/dist", "-p", "4751", "-c-1", "--silent"],
       "port": 4751
+    },
+    {
+      "name": "chrome-ext (panel static)",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", "apps/chrome-ext/dist", "-p", "4755", "-c-1", "--silent"],
+      "port": 4755
     }
   ]
 }

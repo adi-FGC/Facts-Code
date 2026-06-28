@@ -1,0 +1,5 @@
+dist/
+# Generated demo dataset — regenerate with `pnpm make-demo`.
+public/demo/factstack.json
+# Packaged extension zip (build artifact).
+*.zip

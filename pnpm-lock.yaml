@@ -35,6 +35,40 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@20.19.39)(@vitest/coverage-v8@4.1.8)(vite@8.0.8(@types/node@20.19.39)(esbuild@0.27.7)(tsx@4.21.0))
 
+  apps/chrome-ext:
+    dependencies:
+      '@factstack/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@factstack/emit':
+        specifier: workspace:*
+        version: link:../../packages/emit
+      '@factstack/fs-browser':
+        specifier: workspace:*
+        version: link:../../packages/fs-browser
+      '@factstack/fs-memory':
+        specifier: workspace:*
+        version: link:../../packages/fs-memory
+      '@factstack/spec':
+        specifier: workspace:*
+        version: link:../../packages/spec
+      '@factstack/ui-theme':
+        specifier: workspace:*
+        version: link:../../packages/ui-theme
+      remix:
+        specifier: 3.0.0-beta.4
+        version: 3.0.0-beta.4(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(playwright@1.60.0)
+    devDependencies:
+      tsx:
+        specifier: ^4.19.1
+        version: 4.21.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vite:
+        specifier: ^8.0.8
+        version: 8.0.8(@types/node@20.19.39)(esbuild@0.27.7)(tsx@4.21.0)
+
   apps/cli:
     dependencies:
       '@factstack/core':

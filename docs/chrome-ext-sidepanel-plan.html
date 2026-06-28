@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FactStack — Chrome side-panel surface · plan</title>
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#0e1530; --surface:#121a36; --surface2:#16203f;
+    --ink:#e8ecf6; --muted:#9aa6c4; --faint:#6c789c; --hair:#26304f; --hair2:#33406a;
+    --accent:#ff7a3d; --accent-soft:rgba(255,122,61,.12);
+    --ok:#3ecf8e; --warn:#f4c152; --danger:#ff5d6c; --info:#5aa0ff;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --sans:"Mona Sans",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2));color:var(--ink);
+    font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code,kbd{font-family:var(--mono);font-size:.86em;background:var(--surface2);border:1px solid var(--hair);
+    border-radius:4px;padding:1px 5px;color:#d7def2}
+  .wrap{max-width:1080px;margin:0 auto;padding:48px 28px 120px}
+  header.hero{border-bottom:1px solid var(--hair);padding-bottom:28px;margin-bottom:8px}
+  .kick{font-family:var(--mono);font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent)}
+  h1{font-size:34px;line-height:1.08;letter-spacing:-.02em;margin:.3em 0 .15em}
+  .sub{color:var(--muted);font-size:17px;max-width:64ch}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+  .pill{font-family:var(--mono);font-size:11px;letter-spacing:.06em;border:1px solid var(--hair2);
+    border-radius:999px;padding:4px 11px;color:var(--muted);background:var(--surface)}
+  .pill b{color:var(--ink);font-weight:600}
+  h2{font-size:23px;letter-spacing:-.01em;margin:54px 0 6px;padding-top:14px;border-top:1px solid var(--hair)}
+  h2 .n{font-family:var(--mono);color:var(--faint);font-size:15px;margin-right:10px}
+  h3{font-size:16px;margin:26px 0 6px;color:#cdd6ee}
+  p{margin:.5em 0}
+  ul,ol{margin:.4em 0 .8em;padding-left:1.25em}
+  li{margin:.25em 0}
+  .lead{font-size:16.5px;color:#d2d9ee}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:18px 20px;margin:16px 0}
+  .card.accent{border-left:3px solid var(--accent)}
+  .card.ok{border-left:3px solid var(--ok)}
+  .card.danger{border-left:3px solid var(--danger)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:500}
+  tbody tr:hover{background:var(--surface)}
+  .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;border-radius:4px;padding:2px 7px;white-space:nowrap;display:inline-block}
+  .keep{background:rgba(62,207,142,.13);color:var(--ok);border:1px solid rgba(62,207,142,.3)}
+  .rework{background:rgba(244,193,82,.12);color:var(--warn);border:1px solid rgba(244,193,82,.3)}
+  .drop{background:rgba(255,93,108,.12);color:var(--danger);border:1px solid rgba(255,93,108,.3)}
+  .sev-h{color:var(--danger);font-weight:600}.sev-m{color:var(--warn);font-weight:600}.sev-l{color:var(--muted)}
+  .yes{color:var(--danger);font-weight:600}.no{color:var(--ok);font-weight:600}
+  .mono-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);margin-top:18px}
+  .toc{position:sticky;top:0;background:rgba(11,16,32,.86);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--hair);z-index:9;margin:0 -28px 0;padding:10px 28px;
+    display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px}
+  .toc a{color:var(--muted)}.toc a:hover{color:var(--accent);text-decoration:none}
+  figure{margin:20px 0;background:var(--surface);border:1px solid var(--hair);border-radius:12px;padding:14px}
+  figcaption{font-family:var(--mono);font-size:11px;color:var(--faint);text-align:center;margin-top:8px;letter-spacing:.05em}
+  .small{font-size:13px;color:var(--muted)}
+  .ref{font-family:var(--mono);font-size:12px;color:var(--info)}
+  hr{border:0;border-top:1px solid var(--hair);margin:28px 0}
+  .phase{border:1px solid var(--hair);border-radius:12px;padding:16px 18px;margin:14px 0;background:var(--surface)}
+  .phase h3{margin-top:0}
+  .phase .when{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:.08em}
+  .check li{list-style:none;margin-left:-1.1em;padding-left:1.5em;position:relative}
+  .check li:before{content:"▸";position:absolute;left:0;color:var(--accent)}
+  .footer{margin-top:60px;border-top:1px solid var(--hair);padding-top:18px;color:var(--faint);font-size:12.5px;font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <a href="#tldr">TL;DR</a>
+  <a href="#arch">Architecture</a>
+  <a href="#data">Data &amp; active-tab</a>
+  <a href="#ui">UI remake</a>
+  <a href="#mv3">MV3 shell</a>
+  <a href="#risks">Risks</a>
+  <a href="#road">Roadmap</a>
+  <a href="#open">Open questions</a>
+  <a href="#appendix">Appendix</a>
+</nav>
+
+<header class="hero">
+  <div class="kick">Surface expansion · planning artifact</div>
+  <h1>FactStack → Chrome side panel</h1>
+  <p class="sub">A persistent, narrow companion that shows FactStack’s codebase intelligence next to your work — analyzing the local project <em>or</em> the GitHub repo open in your active tab, fully client-side.</p>
+  <div class="meta">
+    <span class="pill">status · <b>PLAN ONLY</b> — no code written</span>
+    <span class="pill">branch · <b>surface/chrome-ext</b> (off ui-redesign)</span>
+    <span class="pill">data path · <b>local + GitHub (active-tab)</b></span>
+    <span class="pill">UI · <b>remake (frontend-design / impeccable)</b></span>
+    <span class="pill">grounded in · <b>13-agent code research</b></span>
+  </div>
+</header>
+
+<p class="small" style="margin-top:18px">This plan is grounded in a read-only audit of the actual repo (data pipeline, the React-free Remix v3 runtime, the design system, the exact CSP/bundle rails, and what is already surface-agnostic), plus an adversarial review that challenged each recommendation. File references are real; the goal is to <strong>make no mistakes</strong> by separating what is proven from what must be verified by a spike.</p>
+
+<!-- ───────────────────────── TL;DR ───────────────────────── -->
+<h2 id="tldr"><span class="n">00</span>TL;DR</h2>
+<div class="card accent">
+<p class="lead" style="margin-top:0"><strong>The premise “a browser extension can’t run the analyzer” is only half true.</strong> <code>@factstack/core</code> is isomorphic, and the dashboard <em>already</em> runs the full <code>analyze()</code> in a Web Worker — for a local folder (File System Access) and for a GitHub repo (Trees API → in-memory FS). So the panel needs <strong>no backend, no native host, no WASM, no running CLI</strong> to analyze a project.</p>
+</div>
+<ul>
+  <li><strong>Reuse, don’t fork the engine.</strong> The entire data/analysis/token layer (<code>core</code>, <code>graph</code>, <code>scanners</code>, <code>factspack</code>, <code>fs-browser</code>, <code>emit-browser</code>, <code>tokens.css</code>) is browser-safe and reused as-is. Only <em>presentation</em> is new.</li>
+  <li><strong>Two inputs, headline = active-tab GitHub.</strong> When the active Chrome tab is <code>github.com/owner/repo</code>, the panel offers one-click “Analyze this repo” — which also solves the “which project am I looking at?” problem. Local-folder analysis is the privacy-first companion mode; a bundled demo gives a zero-setup first run.</li>
+  <li><strong>The UI is a remake, not a fold.</strong> The wide editorial layout provably breaks below 340px. We build a <em>sidebar-specific</em> surface (drill-down + ⌘K, list-first diagrams) over the same <code>Dataset</code> — keeping the editorial DNA (mono labels, tabular numerals, hairlines, dark navy + orange) while shedding the broadsheet geometry.</li>
+  <li><strong>One unknown gates the local path.</strong> Whether <code>showDirectoryPicker()</code> works inside an MV3 side-panel page is unverified → <strong>a day-one throwaway spike decides it.</strong> The GitHub path is unaffected and ships regardless.</li>
+</ul>
+
+<!-- ───────────────────────── ARCHITECTURE ───────────────────────── -->
+<h2 id="arch"><span class="n">01</span>Architecture</h2>
+<p>Three inputs feed one shared, isomorphic analyzer running in a Web Worker; its <code>Dataset</code> output is consumed by two independent presentation surfaces. The desktop dashboard stays untouched.</p>
+
+<figure>
+<svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" font-family="var(--mono)" role="img" aria-label="Architecture: three inputs feed the shared core which outputs a Dataset to two surfaces.">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#33406a"/></marker>
+  </defs>
+  <text x="28" y="34" fill="#9aa6c4" font-size="11" letter-spacing="2">INPUTS</text>
+  <text x="368" y="34" fill="#9aa6c4" font-size="11" letter-spacing="2">SHARED CORE · already in-browser</text>
+  <text x="772" y="34" fill="#9aa6c4" font-size="11" letter-spacing="2">SURFACES</text>
+
+  <!-- inputs -->
+  <rect x="24" y="52" width="226" height="66" rx="9" fill="#16203f" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="40" y="80" fill="#e8ecf6" font-size="13.5" font-weight="700">GitHub repo (active tab)</text>
+  <text x="40" y="100" fill="#9aa6c4" font-size="11">detect owner/repo → analyze</text>
+
+  <rect x="24" y="134" width="226" height="66" rx="9" fill="#16203f" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="40" y="162" fill="#e8ecf6" font-size="13.5" font-weight="700">Local folder</text>
+  <text x="40" y="182" fill="#9aa6c4" font-size="11">File System Access · private</text>
+
+  <rect x="24" y="216" width="226" height="66" rx="9" fill="#16203f" stroke="#33406a" stroke-width="1.5"/>
+  <text x="40" y="244" fill="#e8ecf6" font-size="13.5" font-weight="600">Bundled demo</text>
+  <text x="40" y="264" fill="#9aa6c4" font-size="11">first-run · offline</text>
+
+  <g stroke="#33406a" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M250 85 C 300 85, 312 150, 360 162"/>
+    <path d="M250 167 H 360"/>
+    <path d="M250 249 C 300 249, 312 184, 360 172"/>
+  </g>
+
+  <!-- core -->
+  <rect x="360" y="60" width="316" height="92" rx="9" fill="#16203f" stroke="#33406a" stroke-width="1.5"/>
+  <text x="378" y="92" fill="#e8ecf6" font-size="14" font-weight="700">@factstack/core analyze()</text>
+  <text x="378" y="113" fill="#9aa6c4" font-size="11.5">runs in a Web Worker</text>
+  <text x="378" y="132" fill="#9aa6c4" font-size="11.5">no backend · network-free (INV6)</text>
+
+  <rect x="360" y="168" width="316" height="78" rx="9" fill="#121a36" stroke="#33406a" stroke-width="1.5"/>
+  <text x="378" y="198" fill="#e8ecf6" font-size="13.5" font-weight="600">Dataset · .pack (~480 KB)</text>
+  <text x="378" y="218" fill="#9aa6c4" font-size="11">pure packages + tokens reused</text>
+  <path d="M518 152 V 168" stroke="#33406a" stroke-width="1.5" fill="none" marker-end="url(#a)"/>
+
+  <g stroke="#33406a" stroke-width="1.5" fill="none" marker-end="url(#a)">
+    <path d="M676 196 C 720 196, 728 120, 760 110"/>
+    <path d="M676 214 C 720 214, 728 232, 760 232"/>
+  </g>
+
+  <!-- surfaces -->
+  <rect x="760" y="74" width="196" height="72" rx="9" fill="#16203f" stroke="#33406a" stroke-width="1.5"/>
+  <text x="776" y="104" fill="#e8ecf6" font-size="13.5" font-weight="600">Dashboard</text>
+  <text x="776" y="124" fill="#9aa6c4" font-size="11">wide · shipping · untouched</text>
+
+  <rect x="760" y="196" width="196" height="72" rx="9" fill="#16203f" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="776" y="226" fill="#e8ecf6" font-size="13.5" font-weight="700">Side panel</text>
+  <text x="776" y="246" fill="#9aa6c4" font-size="11">NEW · ~360 px · drill-down</text>
+
+  <!-- gates -->
+  <rect x="24" y="330" width="932" height="58" rx="9" fill="#121a36" stroke="#ff7a3d" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="40" y="356" fill="#e8ecf6" font-size="12.5" font-weight="700">GATE ① Day-1 spike — does showDirectoryPicker() open in an MV3 side panel?</text>
+  <text x="40" y="376" fill="#9aa6c4" font-size="11">PASS → local-folder mode ships.  FAIL → GitHub-only local story + page-context bridge. (GitHub path unaffected either way.)</text>
+
+  <rect x="24" y="402" width="932" height="58" rx="9" fill="#16203f" stroke="#33406a" stroke-width="1.5"/>
+  <text x="40" y="428" fill="#e8ecf6" font-size="12.5" font-weight="700">SHELL ② MV3 build adapter (build-only)</text>
+  <text x="40" y="448" fill="#9aa6c4" font-size="11">base:'./' relative assets · hash routing · externalize inline boot script · host_permissions (github/osv/fonts) · self-host fonts</text>
+</svg>
+<figcaption>Shared isomorphic core, two surfaces, two gates. Dashed orange = new / decision.</figcaption>
+</figure>
+
+<p class="small"><strong>Already surface-agnostic (reused verbatim):</strong> the <code>.pack</code> wire format + decoder (<span class="ref">packages/factspack</span>), the pure analyzer tiers (<span class="ref">core, graph, scanners, parsers, extractors, walker, intent</span>), the FS abstraction + GitHub fetcher (<span class="ref">packages/fs-browser</span> — <code>FsaBrowserFS</code>, <code>fetchGitHubToMemory()</code>), artifact materialization (<span class="ref">packages/emit-browser</span>), and the design tokens (<span class="ref">packages/ui-theme/tokens.css</span>). <strong>Not reusable:</strong> the <code>apps/ui-remix</code> route/view tree (WebUI-specific) — the panel builds its own presentation on top of the same <code>Dataset</code>.</p>
+
+<!-- ───────────────────────── DATA ───────────────────────── -->
+<h2 id="data"><span class="n">02</span>Data acquisition &amp; active-tab awareness</h2>
+<p>Your decision: support <strong>both local and GitHub</strong>, with a special path for “GitHub open in the main tab.” That blend is the spine of the panel.</p>
+
+<h3>The headline flow: analyze the active GitHub tab</h3>
+<div class="card accent">
+<ol>
+  <li>The panel reads the <strong>active tab’s URL</strong> (via <code>chrome.tabs</code> + a <code>github.com</code> host permission), and on <code>tabs.onActivated</code>/<code>onUpdated</code> keeps it current.</li>
+  <li>If it matches <code>github.com/&lt;owner&gt;/&lt;repo&gt;</code>, the panel shows a primary <strong>“Analyze &lt;owner&gt;/&lt;repo&gt;”</strong> button — zero typing.</li>
+  <li>On click → <code>fetchGitHubToMemory(owner, repo)</code> (existing, <span class="ref">packages/fs-browser</span>) pulls the tree + blobs into a <code>MemoryFS</code> → <code>analyze()</code> in the Worker → <code>humanToViz()</code> → render.</li>
+  <li>Optional PAT (for private repos / rate limits) entered once; see the <a href="#risks">PAT-security risk</a> before shipping.</li>
+</ol>
+<p style="margin-bottom:0">This is the elegant answer to the <strong>“current project” problem</strong>: the panel infers context from what you’re actually looking at, instead of asking you to pick a folder every session.</p>
+</div>
+
+<h3>The three input modes</h3>
+<table>
+<thead><tr><th>Mode</th><th>How it works</th><th>Why</th><th>Watch out</th></tr></thead>
+<tbody>
+<tr><td><strong>GitHub (active tab)</strong> <span class="small">MVP</span></td><td>Detect owner/repo from active tab → <code>fetchGitHubToMemory</code> → analyze in Worker</td><td>Solves current-project detection; no local checkout; matches repo’s documented chrome-ext direction; ~80% built</td><td>Repo bytes flow through GitHub’s API (weaker “never leaves the machine”); PAT for private repos + rate limits</td></tr>
+<tr><td><strong>Local folder</strong> <span class="small">MVP · spike-gated</span></td><td><code>showDirectoryPicker()</code> → <code>FsaBrowserFS</code> → analyze in Worker; persist handle in IndexedDB</td><td>Strongest privacy (network-free, INV6); freshest (live working tree); reuses the shipping OpenModal pipeline</td><td>FSA-in-side-panel is <strong>unverified</strong> (Risk #1); per-session permission prompt is irreducible</td></tr>
+<tr><td><strong>Bundled demo</strong> <span class="small">MVP</span></td><td>Pre-baked dataset via the existing inline <code>loadArtifacts()</code> path</td><td>Zero setup, offline, instant first paint; good for onboarding/screenshots</td><td>Not the user’s project; invalidate on shape change across extension updates</td></tr>
+<tr><td><span class="small">Localhost <code>factstack ui</code> (opportunistic, P2)</span></td><td>Probe <code>127.0.0.1:4848/data/factstack.json</code> + SSE <code>/api/watch</code>; use only if present</td><td>Live re-analyze updates; near-zero new code</td><td>MV3 https→http-localhost / Private Network Access friction; never <em>required</em></td></tr>
+<tr><td><span class="small">Native messaging (rejected)</span></td><td>—</td><td>—</td><td>XL effort, brittle per-OS host registration, redundant now that core runs in-browser</td></tr>
+</tbody>
+</table>
+
+<p class="small"><strong>Payload note (corrected from a naïve “1.2 MB” reading):</strong> the baked dataset is ~1.2 MB but <strong>68% is documentation prose</strong> (<code>docs[].content</code> ≈ 650 KB). The graph/tree/metrics the panel needs is only ~350 KB, and the <code>.pack</code> fast-path is ~480 KB. For the panel we <strong>strip doc bodies</strong> (lazy-load on open) and add a panel-specific resident-payload cap (&lt;600 KB) to <span class="ref">check-bundle-size.mjs</span> so the doc bake-in can’t silently return.</p>
+
+<!-- ───────────────────────── UI ───────────────────────── -->
+<h2 id="ui"><span class="n">03</span>The UI remake — frontend-design / impeccable</h2>
+<p>The existing design is an editorial broadsheet: a centered content column plus a margin/footnote “wing,” multi-column tables, and 760px-hardcoded diagrams. The repo’s own tokens declare <strong>340px as the minimum tested width</strong>; below that the math breaks (margin col → ~64px, 5-col tables → ~70px cells, the folder heatmap → 1px cells). Folding the desktop down produces the “shrunk desktop” look that reads as low-craft — the opposite of the goal.</p>
+
+<div class="card ok"><strong>Decision: build sidebar-specific views over the same <code>Dataset</code></strong> — not responsive media-queries on the desktop routes. Each surface is honest to its width; zero regression risk to the shipping dashboard; the entire data/analysis/token layer is reused, so this is a presentation-only effort.</div>
+
+<h3>Navigation: drill-down stack + ⌘K</h3>
+<ul>
+  <li>A <strong>drill-down stack</strong> (Home → section → detail) with a thin sticky <code>.glass</code> top bar (back button + mono breadcrumb + ⌘K + theme). Not a 9-tab row — 6 tabs already scroll at 400px.</li>
+  <li><strong>Home is a launcher, not a route:</strong> a condensed Overview (health grade + 2×2 stat grid) above a single-column nav list where each row carries a live signal (Security → risk count + tone dot, Tests → pass %, History → 40px sparkline, Modules → count). You can triage without drilling.</li>
+  <li><strong>⌘K</strong> (already built) becomes the primary cross-cutting jump, extended with risks/vulns/modules as result types. Bind <kbd>Ctrl+K</kbd> too and surface it in the top bar.</li>
+  <li>Sub-views (Security has 3, Architecture has 3, Files has 2) become <strong>drill rows</strong> or a ≤3-chip mini-segment when labels are short.</li>
+</ul>
+
+<h3>The diagram ladder (the key move)</h3>
+<ol>
+  <li><strong>List-first by default</strong> — ranked rows with inline proportional bars, built from the same <code>computeSankey</code>/<code>treemap</code>/<code>graphAnalysis</code> inputs. Legible at 320px, sortable, and the most agent- and CXO-readable form. The list <em>is</em> the evidence.</li>
+  <li><strong>Glance</strong> — a fluid <code>viewBox</code> SVG (Treemap, sparklines, mini-bars) only when it stays legible above a measured min size (ResizeObserver; below threshold, fall back to the list).</li>
+  <li><strong>Immersive</strong> — a full-panel-height pinch/pan/zoom sheet for the dependency graph, on demand (Phase 2). Never render a hardcoded-px SVG inline.</li>
+</ol>
+
+<h3>Component-by-component plan</h3>
+<table>
+<thead><tr><th>Component / route</th><th>Verdict</th><th>Sidebar treatment</th></tr></thead>
+<tbody>
+<tr><td>MarginColumn / ContentWithMargin</td><td><span class="tag drop">DROP</span></td><td>The broadsheet wing can’t survive (~64px). No parallel lane.</td></tr>
+<tr><td>FootnoteChip</td><td><span class="tag rework">REWORK</span></td><td>Inline “aside note” at section end: hairline-topped, mono label + body, full width.</td></tr>
+<tr><td>LabelNumberRow / LabelNumber</td><td><span class="tag rework">REWORK</span></td><td>Keep the mono tabular-number DNA; replace the hairline row with a 2-col stat grid; promote one lede stat full-width.</td></tr>
+<tr><td>NumberedNav</td><td><span class="tag drop">DROP</span></td><td>Role absorbed by the Home nav-list (keeps 01–09 numbering) + back-stack.</td></tr>
+<tr><td>SubViewTabs</td><td><span class="tag rework">REWORK</span></td><td>Drill rows or ≤3-chip mini-segment; keep deep-link/localStorage logic.</td></tr>
+<tr><td>Section</td><td><span class="tag keep">KEEP</span></td><td>Degrades cleanly; cap title at ~24px (display sizes flatten anyway — make it intentional).</td></tr>
+<tr><td>RuledTable / Hubs / Couplings / KeyFiles</td><td><span class="tag rework">REWORK</span></td><td>2-line list rows: name + the one key metric right-aligned; secondary metrics muted inline (<code>I 12 · O 4 · Σ 16</code>); tap → detail.</td></tr>
+<tr><td>01 Overview</td><td><span class="tag rework">REWORK</span></td><td>Becomes Home/hero: kicker, one-liner (≤24px), full-width health badge, 2×2 stats, condensed Token-ROI bar.</td></tr>
+<tr><td>02 Architecture</td><td><span class="tag rework">REWORK</span></td><td>Text-first shape summary + ranked hubs list; the DAG behind a “View graph” affordance (immersive sheet / desktop tab).</td></tr>
+<tr><td>03 Modules</td><td><span class="tag keep">KEEP</span></td><td>Best-fitting route (already list+bar). Full-width importance bars; the panel showcase.</td></tr>
+<tr><td>04 Files</td><td><span class="tag rework">REWORK</span></td><td>Single-column collapsible tree with right-aligned token/LOC badges; tap a file → metrics + imports/imported-by lists.</td></tr>
+<tr><td>05 Docs</td><td><span class="tag keep">KEEP</span></td><td>Prose fits a thin column; list of docs → full-width markdown reader (~50ch). Lazy-load bodies.</td></tr>
+<tr><td>06 Review</td><td><span class="tag keep">KEEP</span></td><td>Verdict banner + numbered reasons list — inherently narrow-friendly.</td></tr>
+<tr><td>07 Security (Risks/Secrets/Vulns)</td><td><span class="tag rework">REWORK</span></td><td>Three drill rows with counts+tone; finding lists (keep RiskRow); drop the vuln Sankey → grouped severity list with expandable packages; keep refresh-OSV.</td></tr>
+<tr><td>08 Tests</td><td><span class="tag rework">REWORK</span></td><td>Pass/fail/coverage stat grid + one coverage bar; failing/uncovered files as list rows.</td></tr>
+<tr><td>09 History</td><td><span class="tag rework">REWORK</span></td><td>Keep Sparkline (ideal); snapshot table → vertical timeline with delta chips; multi-metric chart → 2–3 stacked sparklines.</td></tr>
+<tr><td>Heatmap (folder×folder)</td><td><span class="tag drop">DROP</span></td><td>Unusable at width → “top coupled pairs” list.</td></tr>
+<tr><td>Sankey (flow/coupling/vuln)</td><td><span class="tag drop">DROP</span> default</td><td>Ranked source→target list with magnitude + inline bar; Sankey only in a zoom sheet.</td></tr>
+<tr><td>Treemap</td><td><span class="tag rework">REWORK</span></td><td>Fluid square (aspect-ratio 1), top-N tiles, labels suppressed below min size; &lt;300px → list fallback.</td></tr>
+<tr><td>Sugiyama DAG</td><td><span class="tag rework">REWORK</span></td><td>Inline shape summary + hubs list; full graph in an immersive zoom/pan sheet (the one diagram worth it).</td></tr>
+</tbody>
+</table>
+
+<h3>Design direction (tuned for a persistent thin panel)</h3>
+<ul>
+  <li><strong>Type:</strong> reuse <code>tokens.css</code>; cap max heading ~24px; body 13–14; data/mono 11–12; labels 10. Keep JetBrains Mono tabular numerals — the data density <em>is</em> the aesthetic.</li>
+  <li><strong>Density &amp; space:</strong> ~50ch measure; 44px min tap rows; flat 16px panel inset (drop the broadsheet gutter clamp); 4pt vertical rhythm; sticky section sub-headers on long scrolls.</li>
+  <li><strong>Color:</strong> keep dark-first navy + safety-orange accent + yellow highlight verbatim — a terminal palette is right beside an editor. Dark is the correct default.</li>
+  <li><strong>Surfaces:</strong> single column always; hairlines over boxes; paper over cards; glass only on the sticky top bar + ⌘K sheet.</li>
+  <li><strong>Motion:</strong> restrained/fast; one signature motion = the drill push/pop slide; honor <code>prefers-reduced-motion</code>; no decorative animation.</li>
+  <li><strong>Edges:</strong> every list has a clean mono empty note; truncate filenames middle-out (keep extension); must look intentional at both 320px and 400px (fluid, not fixed).</li>
+</ul>
+
+<!-- ───────────────────────── MV3 ───────────────────────── -->
+<h2 id="mv3"><span class="n">04</span>MV3 shell — what actually has to change</h2>
+<div class="grid2">
+  <div class="card danger">
+    <div class="mono-lbl" style="margin-top:0">Real blockers (must fix)</div>
+    <ul class="check">
+      <li><strong>Inline boot script banned.</strong> The no-flash IIFE (<code>index.html:31</code>) is pinned by a SHA-256 hash today; MV3 ignores hashes and forbids inline scripts entirely → externalize to <code>/assets/theme-init.js</code>.</li>
+      <li><strong>Absolute asset paths + path routing 404.</strong> Built HTML uses <code>/assets/…</code> and the router uses path-based <code>pushState</code>. Add <code>vite base:'./'</code> + a <strong>hash-routing adapter</strong> (<code>#/security/vulnerabilities</code>).</li>
+      <li><strong>External origins move to the manifest.</strong> The HTTP-header CSP doesn’t carry over; MV3 grants remote access via <code>host_permissions</code> (github, api.osv.dev, raw.githubusercontent.com, fonts) — not <code>connect-src</code>.</li>
+    </ul>
+  </div>
+  <div class="card ok">
+    <div class="mono-lbl" style="margin-top:0">Confirmed safe (no change)</div>
+    <ul class="check">
+      <li><strong><code>css()</code> adoptedStyleSheets</strong> is CSSOM — exempt from <code>style-src</code>. The strict no-inline-style posture is already MV3-clean.</li>
+      <li><strong>Dynamic <code>import()</code></strong> of the osvScanner chunk pulls a hashed module from the extension origin — covered by <code>script-src 'self'</code>.</li>
+      <li><strong>No WASM</strong> in the build today (pure-JS parser); no <code>wasm-unsafe-eval</code> needed. (Add it only if tree-sitter WASM lands later.)</li>
+      <li>The inline dataset <code>&lt;script type="application/json"&gt;</code> is non-executable → MV3-safe.</li>
+    </ul>
+  </div>
+</div>
+<p class="small">Recommended: <strong>self-host fonts</strong> as bundled woff2 to drop the <code>fonts.googleapis.com</code>/<code>gstatic.com</code> dependency (removes a trust-surface origin and the FOUC race). Keep <code>build:static</code> (no sourcemaps) for the extension build. Run long analyses in the <strong>panel page context</strong>, never the service worker (MV3 SWs die after ~30s idle and would corrupt a run).</p>
+
+<!-- ───────────────────────── RISKS ───────────────────────── -->
+<h2 id="risks"><span class="n">05</span>Challenges &amp; risk register</h2>
+<table>
+<thead><tr><th>#</th><th>Risk</th><th>Sev</th><th>Blocker?</th><th>Mitigation</th></tr></thead>
+<tbody>
+<tr>
+  <td>1</td>
+  <td><strong>File System Access may not work in an MV3 side panel.</strong> Every local entry point routes through <code>window.showDirectoryPicker()</code>, which historically throws in extension page contexts. The <code>&lt;input webkitdirectory&gt;</code> fallback returns no handle (kills persistence + save-back).</td>
+  <td class="sev-h">High</td><td class="yes">Yes</td>
+  <td>Day-1 spike. PASS → local mode ships. FAIL → page-context bridge (invoke picker on a real page, post the handle to the panel) <em>or</em> lean on the GitHub path for local-ish needs. GitHub flow is unaffected.</td>
+</tr>
+<tr>
+  <td>2</td>
+  <td><strong>MV3 CSP/build incompatibilities</strong> (inline boot script, absolute asset paths, path routing, external-origin authorization).</td>
+  <td class="sev-h">High</td><td class="yes">Yes</td>
+  <td>All build-only (see §04). Externalize boot; <code>base:'./'</code> + hash routing; manifest <code>host_permissions</code>; self-host fonts. No app rewrite.</td>
+</tr>
+<tr>
+  <td>3</td>
+  <td><strong>Ship-gate governance.</strong> No manifest, no privacy policy, no schema-version gate (the pack decoder explicitly does <em>not</em> enforce version → silent mis-render on drift), MV3 SW ephemerality, PAT in plaintext localStorage, install-time permission scrutiny.</td>
+  <td class="sev-h">High</td><td class="yes">Yes</td>
+  <td>Add a parallel ship-gate workstream: privacy policy + least-privilege manifest; a <strong>pack version gate at decode</strong> (refuse + “re-analyze with a matching CLI” instead of rendering garbage); analyze in panel context; <code>chrome.identity</code> for GitHub auth before private-repo support.</td>
+</tr>
+<tr>
+  <td>4</td>
+  <td><strong>Payload.</strong> 1.2 MB baked, but 68% is doc prose; not a first-paint blocker (JSON.parse ≈ tens of ms). The real risk is silently shipping doc bodies + hardcoded SVGs.</td>
+  <td class="sev-h">High</td><td class="no">No</td>
+  <td>Strip <code>docs[].content</code> from the panel profile (−650 KB), lazy-load on open; use the <code>.pack</code> fast-path; add a panel resident-payload cap to the bundle guard.</td>
+</tr>
+<tr>
+  <td>5</td>
+  <td><strong>Two-UI drift / maintenance.</strong> A second presentation surface.</td>
+  <td class="sev-m">Med</td><td class="no">No</td>
+  <td>Only presentation forks; data/analysis/tokens shared. All routes already take one <code>Dataset</code> prop → add a per-PR <code>Dataset</code>-parity check.</td>
+</tr>
+<tr>
+  <td>6</td>
+  <td><strong>“Current project” detection.</strong> No mechanism exists in the repo; a panel beside an editor doesn’t know which local repo you’re viewing.</td>
+  <td class="sev-m">Med</td><td class="no">No</td>
+  <td><strong>Active-tab GitHub detection solves this for the GitHub path</strong> (your chosen headline flow). For local: persist last handle in IndexedDB + one-tap “re-grant &amp; re-analyze”; accept the per-session prompt.</td>
+</tr>
+</tbody>
+</table>
+<p class="small"><strong>Honest residuals:</strong> (a) if the FSA spike fails, the “one folder-pick, no install” promise weakens. (b) GitHub-first routes repo bytes through GitHub’s servers, so “code never leaves the machine” doesn’t hold for that path — a tradeoff to communicate, not hide. (c) Chrome Web Store review timing is outside our control. (d) Shipping zero-telemetry (to honor the privacy brand) leaves us blind to field failures — a deliberate, accepted trade.</p>
+
+<!-- ───────────────────────── ROADMAP ───────────────────────── -->
+<h2 id="road"><span class="n">06</span>Phased roadmap</h2>
+
+<div class="phase">
+  <span class="when">PHASE 0 · de-risk &amp; scaffold</span>
+  <h3>Prove the unknowns; lay the shell</h3>
+  <ul class="check">
+    <li><strong>FSA spike</strong> — throwaway MV3 side panel: call <code>showDirectoryPicker()</code>; structured-clone a handle into a module Worker; read a file via <code>FsaBrowserFS</code>. Decides Risk #1.</li>
+    <li>Scaffold <code>apps/chrome-ext</code> into the workspace: <code>manifest.json</code> (MV3, <code>side_panel</code>, least-privilege perms), <code>panel.html</code> Vite entry, hash router, externalized boot script.</li>
+    <li><strong>Pack schema-version gate</strong> at the decode boundary (close the “decoder doesn’t enforce version” gap).</li>
+    <li>Active-tab detection spike: <code>chrome.tabs</code> + <code>github.com</code> host permission → parse owner/repo.</li>
+    <li>Privacy policy draft + permission inventory (ship-gate seed).</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <span class="when">PHASE 1 · MVP — the remake, list-first</span>
+  <h3>A genuinely good narrow companion</h3>
+  <ul class="check">
+    <li>Panel shell: drill-down stack + sticky glass top bar + ⌘K; Home launcher with live signals.</li>
+    <li>Data: <strong>GitHub active-tab analyze</strong> + <strong>local folder</strong> (if spike passed) + bundled demo first-run.</li>
+    <li>Routes: Home (Overview), Modules, Files, Security, History — all list-first.</li>
+    <li>Diagram ladder tier-1 only (ranked lists from the shared compute). Strip doc bodies; panel bundle cap.</li>
+    <li>frontend-design / impeccable pass on the panel primitives (PanelScaffold, StatGrid, MiniBar, Drilldown header).</li>
+  </ul>
+</div>
+
+<div class="phase">
+  <span class="when">PHASE 2 · reach &amp; depth</span>
+  <h3>Pictures, prose, and live</h3>
+  <ul class="check">
+    <li>Immersive dependency-graph sheet (pinch/pan/zoom) + Treemap glance tier.</li>
+    <li>Docs reader (lazy bodies), Review, Tests routes.</li>
+    <li>GitHub auth via <code>chrome.identity</code> (private repos); opportunistic localhost <code>factstack ui</code> live updates.</li>
+    <li>Chrome Web Store submission: listing, screenshots, privacy policy, permission justifications.</li>
+    <li>Optional: a content-script “Open in FactStack” affordance injected on github.com repo pages.</li>
+  </ul>
+</div>
+
+<!-- ───────────────────────── OPEN ───────────────────────── -->
+<h2 id="open"><span class="n">07</span>Open questions to resolve in Phase 0</h2>
+<ul>
+  <li><strong>FSA-in-side-panel</strong> — the spike answer. Everything local hinges on it.</li>
+  <li><strong>Does <code>.pack</code> alone drive the panel</strong>, or is <code>human.json</code> always needed? (<code>humanToViz()</code> takes both — confirm before committing to the <code>.pack</code> fast-path.)</li>
+  <li><strong>Width floor</strong> — is 320px a hard target, or is 340–400px the realistic floor? (Affects whether the 2×2 stat grid + 44px rows stay comfortable.)</li>
+  <li><strong>Audience weighting</strong> — CXO triager (lead with Home signals) vs developer (lead with Files/Modules/graph)? Shifts what Home leads with.</li>
+  <li><strong>Immersive graph</strong> — build an in-panel pinch/pan canvas, or open the existing desktop DAG in a tab? (Cuts that effort from L to S.)</li>
+  <li><strong>Permission scope vs conversion</strong> — <code>github.com</code> host access + <code>tabs</code> raises the install prompt scariness; confirm the least-privilege set for MVP.</li>
+</ul>
+
+<!-- ───────────────────────── APPENDIX ───────────────────────── -->
+<h2 id="appendix"><span class="n">08</span>Appendix — key files &amp; invariants</h2>
+<div class="grid2">
+  <div class="card">
+    <div class="mono-lbl" style="margin-top:0">Reuse (browser-safe, untouched)</div>
+    <ul class="small">
+      <li><span class="ref">packages/core</span> — isomorphic analyze()</li>
+      <li><span class="ref">packages/fs-browser</span> — FsaBrowserFS, fetchGitHubToMemory()</li>
+      <li><span class="ref">packages/factspack</span> — .pack encode/decode</li>
+      <li><span class="ref">packages/emit-browser</span> — writeBrowserArtifacts()</li>
+      <li><span class="ref">packages/scanners</span> — OSV client (pluggable cache)</li>
+      <li><span class="ref">packages/ui-theme/tokens.css</span> — design tokens</li>
+      <li><span class="ref">apps/ui-remix/src/scanner.worker.ts</span> / <span class="ref">scannerBridge.ts</span> — the in-browser analyze paths</li>
+      <li><span class="ref">apps/ui-remix/src/lib/loadArtifacts.ts</span> — dual inline/fetch loader</li>
+    </ul>
+  </div>
+  <div class="card">
+    <div class="mono-lbl" style="margin-top:0">New (in apps/chrome-ext)</div>
+    <ul class="small">
+      <li><code>manifest.json</code> (MV3, side_panel, host_permissions)</li>
+      <li><code>panel.html</code> + panel Vite entry; <code>base:'./'</code></li>
+      <li>hash-routing adapter; externalized <code>theme-init.js</code></li>
+      <li>active-tab detector (chrome.tabs → owner/repo)</li>
+      <li>pack schema-version gate</li>
+      <li>panel-specific presentation tree + primitives</li>
+      <li>panel inject profile (strip doc bodies) + bundle cap</li>
+    </ul>
+  </div>
+</div>
+<p class="small" style="margin-top:14px"><strong>Invariants honored:</strong> INV1 (pure tiers stay node-free; scanners’ network is the allowed exception), INV6 (local analyze is provably network-free — the privacy claim for the local path), INV7 (browser==CLI parity keeps <code>scanner.worker.ts</code> a maintained path), and the strict no-inline-style / CSP posture (already MV3-aligned). Schema stays additive (<code>FACTS_SCHEMA_VERSION 0.1.0</code>); the new version gate makes drift loud instead of silent.</p>
+
+<div class="footer">
+  FactStack · Chrome side-panel surface · planning artifact · generated 2026-06-28 · status: PLAN ONLY (no code, no branch yet) · grounded in a 13-agent read-only code audit + adversarial review.
+</div>
+
+</div>
+</body>
+</html>
