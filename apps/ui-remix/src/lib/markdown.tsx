@@ -9,11 +9,13 @@
  * horizontal rules, and inline bold/italic/code/links. Unknown syntax falls
  * back to plain text — never throws.
  *
- * Everything is escaped by virtue of being passed as VDOM text children, so
- * there's no XSS surface even on untrusted doc content.
+ * Text is escaped by virtue of being passed as VDOM text children, and link
+ * hrefs are scheme-sanitized (see `safeHref`), so there's no XSS surface even
+ * on untrusted doc content copied verbatim from the analyzed project.
  */
 import { css } from 'remix/ui';
 import type { RemixNode } from 'remix/ui';
+import { safeHref } from './urlSafety.ts';
 
 /* ─────────── styles ─────────── */
 
@@ -78,7 +80,7 @@ export function renderInline(text: string): RemixNode[] {
     } else if (tok.startsWith('[')) {
       const lm = /^\[([^\]]+)\]\(([^)\s]+)[^)]*\)$/.exec(tok);
       const label = lm?.[1] ?? tok;
-      const href = lm?.[2] ?? '#';
+      const href = safeHref(lm?.[2] ?? '#');
       const ext = /^https?:/i.test(href);
       out.push(
         <a key={`l${k}`} href={href} mix={linkStyle} {...(ext ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>

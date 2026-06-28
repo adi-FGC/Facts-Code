@@ -24,8 +24,9 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { ExtractionCache, FileExtraction } from '@factstack/core';
 // node:sqlite has no @types/node@20 declarations — see ./node-sqlite.ts for the
-// typed re-export shim (drop it once the workspace adopts @types/node@^22).
-import { DatabaseSync } from './node-sqlite.js';
+// typed shim. `DatabaseSync` is a type here; the runtime ctor is loaded lazily
+// via loadDatabaseSync() so importing this module never throws on Node < 22.5.
+import { type DatabaseSync, loadDatabaseSync } from './node-sqlite.js';
 
 /** On-disk schema version. Independent of the key's extractor version: bump
  *  this only when the TABLE shape changes. Mismatch ⇒ wipe + rebuild. */
@@ -53,7 +54,10 @@ export class SqliteExtractionCache implements ExtractionCache {
 
   constructor(dbPath: string) {
     mkdirSync(dirname(dbPath), { recursive: true });
-    this.#db = new DatabaseSync(dbPath);
+    // Lazily resolve the node:sqlite ctor (throws on Node < 22.5 — the caller
+    // catches and falls back to a cache-less run).
+    const DB = loadDatabaseSync();
+    this.#db = new DB(dbPath);
     // WAL + NORMAL: durable enough for a rebuildable cache, fast on warm runs.
     this.#db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
     this.#db.exec('CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);');

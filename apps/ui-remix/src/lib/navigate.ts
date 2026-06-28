@@ -13,6 +13,8 @@
  * a complete client-side router in ~20 lines.
  */
 
+import { isDangerousScheme } from './urlSafety.ts';
+
 export interface NavigateOptions {
   /** Default 'push' — adds a history entry. 'replace' overwrites the current entry. */
   history?: 'push' | 'replace';
@@ -21,6 +23,9 @@ export interface NavigateOptions {
 const NAV_EVENT = 'factstack:nav';
 
 export function navigate(href: string, opts: NavigateOptions = {}): void {
+  // Never route to a script/inline-payload scheme — pushState would store it
+  // and the catch-fallback below would location.assign() (= execute) it.
+  if (isDangerousScheme(href)) return;
   const mode = opts.history ?? 'push';
   if (location.pathname + location.search + location.hash === href) return;
   try {
@@ -28,7 +33,7 @@ export function navigate(href: string, opts: NavigateOptions = {}): void {
     else history.pushState({}, '', href);
   } catch {
     // file:// or sandboxed frame — fall through to a hard nav so the user
-    // isn't stuck.
+    // isn't stuck. (Dangerous schemes already returned above.)
     location.assign(href);
     return;
   }
@@ -59,6 +64,10 @@ export function linkClick(event: Event): void {
   if (a.hasAttribute('download')) return;
   const href = a.getAttribute('href');
   if (!href) return;
+  // Neutralize script/inline-payload schemes (e.g. a javascript: href planted
+  // via untrusted doc markdown): swallow the click entirely — never navigate,
+  // never let the browser follow it.
+  if (isDangerousScheme(href)) { event.preventDefault(); return; }
   // In-page anchors (`#main`, `#section`) are native browser behavior: the
   // browser scrolls the target into view and moves focus to it. Intercepting
   // them would preventDefault() and pushState the hash WITHOUT scrolling or

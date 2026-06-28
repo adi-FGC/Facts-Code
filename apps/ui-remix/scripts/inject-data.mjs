@@ -133,7 +133,14 @@ if (!html.includes(NEEDLE)) {
   process.exit(0);
 }
 
-const replacement = JSON.stringify(dataset);
+/* Escape `<` so a literal `</script>` inside any baked string value (a doc
+   body, source snippet, TODO text, …) cannot terminate the inline
+   `<script type="application/json">` element early and spill the rest of the
+   JSON into the document. `<` is valid JSON and parses back to `<`, so
+   JSON.parse in loadArtifacts is unaffected. Without this, any analyzed
+   project whose markdown/source contains `</script>` produces a broken
+   static export. */
+const replacement = JSON.stringify(dataset).replace(/</g, '\\u003c');
 /* Function replacer: a plain string replacement interprets `$&`, `$1`, `$$`
    etc. as match backreferences, and the dataset JSON can contain literal `$`
    sequences. A replacer function is inserted verbatim. */

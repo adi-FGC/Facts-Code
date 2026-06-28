@@ -238,14 +238,11 @@ export function About(handle: Handle<AboutProps>) {
         </div>
 
         <MarginColumn>
-          <FootnoteChip label="Briefing" tone="accent">
-            <a href="/briefing.html" mix={link} target="_blank" rel="noopener noreferrer">
-              Executive briefing ↗
-            </a>
-            <span mix={css({ display: 'block', marginTop: '4px', color: 'var(--fg-faint)', fontSize: 'var(--fs-11)' })}>
-              plain-English tour for a CXO / new CTO
-            </span>
-          </FootnoteChip>
+          {/* The standalone briefing.html relies on inline <script>/<style> +
+              a CDN import, all blocked by the strict production CSP — so it
+              rendered unstyled + non-functional when reached from here. Link
+              removed until the page is reworked to be CSP-clean (tracked
+              separately); it stays in the repo for local file:// viewing. */}
           <FootnoteChip label="Generated">
             {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}
           </FootnoteChip>

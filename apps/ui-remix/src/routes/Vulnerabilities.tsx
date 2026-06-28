@@ -659,6 +659,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                             key={v.id}
                             vuln={v}
                             installedVersion={r.query.version}
+                            pkgName={r.query.name}
                           />
                         );
                       })}
@@ -709,6 +710,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
 interface VulnRowProps {
   vuln: OsvVuln;
   installedVersion: string;
+  /** Queried package name — scopes the "fixed in" lookup to the right package. */
+  pkgName: string;
 }
 
 /* Defining VulnRowView as a remix component closure ensures the
@@ -716,7 +719,7 @@ interface VulnRowProps {
    types via type-only imports above. */
 function VulnRowView(handle: Handle<VulnRowProps>) {
   return () => {
-    const { vuln, installedVersion } = handle.props;
+    const { vuln, installedVersion, pkgName } = handle.props;
     /* Compute bucket + advisory URL inline (no need for osvScanner
        import at render-time — these are pure transforms over OSV
        types we already have as types). The osvScanner helpers run
@@ -725,7 +728,7 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
        on first paint. */
     const bucket = bucketSeverityLocal(vuln);
     const advisoryUrl = pickAdvisoryUrlLocal(vuln);
-    const fixedIn = pickFixedVersionLocal(vuln);
+    const fixedIn = pickFixedVersionLocal(vuln, pkgName);
     const pillStyle =
       bucket === 'critical' ? sevPillCritical :
       bucket === 'high'     ? sevPillHigh :
@@ -758,11 +761,26 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
    lives in osvScanner.ts; these track its behavior. ~10 lines, worth
    the duplication to keep the first-paint chunk lean. */
 function bucketSeverityLocal(v: OsvVuln): SeverityBucket {
-  const cvss = (v.severity ?? []).find((s) => s.type.startsWith('CVSS'));
+  /* Mirror of scanners' bucketSeverity (INV7 parity): prefer the newest CVSS
+     version, and handle CVSS v4's VC/VI/VA impact metrics — the v3-shaped
+     [/:]C:H regex never matches a v4 vector, which used to drop real
+     critical/high advisories to 'unknown'. */
+  const sev = v.severity ?? [];
+  const cvss =
+    sev.find((s) => s.type === 'CVSS_V4') ??
+    sev.find((s) => s.type === 'CVSS_V3') ??
+    sev.find((s) => s.type.startsWith('CVSS'));
   if (cvss) {
-    if (/[/:]C:H.*[/:]I:H.*[/:]A:H/u.test(cvss.score)) return 'critical';
-    if (/[/:]C:H|[/:]I:H|[/:]A:H/u.test(cvss.score)) return 'high';
-    if (/[/:]C:L|[/:]I:L|[/:]A:L/u.test(cvss.score)) return 'medium';
+    const sc = cvss.score;
+    if (cvss.type === 'CVSS_V4' || /CVSS:4/.test(sc) || /\bV[CIA]:/.test(sc)) {
+      if (/\bVC:H/.test(sc) && /\bVI:H/.test(sc) && /\bVA:H/.test(sc)) return 'critical';
+      if (/\bVC:H/.test(sc) || /\bVI:H/.test(sc) || /\bVA:H/.test(sc)) return 'high';
+      if (/\bVC:L/.test(sc) || /\bVI:L/.test(sc) || /\bVA:L/.test(sc)) return 'medium';
+    } else {
+      if (/[/:]C:H.*[/:]I:H.*[/:]A:H/u.test(sc)) return 'critical';
+      if (/[/:]C:H|[/:]I:H|[/:]A:H/u.test(sc)) return 'high';
+      if (/[/:]C:L|[/:]I:L|[/:]A:L/u.test(sc)) return 'medium';
+    }
   }
   const dbSev = v.database_specific?.severity?.toUpperCase();
   if (dbSev === 'CRITICAL') return 'critical';
@@ -771,8 +789,12 @@ function bucketSeverityLocal(v: OsvVuln): SeverityBucket {
   if (dbSev === 'LOW') return 'low';
   return 'unknown';
 }
-function pickFixedVersionLocal(v: OsvVuln): string | null {
-  for (const aff of v.affected ?? []) {
+function pickFixedVersionLocal(v: OsvVuln, pkgName?: string): string | null {
+  /* Scope to the queried package — one OSV advisory can list several affected
+     packages and the first is often not ours (INV7 parity with scanners). */
+  const affected = v.affected ?? [];
+  const scoped = pkgName ? affected.filter((a) => a.package?.name === pkgName) : affected;
+  for (const aff of scoped.length > 0 ? scoped : affected) {
     for (const range of aff.ranges ?? []) {
       for (const ev of range.events) {
         if (ev.fixed) return ev.fixed;

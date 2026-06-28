@@ -474,6 +474,13 @@ export function Flow(handle: Handle<FlowProps>) {
         .sort((a, b) => (outDeg.get(b) ?? 0) - (outDeg.get(a) ?? 0))
         .slice(0, 30);
       const routeOptions = Array.from(routeSet).slice(0, 30);
+      /* The resolved `entry` (from pickDefaultEntryPoint or a stored override)
+         can fall outside BOTH capped lists — e.g. a route ranked past 30, or a
+         zero-out-degree fallback file. A native <select value={entry}> with no
+         matching <option> silently shows its first option, misrepresenting
+         which file the diagram below was actually built from. Surface the
+         current entry as its own option so the control never lies. */
+      const entryCovered = routeOptions.includes(entry) || nonRoutes.includes(entry);
 
       const seqResult = buildSequenceFlow({
         files: inProject,
@@ -496,6 +503,11 @@ export function Flow(handle: Handle<FlowProps>) {
               ]}
               value={entry}
             >
+              {!entryCovered && (
+                <optgroup label="Current">
+                  <option key={entry} value={entry}>{entry}</option>
+                </optgroup>
+              )}
               {routeOptions.length > 0 && (
                 <optgroup label="Routes">
                   {routeOptions.map((p) => (

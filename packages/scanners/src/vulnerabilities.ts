@@ -277,7 +277,7 @@ export function osvResultsToVulnerabilities(
         ecosystem: r.query.ecosystem,
         package: r.query.name,
         installedVersion: r.query.version,
-        fixedVersion: pickFixedVersion(v),
+        fixedVersion: pickFixedVersion(v, r.query.name),
         advisoryUrl: pickAdvisoryUrl(v),
         lastChecked: now,
         manifestPath: r.query.manifestPath ?? '',
@@ -296,16 +296,35 @@ export function osvResultsToVulnerabilities(
  * present, fall back to the database-specific label, then to 'unknown'.
  */
 export function bucketSeverity(v: OsvVuln): VulnerabilitySeverity {
-  const cvss = (v.severity ?? []).find((s) => s.type.startsWith('CVSS'));
+  /* Prefer the newest CVSS version present (v4 > v3 > v2): an advisory can
+     carry several, and v4-only records were previously dropped to 'unknown'. */
+  const sev = v.severity ?? [];
+  const cvss =
+    sev.find((s) => s.type === 'CVSS_V4') ??
+    sev.find((s) => s.type === 'CVSS_V3') ??
+    sev.find((s) => s.type.startsWith('CVSS'));
   if (cvss) {
-    /* CVSS vector strings like 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H'.
-       Three impact metrics — Confidentiality, Integrity, Availability —
-       each High contributes to severity. Full CVSS calc requires the
-       cvss-calculator lib; this heuristic catches ~95% of cases at
-       ~zero bundle cost. */
-    if (/[/:]C:H.*[/:]I:H.*[/:]A:H/u.test(cvss.score)) return 'critical';
-    if (/[/:]C:H|[/:]I:H|[/:]A:H/u.test(cvss.score)) return 'high';
-    if (/[/:]C:L|[/:]I:L|[/:]A:L/u.test(cvss.score)) return 'medium';
+    const sc = cvss.score;
+    /* CVSS v4 renames the impact metrics to VC/VI/VA (vulnerable system
+       Confidentiality/Integrity/Availability), e.g.
+       'CVSS:4.0/AV:N/AC:L/.../VC:H/VI:H/VA:H/...'. The v3-shaped regexes
+       below ([/:]C:H) never match those, so handle v4 explicitly. */
+    if (cvss.type === 'CVSS_V4' || /CVSS:4/.test(sc) || /\bV[CIA]:/.test(sc)) {
+      const hi = /\bVC:H/.test(sc) || /\bVI:H/.test(sc) || /\bVA:H/.test(sc);
+      const lo = /\bVC:L/.test(sc) || /\bVI:L/.test(sc) || /\bVA:L/.test(sc);
+      if (/\bVC:H/.test(sc) && /\bVI:H/.test(sc) && /\bVA:H/.test(sc)) return 'critical';
+      if (hi) return 'high';
+      if (lo) return 'medium';
+    } else {
+      /* CVSS v2/v3 vector strings like
+         'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H'. Three impact metrics —
+         Confidentiality, Integrity, Availability — each High contributes to
+         severity. Full CVSS calc requires the cvss-calculator lib; this
+         heuristic catches ~95% of cases at ~zero bundle cost. */
+      if (/[/:]C:H.*[/:]I:H.*[/:]A:H/u.test(sc)) return 'critical';
+      if (/[/:]C:H|[/:]I:H|[/:]A:H/u.test(sc)) return 'high';
+      if (/[/:]C:L|[/:]I:L|[/:]A:L/u.test(sc)) return 'medium';
+    }
   }
   const dbSev = v.database_specific?.severity?.toUpperCase();
   if (dbSev === 'CRITICAL') return 'critical';
@@ -321,8 +340,14 @@ export function bucketSeverity(v: OsvVuln): VulnerabilitySeverity {
  * pairs). The first `fixed` event after the user's installed version
  * is the actionable target. If none exists, the vuln is unpatched.
  */
-export function pickFixedVersion(v: OsvVuln): string | null {
-  for (const aff of v.affected ?? []) {
+export function pickFixedVersion(v: OsvVuln, pkgName?: string): string | null {
+  const affected = v.affected ?? [];
+  /* A single OSV advisory often lists multiple affected packages (the same
+     CVE/GHSA across siblings/ecosystems), and the FIRST entry is frequently
+     not the one we queried — so scope to the queried package and only fall
+     back to all entries when there's no match. */
+  const scoped = pkgName ? affected.filter((a) => a.package?.name === pkgName) : affected;
+  for (const aff of scoped.length > 0 ? scoped : affected) {
     for (const range of aff.ranges ?? []) {
       for (const ev of range.events) {
         if (ev.fixed) return ev.fixed;

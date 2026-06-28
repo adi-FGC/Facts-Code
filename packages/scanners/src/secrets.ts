@@ -33,7 +33,10 @@ const RULES: SecretRule[] = [
   { id: 'stripe-secret-key',   label: 'Stripe secret key',   pattern: /\b(sk_(?:live|test)_[0-9a-zA-Z]{24,})\b/,  minEntropy: 3 },
   { id: 'slack-token',         label: 'Slack token',         pattern: /\b(xox[baprs]-[0-9A-Za-z-]{10,})\b/,       minEntropy: 3 },
   { id: 'github-token',        label: 'GitHub token',        pattern: /\b(gh[pousr]_[0-9A-Za-z]{36,})\b/,          minEntropy: 3.5 },
-  { id: 'openai-api-key',      label: 'OpenAI API key',      pattern: /\b(sk-[A-Za-z0-9-_]{20,})\b/,              minEntropy: 3.5 },
+  // Anthropic keys (`sk-ant-…`) are a strict subset of the generic `sk-…`
+  // shape, so the OpenAI rule excludes that prefix (negative lookahead) to
+  // avoid a single Anthropic key double-firing as BOTH providers.
+  { id: 'openai-api-key',      label: 'OpenAI API key',      pattern: /\b(sk-(?!ant-)[A-Za-z0-9-_]{20,})\b/,      minEntropy: 3.5 },
   { id: 'anthropic-api-key',   label: 'Anthropic API key',   pattern: /\b(sk-ant-[A-Za-z0-9-_]{20,})\b/,          minEntropy: 3.5 },
   { id: 'private-key-header',  label: 'Private key block',   pattern: /(-----BEGIN (RSA |OPENSSH |DSA |EC |PGP )?PRIVATE KEY-----)/ },
 ];

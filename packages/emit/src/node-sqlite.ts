@@ -1,20 +1,18 @@
 /**
- * Typed re-export of the `node:sqlite` built-in (Node 22+).
+ * LAZILY-loaded, typed access to the `node:sqlite` built-in (Node 22.5+).
  *
- * Why this exists: the workspace pins `@types/node@^20`, whose declarations
- * predate `node:sqlite`, so a direct `import … from 'node:sqlite'` fails to
- * type-check even though the Node 22+/25 runtime ships the module (F8 requires
- * Node 22+). This re-exports the runtime value under a hand-written type that
- * covers ONLY the surface the F8 cache uses — it changes nothing at runtime.
- *
- * Self-expiring: when the workspace adopts `@types/node@^22` (which ships the
- * real types), the import below resolves and the `@ts-expect-error` becomes an
- * *unused* directive — TS then errors, forcing deletion of this whole file
- * (import directly from `node:sqlite` instead).
+ * Two problems this solves:
+ *   1. Types: the workspace pins `@types/node@^20`, whose declarations predate
+ *      `node:sqlite`, so we hand-write the subset of types the F8 cache uses.
+ *   2. Old-Node safety: `node:sqlite` does not exist before Node 22.5. A STATIC
+ *      `import … from 'node:sqlite'` is evaluated when the module graph loads —
+ *      i.e. the instant anything imports `@factstack/emit` — so on Node 20/21 it
+ *      throws ERR_UNKNOWN_BUILTIN_MODULE and crashes the whole `factstack`
+ *      binary before its cache-less fallback can run. So we `require()` it
+ *      lazily, on first cache construction, where callers wrap it in try/catch.
  */
 
-// @ts-expect-error — node:sqlite is absent from @types/node@20; present at runtime (Node 22+).
-import { DatabaseSync as DatabaseSyncRuntime } from 'node:sqlite';
+import { createRequire } from 'node:module';
 
 /** A prepared statement — subset used by the F8 cache. */
 export interface StatementSync {
@@ -34,5 +32,17 @@ interface DatabaseSyncCtor {
   new (path: string, options?: { readOnly?: boolean; open?: boolean }): DatabaseSync;
 }
 
-/** The `node:sqlite` `DatabaseSync` constructor, typed to the subset above. */
-export const DatabaseSync = DatabaseSyncRuntime as unknown as DatabaseSyncCtor;
+let cachedCtor: DatabaseSyncCtor | null = null;
+
+/**
+ * Load the `node:sqlite` `DatabaseSync` constructor on demand. Throws on
+ * Node < 22.5 (no such built-in) — callers must catch and degrade to a
+ * cache-less run. Memoized after the first successful load.
+ */
+export function loadDatabaseSync(): DatabaseSyncCtor {
+  if (cachedCtor) return cachedCtor;
+  const require = createRequire(import.meta.url);
+  const mod = require('node:sqlite') as { DatabaseSync: DatabaseSyncCtor };
+  cachedCtor = mod.DatabaseSync;
+  return cachedCtor;
+}
