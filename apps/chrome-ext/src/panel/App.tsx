@@ -116,12 +116,23 @@ export function App(handle: Handle<Record<string, never>>) {
 
   const update = (): void => void handle.update();
 
-  function onProgress(p: Progress): void {
-    progress = { label: p.label || p.phase, fraction: p.fraction };
+  /* Monotonic run id. Bumped at the start of every acquisition AND on reset, so
+     an abandoned / out-of-order analysis can't clobber fresher state — the
+     settle/fail/progress guards below ignore any result whose id is stale. This
+     is what makes "New" during a scan a clean cancel rather than a race. */
+  let runId = 0;
+
+  function settle(ds: LoadedDataset, id: number): void {
+    if (id !== runId) return; // a newer run (or reset) superseded this one
+    loaded = ds;
+    phase = 'idle';
+    error = null;
+    navigate('/');
     update();
   }
 
-  function fail(e: unknown): void {
+  function fail(e: unknown, id: number): void {
+    if (id !== runId) return;
     const msg = e instanceof Error ? e.message : String(e);
     if (msg === CANCELLED) {
       phase = 'idle';
@@ -133,23 +144,26 @@ export function App(handle: Handle<Record<string, never>>) {
     update();
   }
 
-  function settle(ds: LoadedDataset): void {
-    loaded = ds;
-    phase = 'idle';
-    error = null;
-    navigate('/');
-    update();
+  /* Progress handler scoped to one run, so a stale run's late ticks can't drive
+     a newer run's bar. */
+  function progressFor(id: number): (p: Progress) => void {
+    return (p) => {
+      if (id !== runId) return;
+      progress = { label: p.label || p.phase, fraction: p.fraction };
+      update();
+    };
   }
 
   async function runGitHub(repo: RepoRef): Promise<void> {
+    const id = ++runId;
     phase = 'loading';
     error = null;
     progress = { label: `Fetching ${repo.owner}/${repo.repo}…`, fraction: 0 };
     update();
     try {
-      settle(await acquireGitHub(repo, onProgress));
+      settle(await acquireGitHub(repo, progressFor(id)), id);
     } catch (e) {
-      fail(e);
+      fail(e, id);
     }
   }
 
@@ -166,30 +180,38 @@ export function App(handle: Handle<Record<string, never>>) {
   }
 
   async function runLocal(): Promise<void> {
+    const id = ++runId;
     phase = 'loading';
     error = null;
     progress = { label: 'Reading folder…', fraction: 0 };
     update();
     try {
-      settle(await acquireLocalFolder(onProgress));
+      settle(await acquireLocalFolder(progressFor(id)), id);
     } catch (e) {
-      fail(e);
+      fail(e, id);
     }
   }
 
   async function runDemo(): Promise<void> {
+    const id = ++runId;
     phase = 'loading';
     error = null;
     progress = { label: 'Loading demo…', fraction: 0 };
     update();
     try {
-      settle(await acquireDemo());
+      settle(await acquireDemo(), id);
     } catch (e) {
-      fail(e);
+      fail(e, id);
     }
   }
 
   function reset(): void {
+    // Bump runId so any in-flight analysis is abandoned (its settle/fail become
+    // no-ops), and proactively cancel the worker run + free its pending entry.
+    runId++;
+    if (phase === 'loading') {
+      void import('../lib/analyzeBridge.ts').then((m) => m.cancelPending()).catch(() => {});
+    }
     loaded = null;
     phase = 'idle';
     error = null;
@@ -276,6 +298,9 @@ export function App(handle: Handle<Record<string, never>>) {
     return (
       <div mix={appCls}>
         {topBar(title, crumb, route !== '')}
+        {/* Announce route changes to screen readers (the visual title is in the
+            top bar; this sr-only live region voices it on drill/back). */}
+        <div class="sr-only" aria-live="polite" aria-atomic="true">{crumb ? crumb + ' — ' : ''}{title}</div>
         {scrollRegion(body)}
       </div>
     );

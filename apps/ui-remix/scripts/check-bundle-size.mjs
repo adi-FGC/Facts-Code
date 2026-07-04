@@ -186,7 +186,15 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 // (default Tables), lazy-loading just the Treemap is the clean future win, but
 // that's the same route-split refactor tracked below — bumping keeps the rail
 // honest until then.
-const CAP_MAIN_JS_RAW = 396 * 1024;
+// 2026-06-28 — main JS raw 396→398 KB after the CSS Suggestions drawer gained a
+// second close affordance: a bottom-left pull-tab that protrudes past the drawer
+// edge (ui/CssSuggestionsPanel.tsx), alongside the drawer's navbar-offset fix
+// (top: --nav-h so it no longer overlaps the header). The new css() atoms
+// (closeTab + closeTabIcon, ~0.8 KB raw) compress heavily — main JS gz held at
+// 107.3 KB, still under the binding 108 KB gz cap — so this only nudges the
+// non-binding raw sanity rail. Route-level code-splitting remains the real
+// first-paint lever.
+const CAP_MAIN_JS_RAW = 398 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint
 // feature that finally crossed the long-flagged 80 KB line. The severity model

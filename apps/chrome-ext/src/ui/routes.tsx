@@ -20,9 +20,12 @@ function dirOf(path: string): string {
   return i > 0 ? path.slice(0, i) : '·';
 }
 
-function flattenFiles(node: VizTreeNode, out: VizFile[] = []): VizFile[] {
-  for (const f of node.files) out.push(f);
-  for (const c of node.children) flattenFiles(c, out);
+function flattenFiles(node: VizTreeNode | undefined, out: VizFile[] = []): VizFile[] {
+  // Defensive against a malformed/empty tree (the demo path validates, but a
+  // future producer might omit it) — degrade to an empty list, never crash.
+  if (!node) return out;
+  for (const f of node.files ?? []) out.push(f);
+  for (const c of node.children ?? []) flattenFiles(c, out);
   return out;
 }
 
