@@ -1,6 +1,6 @@
 {
   "name": "@factstack/mcp-server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "FACTS Model Context Protocol server. Exposes analyzer artifacts as MCP resources + tools for AI-agent consumption. stdio transport in v0.2; SSE transport in v0.5.",
   "type": "module",
@@ -8,6 +8,14 @@
     "factstack-mcp": "./dist/server.js"
   },
   "main": "./src/server.ts",
+  "homepage": "https://factstack.pages.dev",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/server.ts",

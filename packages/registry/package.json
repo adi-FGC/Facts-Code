@@ -1,0 +1,27 @@
+{
+  "name": "@factstack/registry",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Site registry — the aggregator IR for FACTS discoverability. A pure `buildSiteRegistry()` that folds the MCP tool catalog, resource catalog, and route catalog from @factstack/spec into one `SiteRegistry` object. That IR feeds @factstack/site-kit's renderers (llms.txt, .well-known/mcp.json, sitemap.xml, robots.txt, …). Isomorphic, deterministic — `generatedAt` is passed in, never read from the clock.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "lint": "echo 'no lint yet' && exit 0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@factstack/spec": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.8"
+  }
+}

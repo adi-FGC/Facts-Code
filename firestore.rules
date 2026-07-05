@@ -1,0 +1,25 @@
+rules_version = '2';
+
+// FACTS — per-account MCP data. Each signed-in user may read/write ONLY their
+// own `users/{uid}` subtree; no cross-user access, no public access. This is the
+// backend enforcement behind the MCP's Google sign-in gate.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // A user's private data (profile + learnings + usage), keyed by their uid.
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Lead capture: a signed-in user may create/update only their own lead doc.
+    // Never publicly readable.
+    match /leads/{uid} {
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow read: if false;
+    }
+
+    // Everything else: denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

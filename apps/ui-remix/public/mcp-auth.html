@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>FACTS · Connect your MCP</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center;
+        font: 16px/1.6 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #0f0f0f; color: #f6f2e8;
+      }
+      main { max-width: 30rem; padding: 2.5rem 1.5rem; text-align: center; }
+      h1 { font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 0.5rem; }
+      p { color: #b8b2a6; }
+      button {
+        margin-top: 1.5rem; padding: 0.7rem 1.4rem; font-size: 1rem; font-weight: 600;
+        border: 0; border-radius: 8px; background: #da6600; color: #fff; cursor: pointer;
+      }
+      button:disabled { opacity: 0.5; cursor: default; }
+      #status { margin-top: 1.25rem; font-size: 0.9rem; min-height: 1.5em; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>FACTS</h1>
+      <p>
+        Sign in with Google to connect the FACTS MCP to your account. Your analysis
+        and learnings are then stored <strong>privately to you</strong> — no one else
+        can read them. This is the only thing that needs sign-in; the public site and
+        CLI stay open.
+      </p>
+      <button id="signin">Sign in with Google</button>
+      <p id="status"></p>
+    </main>
+    <script type="module" src="/mcp-auth.js"></script>
+  </body>
+</html>

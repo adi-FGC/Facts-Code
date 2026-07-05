@@ -112,7 +112,7 @@ interface Surface {
    divided rows so the brand signature stays scarce + impactful. */
 const SURFACES: Surface[] = [
   { head: 'CLI',         desc: 'factstack analyze · ui · watch · diff · query · export · doctor' },
-  { head: 'MCP server',  desc: '6 tools (read_memory, query_graph, get_outline, list_risks, analyze, …) over stdio' },
+  { head: 'MCP server',  desc: '17 tools (read_memory, query_graph, get_outline, list_risks, analyze, …) over stdio' },
   { head: 'agent.json',  desc: 'Path-addressable codebase map. AI agents reason against this without re-reading files.' },
   { head: 'human.json',  desc: "CXO-readable executive dashboard data — what feeds this UI." },
   { head: 'WebUI',       desc: 'This dashboard. Remix v3 (React-free), served from `factstack ui` or as a static export.' },

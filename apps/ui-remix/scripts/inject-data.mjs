@@ -29,7 +29,7 @@
  *   node scripts/inject-data.mjs --src path.json # explicit override
  *   node scripts/inject-data.mjs --root ../..    # custom repo root
  */
-import { existsSync, readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,6 +38,12 @@ const APP_DIR = resolve(__dirname, '..');
 const DEFAULT_REPO_ROOT = resolve(APP_DIR, '..', '..');
 
 const PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
+
+/* Email pattern for the privacy scrub (findings #8/#31). Declared at module
+   top-level (not beside the scrub helpers below) so it's initialized before
+   the top-level `scrubDataset(...)` call runs — a `const` lower in the file
+   would be in the temporal dead zone when the hoisted helper executes. */
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -92,6 +98,12 @@ if (explicitSrc) {
   }
 }
 
+/* Privacy scrub — adversarial-review findings #8 (contributor PII) and
+   #31 (absolute local paths / sibling-repo leak). Applied to the in-memory
+   dataset so EVERY public sink (the inline bake AND dist/data/factstack.json)
+   ships redacted, not just one of them. */
+scrubDataset(dataset, REPO_ROOT);
+
 /* Lean the inline dataset for the static bake. HTML docs are full
    generated pages (their own <svg>, <style>, <script>); baking their raw
    content bloats index.html ~6x AND the Docs tab iframes them via
@@ -109,6 +121,84 @@ if (dataset && Array.isArray(dataset.docs)) {
     }
   }
   if (stripped > 0) console.log(`[inject-data] dropped raw content from ${stripped} HTML doc(s) to keep the static dataset lean`);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * Additive static fallbacks (v0.12 discoverability):
+ *   1. dist/data/factstack.json — the same dataset as a fetchable file,
+ *      so an agent (or a debugging human) can GET the JSON directly
+ *      instead of scraping it out of the inline <script>. The inline bake
+ *      below is UNCHANGED — this is a parallel copy, not a migration.
+ *   2. dist/factstack.pack — the token-compressed agent.pack, copied from
+ *      <repoRoot>/.facts/agent.pack when present, so agents can pull the
+ *      cheap pack over HTTP from the deployed site.
+ * ─────────────────────────────────────────────────────────────── */
+try {
+  const dataDir = resolve(APP_DIR, 'dist', 'data');
+  mkdirSync(dataDir, { recursive: true });
+  writeFileSync(join(dataDir, 'factstack.json'), JSON.stringify(dataset), 'utf8');
+  console.log(`[inject-data] wrote dist/data/factstack.json (fetchable dataset fallback)`);
+} catch (e) {
+  /* Non-fatal — the inline bake below is the primary path; the fetchable
+     copy is a convenience. Don't fail the build over it. */
+  console.warn(`[inject-data] could not write dist/data/factstack.json: ${e?.message || e}`);
+}
+
+/* Small, chatbot-fetchable digest (~KB). A plain browsing model can GET this
+   whole file and reason over it — the full dataset is ~2 MB / ~500k tokens and
+   overflows most chat context windows. Derived from the SAME scrubbed dataset,
+   so no PII/paths leak. Heavy per-risk fields (preview/messageTechnical) dropped. */
+try {
+  const s = dataset || {};
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const digest = {
+    $schema: 'https://factstack.dev/schema/summary.v1.json',
+    generatedAt: s.generatedAt,
+    project: s.project,
+    oneLiner: s.summary?.oneLiner,
+    description: s.summary?.description,
+    capabilities: s.summary?.capabilities,
+    health: s.summary?.health,
+    stats: s.stats,
+    counts: {
+      files: s.stats?.files,
+      edges: arr(s.edges).length,
+      cycles: arr(s.cycles).length,
+      routes: arr(s.routes).length,
+      risks: arr(s.risks).length,
+      vulnerabilities: arr(s.vulnerabilities).length,
+      docs: arr(s.docs).length,
+      dependencyManifests: arr(s.dependencyManifests).length,
+    },
+    entryPoints: s.entryPoints,
+    risks: arr(s.risks).map((r) => ({
+      severity: r.severity, category: r.category, rule: r.rule,
+      file: r.file, line: r.line, message: r.message,
+    })),
+    vulnerabilities: s.vulnerabilities,
+    fullDataset: '/data/factstack.json',
+    pack: '/factstack.pack',
+  };
+  writeFileSync(resolve(APP_DIR, 'dist', 'data', 'summary.json'), JSON.stringify(digest, null, 2), 'utf8');
+  console.log(`[inject-data] wrote dist/data/summary.json (compact chatbot digest)`);
+} catch (e) {
+  console.warn(`[inject-data] could not write dist/data/summary.json: ${e?.message || e}`);
+}
+
+try {
+  const packSrc = join(REPO_ROOT, '.facts', 'agent.pack');
+  if (existsSync(packSrc)) {
+    /* The pack is a separate file (not derived from `dataset`), so it needs
+       its own text-level scrub — otherwise /factstack.pack would re-leak the
+       same email + paths the JSON scrub just removed. */
+    const packText = scrubText(readFileSync(packSrc, 'utf8'), REPO_ROOT);
+    writeFileSync(resolve(APP_DIR, 'dist', 'factstack.pack'), packText, 'utf8');
+    console.log(`[inject-data] wrote scrubbed .facts/agent.pack → dist/factstack.pack`);
+  } else {
+    console.log(`[inject-data] no .facts/agent.pack to copy (skipping dist/factstack.pack)`);
+  }
+} catch (e) {
+  console.warn(`[inject-data] could not write dist/factstack.pack: ${e?.message || e}`);
 }
 
 let html;
@@ -152,6 +242,61 @@ console.log(`[inject-data] baked ${sizeKb} KB of dataset into dist/index.html`);
 console.log(`  source : ${sourceLabel}`);
 console.log(`  project: ${dataset?.project?.name ?? '(unknown)'}`);
 console.log(`  files  : ${dataset?.stats?.files ?? '?'}`);
+
+/* ─────────────────────────────────────────────────────────────────
+ * Privacy scrub — findings #8 (git-mined contributor email) + #31
+ * (absolute local paths + sibling-repo names in doc bodies). Both ship
+ * publicly and neither is needed to render the demo. Redact:
+ *   - any `email` field (topContributors) → '' (contributor name kept)
+ *   - any email anywhere in string values → ‹email›
+ *   - absolute repo/workspace paths → relative markers (both slash styles)
+ * ─────────────────────────────────────────────────────────────── */
+function pathSubs(repoRoot) {
+  const parent = dirname(repoRoot);
+  return [
+    [repoRoot, '.'],
+    [repoRoot.replace(/\\/g, '/'), '.'],
+    [parent, '..'],
+    [parent.replace(/\\/g, '/'), '..'],
+  ].filter(([from]) => from);
+}
+
+/** Redact emails + absolute paths from a raw text blob (the agent.pack). */
+function scrubText(s, repoRoot) {
+  let out = String(s);
+  for (const [from, to] of pathSubs(repoRoot)) {
+    if (out.includes(from)) out = out.split(from).join(to);
+  }
+  return out.replace(EMAIL_RE, '‹email›');
+}
+
+/** Deep-scrub the parsed dataset in place (drives both inline + JSON sinks). */
+function scrubDataset(root, repoRoot) {
+  const subs = pathSubs(repoRoot);
+  const scrubStr = (s) => {
+    let out = s;
+    for (const [from, to] of subs) if (out.includes(from)) out = out.split(from).join(to);
+    return out.replace(EMAIL_RE, '‹email›');
+  };
+  const walk = (node) => {
+    if (node == null || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      for (const v of node) walk(v);
+      return;
+    }
+    for (const k of Object.keys(node)) {
+      const v = node[k];
+      if (k === 'email' && typeof v === 'string' && v) {
+        node[k] = ''; // #8: drop the personal email; the UI shows name only
+      } else if (typeof v === 'string') {
+        node[k] = scrubStr(v);
+      } else {
+        walk(v);
+      }
+    }
+  };
+  walk(root);
+}
 
 /* ─────────────────────────────────────────────────────────────────
  * Snapshot loader — feeds the History tab's sparkline.

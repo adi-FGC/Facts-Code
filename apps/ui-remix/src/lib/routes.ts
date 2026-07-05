@@ -26,6 +26,29 @@
  */
 import { RoutePattern } from 'remix/route-pattern';
 import { createHref } from 'remix/route-pattern/href';
+import { ROUTE_CATALOG } from '@factstack/spec';
+
+/**
+ * The label+path list is sourced from `ROUTE_CATALOG` in `@factstack/spec`
+ * (pure data, no `remix/*` dep) so the discoverability artifacts
+ * (sitemap.xml, llms.txt, .well-known/mcp.json) and this app's tablist
+ * can't drift. This module keeps the RoutePattern machinery for typed
+ * matching + href generation; it just no longer hardcodes the labels.
+ *
+ * Index the catalog by path so the TABS / ICON_TABS builders below can
+ * look up a label for a given route without re-listing them here.
+ */
+const LABEL_BY_PATH = new Map(ROUTE_CATALOG.map((r) => [r.path, r.label]));
+function labelFor(path: string): string {
+  const label = LABEL_BY_PATH.get(path);
+  if (!label) {
+    // A tab pattern with no catalog entry is a drift bug — fail loud in
+    // dev rather than render a blank tab. (All 11 patterns below have an
+    // entry; this guards future additions.)
+    throw new Error(`routes.ts: no ROUTE_CATALOG label for "${path}" — add it to packages/spec/src/routes.ts.`);
+  }
+  return label;
+}
 
 export const tabPatterns = {
   overview: RoutePattern.parse('/'),
@@ -59,22 +82,30 @@ export interface TabMeta {
 
 /** The numbered nav — 9 primary tabs. Config + About are rendered as
  *  right-side icons by the Header, not here. */
+/** Build a TabMeta from a pattern key. Href comes from the RoutePattern
+ *  machinery; label comes from ROUTE_CATALOG (the single source of truth
+ *  shared with the discoverability artifacts). All tabs are ported. */
+function tab(key: TabKey): TabMeta {
+  const href = createHref(tabPatterns[key]);
+  return { key, label: labelFor(href), href, ported: true };
+}
+
 export const TABS: readonly TabMeta[] = [
-  { key: 'overview',     label: 'Overview',     href: createHref(tabPatterns.overview),     ported: true },
-  { key: 'architecture', label: 'Architecture', href: createHref(tabPatterns.architecture), ported: true },
-  { key: 'modules',      label: 'Modules',      href: createHref(tabPatterns.modules),      ported: true },
-  { key: 'files',        label: 'Files',        href: createHref(tabPatterns.files),        ported: true },
-  { key: 'docs',         label: 'Docs',         href: createHref(tabPatterns.docs),         ported: true },
-  { key: 'review',       label: 'Review',       href: createHref(tabPatterns.review),       ported: true },
-  { key: 'security',     label: 'Security',     href: createHref(tabPatterns.security),     ported: true },
-  { key: 'tests',        label: 'Tests',        href: createHref(tabPatterns.tests),        ported: true },
-  { key: 'history',      label: 'History',      href: createHref(tabPatterns.history),      ported: true },
+  tab('overview'),
+  tab('architecture'),
+  tab('modules'),
+  tab('files'),
+  tab('docs'),
+  tab('review'),
+  tab('security'),
+  tab('tests'),
+  tab('history'),
 ] as const;
 
 /** Right-side icon destinations (Config gear, About ?↔!). */
 export const ICON_TABS: readonly TabMeta[] = [
-  { key: 'config', label: 'Config', href: createHref(tabPatterns.config), ported: true },
-  { key: 'about',  label: 'About',  href: createHref(tabPatterns.about),  ported: true },
+  tab('config'),
+  tab('about'),
 ] as const;
 
 /**

@@ -33,6 +33,7 @@
  */
 
 import type { Risk, ShippedMcpToolName } from '@factstack/spec';
+import { MCP_TOOL_CATALOG } from '@factstack/spec';
 
 /* The spec doesn't export a standalone Severity type — Risk's severity
  * is an inline z.enum. Project it as a named alias so SkillRisk consumers
@@ -177,11 +178,7 @@ export const CAPS = {
  * skill teaches the 80% path; full tool list lives in the MCP server
  * description that the client already shows.
  */
-export const ONBOARDING_SEQUENCE: readonly ShippedMcpToolName[] = [
-  'read_memory',
-  'analyze',
-  'query_graph',
-  'list_risks',
-  'list_credentials',
-  'list_vulnerabilities',
-] as const;
+export const ONBOARDING_SEQUENCE: readonly ShippedMcpToolName[] = MCP_TOOL_CATALOG
+  .filter((t) => t.onboardingOrder !== undefined)
+  .sort((a, b) => (a.onboardingOrder ?? 0) - (b.onboardingOrder ?? 0))
+  .map((t) => t.name);

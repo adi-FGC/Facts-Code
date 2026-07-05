@@ -60,6 +60,9 @@ export default tseslint.config(
         { type: 'scanners', pattern: 'packages/scanners/**' },
         { type: 'core', pattern: 'packages/core/**' },
         { type: 'emit', pattern: 'packages/emit/**' },
+        { type: 'skills', pattern: 'packages/skills/**' },
+        { type: 'registry', pattern: 'packages/registry/**' },
+        { type: 'site-kit', pattern: 'packages/site-kit/**' },
         { type: 'ui-theme', pattern: 'packages/ui-theme/**' },
         { type: 'app-cli', pattern: 'apps/cli/**' },
         { type: 'app-ui', pattern: 'apps/ui-remix/**' },
@@ -92,6 +95,9 @@ export default tseslint.config(
               allow: ['spec', 'core', 'walker', 'parsers', 'extractors', 'graph', 'scanners'],
             },
             { from: 'ui-theme', allow: [] },
+            { from: 'skills', allow: ['spec'] },
+            { from: 'registry', allow: ['spec'] },
+            { from: 'site-kit', allow: ['registry', 'spec'] },
             // Each app's allow list mirrors its package.json dependencies
             // exactly — adding a workspace import requires declaring the
             // dep AND listing it here. Drift caught by lint, not runtime.
@@ -99,7 +105,7 @@ export default tseslint.config(
               from: 'app-cli',
               allow: ['spec', 'core', 'emit', 'fs-node', 'extractors'],
             },
-            { from: 'app-ui', allow: ['spec', 'ui-theme'] },
+            { from: 'app-ui', allow: ['spec', 'ui-theme', 'emit', 'registry', 'site-kit'] },
             {
               from: 'app-mcp',
               allow: ['spec', 'core', 'emit', 'fs-node', 'extractors'],

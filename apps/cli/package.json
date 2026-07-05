@@ -1,6 +1,6 @@
 {
   "name": "@factstack/cli",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "FACTS CLI — `factstack` binary. Node 20+ & Deno 2+ compatible. Primary v0.1 surface. Composes @factstack/core via @factstack/fs-node and spawns @factstack/ui-remix server.",
   "type": "module",
@@ -8,6 +8,14 @@
     "factstack": "./dist/cli.js"
   },
   "main": "./src/cli.ts",
+  "homepage": "https://factstack.pages.dev",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "pnpm run sync:ui && tsc -p tsconfig.json",
     "dev": "tsx src/cli.ts",

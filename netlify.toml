@@ -46,6 +46,23 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# Agent-discovery + data endpoints. .json/.txt/.xml auto-infer correctly; the
+# pack (no extension) and the manifest need explicit types. Data + discovery
+# files revalidate so a fresh `factstack analyze` + redeploy ships instantly.
+[[headers]]
+  for = "/factstack.pack"
+  [headers.values]
+    Content-Type = "text/plain; charset=utf-8"
+    Cache-Control = "public, max-age=0, must-revalidate"
+[[headers]]
+  for = "/site.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
 ###############################################################################
 # Security headers — baseline hardening; the SPA doesn't accept any
 # server-side user input. Adjust if you embed third-party scripts later.
@@ -71,6 +88,17 @@
     # were converted to css() classes / SVG presentation attributes (guarded by
     # check-bundle-size.mjs, which also asserts style-src parity with _headers).
     Content-Security-Policy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'"
+
+# Scoped CSP for the MCP Google sign-in page ONLY (Firebase SDK from gstatic +
+# Google popup + POST to the local loopback). Kept separate so the main app CSP
+# above stays strict. Must stay byte-equal to the /mcp-auth.html block in
+# apps/ui-remix/public/_headers — check-bundle-size.mjs enforces the parity.
+# (Netlify serves .html verbatim, so unlike _headers there is no /mcp-auth
+# clean-URL block here; that key is Cloudflare-only.)
+[[headers]]
+  for = "/mcp-auth.html"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com"
 
 ###############################################################################
 # SPA-style fallback: client-side routing in React Router v7 owns paths

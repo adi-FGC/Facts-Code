@@ -218,7 +218,7 @@ const program = new Command();
 program
   .name('factstack')
   .description('FACTS — Fun AI Coding Tools. Analyse a project and emit AI-agent + CXO-readable artifacts.')
-  .version('0.1.0-alpha.1')
+  .version('0.1.0')
   // Top-level `--json` so `factstack --json .` matches the file-header
   // promise of "machine-invocable mode (no TTY chrome)". Subcommands
   // that also support `--json` (analyze, diff, query) read the same

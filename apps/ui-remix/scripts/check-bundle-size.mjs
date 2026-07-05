@@ -186,7 +186,14 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 // (default Tables), lazy-loading just the Treemap is the clean future win, but
 // that's the same route-split refactor tracked below — bumping keeps the rail
 // honest until then.
-const CAP_MAIN_JS_RAW = 396 * 1024;
+// Bumped 396→400 for the agent-discoverability feature. The source-of-truth MCP
+// tool catalog (mcp-catalog.ts — ~20 KB of tool descriptions + inputSchemas) and
+// ROUTE_CATALOG are re-exported from the @factstack/spec barrel, which the UI
+// imports — so this metadata lands in the browser (+~2 KB main, +~22 KB lazy raw;
+// gz caps unchanged and still pass). The catalog lives in its own module ready to
+// be split off the barrel for a browser build; verifying that split needs a
+// working workspace link (pnpm is broken in this env). FOLLOW-UP: split + restore.
+const CAP_MAIN_JS_RAW = 400 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint
 // feature that finally crossed the long-flagged 80 KB line. The severity model
@@ -254,7 +261,10 @@ const CAP_MAIN_JS_GZ = 108 * 1024;
 // 640.30/640 over the sanity rail. The BINDING wire-cost rail (gz 200 KB) is
 // untouched with ~15 KB headroom (185.05 used) — this only nudges the raw rail
 // to match the hardening reality; the user-facing wire cost barely moved.
-const CAP_WORKER_JS_RAW = 648 * 1024;
+// Bumped 648→672 for the agent-discoverability feature (same barrel-bundled MCP
+// catalog + route metadata as CAP_MAIN_JS_RAW above; gz cap unchanged, still
+// passing). FOLLOW-UP: split mcp-catalog.ts off the barrel, then restore 648.
+const CAP_WORKER_JS_RAW = 672 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;
 const CAP_CSS_GZ = 8 * 1024;
@@ -378,7 +388,10 @@ try {
     const cspValue = (s) => {
       const quoted = s.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
       if (quoted) return quoted[1];
-      const bare = s.match(/Content-Security-Policy:\s*([^\n]*)/);
+      // Anchor to a real header line (start-of-line, optional indent) so a prose
+      // comment that merely mentions `Content-Security-Policy:` can't be mistaken
+      // for the policy value.
+      const bare = s.match(/^[ \t]*Content-Security-Policy:[ \t]*(.+)$/m);
       return bare ? bare[1] : null;
     };
     const styleSrc = (s) => {
@@ -441,10 +454,119 @@ try {
           `CSP guard: style-src drift — _headers has [${headersStyle}] but netlify.toml has [${ns}]. Keep the two CSPs in sync.`,
         );
       }
+      // Review #1: the three checks above cover only script-src / connect-src /
+      // style-src. Assert FULL parity so frame-ancestors, object-src, img-src,
+      // base-uri, form-action, default-src, font-src, worker-src, manifest-src
+      // can never silently drift between the two byte-identical hosts.
+      const parseCsp = (s) => {
+        const csp = cspValue(s);
+        if (!csp) return null;
+        const map = {};
+        for (const part of csp.split(';')) {
+          const toks = part.trim().split(/\s+/).filter(Boolean);
+          if (toks.length) map[toks[0]] = toks.slice(1).sort().join(' ');
+        }
+        return map;
+      };
+      const hCsp = parseCsp(headers);
+      const nCsp = parseCsp(netlifyToml);
+      if (hCsp && nCsp) {
+        for (const d of new Set([...Object.keys(hCsp), ...Object.keys(nCsp)])) {
+          if (hCsp[d] !== nCsp[d]) {
+            failures.push(
+              `CSP guard: directive '${d}' drift — _headers=[${hCsp[d] ?? '(absent)'}] ` +
+                `netlify.toml=[${nCsp[d] ?? '(absent)'}]. Every CSP directive must match across hosts.`,
+            );
+          }
+        }
+      }
+
+      // ── Scoped mcp-auth CSP coverage ──────────────────────────────────────
+      // Everything above inspects only the FIRST CSP occurrence (the main /* app
+      // policy). The MCP Google-sign-in page ships its OWN relaxed CSP, keyed
+      // /mcp-auth.html (both hosts) + /mcp-auth (Cloudflare clean-URL only). The
+      // comments in _headers/netlify.toml promise those stay byte-equal — so
+      // ENFORCE it here; otherwise the scoped policy can silently drift or regain
+      // 'unsafe-inline' in script-src with nothing to catch it. Parse every CSP
+      // block keyed by its path from each host file (not just the first).
+      const headerCsps = (txt) => {
+        const map = {};
+        let curPath = null;
+        for (const line of txt.split(/\r?\n/)) {
+          if (/^\/\S/.test(line)) { curPath = line.trim(); continue; } // e.g. "/mcp-auth.html"
+          const mm = line.match(/^\s+Content-Security-Policy:\s*(.+)$/);
+          if (mm && curPath) map[curPath] = mm[1].trim();
+        }
+        return map;
+      };
+      const netlifyCsps = (txt) => {
+        const map = {};
+        for (const blk of txt.split(/\[\[headers\]\]/).slice(1)) {
+          const f = blk.match(/for\s*=\s*"([^"]*)"/);
+          const c = blk.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
+          if (f && c) map[f[1]] = c[1].trim();
+        }
+        return map;
+      };
+      const hMap = headerCsps(headers);
+      const nMap = netlifyCsps(netlifyToml);
+      // (1) The login flow's /mcp-auth.html scoped CSP must exist on BOTH hosts and match.
+      if (!hMap['/mcp-auth.html']) failures.push('CSP guard: _headers is missing the /mcp-auth.html scoped CSP block.');
+      if (!nMap['/mcp-auth.html']) failures.push('CSP guard: netlify.toml is missing the /mcp-auth.html scoped CSP block.');
+      if (hMap['/mcp-auth.html'] && nMap['/mcp-auth.html'] && hMap['/mcp-auth.html'] !== nMap['/mcp-auth.html']) {
+        failures.push('CSP guard: /mcp-auth.html scoped CSP drift between _headers and netlify.toml — keep them byte-equal.');
+      }
+      // (2) Cloudflare serves the page at the clean URL /mcp-auth (it 308s .html →
+      //     there), so _headers MUST key it too or the page falls back to the strict
+      //     main CSP and Firebase sign-in breaks. Netlify serves .html verbatim, so
+      //     netlify.toml deliberately omits /mcp-auth — not an error.
+      if (!hMap['/mcp-auth']) {
+        failures.push('CSP guard: _headers is missing the /mcp-auth clean-URL block — Cloudflare 308s /mcp-auth.html there and would fall back to the strict main CSP, breaking Firebase sign-in.');
+      }
+      // (3) Every scoped block, wherever it appears, must equal the one canonical
+      //     scoped policy — no per-key drift, no re-introduced 'unsafe-inline' in script-src.
+      const canonicalAuthCsp = hMap['/mcp-auth.html'] || nMap['/mcp-auth.html'] || hMap['/mcp-auth'];
+      for (const [label, map] of [['_headers', hMap], ['netlify.toml', nMap]]) {
+        for (const [p, v] of Object.entries(map)) {
+          if (p.startsWith('/mcp-auth') && canonicalAuthCsp && v !== canonicalAuthCsp) {
+            failures.push(`CSP guard: ${label} ${p} scoped CSP differs from the canonical mcp-auth policy — all /mcp-auth* blocks must be byte-equal.`);
+          }
+        }
+      }
     }
   }
 } catch (e) {
   failures.push(`CSP guard: could not read built files (${e?.message || e}).`);
+}
+
+/* Discovery-kit freshness (agent-discoverability feature). generate-discovery.mjs
+   regenerates these from @factstack/spec on every build, so a missing/empty file
+   means the step was skipped or failed — fail closed rather than ship a site that
+   silently lost its llms.txt / mcp.json. Also assert the MCP manifest is internally
+   consistent (toolCount === toolNames.length). node-safe: readFileSync + JSON only. */
+const discoveryArtifacts = [
+  'llms.txt', 'llms-full.txt', 'robots.txt', 'sitemap.xml', 'site.webmanifest',
+  '.well-known/mcp.json', '.well-known/security.txt',
+];
+for (const rel of discoveryArtifacts) {
+  try {
+    const body = readFileSync(join(DIST, ...rel.split('/')), 'utf8');
+    if (body.trim().length === 0) failures.push(`discovery-kit: dist/${rel} is empty — generate-discovery.mjs produced no output.`);
+  } catch {
+    failures.push(`discovery-kit: dist/${rel} is missing — run scripts/generate-discovery.mjs before this guard.`);
+  }
+}
+try {
+  const manifest = JSON.parse(readFileSync(join(DIST, '.well-known', 'mcp.json'), 'utf8'));
+  const count = manifest?.mcp?.toolCount;
+  const names = manifest?.mcp?.toolNames;
+  if (!Array.isArray(names) || names.length === 0) {
+    failures.push('discovery-kit: .well-known/mcp.json has no toolNames array.');
+  } else if (count !== names.length) {
+    failures.push(`discovery-kit: mcp.json toolCount (${count}) != toolNames.length (${names.length}) — regenerate.`);
+  }
+} catch (e) {
+  failures.push(`discovery-kit: .well-known/mcp.json unreadable/invalid (${e?.message || e}).`);
 }
 
 if (failures.length) {
