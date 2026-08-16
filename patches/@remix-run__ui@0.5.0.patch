@@ -1,0 +1,74 @@
+diff --git a/dist/runtime/component.js b/dist/runtime/component.js
+index 2d0c36b2771700c400e25281b3ebf4501213f384..b4f18c0529f6861fc239ec5225c6fe27e4b6499e 100644
+--- a/dist/runtime/component.js
++++ b/dist/runtime/component.js
+@@ -23,10 +23,18 @@ class ComponentRuntime {
+     #updateQueue;
+     #updateVNode;
+     #updateDomParent;
++    // Queue-fix (workspace patch): a component calling handle.update()
++    // synchronously from its setup body arrives here BEFORE reconcile wires
++    // setScheduleUpdate (which runs only after handle.render returns).
++    // Remember the request and replay it once the target is installed
++    // instead of throwing 'scheduleUpdate not implemented'.
++    #pendingScheduleUpdate = false;
+     #scheduleUpdate = () => {
+         let queue = this.#updateQueue;
+-        if (!queue)
+-            throw new Error('scheduleUpdate not implemented');
++        if (!queue) {
++            this.#pendingScheduleUpdate = true;
++            return;
++        }
+         let vnode = this.#updateVNode;
+         let domParent = this.#updateDomParent;
+         if (!vnode || !domParent)
+@@ -73,6 +81,10 @@ class ComponentRuntime {
+         this.#updateQueue = queue;
+         this.#updateVNode = vnode;
+         this.#updateDomParent = domParent;
++        if (this.#pendingScheduleUpdate) {
++            this.#pendingScheduleUpdate = false;
++            this.#scheduleUpdate();
++        }
+     };
+     getContextValue = () => this.#contextValue;
+     isRemoved = () => this.#removed;
+diff --git a/src/runtime/component.ts b/src/runtime/component.ts
+index 71df94c326bb40f2a932c6083d1bcbf1f38f545d..171d2f99c0dafe00d43592c78efac0d95c05a4c4 100644
+--- a/src/runtime/component.ts
++++ b/src/runtime/component.ts
+@@ -276,9 +276,18 @@ class ComponentRuntime<C = NoContext> implements ComponentHandle<C> {
+   #updateQueue: UpdateQueue | undefined
+   #updateVNode: object | undefined
+   #updateDomParent: ParentNode | undefined
++  // Queue-fix (workspace patch): a component calling handle.update()
++  // synchronously from its setup body arrives here BEFORE reconcile wires
++  // setScheduleUpdate (which runs only after handle.render returns).
++  // Remember the request and replay it once the target is installed
++  // instead of throwing 'scheduleUpdate not implemented'.
++  #pendingScheduleUpdate = false
+   #scheduleUpdate = (): void => {
+     let queue = this.#updateQueue
+-    if (!queue) throw new Error('scheduleUpdate not implemented')
++    if (!queue) {
++      this.#pendingScheduleUpdate = true
++      return
++    }
+     let vnode = this.#updateVNode
+     let domParent = this.#updateDomParent
+     if (!vnode || !domParent) throw new Error('scheduleUpdate target not initialized')
+@@ -332,6 +341,10 @@ class ComponentRuntime<C = NoContext> implements ComponentHandle<C> {
+     this.#updateQueue = queue
+     this.#updateVNode = vnode
+     this.#updateDomParent = domParent
++    if (this.#pendingScheduleUpdate) {
++      this.#pendingScheduleUpdate = false
++      this.#scheduleUpdate()
++    }
+   }
+ 
+   getContextValue = (): C | undefined => this.#contextValue
+diff --git a/src/runtime/demos/readme.demo.tsx b/src/runtime/demos/readme.demo.tsx
+deleted file mode 100644
+index f12cf1548d37e39c400b5a1bcd3629c0a2eaa823..0000000000000000000000000000000000000000

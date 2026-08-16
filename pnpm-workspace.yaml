@@ -28,19 +28,20 @@ minimumReleaseAgeExclude:
   - '@remix-run/session-middleware@0.3.3'
   - '@remix-run/static-middleware@0.4.12'
   - '@remix-run/test@0.5.0'
-  - remix@3.0.0-beta.4
+  - remix@3.0.0-beta.6
 
-# scheduleUpdate queue-fix: the default #scheduleUpdate in @remix-run/ui
-# throws 'scheduleUpdate not implemented', which surfaces as an unhandled
-# rejection when a component calls handle.update() synchronously from its
-# setup body (before renderComponent wires the real scheduler). The patch
-# makes the default queue the request and replay it once setScheduleUpdate
-# installs the real one. Still required as of 0.3.0 (remix beta.4) — @remix-run/ui
-# stayed 0.3.0 across the beta.3→beta.4 bump and the fix was NOT adopted upstream.
-# Re-roll via `pnpm patch @remix-run/ui@<ver>` only when @remix-run/ui itself bumps
-# the next bump if the throw is still present.
 patchedDependencies:
-  '@remix-run/ui@0.3.0': patches/@remix-run__ui@0.3.0.patch
+  '@remix-run/ui@0.5.0': patches/@remix-run__ui@0.5.0.patch
+
+# scheduleUpdate queue-fix: @remix-run/ui throws 'scheduleUpdate not
+# implemented' when a component calls handle.update() synchronously from its
+# setup body — setScheduleUpdate is only wired AFTER handle.render() returns
+# (reconcile.ts). The patch makes the pre-wire default remember the request
+# and replay it once setScheduleUpdate installs the real target. Verified
+# still required at 0.5.0 (remix beta.6): the runtime moved to field-based
+# scheduling (#updateQueue/#updateVNode/#updateDomParent) but kept the throw
+# and the after-render wiring, so the patch is re-rolled against the new
+# shape rather than dropped. Re-verify on every @remix-run/ui bump.
 
 # better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
 # Keep this allowBuilds block if you ever add a native module; pnpm 10 gates build scripts by default.

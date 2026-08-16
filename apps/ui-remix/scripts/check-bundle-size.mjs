@@ -193,7 +193,12 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 // gz caps unchanged and still pass). The catalog lives in its own module ready to
 // be split off the barrel for a browser build; verifying that split needs a
 // working workspace link (pnpm is broken in this env). FOLLOW-UP: split + restore.
-const CAP_MAIN_JS_RAW = 400 * 1024;
+// 2026-08-16 — main JS raw 400→412 KB for the remix beta.4→beta.6 framework
+// upgrade. No app code changed: the @remix-run/ui runtime grew (~9 KB raw /
+// ~3.4 KB gz — field-based update scheduling, Frame reconciler fixes, HMR
+// hooks). Framework floor, not feature creep; route-level code-splitting
+// remains the structural claw-back.
+const CAP_MAIN_JS_RAW = 412 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint
 // feature that finally crossed the long-flagged 80 KB line. The severity model
@@ -246,7 +251,9 @@ const CAP_MAIN_JS_RAW = 400 * 1024;
 // above). Net wire cost is ~1.5 KB gz (the squarified layout + SVG renderer; no
 // new deps). Route-level code-splitting — which would also let the opt-in Map view
 // lazy-load — remains the structural fix; this keeps the binding gz rail honest.
-const CAP_MAIN_JS_GZ = 108 * 1024;
+// 2026-08-16 — main JS gz 108→112 KB: the remix beta.6 runtime growth above
+// (~3.4 KB gz), zero app-code change. See the raw-cap note.
+const CAP_MAIN_JS_GZ = 112 * 1024;
 // 2026-06-10 — lazy JS raw 600 → 640 KB. The graph-intelligence wave's lazy
 // chunks grew ~13 KB raw (Sugiyama community coloring in SugiyamaDag/DagControls
 // + entity-aware graph views riding the dynamically-imported route chunks); the
