@@ -1,0 +1,84 @@
+{
+  "id": "workflow-manual-quality",
+  "title": "Cross-project Build -> Review -> Ship operating-manual quality",
+  "purpose": "The single fixed metric ruler for the A/B/C experiment. Scores how good a build->review->ship operating manual is AS A REUSABLE, CROSS-PROJECT artifact that a fresh agent session can run unattended. Higher = better. Applied identically (blind to which copy) to copy1 (auto-tinker-loop), copy2 (claude-direct), copy3 (control).",
+  "scale": "Each dimension scored 0.0-1.0. Anchor bands: 0.0 = absent/actively misleading; 0.25 = present but weak/prose-only; 0.5 = adequate; 0.75 = strong; 1.0 = exemplary + verifiable. Final score = sum(weight_i * dim_i), range 0.0-1.0.",
+  "scoring_rules": [
+    "Score ONLY what is in the document text; do not credit intentions.",
+    "Penalize over-claims and stale/unverifiable assertions in the honesty + verification dimensions.",
+    "A gate that READS as hard but is enforced only by prose/session-memory scores LOW on gate_enforceability, however emphatic the wording.",
+    "Reward mechanisms that survive a fresh session with zero prior context (the doc's own stated purpose)."
+  ],
+  "dimensions": [
+    {
+      "key": "cross_project_reusability",
+      "weight": 0.16,
+      "desc": "Is it project-agnostic? Project-specifics (host/CI/DB/site-ids/paths) isolated into a PROFILE or placeholders rather than hardcoded; a different stack could adopt it with bounded edits.",
+      "band_1": "A clear 'project profile' section parameterizes every project-specific value; the pipelines reference profile keys, not literals; explicit 'to adopt for a new project, fill X' guidance.",
+      "band_0": "Hardcoded to one project (one host, one DB, one site-id) with specifics woven through every step; unusable elsewhere without a rewrite."
+    },
+    {
+      "key": "gate_enforceability",
+      "weight": 0.16,
+      "desc": "Are the hard gates enforced by TOOLING/a runnable check a fresh session cannot skip by omission, or honor-system prose? Are known bypass paths (a build that skips tests, a deploy missing a required flag/token, an unnamed exclude gate) closed or at least machine-checked?",
+      "band_1": "Gates map to runnable commands/wrapper scripts that fail closed; bypass paths named and blocked; the tolerated-failure set is explicit and machine-checkable.",
+      "band_0": "Gates are bolded prose ('never bypass') resting entirely on the session remembering to comply; a single skipped read removes them all."
+    },
+    {
+      "key": "self_containment",
+      "weight": 0.12,
+      "desc": "Can a fresh session with ZERO prior context execute every pipeline from the doc alone (its stated purpose)? Prerequisites, external refs, and ambiguous steps resolved in-doc.",
+      "band_1": "Every step is unambiguous and self-sufficient or explicitly points to the exact in-repo source; no reliance on unstated context.",
+      "band_0": "Key steps assume conversation memory or undefined external artifacts; a fresh session stalls or guesses."
+    },
+    {
+      "key": "verification_discipline",
+      "weight": 0.12,
+      "desc": "Does it require claims/findings to be VERIFIED (regression test per finding, run the suite, check the real repo) and avoid stale/unverified assertions? Anti-hallucination posture.",
+      "band_1": "Findings require a failing regression test + proof-of-flip; factual claims are dated/verifiable; loop-until-dry; explicit 'do not invent' guardrails.",
+      "band_0": "Asserts fixed facts (counts, URLs, statuses) as static truth with no re-verification step; fabrication is easy."
+    },
+    {
+      "key": "rollback_recovery",
+      "weight": 0.10,
+      "desc": "Rollback completeness: code AND schema AND already-applied DATA migrations/backfills; reversibility; recovery from a bad ship without stranding state.",
+      "band_1": "Covers code rollback, expand-contract schema, and the DATA/backfill dimension explicitly; every forward step has a stated reverse.",
+      "band_0": "Only mentions redeploying the previous build; schema/data rollback absent or hand-waved."
+    },
+    {
+      "key": "review_coverage_honesty",
+      "weight": 0.10,
+      "desc": "Review layers cover the change surface; blind spots (e.g. auth/RLS, perf) stated honestly rather than over-claimed; cheap->expensive ordering.",
+      "band_1": "Layered review with each layer's blind spot named; no coverage over-claim; adversarial pass with a threat model.",
+      "band_0": "Claims coverage it doesn't have, or omits whole surfaces (security/perf) with no acknowledgement."
+    },
+    {
+      "key": "token_operational_efficiency",
+      "weight": 0.10,
+      "desc": "Uses cheap-context tooling (e.g. factstack/.pack for whole-repo context, blast-radius queries before edits) and robust agent orchestration (concurrency caps, rate-limit batching/retry, resume/caching, structured returns).",
+      "band_1": "Concrete cheap-context step wired in with when-to-use; fan-out template bakes in the concurrency cap + batched-retry the ops lessons demand; structured returns.",
+      "band_0": "No token-efficiency tooling; orchestration guidance that repeats the exact failure its own ops-lessons warn about."
+    },
+    {
+      "key": "observability_post_deploy",
+      "weight": 0.06,
+      "desc": "Post-deploy verification that targets the NEW artifact (not the previous deploy), plus smoke/canary/console checks and alerting.",
+      "band_1": "Post-deploy smoke explicitly hits the new bundle; canary/console checks; failure alerting path.",
+      "band_0": "Smoke/observability targets the wrong (previous) deploy or is optional/absent."
+    },
+    {
+      "key": "clarity_navigability",
+      "weight": 0.04,
+      "desc": "Skimmable at the right altitude; indexed; a hurried session finds what it needs fast without drowning in detail.",
+      "band_1": "Clean section map + key-file index + tables; each section earns its place.",
+      "band_0": "Wall of prose, no navigation, buries load-bearing rules."
+    },
+    {
+      "key": "honesty_maintainability",
+      "weight": 0.04,
+      "desc": "Living-doc discipline that is PRACTICAL (not self-blocking); unimplemented things marked TODO not asserted-as-done; no over-claims.",
+      "band_1": "Every not-yet-real capability is labeled TODO/provisional; doc-maintenance burden is realistic; claims match reality.",
+      "band_0": "Over-claims (asserts unbuilt guards exist); maintenance rules that are operationally impossible to satisfy."
+    }
+  ]
+}

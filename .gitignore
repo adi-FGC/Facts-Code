@@ -77,6 +77,10 @@ docs/adversarial-review-*.md
 # by `factstack install`/uninstall). Not source.
 /.mcp.json
 
+# Codex per-machine config (hard-codes absolute repo paths for the factstack
+# MCP server). Same category as .mcp.json: install state, not source.
+/.codex/
+
 # Local Firebase client-config file (public web keys, kept per-machine). The
 # same public config is embedded where it's actually used (mcp-server/auth.ts,
 # ui-remix/public/mcp-auth.js); this loose copy is never committed.

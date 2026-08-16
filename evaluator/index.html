@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Workflow Evaluator — reusable · enforceable · honest</title>
+<meta name="description" content="Score any build→review→ship workflow manual on three things — reusable, enforceable, honest — with your own Anthropic key. Browse and improve open workflows." />
+<style>
+  :root{
+    --bg:#fbfbfa; --surface:#fff; --surface2:#f4f4f2; --ink:#1c1c1a; --ink2:#55554f; --muted:#86867e;
+    --line:#e6e6e2; --accent:#0f6e56; --accent2:#1d9e75; --blue:#185fa5; --amber:#985f0b; --coral:#993c1d; --radius:10px;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#17181a; --surface:#1f2023; --surface2:#26282c; --ink:#ececea; --ink2:#b7b7b1; --muted:#8a8a84;
+    --line:#33353a; --accent:#5dcaa5; --accent2:#1d9e75; --blue:#85b7eb; --amber:#ef9f27; --coral:#f0997b;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.6;font-size:15px}
+  .wrap{max-width:920px;margin:0 auto;padding:0 20px 80px}
+  header.top{padding:40px 0 8px}
+  h1{font-size:27px;font-weight:600;margin:0 0 6px;letter-spacing:-.01em}
+  h2{font-size:19px;font-weight:600;margin:38px 0 12px}
+  h3{font-size:15px;font-weight:600;margin:0 0 4px}
+  .lede{color:var(--ink2);font-size:16px;max-width:64ch;margin:0 0 4px}
+  .pills{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 0}
+  .pill{font-size:12.5px;padding:3px 11px;border-radius:999px;background:var(--surface2);color:var(--ink2);border:1px solid var(--line)}
+  .pill b{color:var(--accent);font-weight:600}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:14px 0}
+  .muted{color:var(--muted);font-size:13px}
+  label{display:block;font-size:13px;color:var(--ink2);margin:0 0 5px;font-weight:500}
+  input[type=text],input[type=password],select,textarea{width:100%;font-family:inherit;font-size:14px;color:var(--ink);
+    background:var(--bg);border:1px solid var(--line);border-radius:var(--radius);padding:9px 11px}
+  textarea{font-family:var(--mono);font-size:12.5px;line-height:1.55;resize:vertical;min-height:150px}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--accent2);outline-offset:1px;border-color:transparent}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row>div{flex:1;min-width:140px}
+  button{font-family:inherit;font-size:14px;font-weight:500;color:var(--ink);background:var(--surface);
+    border:1px solid var(--line);border-radius:var(--radius);padding:9px 15px;cursor:pointer}
+  button:hover{background:var(--surface2)}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{filter:brightness(1.06)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .btns{display:flex;gap:9px;flex-wrap:wrap;margin-top:12px}
+  .keybar{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+  .keybar>div:first-child{flex:1;min-width:220px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .stat{background:var(--surface2);border-radius:var(--radius);padding:13px 15px}
+  .stat .l{font-size:12.5px;color:var(--ink2)}
+  .stat .v{font-size:26px;font-weight:600;line-height:1.15}
+  .stat .b{font-size:12px;color:var(--muted)}
+  .wf{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--line)}
+  .wf:first-child{border-top:0}
+  .wf .s{font-family:var(--mono);font-weight:600;color:var(--accent)}
+  .badge{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--accent);color:#fff;margin-left:8px;vertical-align:2px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:500}
+  td.n{font-family:var(--mono);text-align:right;color:var(--ink2)}
+  .bar{height:6px;border-radius:3px;background:var(--surface2);overflow:hidden;margin-top:3px}
+  .bar>span{display:block;height:100%;background:var(--accent2)}
+  .err{color:#c0392b;background:#fdecea;border:1px solid #f5c6c0;border-radius:var(--radius);padding:10px 12px;font-size:13px}
+  @media (prefers-color-scheme:dark){.err{background:#3a1f1c;border-color:#6b2e28;color:#f0a79f}}
+  a{color:var(--accent)}
+  .foot{margin-top:44px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:13px}
+  .spin{display:inline-block;width:13px;height:13px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Workflow evaluator</h1>
+    <p class="lede">Score any build&nbsp;→&nbsp;review&nbsp;→&nbsp;ship operating manual on three things — <b>reusable</b>, <b>enforceable</b>, <b>honest</b> — then improve it. Browse open, verified workflows anyone can use.</p>
+    <div class="pills">
+      <span class="pill">bring your own <b>Anthropic key</b> · stateless</span>
+      <span class="pill">10-dimension rubric</span>
+      <span class="pill">powered by <b>factstack</b></span>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="keybar">
+      <div>
+        <label for="key">Your Anthropic API key <span class="muted">(sk-ant-…)</span></label>
+        <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off" spellcheck="false" />
+      </div>
+      <div style="flex:0 0 auto;min-width:170px">
+        <label for="model">Model</label>
+        <input id="model" type="text" value="claude-sonnet-5" spellcheck="false" />
+      </div>
+      <div style="flex:0 0 auto">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer"><input id="remember" type="checkbox" style="width:auto" /> remember on this device</label>
+      </div>
+    </div>
+    <p class="muted" style="margin:10px 0 0">Your key is sent only to Anthropic, through this page's <b>stateless</b> proxy — never stored or logged on the server (<a href="functions/api/evaluate.js">read the source</a>). "Remember" keeps it in <i>this browser only</i>.</p>
+  </div>
+
+  <h2>Evaluate a workflow</h2>
+  <div class="card">
+    <div class="row" style="margin-bottom:10px">
+      <div style="flex:2">
+        <label for="pick">Pick a published workflow, or paste your own below</label>
+        <select id="pick"></select>
+      </div>
+      <div style="flex:0 0 auto"><button id="load">Load into editor</button></div>
+    </div>
+    <textarea id="doc" placeholder="Paste a build→review→ship workflow manual here, or load one above…"></textarea>
+    <div class="btns">
+      <button id="score" class="primary">Evaluate</button>
+      <button id="improve">Improve one round ↻</button>
+      <span id="status" class="muted" style="align-self:center"></span>
+    </div>
+    <div id="err" class="err hidden" style="margin-top:12px"></div>
+  </div>
+
+  <div id="result" class="hidden">
+    <div class="grid" id="rollups" style="margin-bottom:14px"></div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:10px">
+        <h3 style="margin:0">Per-dimension score <span class="muted" style="font-weight:400">· weighted total <b id="total" style="color:var(--accent)"></b></span></h3>
+      </div>
+      <div id="radar" style="margin:8px 0 2px" role="img" aria-label="Radar chart of the ten rubric dimensions for this workflow versus the flagship."></div>
+      <p id="verdict" style="color:var(--ink2);font-size:14px"></p>
+      <table id="dimtable"><tbody></tbody></table>
+    </div>
+    <div id="improved" class="card hidden">
+      <h3>Improved draft <span class="muted" id="impdelta"></span></h3>
+      <p class="muted" id="impchange"></p>
+      <textarea id="impdoc" readonly></textarea>
+      <div class="btns"><button id="useimp">Use as editor content ↑</button></div>
+    </div>
+  </div>
+
+  <h2>The workflows <span class="muted" style="font-size:13px;font-weight:400">— open, verified, yours to use</span></h2>
+  <div class="card" id="gallery"></div>
+
+  <h2>Leaderboard <span class="muted" style="font-size:13px;font-weight:400">— it improves as the local loop re-runs</span></h2>
+  <div class="card">
+    <div id="board"></div>
+    <p class="muted" style="margin:12px 0 0">These are blind-panel scores from the A/B/C experiment: an untouched <b>control</b>, a single-pass <b>Claude</b> rewrite, a metric-gated <b>auto-tinker loop</b>, and the <b>hybrid merge</b>. Each time the loop re-runs locally and produces a better best, this page is rebuilt and the flagship + scores update. That's the "improves with time" — verified offline, then published here.</p>
+  </div>
+
+  <div class="foot">
+    <b>How it works.</b> The evaluator scores the manual against a fixed 10-dimension rubric grouped into three rollups
+    (reusable · enforceable · honest), computed deterministically from the model's per-dimension scores. It never
+    persists your key or your document. "Improve" runs one generate→re-score pass so you can see the delta.
+    <b>Honest limits:</b> an LLM judge's verdict can shift with framing; treat scores as a strong signal, not a proof,
+    and re-run to gauge variance.
+  </div>
+</div>
+
+<script>
+const DIMS = ["cross_project_reusability","gate_enforceability","self_containment","verification_discipline","rollback_recovery","review_coverage_honesty","token_operational_efficiency","observability_post_deploy","clarity_navigability","honesty_maintainability"];
+const LABEL = {cross_project_reusability:"Cross-project reuse",gate_enforceability:"Gate enforcement",self_containment:"Self-contained",verification_discipline:"Verification",rollback_recovery:"Rollback",review_coverage_honesty:"Review honesty",token_operational_efficiency:"Token efficiency",observability_post_deploy:"Observability",clarity_navigability:"Clarity",honesty_maintainability:"Honesty"};
+const ROLLUPS = {reusable:{label:"Reusable",dims:["cross_project_reusability","self_containment","clarity_navigability"]},enforceable:{label:"Enforceable",dims:["gate_enforceability","verification_discipline","rollback_recovery","observability_post_deploy","token_operational_efficiency"]},honest:{label:"Honest",dims:["review_coverage_honesty","honesty_maintainability"]}};
+const WORKFLOWS = [
+  {id:"merge",name:"Hybrid merge",flagship:true,score:0.90,file:"workflows/merge.md",blurb:"Project-profile skeleton + runnable fail-closed gate scripts. Verified #1 in a blind 4-way panel."},
+  {id:"loop",name:"Auto-tinker loop",score:0.82,file:"workflows/loop.md",blurb:"Metric-gated keep/discard loop — ships enforcement, denser to read."},
+  {id:"claude",name:"Claude-direct",score:0.72,file:"workflows/claude.md",blurb:"Clean single-pass rewrite — reads best, but describes gates rather than shipping them."},
+  {id:"control",name:"Control (baseline)",score:0.55,file:"workflows/control.md",blurb:"The original project-specific handoff — the before picture."},
+];
+const RLABEL={cross_project_reusability:"Reuse",gate_enforceability:"Gates",self_containment:"Self-cont.",verification_discipline:"Verify",rollback_recovery:"Rollback",review_coverage_honesty:"Rev. honesty",token_operational_efficiency:"Tokens",observability_post_deploy:"Observe",clarity_navigability:"Clarity",honesty_maintainability:"Honesty"};
+const $=s=>document.querySelector(s);
+
+function drawRadar(el,data,ref){
+  const cx=240,cy=182,R=120,n=DIMS.length;
+  const ang=i=>(-90+i*360/n)*Math.PI/180;
+  const pt=(i,v)=>[+(cx+R*v*Math.cos(ang(i))).toFixed(1),+(cy+R*v*Math.sin(ang(i))).toFixed(1)];
+  const poly=a=>a.map((v,i)=>pt(i,v).join(",")).join(" ");
+  let g="";
+  for(let r=0.2;r<=1.001;r+=0.2) g+='<polygon points="'+DIMS.map((_,i)=>pt(i,r).join(",")).join(" ")+'" fill="none" stroke="var(--line)" stroke-width="1"/>';
+  DIMS.forEach((k,i)=>{const[x,y]=pt(i,1);g+='<line x1="'+cx+'" y1="'+cy+'" x2="'+x+'" y2="'+y+'" stroke="var(--line)" stroke-width="1"/>';
+    const[lx,ly]=pt(i,1.17);const a=Math.abs(lx-cx)<10?"middle":(lx>cx?"start":"end");
+    g+='<text x="'+lx+'" y="'+(ly+3)+'" text-anchor="'+a+'" font-size="10" fill="var(--muted)">'+RLABEL[k]+'</text>';});
+  if(ref)g+='<polygon points="'+poly(ref)+'" fill="none" stroke="#888780" stroke-width="1" stroke-dasharray="4 3"/>';
+  g+='<polygon points="'+poly(data)+'" fill="rgba(29,158,117,.16)" stroke="#1d9e75" stroke-width="2"/>';
+  data.forEach((v,i)=>{const[x,y]=pt(i,v);g+='<circle cx="'+x+'" cy="'+y+'" r="2.4" fill="#1d9e75"/>';});
+  el.innerHTML='<svg viewBox="0 0 480 372" width="100%" style="max-width:480px;display:block;margin:0 auto">'+g+'</svg>'+
+    '<div style="text-align:center;font-size:12px;color:var(--muted)">&#9646; this workflow &nbsp;&nbsp; &#9647; flagship (merge)</div>';
+}
+
+// --- key persistence (this device only) ---
+const keyEl=$("#key"),remEl=$("#remember");
+try{const k=localStorage.getItem("anthropic_key");if(k){keyEl.value=k;remEl.checked=true;}}catch(e){}
+remEl.onchange=()=>{try{remEl.checked?localStorage.setItem("anthropic_key",keyEl.value):localStorage.removeItem("anthropic_key");}catch(e){}};
+keyEl.oninput=()=>{if(remEl.checked){try{localStorage.setItem("anthropic_key",keyEl.value);}catch(e){}}};
+
+// --- workflow picker + gallery ---
+const pick=$("#pick");
+WORKFLOWS.forEach(w=>{const o=document.createElement("option");o.value=w.id;o.textContent=w.name+(w.flagship?"  ★ flagship":"")+"  ("+w.score.toFixed(2)+")";pick.appendChild(o);});
+const paste=document.createElement("option");paste.value="";paste.textContent="— paste my own —";pick.appendChild(paste);
+$("#load").onclick=async()=>{const w=WORKFLOWS.find(x=>x.id===pick.value);if(!w)return;setStatus("loading "+w.name+"…");try{const t=await(await fetch(w.file)).text();$("#doc").value=t;setStatus("");}catch(e){setStatus("");showErr("Couldn't load "+w.file+" (are you serving over http, not file://?)");}};
+const gal=$("#gallery");
+WORKFLOWS.forEach(w=>{const d=document.createElement("div");d.className="wf";d.innerHTML=
+  '<div><h3 style="display:inline">'+w.name+'</h3>'+(w.flagship?'<span class="badge">flagship</span>':'')+
+  '<div class="muted">'+w.blurb+'</div></div>'+
+  '<div style="text-align:right;white-space:nowrap"><div class="s">'+w.score.toFixed(2)+'</div>'+
+  '<a class="muted" href="'+w.file+'" download>download</a> · <a class="muted" href="'+w.file+'" target="_blank">view</a></div>';
+  gal.appendChild(d);});
+
+// --- leaderboard ---
+const board=$("#board");
+WORKFLOWS.slice().sort((a,b)=>b.score-a.score).forEach((w,i)=>{const d=document.createElement("div");d.className="wf";
+  d.innerHTML='<div><b>#'+(i+1)+'</b> &nbsp;'+w.name+(w.flagship?' <span class="badge">best</span>':'')+
+  '<div class="bar" style="width:220px"><span style="width:'+Math.round(w.score*100)+'%"></span></div></div>'+
+  '<div class="s">'+w.score.toFixed(2)+'</div>';board.appendChild(d);});
+
+function setStatus(t,busy){$("#status").innerHTML=(busy?'<span class="spin"></span>':'')+t;}
+function showErr(t){const e=$("#err");e.textContent=t;e.classList.remove("hidden");}
+function clearErr(){$("#err").classList.add("hidden");}
+
+async function call(mode){
+  clearErr();
+  const apiKey=keyEl.value.trim(),workflow=$("#doc").value.trim(),model=$("#model").value.trim()||"claude-sonnet-5";
+  if(!apiKey){showErr("Paste your Anthropic API key first — this tool is bring-your-own-key.");return null;}
+  if(workflow.length<50){showErr("Load or paste a workflow manual (at least 50 characters).");return null;}
+  setStatus(mode==="improve"?"improving…":"evaluating…",true);
+  $("#score").disabled=$("#improve").disabled=true;
+  try{
+    const r=await fetch("/api/evaluate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({workflow,apiKey,mode,model})});
+    const j=await r.json();
+    if(!r.ok){showErr((j.error||"Request failed")+(j.detail?" — "+j.detail:""));return null;}
+    return j;
+  }catch(e){showErr("Network error: "+e);return null;}
+  finally{setStatus("");$("#score").disabled=$("#improve").disabled=false;}
+}
+
+$("#score").onclick=async()=>{const j=await call("score");if(j)renderScore(j);};
+$("#improve").onclick=async()=>{const j=await call("improve");if(!j)return;
+  $("#improved").classList.remove("hidden");$("#result").classList.remove("hidden");
+  $("#impdoc").value=j.improved||"";$("#impchange").textContent=j.changelog||"";
+  // auto re-score the improved draft to show a delta
+  const prevTotal=window._lastTotal;
+  const cur=$("#doc").value;$("#doc").value=j.improved||cur;
+  const s=await call("score");$("#doc").value=cur; // keep original in editor; improved shown separately
+  if(s){renderScore(s);if(typeof prevTotal==="number")$("#impdelta").textContent="· new total "+s.total.toFixed(3)+" (was "+prevTotal.toFixed(3)+", Δ "+((s.total-prevTotal>=0?"+":"")+(s.total-prevTotal).toFixed(3))+")";}
+};
+$("#useimp").onclick=()=>{$("#doc").value=$("#impdoc").value;window.scrollTo({top:0,behavior:"smooth"});};
+
+function renderScore(j){
+  window._lastTotal=j.total;
+  $("#result").classList.remove("hidden");
+  $("#total").textContent=j.total.toFixed(3);
+  // rollups
+  const rc=$("#rollups");rc.innerHTML="";
+  Object.entries(ROLLUPS).forEach(([k,def])=>{const v=(j.rollups&&j.rollups[k]!=null)?j.rollups[k]:null;
+    const d=document.createElement("div");d.className="stat";
+    d.innerHTML='<div class="l">'+def.label+'</div><div class="v">'+(v==null?"—":v.toFixed(2))+'</div>'+
+      '<div class="bar"><span style="width:'+Math.round((v||0)*100)+'%"></span></div>';rc.appendChild(d);});
+  $("#verdict").textContent=j.verdict||"";
+  // per-dim table
+  const tb=$("#dimtable").querySelector("tbody");tb.innerHTML="<tr><th>dimension</th><th>score</th><th>why</th></tr>";
+  DIMS.forEach(k=>{const v=j.dims[k]!=null?j.dims[k]:0;const tr=document.createElement("tr");
+    tr.innerHTML='<td>'+LABEL[k]+'</td><td class="n">'+v.toFixed(2)+'</td><td class="muted">'+((j.notes&&j.notes[k])||"")+'</td>';tb.appendChild(tr);});
+  // radar (evaluated doc vs the flagship merge reference) — inline SVG, no external deps
+  const MERGE=[0.97,0.95,0.90,0.97,0.98,0.97,0.98,0.90,0.85,0.92];
+  drawRadar($("#radar"),DIMS.map(k=>j.dims[k]!=null?j.dims[k]:0),MERGE);
+  $("#result").scrollIntoView({behavior:"smooth",block:"start"});
+}
+</script>
+</body>
+</html>
