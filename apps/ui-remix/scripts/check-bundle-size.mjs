@@ -198,6 +198,17 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 // ~3.4 KB gz — field-based update scheduling, Frame reconciler fixes, HMR
 // hooks). Framework floor, not feature creep; route-level code-splitting
 // remains the structural claw-back.
+// 2026-06-28 — main JS raw 396→398 KB after the CSS Suggestions drawer gained a
+// second close affordance: a bottom-left pull-tab that protrudes past the drawer
+// edge (ui/CssSuggestionsPanel.tsx), alongside the drawer's navbar-offset fix
+// (top: --nav-h so it no longer overlaps the header). The new css() atoms
+// (closeTab + closeTabIcon, ~0.8 KB raw) compress heavily — main JS gz held at
+// 107.3 KB, still under the binding 108 KB gz cap — so this only nudges the
+// non-binding raw sanity rail. Route-level code-splitting remains the real
+// first-paint lever.
+// (Merged from recover/chrome-ext-fixes: the drawer change above raised the cap
+// to 398 KB on that branch; main has since moved to 412 KB for the framework
+// upgrade, so the higher ceiling wins and subsumes it.)
 const CAP_MAIN_JS_RAW = 412 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint

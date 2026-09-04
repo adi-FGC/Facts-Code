@@ -49,11 +49,37 @@ const ticker = (color: string) => css({
 const handleLabel = css({ writingMode: 'vertical-rl', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-10)', letterSpacing: '0.18em', textTransform: 'uppercase', color: 'var(--fg-muted)' });
 
 const drawer = css({
-  position: 'fixed', right: '0', top: '0', bottom: '0', zIndex: '41',
+  /* Starts BELOW the navbar (top: --nav-h) so it never covers the header's
+     buttons; z 55 still keeps it above the header (z 50) in stacking order,
+     while staying below the true modals (OpenModal / CommandPalette, z 60)
+     so those can surface over the open drawer. */
+  position: 'fixed', right: '0', top: 'var(--nav-h)', bottom: '0', zIndex: '55',
   width: 'min(440px, 94vw)', display: 'flex', flexDirection: 'column',
   background: 'var(--surface-1, #14171c)', borderLeft: '1px solid var(--border)',
+  borderTop: '1px solid var(--hairline)',
   boxShadow: '-12px 0 40px rgba(0,0,0,0.35)',
 });
+
+/* A second close affordance: a pull-tab anchored to the drawer's bottom-left
+   that protrudes OUT past the left edge (translateX(-100%)). Mirrors the
+   collapsed handle's visual language so "open" and "close" read as a pair. */
+const closeTab = css({
+  position: 'absolute', left: '0', bottom: 'var(--space-8)', transform: 'translateX(-100%)',
+  display: 'flex', alignItems: 'center', gap: '6px',
+  background: 'var(--surface-2, #1b1f25)', border: '1px solid var(--border)', borderRight: 'none',
+  borderRadius: '12px 0 0 12px', padding: '10px 12px', cursor: 'pointer',
+  color: 'var(--fg-muted)', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em', textTransform: 'uppercase',
+  boxShadow: '-6px 6px 24px rgba(0,0,0,0.22)',
+  transition: 'transform var(--dur-quick, 140ms) var(--ease-out-quart, ease), color 140ms',
+  '&:hover': { color: 'var(--fg)', transform: 'translateX(calc(-100% - 3px))' },
+  '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '2px' },
+  /* Phones: the drawer goes ~full-width, leaving no room for a left-
+     protruding tab without it clipping off-screen — fall back to the
+     top-right × there. Matches the header's own 599px mobile breakpoint. */
+  '@media (max-width: 599px)': { display: 'none' },
+});
+const closeTabIcon = css({ fontSize: '14px', lineHeight: '1', fontWeight: '700' });
 const head = css({ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', padding: 'var(--space-4) var(--space-5)', borderBottom: '1px solid var(--hairline)' });
 const headTitle = css({ fontSize: 'var(--fs-16)', fontWeight: '600', color: 'var(--fg)', flex: '1 1 auto' });
 const headCount = (color: string) => css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', fontWeight: '700', color: 'var(--bg)', background: color, borderRadius: '999px', padding: '2px 9px' });
@@ -187,6 +213,12 @@ export function CssSuggestionsPanel(handleRef: Handle<{ data: Dataset }>) {
             ))
           )}
         </div>
+        {/* Bottom-left pull-tab — protrudes past the drawer's left edge as a
+            second way to collapse, balancing the × in the top-right. */}
+        <button type="button" mix={[closeTab, on('click', close)]} aria-label="Close panel">
+          <span aria-hidden="true" mix={closeTabIcon}>›</span>
+          <span>Close</span>
+        </button>
       </aside>
     );
   };

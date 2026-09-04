@@ -420,7 +420,7 @@ const progLabel = css({
 
 export function progressBlock(label: string, fraction: number): RemixNode {
   return (
-    <div mix={progWrap}>
+    <div mix={progWrap} role="status" aria-live="polite" aria-atomic="true">
       <div mix={progLabel}>{spinner()}<span>{label}</span></div>
       {bar(fraction)}
     </div>
