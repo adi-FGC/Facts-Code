@@ -27,7 +27,7 @@ import {
   RISK_DELTA_SEVERITY,
   HOTSPOT_LOW,
   HOTSPOT_MEDIUM,
-} from '@factstack/spec';
+} from '@factstack/spec/review-severity'; // zod-free subpath: keeps the schemas out of first paint
 import { tarjanSCC, findCycles } from './graphAnalysis.ts';
 import type { Dataset } from './loadArtifacts.ts';
 

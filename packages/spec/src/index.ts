@@ -17,6 +17,7 @@ export * from './diff.js';
 export * from './review.js';
 export * from './docs.js';
 export * from './styles.js';
+export * from './git.js';
 export {
   agentJsonSchema,
   humanJsonSchema,

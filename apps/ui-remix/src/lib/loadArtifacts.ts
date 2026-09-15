@@ -17,7 +17,7 @@
  * platform. Same module shape as the previous React version.
  */
 
-import type { DependencyManifest, DocFile, StyleAudit, Vulnerability } from '@factstack/spec';
+import type { DependencyManifest, DocFile, GitTopology, StyleAudit, Vulnerability } from '@factstack/spec';
 
 export interface DatasetFile {
   name: string;
@@ -146,6 +146,15 @@ export interface Dataset {
    *  artifacts that lack these fields entirely should still load. */
   dependencyManifests?: DependencyManifest[];
   vulnerabilities?: Vulnerability[];
+  /** v0.11 — metadata of the last `scan-vulns` run; present after a scan even
+   *  when the findings list is empty (the "scanned and clean" marker). */
+  vulnerabilityScan?: {
+    scannedAt: string;
+    source: 'osv.dev';
+    packagesQueried: number;
+    packagesSkipped: number;
+    findings: number;
+  };
   /** v0.8 — flagged documentation files with parsed structure + capped raw
    *  content. Optional for backward-compat with pre-v0.8 datasets; the Docs
    *  tab renders an empty state when absent. */
@@ -153,6 +162,10 @@ export interface Dataset {
   /** v0.8 — CSS / styling audit of the scanned project. Absent when the
    *  project has no stylesheet sources; the RHS suggestions panel hides. */
   styles?: StyleAudit;
+  /** v0.3.11 — worktrees, branches, request records, commit + deploy
+   *  readiness. Absent for non-git projects and pre-v0.3.11 datasets; the
+   *  Worktrees tab renders an empty state. */
+  git?: GitTopology;
 }
 
 const INLINE_ID = 'factstack-data';

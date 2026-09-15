@@ -136,9 +136,21 @@ export function rewriteRiskMessage(
  *  a copy with the message rewritten and the technical text moved into
  *  `messageTechnical`. When no rewrite exists, returns the input
  *  unchanged. */
-export function applyRewrite<T extends { rule: string; message: string; file?: string | undefined; messageTechnical?: string | undefined }>(
-  risk: T,
-): T {
+export function applyRewrite<
+  T extends {
+    rule: string;
+    message: string;
+    file?: string | undefined;
+    messageTechnical?: string | undefined;
+    category?: string | undefined;
+    severity?: string | undefined;
+  },
+>(risk: T): T {
+  /* v0.3.11 — a secret the scanner already downgraded to `low` is a
+     token-shaped value in a test/fixture path. Every secret template says
+     "rotate now"; for a fixture that is the wrong advice, so the scanner's
+     own "verify it is a fixture" wording stays. */
+  if (risk.category === 'secret' && risk.severity === 'low') return risk;
   const plain = rewriteRiskMessage(risk.rule, risk.message, risk.file);
   if (!plain) return risk;
   return { ...risk, message: plain, messageTechnical: risk.message };

@@ -181,3 +181,32 @@ describe('humanToViz — capabilities head fallback (regression)', () => {
     expect(v.summary.capabilities[0]?.sub).toBe('using React 19');
   });
 });
+
+/* v0.3.11 — the Worktrees tab reads `dataset.git`. Dropping this passthrough
+   would blank the tab with no other test failing, so pin it here. */
+describe('humanToViz — git topology passthrough (v0.3.11)', () => {
+  const topology = {
+    scannedAt: '2026-09-06T00:00:00Z',
+    repoRoot: 'D:/repo',
+    currentPath: 'D:/repo',
+    defaultBranch: 'main',
+    originDefault: 'origin/main',
+    remotes: [{ name: 'origin', url: null }],
+    remoteRefsAgeDays: 1,
+    stashes: 0,
+    worktrees: [],
+    branches: [],
+    gaps: [],
+    requestsCoverage: 'full',
+    elapsedMs: 7,
+  } as NonNullable<AgentArtifact['git']>;
+
+  it('omits `git` entirely when the analyzer collected no topology', () => {
+    expect('git' in humanToViz(makeAgent(), makeHuman())).toBe(false);
+  });
+
+  it('passes agent.git through untouched when present', () => {
+    const v = humanToViz(makeAgent({ git: topology }), makeHuman());
+    expect(v.git).toEqual(topology);
+  });
+});

@@ -394,6 +394,12 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
        for one-off scans against pasted manifests. */
     const artifactVulns = data.vulnerabilities ?? [];
     const hasArtifactVulns = artifactVulns.length > 0;
+    /* v0.11 marker (wired through the dataset in v0.3.11): a scan that found
+       nothing is a RESULT. Without it this page showed "ready to scan" after
+       a clean `factstack scan-vulns`, indistinguishable from never scanning. */
+    const scan = data.vulnerabilityScan ?? null;
+    const scannedClean = !hasArtifactVulns && scan !== null;
+    const scanAge = scan ? fmtAge(Math.max(0, Date.now() - (Date.parse(scan.scannedAt) || Date.now()))) : null;
     /* Aggregate counts from the artifact for the headline + LabelNumbers. */
     const artifactCounts = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
     for (const v of artifactVulns) artifactCounts[v.severity] = artifactCounts[v.severity] + 1;
@@ -409,7 +415,10 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
     /* Freshness — relative time since the most recent lastChecked.
        Stale data (older than 24h) gets a softer tone in the freshness
        chip; very stale (>7d) suggests re-running scan-vulns. */
-    const newestCheck = artifactVulns.reduce((m, v) => Math.max(m, v.lastChecked), 0);
+    const newestCheck = artifactVulns.reduce(
+      (m, v) => Math.max(m, v.lastChecked),
+      scan ? Date.parse(scan.scannedAt) || 0 : 0,
+    );
     const ageMs = newestCheck > 0 ? Date.now() - newestCheck : null;
     const freshness = ageMs === null ? null : fmtAge(ageMs);
 
@@ -444,6 +453,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             Vulnerabilities {
               hasArtifactVulns
                 ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
+                : scannedClean
+                  ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
                 : results
                   ? `· ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
                   : '· ready to scan'
@@ -452,6 +463,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
           <h1 mix={headline}>
             {hasArtifactVulns
               ? renderHeadline(artifactCounts.critical, artifactCounts.high, artifactVulns.length)
+              : scannedClean
+                ? 'No known vulnerabilities at the queried versions.'
               : results
                 ? renderHeadline(critical, high, totalVulns)
                 : 'Check your dependencies against the OSV database.'}
@@ -459,6 +472,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
           <p mix={lede}>
             {hasArtifactVulns
               ? <>From the last <code class="mono">factstack scan-vulns</code> run {freshness ? `· ${freshness}` : ''}. Re-run that command to refresh the artifact, or paste a different manifest below for a one-off scan.</>
+              : scannedClean
+                ? <>Scanned {scan!.packagesQueried} package{scan!.packagesQueried === 1 ? '' : 's'} against <a href="https://osv.dev" mix={vulnLink}>OSV.dev</a> · {scanAge}{scan!.packagesSkipped ? ` · ${scan!.packagesSkipped} workspace/file dep${scan!.packagesSkipped === 1 ? '' : 's'} not queryable` : ''}. Zero known advisories at the queried versions. Re-run <code class="mono">factstack scan-vulns</code> after bumping dependencies, or paste a manifest below for a one-off scan.</>
               : <>We detected {manifests.length} manifest{manifests.length === 1 ? '' : 's'} in this project. Paste one into the box below to query <a href="https://osv.dev" mix={vulnLink}>OSV.dev</a> — the same advisory source that powers Dependabot and the OpenSSF scanners. Results are cached locally for 6 hours; no data leaves your browser except the package names + versions.</>}
           </p>
 

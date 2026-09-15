@@ -2,7 +2,7 @@
  * Tests for `buildSiteRegistry` — the aggregator IR builder.
  *
  * Locks the counts the discoverability artifacts depend on (17 tools,
- * 4 resources, 11 routes, a 6-step onboarding sequence) + the purity /
+ * 4 resources, 12 routes, a 6-step onboarding sequence) + the purity /
  * determinism contract (same `generatedAt` in → byte-identical out; no
  * clock read).
  */
@@ -31,9 +31,9 @@ describe('buildSiteRegistry', () => {
     ]);
   });
 
-  it('carries all 11 web routes in nav order', () => {
+  it('carries all 12 web routes in nav order', () => {
     const reg = buildSiteRegistry(FIXED);
-    expect(reg.routes).toHaveLength(11);
+    expect(reg.routes).toHaveLength(12);
     expect(reg.routes[0]).toEqual({ path: '/', label: 'Overview' });
     expect(reg.routes.at(-1)).toEqual({ path: '/about', label: 'About' });
   });

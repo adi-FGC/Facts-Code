@@ -118,39 +118,17 @@ export type ChangeVerdict = z.infer<typeof ChangeVerdictSchema>;
 //   - Any other net-new risk finding → `low`.
 //   - The rolled-up verdict severity is the MAX finding severity.
 
-export const SEVERITY_RANK: Record<ReviewSeverity, number> = {
-  none: 0,
-  low: 1,
-  medium: 2,
-  high: 3,
-  critical: 4,
-};
-
-export const SECRET_SEVERITY: FindingSeverity = 'high';
-export const CYCLE_SEVERITY: FindingSeverity = 'medium';
-export const RISK_DELTA_SEVERITY: FindingSeverity = 'low';
-export const HOTSPOT_LOW = 5; // ≥ this many transitive dependents → low hotspot note
-export const HOTSPOT_MEDIUM = 20; // ≥ this many → medium hotspot caution
-
-/** Map a vulnerability/advisory severity string onto a finding severity. */
-export function vulnFindingSeverity(sev: string): FindingSeverity {
-  switch (sev) {
-    case 'critical':
-      return 'critical';
-    case 'high':
-      return 'high';
-    case 'medium':
-      return 'medium';
-    default:
-      return 'low'; // low / unknown / anything unexpected
-  }
-}
-
-/** Rolled-up verdict severity = the worst finding, or `none`. */
-export function rollupSeverity(findings: ChangeFinding[]): ReviewSeverity {
-  let worst: ReviewSeverity = 'none';
-  for (const f of findings) {
-    if (SEVERITY_RANK[f.severity] > SEVERITY_RANK[worst]) worst = f.severity;
-  }
-  return worst;
-}
+/* The severity constants + helpers live in `review-severity.ts` (zod-free,
+   so the dashboard can import them without dragging the schemas into first
+   paint); re-exported here so nothing that imports them from this module
+   or the barrel has to change. */
+export {
+  SEVERITY_RANK,
+  SECRET_SEVERITY,
+  CYCLE_SEVERITY,
+  RISK_DELTA_SEVERITY,
+  HOTSPOT_LOW,
+  HOTSPOT_MEDIUM,
+  vulnFindingSeverity,
+  rollupSeverity,
+} from './review-severity.js';

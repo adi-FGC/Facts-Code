@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { GitTopologySchema } from './git.js';
 import { DocFileSchema } from './docs.js';
 import { StyleAuditSchema } from './styles.js';
 
@@ -596,5 +597,10 @@ export const AgentArtifactSchema = z.object({
    *  lightningcss/tooling check). Optional for backward-compat; absent when
    *  the project has no CSS sources. */
   styles: StyleAuditSchema.optional(),
+  /** v0.3.11 — worktrees, branches, nested repos and what each carries
+   *  (features, request dates, commit + deploy readiness, gaps). Absent
+   *  when the project is not a git repo or the adapter didn't collect it
+   *  (pre-v0.3.11 artifacts, browser builds). See git.ts. */
+  git: GitTopologySchema.optional(),
 });
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;

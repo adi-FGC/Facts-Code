@@ -209,7 +209,25 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 // (Merged from recover/chrome-ext-fixes: the drawer change above raised the cap
 // to 398 KB on that branch; main has since moved to 412 KB for the framework
 // upgrade, so the higher ceiling wins and subsumes it.)
-const CAP_MAIN_JS_RAW = 412 * 1024;
+// 2026-09-06 — main JS raw 412→430 KB for the Worktrees tab (v0.3.11).
+// Two distinct costs, both deliberate: routes/Worktrees.tsx itself (~10 KB raw
+// — per-checkout blocks, the branch table, and the copy tables that turn gap
+// CODES into a plain sentence + the command that closes each), and the
+// GitTopology zod schema, which AgentArtifactSchema embeds so the artifact is
+// validated in the browser exactly as it is in Node (~6 KB raw, and it lands in
+// the lazy worker too — see the worker cap below). Measured after the fix pass:
+// 426.4 KB raw / 116.3 KB gz. Route-level code-splitting is still the real
+// first-paint lever; this tab is the strongest candidate for it, since a reader
+// opens it deliberately rather than on first paint.
+// 2026-09-14 — cap unchanged, but the number behind it moved twice. vite
+// 8.0.8→8.0.16 (a CVE bump) stopped tree-shaking zod out of the entry chunk:
+// main went 426→492 KB raw because the dashboard reached SEVERITY_RANK and
+// ROUTE_CATALOG through the @factstack/spec barrel, and every schema in the
+// barrel came along. Fix: zod-free subpaths (`@factstack/spec/routes`,
+// `@factstack/spec/review-severity`). Measured after: 425.5 KB raw /
+// 115.8 KB gz — under the pre-bump figure. Rule that falls out of it: the
+// dashboard never imports the spec barrel at runtime; types via `import type`.
+const CAP_MAIN_JS_RAW = 430 * 1024;
 // 2026-06-02 — main JS gz 80 → 90 KB. The market-validated /review Change
 // Verdict panel (routes/Review.tsx + lib/reviewVerdict.ts) is the first-paint
 // feature that finally crossed the long-flagged 80 KB line. The severity model
@@ -264,7 +282,11 @@ const CAP_MAIN_JS_RAW = 412 * 1024;
 // lazy-load — remains the structural fix; this keeps the binding gz rail honest.
 // 2026-08-16 — main JS gz 108→112 KB: the remix beta.6 runtime growth above
 // (~3.4 KB gz), zero app-code change. See the raw-cap note.
-const CAP_MAIN_JS_GZ = 112 * 1024;
+// 2026-09-06 — main JS gz 112→118 KB: the Worktrees tab + the GitTopology
+// schema above. Measured 116.3 KB gz. Prose compresses well, so the gz delta
+// (~4.7 KB) is smaller than the raw one — in line with the Sankey (+4 KB gz)
+// and Review-panel bumps.
+const CAP_MAIN_JS_GZ = 118 * 1024;
 // 2026-06-10 — lazy JS raw 600 → 640 KB. The graph-intelligence wave's lazy
 // chunks grew ~13 KB raw (Sugiyama community coloring in SugiyamaDag/DagControls
 // + entity-aware graph views riding the dynamically-imported route chunks); the
@@ -282,7 +304,13 @@ const CAP_MAIN_JS_GZ = 112 * 1024;
 // Bumped 648→672 for the agent-discoverability feature (same barrel-bundled MCP
 // catalog + route metadata as CAP_MAIN_JS_RAW above; gz cap unchanged, still
 // passing). FOLLOW-UP: split mcp-catalog.ts off the barrel, then restore 648.
-const CAP_WORKER_JS_RAW = 672 * 1024;
+// 2026-09-06 — lazy JS raw 672→684 KB. Zero new lazy FEATURE code: the scanner
+// worker imports @factstack/spec's AgentArtifactSchema, which now embeds the
+// GitTopology schema, so the same ~7 KB of zod construction rides the worker
+// chunk. Measured 675.4 KB raw / 198.2 KB gz (the binding gz cap is untouched
+// at 200 KB). If this rail gets tight again, the fix is to stop validating the
+// whole artifact inside the worker, not a bigger number.
+const CAP_WORKER_JS_RAW = 684 * 1024;
 const CAP_WORKER_JS_GZ = 200 * 1024;
 const CAP_CSS_RAW = 24 * 1024;
 const CAP_CSS_GZ = 8 * 1024;

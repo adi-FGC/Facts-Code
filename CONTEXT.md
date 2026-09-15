@@ -243,6 +243,55 @@ filters. When `lastChecked` is null, surfaces a hint that
 
 ---
 
+## Git topology tier — vocabulary introduced 2026-09-06
+
+**Checkout** — any working directory of the repo. Four **kinds**:
+`main` (the primary one), `linked` (`git worktree add`, may live
+outside the repo root), `nested` (a separate repo found inside the
+tree), `junction` (a symlink/junction inside the tree pointing at a
+repo elsewhere). Only `main`/`linked` are judged against this repo’s
+default branch; the other two are `external` and judged on their own
+history.
+
+**Deploy line** — `origin/<default>`, the ref a deploy is cut from.
+Every "merged" verdict means *contained in the deploy line*, never
+"merged into my local default" — that weaker state has its own value,
+`merged-local`, because a push of the default is all that stands in
+the way. Same distinction reledger draws; the wording is deliberate.
+
+**Integration** vs **publish** — two independent axes, never collapsed.
+Integration answers *is this work on the deploy line* (`default` /
+`merged` / `merged-local` / `unmerged` / `external` / `unknown`);
+publish answers *does the remote have these commits* (`pushed` /
+`ahead` / `behind` / `diverged` / `no-upstream` / `upstream-gone` /
+`no-remote` / `detached`). A branch can be merged but unpushed, or
+pushed but unmerged.
+
+**Readiness** — the two questions a person actually asks, each a closed
+enum plus prose reasons. `readiness.commit` is about the working tree
+(`nothing` / `ready` / `partial` / `unstaged` / `blocked`);
+`readiness.deploy` is about the deploy line, resolved in a fixed order
+(`blocked` → `needs-push` → `needs-merge` → `no-target` → `ready`) so a
+dirty tree can never read "ready". Both are derived from local refs
+ONLY: no fetch, no CI query, no network.
+
+**Feature** — a thing a checkout carries, from one of three sources:
+a unique `commit` subject, a `request` (the first real prompt of an
+agent session that ran in that directory), or the `branch` name.
+Request text is UNTRUSTED DATA and is redacted + capped before storage.
+
+**Request record** — who asked for the work and when, recovered from
+Claude Code / Codex transcripts under the user’s home dir. `via: cwd`
+is strong evidence (the session ran there); `via: slot` is weaker (the
+worktree slot name matched) and is labelled as such wherever it shows.
+
+**Gap** — a named thing the collector could NOT see, with a one-move
+fix (`no-upstream`, `no-request-record`, `stale-remote-refs`, `no-ci`,
+…). Gaps are first-class output, not an error path: they are how the
+surface stays honest about the confidence of its own verdicts.
+
+---
+
 ## Architectural principles (not for re-litigation)
 
 - **The interface is the test surface.** When `writeArtifactsTo` is

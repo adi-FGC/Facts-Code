@@ -36,6 +36,8 @@ const TRUNCATE_KEY_FILES = 8;
 const TRUNCATE_MODULES = 6;
 const TRUNCATE_ROUTES_PER_GROUP = 6;
 const TRUNCATE_CAPABILITIES = 6;
+/** v0.3.11 — worktrees listed in the MEMORY.md Worktrees section. */
+const TRUNCATE_WORKTREES = 8;
 const ONELINER_MAX_LEN = 280;
 
 /** Collapse whitespace + cap a working-context line so the section stays small.
@@ -120,6 +122,37 @@ export function buildMemory(
   if (agent.stats.fileCount === 0) {
     sections.push('');
     sections.push('_No source files yet — analyze a populated project to fill out this brief._');
+  }
+
+  // ── Worktrees (v0.3.11) — where unmerged / unpushed / dirty work lives
+  //    and whether each checkout is ready to commit or deploy, so an agent
+  //    knows the state of play before touching anything. Omitted when the
+  //    analyzer had no git topology (section-omission contract). ──
+  const topo = agent.git;
+  if (topo && topo.worktrees.length > 0) {
+    sections.push('');
+    sections.push('## Worktrees');
+    sections.push('');
+    const line = topo.originDefault ?? topo.defaultBranch ?? 'the default branch';
+    for (const w of topo.worktrees.slice(0, TRUNCATE_WORKTREES)) {
+      const name = w.relPath === '.' ? (w.path.split('/').filter(Boolean).at(-1) ?? w.path) : (w.relPath ?? w.path);
+      const dirt = [
+        w.dirty.staged ? `${w.dirty.staged} staged` : '',
+        w.dirty.modified ? `${w.dirty.modified} modified` : '',
+        w.dirty.untracked ? `${w.dirty.untracked} untracked` : '',
+        w.dirty.conflicts ? `${w.dirty.conflicts} conflicts` : '',
+      ].filter(Boolean).join(', ') || (w.tree === 'unavailable' ? 'status unavailable' : 'clean');
+      const unique = w.uniqueCount ? ` · ${w.uniqueCount} commit${w.uniqueCount === 1 ? '' : 's'} not in ${line}` : '';
+      const asked = w.requestedAt ? ` · requested ${w.requestedAt.slice(0, 10)}` : '';
+      sections.push(
+        `- **${name}** (${w.kind}${w.isCurrent ? ', here' : ''}) — ${w.branch ?? 'detached'} · ${w.integration} · ${w.publish} · ${dirt}${unique}` +
+          ` · commit: ${w.readiness.commit} · deploy: ${w.readiness.deploy}${asked}`,
+      );
+    }
+    if (topo.worktrees.length > TRUNCATE_WORKTREES) {
+      sections.push(`- _(+${topo.worktrees.length - TRUNCATE_WORKTREES} more — see the Worktrees tab or the pack's worktrees table)_`);
+    }
+    if (topo.gaps.length) sections.push(`- _Gaps_: ${topo.gaps.join(', ')}`);
   }
 
   // ── Working context (F9) — durable tasks / decisions / questions an agent

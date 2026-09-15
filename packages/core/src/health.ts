@@ -65,7 +65,9 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     }
   }
   const broken = brokenFiles.size;
-  const secrets = risks.filter((r) => r.category === 'secret').length;
+  /* v0.3.11 — fixture-path secrets are emitted at `low` (see analyze());
+     they stay visible in the Credentials view but do not cost the grade. */
+  const secrets = risks.filter((r) => r.category === 'secret' && r.severity !== 'low').length;
   const oversized = risks.filter((r) => r.category === 'large-file').length;
   const stale = files.filter((f) => f.status === 'stale').length;
   const todos = files.reduce((sum, f) => sum + (f.todos?.length ?? 0), 0);

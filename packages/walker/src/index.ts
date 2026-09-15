@@ -104,6 +104,17 @@ export interface WalkedFile {
   skippedReason: 'binary' | 'too_large' | 'read_error' | null;
 }
 
+/** True when `dir` holds a `.git` entry — file (linked worktree,
+ *  submodule) or directory (nested clone). A stat that throws means no. */
+async function isOtherCheckout(fs: FactsFS, dir: string): Promise<boolean> {
+  try {
+    await fs.stat(fs.join(dir, '.git'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function* walk(
   fs: FactsFS,
   root: string = '.',
@@ -176,6 +187,14 @@ async function* walkDir(
     if (entry.isDirectory) {
       if (visited.has(entry.path)) continue;
       visited.add(entry.path);
+      /* v0.3.11 — a directory that carries its own `.git` (a linked worktree
+         has a .git FILE, a nested clone a .git DIR) is a different checkout,
+         not part of this project. Descending into it double-counted every
+         file and, on the public demo, surfaced a stale worktree copy's test
+         fixtures as this repo's "secrets". The Worktrees tab reports these
+         checkouts on purpose; the file walk must not swallow them. Root is
+         exempt (its .git is the project's own). */
+      if (opts.skipGit && (await isOtherCheckout(fs, entry.path))) continue;
       yield* walkDir(fs, base, entry.path, localIgnore, visited, opts);
       continue;
     }

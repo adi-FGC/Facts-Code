@@ -127,11 +127,12 @@ The brief is **deterministic** (same input → byte-identical output) and **sect
 ## Routes             grouped by framework, alphabetical
 ## Key files          highest in-degree (most-imported = hubs)
 ## Open risks         severity high/critical only
+## Worktrees          every checkout: branch, integration, dirt, readiness
 ## Recently active    top 5 from git mtime
 ## How to read this codebase   5-step deterministic tour
 ```
 
-Sections with no content are omitted entirely (keeps the artifact small). Caps applied per section: 8 frameworks, 8 risks, 5 active files, 6 routes per framework, 6 capabilities, 3 languages.
+Sections with no content are omitted entirely (keeps the artifact small). Caps applied per section: 8 frameworks, 8 risks, 5 active files, 6 routes per framework, 6 capabilities, 3 languages, 8 worktrees.
 
 Read it via the MCP `read_memory` tool, the file directly, or paste it into an agent prompt. Schema version: `factstack-memory.v1`.
 
@@ -219,7 +220,7 @@ factstack/
 ├── packages/
 │   ├── spec/          # Zod schemas, MCP tool/resource catalog, FactsFS interface
 │   ├── walker/        # Gitignore-aware walker, takes a FactsFS
-│   ├── fs-node/       # Node fs implementation + git history miner
+│   ├── fs-node/       # Node fs impl + git history miner + worktree topology
 │   ├── fs-memory/     # In-memory FactsFS (for tests)
 │   ├── fs-browser/    # v0.4 stub (browser FactsFS via File System Access API)
 │   ├── parsers/       # web-tree-sitter WASM grammar registry (v0.3)

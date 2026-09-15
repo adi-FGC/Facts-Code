@@ -55,6 +55,35 @@ describe('walk — basic enumeration', () => {
   });
 });
 
+describe('walk — other checkouts inside the tree', () => {
+  it('does not descend into a linked worktree (a directory with a .git FILE)', async () => {
+    const fs = memoryFS({
+      'src/a.ts': 'x',
+      '.claude/worktrees/feature-x/.git': 'gitdir: ../../../.git/worktrees/feature-x',
+      '.claude/worktrees/feature-x/src/a.ts': 'copy — must not be counted twice',
+      '.claude/worktrees/feature-x/test/secrets.test.ts': 'AKIA_FIXTURE',
+    });
+    const paths = await collect(walk(fs));
+    expect(paths).toEqual(['src/a.ts']);
+  });
+
+  it('does not descend into a nested clone (a directory with a .git DIR)', async () => {
+    const fs = memoryFS({
+      'src/a.ts': 'x',
+      'examples/sample/.git/HEAD': 'ref: refs/heads/main',
+      'examples/sample/index.ts': 'y',
+      'examples/plain/index.ts': 'z',
+    });
+    const paths = await collect(walk(fs));
+    expect(paths).toEqual(['examples/plain/index.ts', 'src/a.ts']);
+  });
+
+  it('still walks the root itself, whose .git is the project\'s own', async () => {
+    const fs = memoryFS({ '.git/HEAD': 'ref', 'src/a.ts': 'x' });
+    expect(await collect(walk(fs))).toEqual(['src/a.ts']);
+  });
+});
+
 describe('walk — always-exclude folders', () => {
   it('skips node_modules', async () => {
     const fs = memoryFS({

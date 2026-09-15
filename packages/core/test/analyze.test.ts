@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyze } from '../src/index.js';
+import { analyze, isTestFixturePath } from '../src/index.js';
 import { memoryFS } from '@factstack/fs-memory';
 
 /**
@@ -675,5 +675,38 @@ describe('analyze — source files sniffed as binary are not silent', () => {
     const png = r.agent.files.find((f) => f.path === 'assets/logo.png')!;
     expect(png.status).toBe('ok');
     expect(r.agent.risks.some((k) => k.file === 'assets/logo.png')).toBe(false);
+  });
+});
+
+/* ───────────── v0.3.11 — secrets in test fixtures ───────────── */
+
+describe('secrets in test fixtures (v0.3.11)', () => {
+  it('classifies test / fixture paths by convention', () => {
+    for (const p of ['test/a.ts', 'packages/x/test/a.ts', 'src/__tests__/a.ts', 'src/__fixtures__/keys.ts', 'fixtures/k.json', 'src/a.test.ts', 'src/a.spec.tsx', 'testdata/x']) {
+      expect(isTestFixturePath(p), p).toBe(true);
+    }
+    for (const p of ['src/config.ts', 'src/testing-utils.ts', 'contest/a.ts', 'src/latest.ts']) {
+      expect(isTestFixturePath(p), p).toBe(false);
+    }
+  });
+
+  it('reports a fixture-path secret at low severity and keeps it out of the health count', async () => {
+    // Split so push-protection scanners never see a literal token shape.
+    const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      'src/config.ts': `export const token = "${TOKEN}";\n`,
+      'test/config.test.ts': `const token = "${TOKEN}";\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const secrets = r.agent.risks.filter((rk) => rk.category === 'secret');
+    const real = secrets.find((s) => s.file === 'src/config.ts');
+    const fixture = secrets.find((s) => s.file === 'test/config.test.ts');
+    expect(real?.severity).toBe('high');
+    expect(fixture?.severity).toBe('low');
+    expect(fixture?.message).toContain('fixture');
+    // Still listed (both present), but only the real one is scored as exposed.
+    expect(secrets).toHaveLength(2);
+    expect(r.human.summary.health.secrets).toBe(1);
   });
 });

@@ -32,6 +32,7 @@ import { Tests } from './routes/Tests.tsx';
 import { History } from './routes/History.tsx';
 import { About } from './routes/About.tsx';
 import { Config } from './routes/Config.tsx';
+import { Worktrees } from './routes/Worktrees.tsx';
 import { CommandPalette } from './ui/CommandPalette.tsx';
 import { CssSuggestionsPanel } from './ui/CssSuggestionsPanel.tsx';
 import { OpenModal } from './components/OpenModal.tsx';
@@ -264,6 +265,7 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
     case 'security':     return <Security data={data} />;
     case 'tests':        return <Tests data={data} />;
     case 'history':      return <History data={data} />;
+    case 'worktrees':    return <Worktrees data={data} />;
     case 'config':       return <Config data={data} />;
     case 'about':        return <About data={data} />;
   }

@@ -55,6 +55,10 @@ export const ROUTES: readonly RouteSpec[] = [
   { path: '/flow',            name: 'Flow',            headlines: ['How data moves through this system.'], interactiveSelector: 'svg' },
   { path: '/graph',           name: 'Graph',           headlines: ['Where the dependency lives.'] },
   { path: '/history',         name: 'History',         headlines: ['One snapshot so far.', 'Trends over time.'] },
+  /* v0.3.11 — the Worktrees tab. Both headlines are dataset-driven: the empty
+     state for a non-git project, and the verdict sentence when topology is
+     present (asserted on its stable prefix via `interactiveSelector`). */
+  { path: '/worktrees',       name: 'Worktrees',       headlines: [], interactiveSelector: 'h1' },
   { path: '/library',         name: 'Library',         headlines: ["The project's table of contents."] },
   { path: '/review',          name: 'Review',          headlines: [] /* H1 is the dynamic verdict headline; assert h1 exists */, interactiveSelector: 'h1' },
   { path: '/risks',           name: 'Risks',           headlines: ['Nothing to flag today.', 'What to look at first.'] },

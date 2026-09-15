@@ -158,7 +158,7 @@ export {
   type SinceFileSummary,
 } from './since.js';
 import { inferIntent } from '@factstack/intent';
-import type { ProjectMeta } from '@factstack/spec';
+import type { GitTopology, ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
   /** Project root path (FactsFS-relative). */
@@ -190,6 +190,12 @@ export interface AnalyzeOptions {
    *  run (INV2). Omit for the pre-F8 path; the browser build omits it (INV7).
    *  The Node CLI passes @factstack/emit's sqlite-backed store. */
   extractionCache?: ExtractionCache | undefined;
+  /** v0.3.11 - worktree/branch topology mined Node-side by
+   *  @factstack/fs-node mineGitTopology(). Core stays isomorphic and
+   *  never shells out; when omitted (or null: not a git repo) the
+   *  artifact simply lacks agent.git and the Worktrees tab shows its
+   *  empty state. */
+  git?: GitTopology | null | undefined;
 }
 
 export interface AnalysisResult {
@@ -201,6 +207,18 @@ export interface AnalysisResult {
     filesSkipped: number;
     elapsedMs: number;
   };
+}
+
+/** Test / fixture locations by convention: a `test`, `tests`, `__tests__`,
+ *  `__mocks__`, `fixtures` or `testdata` directory segment, or a
+ *  `*.test.*` / `*.spec.*` file name. Heuristic by design — a real credential
+ *  committed under test/ is still listed, just not scored as exposed. */
+export function isTestFixturePath(p: string): boolean {
+  const u = p.replace(/\\/g, '/');
+  return (
+    /(^|\/)(test|tests|__tests__|__mocks__|__fixtures__|fixtures|fixture|testdata|test-data)\//i.test(u) ||
+    /\.(test|spec)\.[cm]?[jt]sx?$/i.test(u)
+  );
 }
 
 export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<AnalysisResult> {
@@ -351,14 +369,24 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (manifest) dependencyManifests.push(manifest);
 
     if (lang) {
+      /* v0.3.11 — a token-shaped string inside a test or fixture file is a
+         fixture until proven otherwise: scanner tests, redaction tests and
+         sample data all carry them on purpose. Still REPORTED (category
+         'secret', so the Credentials view lists it and a human can check),
+         but at `low` severity, and health.ts counts only high/critical
+         secrets as "exposed" — otherwise this repo's own test suite dragged
+         the public demo to an F. */
+      const fixture = isTestFixturePath(f.path);
       for (const s of scanSecrets(f.path, text)) {
         secrets.push({
-          severity: 'high',
+          severity: fixture ? 'low' : 'high',
           category: 'secret',
           rule: s.ruleId,
           file: s.file,
           line: s.line,
-          message: `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
+          message: fixture
+            ? `${s.ruleLabel}-shaped value in a test/fixture file (entropy ${s.entropy}). Verify it is a fixture, not a real credential.`
+            : `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
           preview: s.preview,
         });
       }
@@ -740,6 +768,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     docs,
     rationale,
     ...(styleAudit ? { styles: styleAudit } : {}),
+    /* v0.3.11 — worktrees / branches / readiness, adapter-collected. */
+    ...(opts.git ? { git: opts.git } : {}),
   };
 
   // Build human artifact (dashboard).

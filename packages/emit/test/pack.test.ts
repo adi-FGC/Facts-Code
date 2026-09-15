@@ -122,7 +122,7 @@ describe('encodeAgentPack — shape + content', () => {
     expect(fields[6]).toMatch(/^(master|diff)$/);
   });
 
-  it('emits all thirteen tables in fixed order', () => {
+  it('emits all sixteen tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
       pack.indexOf('& top'),
@@ -138,10 +138,14 @@ describe('encodeAgentPack — shape + content', () => {
       pack.indexOf('& rationale'),
       pack.indexOf('& entities'),
       pack.indexOf('& entityEdges'),
+      pack.indexOf('& worktrees'),
+      pack.indexOf('& branches'),
+      pack.indexOf('& features'),
     ];
     // Every table is present (F2 added symbols + calls; F5 added nodeMetrics;
     // F10 added rationale; F11 added entities + entityEdges; the agent-v4 `top`
-    // digest leads) — emitted even when empty, so the 13-table shape is stable.
+    // digest leads; v0.3.11 added worktrees + branches + features) — emitted
+    // even when empty, so the 16-table shape is stable.
     expect(order.every((i) => i >= 0)).toBe(true);
     // And in the documented order.
     for (let i = 1; i < order.length; i++) {
@@ -325,8 +329,138 @@ describe('encodeAgentPack — byte cost', () => {
       .join('\n');
     const dataLength = pack.length - meta.length;
     expect(dataLength).toBeLessThan(json.length);
-    expect(meta.length).toBeLessThan(3500);
+    /* v0.3.11 added three tables + a gap-code line to the legend (~1.8 KB);
+       the block is still fixed-size and amortizes on real repos. */
+    expect(meta.length).toBeLessThan(5600);
     /* The 50%-on-real-data measurement happens in the workspace-level
        integration test against .facts/agent.json. */
+  });
+});
+
+/* ───────────── v0.3.11 — worktrees / branches / features ───────────── */
+
+describe('encodeAgentPack — worktrees / branches / features (v0.3.11)', () => {
+  function makeTopology(): NonNullable<AgentArtifact['git']> {
+    const mainPath = 'D:/repo';
+    const linkedPath = 'D:/repo/.claude/worktrees/feature-x';
+    return {
+      scannedAt: '2026-09-06T10:00:00Z',
+      repoRoot: mainPath,
+      currentPath: mainPath,
+      defaultBranch: 'main',
+      originDefault: 'origin/main',
+      remotes: [{ name: 'origin', url: 'https://example.invalid/repo.git' }],
+      remoteRefsAgeDays: 0.5,
+      stashes: 1,
+      worktrees: [
+        {
+          path: mainPath, relPath: '.', kind: 'main', isCurrent: true, target: null,
+          bare: false, locked: false, lockReason: null, prunable: false,
+          branch: 'main', head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', headAt: '2026-09-04T01:18:31Z',
+          upstream: 'origin/main', ahead: 0, behind: 0,
+          integration: 'default', publish: 'pushed', tree: 'clean', inProgress: null,
+          dirty: { staged: 0, modified: 0, untracked: 0, conflicts: 0 },
+          compareBase: 'refs/remotes/origin/main', uniqueCount: 0, uniqueCommits: [],
+          requests: [], sessions: 0, requestedAt: null, lastActivityAt: '2026-09-04T01:18:31Z', stale: false,
+          features: [], deployTargets: ['wrangler.toml'], ci: true, testScript: true,
+          readiness: { commit: 'nothing', commitReasons: ['working tree clean'], deploy: 'ready', deployReasons: ['on origin/main · wrangler.toml'] },
+          gaps: ['no-request-record'],
+        },
+        {
+          path: linkedPath, relPath: '.claude/worktrees/feature-x', kind: 'linked', isCurrent: false, target: null,
+          bare: false, locked: false, lockReason: null, prunable: false,
+          branch: 'feat/x', head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', headAt: '2026-09-05T08:00:00Z',
+          upstream: null, ahead: null, behind: null,
+          integration: 'unmerged', publish: 'no-upstream', tree: 'dirty', inProgress: null,
+          dirty: { staged: 2, modified: 1, untracked: 3, conflicts: 0 },
+          compareBase: 'refs/heads/main', uniqueCount: 1,
+          uniqueCommits: [{ sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', at: '2026-09-05T08:00:00Z', subject: 'feat(x): add the x panel' }],
+          requests: [{ agent: 'claude-code', sessionId: '0123456789abcdef', startedAt: '2026-09-03T09:00:00Z', lastAt: '2026-09-05T09:00:00Z', prompt: 'build the x panel', title: null, via: 'cwd' }],
+          sessions: 1, requestedAt: '2026-09-03T09:00:00Z', lastActivityAt: '2026-09-05T09:00:00Z', stale: false,
+          features: [
+            { id: 'bbbbbbb', source: 'commit', label: 'x: add the x panel', at: '2026-09-05T08:00:00Z' },
+            { id: 'r:01234567', source: 'request', label: 'build the x panel', at: '2026-09-03T09:00:00Z' },
+            { id: 'b:feat/x', source: 'branch', label: 'x', at: null },
+          ],
+          deployTargets: [], ci: false, testScript: true,
+          readiness: { commit: 'partial', commitReasons: ['2 files staged', '1 file modified, unstaged', '3 untracked files'], deploy: 'blocked', deployReasons: ['commit or discard 6 changes first'] },
+          gaps: ['no-upstream', 'no-deploy-config', 'no-ci', 'untracked-work'],
+        },
+      ],
+      branches: [
+        { name: 'main', head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', headAt: '2026-09-04T01:18:31Z', subject: 'chore: release', isDefault: true, upstream: 'origin/main', upstreamGone: false, ahead: 0, behind: 0, uniqueCount: 0, behindDefault: 0, containedInOrigin: true, containedInLocal: true, worktree: mainPath, deletable: false, deleteBlockers: ['is the default branch', 'checked out at .'] },
+        { name: 'feat/x', head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', headAt: '2026-09-05T08:00:00Z', subject: 'feat(x): add the x panel', isDefault: false, upstream: null, upstreamGone: false, ahead: null, behind: null, uniqueCount: 1, behindDefault: 0, containedInOrigin: false, containedInLocal: false, worktree: linkedPath, deletable: false, deleteBlockers: ['checked out at .claude/worktrees/feature-x', '1 commits not in origin/main'] },
+        { name: 'old/merged', head: 'cccccccccccccccccccccccccccccccccccccccc', headAt: '2026-08-01T00:00:00Z', subject: 'fix: typo', isDefault: false, upstream: 'origin/old/merged', upstreamGone: false, ahead: 0, behind: 0, uniqueCount: 0, behindDefault: 12, containedInOrigin: true, containedInLocal: true, worktree: null, deletable: true, deleteBlockers: [] },
+      ],
+      gaps: ['stale-remote-refs'],
+      requestsCoverage: 'full',
+      elapsedMs: 42,
+    };
+  }
+
+  it('emits the three tables empty when the artifact carries no git topology', () => {
+    const decoded = decode(encodeAgentPack(makeAgent()));
+    expect(decoded.tables.get('worktrees')!.rows).toHaveLength(0);
+    expect(decoded.tables.get('branches')!.rows).toHaveLength(0);
+    expect(decoded.tables.get('features')!.rows).toHaveLength(0);
+  });
+
+  it('carries readiness, request dates, features and gaps per worktree', () => {
+    const agent = makeAgent();
+    agent.git = makeTopology();
+    const pack = encodeAgentPack(agent);
+    const decoded = decode(pack);
+
+    const wt = decoded.tables.get('worktrees')!;
+    expect(wt.rows).toHaveLength(2);
+    const linked = wt.rows.find((r) => r[0] === 'D:/repo/.claude/worktrees/feature-x')!;
+    expect(linked[1]).toBe('linked');
+    expect(linked[2]).toBe('feat/x');
+    expect(linked[5]).toBe('dirty');
+    expect(linked.slice(6, 10)).toEqual(['2', '1', '3', '0']);
+    expect(linked[11]).toBeNull();               // no upstream → null cell
+    expect(linked[14]).toBe('1');                // unique commits
+    expect(linked[15]).toBe('unmerged');
+    expect(linked[16]).toBe('no-upstream');
+    expect(linked[17]).toBe('2026-09-03T09:00:00Z'); // requested_at = first agent prompt
+    expect(linked[20]).toBe('partial');
+    expect(linked[21]).toBe('blocked');
+    expect(linked[22]).toBeNull();               // no deploy targets
+    expect(linked[23]).toBe('no-upstream,no-deploy-config,no-ci,untracked-work');
+
+    const main = wt.rows.find((r) => r[0] === 'D:/repo')!;
+    expect(main[20]).toBe('nothing');
+    expect(main[21]).toBe('ready');
+    expect(main[22]).toBe('wrangler.toml');
+
+    const br = decoded.tables.get('branches')!;
+    expect(br.rows).toHaveLength(3);
+    const merged = br.rows.find((r) => r[0] === 'old/merged')!;
+    expect(merged[8]).toBe('1');   // merged into origin/main
+    expect(merged[12]).toBe('1');  // deletable
+
+    const feats = decoded.tables.get('features')!;
+    expect(feats.rows).toHaveLength(3);
+    expect(feats.rows.map((r) => r[2])).toEqual(['commit', 'request', 'branch']);
+    // Column 0 is the diff chain's primary key: it must stay unique across
+    // worktrees (two checkouts on stacked branches share a commit sha).
+    expect(feats.rows.map((r) => r[0])).toEqual(['w1:bbbbbbb', 'w1:r:01234567', 'w1:b:feat/x']);
+    expect(new Set(feats.rows.map((r) => r[0])).size).toBe(feats.rows.length);
+    expect(feats.rows.find((r) => r[2] === 'request')![4]).toBe('build the x panel');
+    expect(feats.rows.find((r) => r[2] === 'branch')![3]).toBeNull();
+
+    // Legend documents every new table + the gap codes, in-band.
+    expect(pack).toContain('worktrees: path(absolute; PK)');
+    expect(pack).toContain('branches: name head head_at');
+    expect(pack).toContain('features: id(w<worktree index>:');
+    expect(pack).toContain('gaps: codes in worktrees.gaps');
+  });
+
+  it('keeps the schema name agent-v4 — additive tables only (wire-compat)', () => {
+    const agent = makeAgent();
+    agent.git = makeTopology();
+    const pack = encodeAgentPack(agent);
+    expect(pack.startsWith('# factstack/0.3.10\tagent-v4\t')).toBe(true);
+    expect(pack).toMatch(/; end rows=\d+ tables=16 sha256=[0-9a-f]{12}/);
   });
 });

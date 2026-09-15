@@ -11,7 +11,7 @@
  * artifact lives alongside (not instead of) agent.json + human.json.
  */
 
-import type { AgentArtifact, DependencyManifest, DocFile, HumanArtifact, StyleAudit, Vulnerability } from '@factstack/spec';
+import type { AgentArtifact, DependencyManifest, DocFile, HumanArtifact, StyleAudit, Vulnerability, GitTopology } from '@factstack/spec';
 import { byCodeUnit } from '@factstack/spec';
 
 export interface VizLanguage {
@@ -138,12 +138,19 @@ export interface VizArtifact {
    *  single source of truth — no shape drift between artifact and viz. */
   dependencyManifests: DependencyManifest[];
   vulnerabilities: Vulnerability[];
+  /** v0.11 metadata of the last `scan-vulns` run. Without it an empty
+   *  vulnerabilities list is indistinguishable from "never scanned". */
+  vulnerabilityScan?: AgentArtifact['vulnerabilityScan'];
   /** v0.8 — flagged documentation files with parsed structure + capped raw
    *  content. Always present (empty array when no docs were detected). */
   docs: DocFile[];
   /** v0.8 — CSS / styling audit of the scanned project. Absent when the
    *  project has no stylesheet sources. */
   styles?: StyleAudit;
+  /** v0.3.11 — worktrees / branches / readiness for the Worktrees tab.
+   *  Absent when the project is not a git repo or the adapter didn't
+   *  collect it. */
+  git?: GitTopology;
 }
 
 /** Language-brand colors mirror the ones used by the prototype scan.mjs. */
@@ -341,8 +348,10 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
        vulns" rather than treating absence as "scan didn't run." */
     dependencyManifests: agent.dependencyManifests,
     vulnerabilities: agent.vulnerabilities,
+    ...(agent.vulnerabilityScan ? { vulnerabilityScan: agent.vulnerabilityScan } : {}),
     docs: agent.docs ?? [],
     ...(agent.styles ? { styles: agent.styles } : {}),
+    ...(agent.git ? { git: agent.git } : {}),
   };
 }
 

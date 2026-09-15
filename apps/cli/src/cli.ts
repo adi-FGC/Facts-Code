@@ -60,7 +60,7 @@ import {
 } from '@factstack/core';
 import { extractOutline } from '@factstack/extractors';
 import { exportGraph, graphExportFilename, gzippedBytes, humanToViz, NodeFileWriter, openExtractionCache, readSnapshots, writeArtifacts, type SqliteExtractionCache } from '@factstack/emit';
-import { mineGitStats, nodeFS } from '@factstack/fs-node';
+import { mineGitStats, mineGitTopology, nodeFS, repoDisplayName } from '@factstack/fs-node';
 import {
   approximateTokens,
   flattenManifests,
@@ -231,10 +231,11 @@ program
   .option('--json', 'Emit machine-readable JSON to stdout instead of a TTY summary')
   .option('--no-progress', 'Suppress progress output')
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
-  .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze.')
+  .option('--minimal', 'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze. Also implies --no-agent-requests, so the Worktrees tab shows commits and branches but no "when was this asked for" records.')
   .option('--symbols', 'F2 (beta): also build the symbol-level call/reference graph — declarations as nodes, refs as edges, each provenance-tagged (extracted/inferred/ambiguous). Adds a per-file AST ref walk; off by default until it stabilizes.')
+  .option('--no-agent-requests', 'v0.3.11: do not read Claude Code / Codex session transcripts under your home dir for the Worktrees tab request records (who asked for what, when). Git worktree/branch data is still collected. Implied by --minimal. Set FACTSTACK_NO_AGENT_REQUESTS=1 to apply the same opt-out to every surface (MCP server, ui, open).')
   .option('--no-cache', 'F8: disable the content-hash extraction cache (.facts/cache.db). Default-on caches per-file parse results keyed by content hash, so a re-analyze re-parses only changed files; output is byte-identical either way.')
-  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean; cache?: boolean }) => {
+  .action(async (target: string | undefined, opts: { json?: boolean; progress?: boolean; gitignoreEntry?: boolean; minimal?: boolean; symbols?: boolean; cache?: boolean; agentRequests?: boolean }) => {
     // Inherit top-level --json if subcommand-local flag isn't set.
     if (opts.json === undefined && program.opts().json) opts.json = true;
     const root = path.resolve(target ?? '.');
@@ -261,7 +262,10 @@ program
     }
 
     const fs = nodeFS(root);
-    const projectName = path.basename(root);
+    /* v0.3.11 — the repository's name, whichever checkout we are in: a linked
+       worktree used to be reported (and baked into the demo site) under the
+       worktree directory's name. */
+    const projectName = repoDisplayName(root);
     const gitStats = mineGitStats(root);
     let lastPrinted = 0;
 
@@ -283,6 +287,15 @@ program
       projectName,
       gzip: gzippedBytes,
       gitStats,
+      /* v0.3.11 — worktree/branch topology. Transcript reading (request
+         records) is skipped on --minimal so the per-edit hook stays cheap. */
+      /* Pass the option ONLY when the user actually opted out, so an
+         unset flag falls through to FACTSTACK_NO_AGENT_REQUESTS inside the
+         collector (an explicit `true` here would outrank the env var). */
+      git: mineGitTopology(
+        root,
+        opts.agentRequests === false || (opts.minimal ?? false) ? { agentRequests: false } : {},
+      ),
       symbols: opts.symbols ?? false,
       extractionCache,
       onProgress: showProgress
@@ -399,6 +412,22 @@ program
           })()]
         : []),
       `  frameworks   ${kleur.white(result.agent.project.frameworks.join(', ') || '—')}`,
+      /* v0.3.11 — one line about the worktree topology, when there is one.
+         Without it the whole Worktrees surface is invisible from the CLI. */
+      ...(result.agent.git
+        ? [
+            `  worktrees    ${kleur.white(String(result.agent.git.worktrees.length))}` +
+              kleur.dim(` checkout${result.agent.git.worktrees.length === 1 ? '' : 's'} · ${result.agent.git.branches.length} branches`) +
+              (() => {
+                const dirty = result.agent.git.worktrees.filter((w) => w.tree === 'dirty' || w.tree === 'conflicted').length;
+                const unmerged = result.agent.git.worktrees.filter((w) => w.integration === 'unmerged' || w.integration === 'merged-local').length;
+                const bits: string[] = [];
+                if (dirty > 0) bits.push(kleur.yellow(`${dirty} dirty`));
+                if (unmerged > 0) bits.push(kleur.yellow(`${unmerged} unmerged`));
+                return bits.length > 0 ? kleur.dim(' · ') + bits.join(kleur.dim(' · ')) : kleur.dim(' · all merged + clean');
+              })(),
+          ]
+        : []),
       '',
       kleur.bold('  Artifacts'),
       kleur.dim('  ─────────'),
@@ -446,7 +475,7 @@ program
         ),
       );
       const fs = nodeFS(root);
-      const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
+      const result = await analyze(fs, { root: '.', projectName: repoDisplayName(root), gzip: gzippedBytes, gitStats: mineGitStats(root), git: mineGitTopology(root) });
       restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
@@ -510,7 +539,7 @@ program
     async function reanalyzeAndPush(reason: 'user' | 'watch'): Promise<AgentArtifact['stats']> {
       resetIdle();
       const fs = nodeFS(root);
-      const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
+      const result = await analyze(fs, { root: '.', projectName: repoDisplayName(root), gzip: gzippedBytes, gitStats: mineGitStats(root), git: mineGitTopology(root) });
       restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, writeSnapshot: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
       const fresh = humanToViz(result.agent, result.human);
@@ -1059,7 +1088,7 @@ program
     if (!existsSync(humanPath) || !existsSync(agentPath)) {
       process.stderr.write(kleur.dim('  no existing .facts/ — analyzing first…\n'));
       const fs = nodeFS(root);
-      const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
+      const result = await analyze(fs, { root: '.', projectName: repoDisplayName(root), gzip: gzippedBytes, gitStats: mineGitStats(root), git: mineGitTopology(root) });
       restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }
@@ -1170,7 +1199,7 @@ program
     if (opts.reanalyze || !existsSync(humanPath) || !existsSync(agentPath)) {
       process.stderr.write(kleur.dim('  scanning ') + kleur.reset(path.basename(root)) + kleur.dim('…\n'));
       const fs = nodeFS(root);
-      const result = await analyze(fs, { root: '.', projectName: path.basename(root), gzip: gzippedBytes, gitStats: mineGitStats(root) });
+      const result = await analyze(fs, { root: '.', projectName: repoDisplayName(root), gzip: gzippedBytes, gitStats: mineGitStats(root), git: mineGitTopology(root) });
       restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({ root, agent: result.agent, human: result.human, addGitignoreEntry: true, memoryBody: buildMemory(result.agent, result.human, { contextStore: loadContextStore(root) }) });
     }

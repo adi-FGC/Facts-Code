@@ -73,7 +73,7 @@ describe('llmsTxtRenderer', () => {
     expect(body).toContain('## MCP resources (4)');
     expect(body).toContain('facts://project');
     // Routes are annotated as browser-UI and listed as plain paths, not as if fetchable.
-    expect(body).toContain('## Web routes (11)');
+    expect(body).toContain('## Web routes (12)');
     expect(body).toContain('JavaScript required');
     expect(body).toContain('Overview: /');
     expect(body).toContain('About: /about');
@@ -105,7 +105,7 @@ describe('sitemapRenderer', () => {
   it('emits one <url> per route anchored on the cloudflare host', () => {
     const xml = sitemapRenderer.render(REG)['sitemap.xml']!;
     expect(xml.startsWith('<?xml')).toBe(true);
-    expect((xml.match(/<url>/g) ?? [])).toHaveLength(11);
+    expect((xml.match(/<url>/g) ?? [])).toHaveLength(12);
     expect(xml).toContain('<loc>https://factstack.pages.dev/</loc>');
     expect(xml).toContain('<loc>https://factstack.pages.dev/architecture</loc>');
   });

@@ -28,7 +28,7 @@ import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts
 import { TABS, ICON_TABS } from '../lib/routes.ts';
 import { navigate } from '../lib/navigate.ts';
 
-/* Quick-jump targets: the 7 numbered tabs plus the right-side icon
+/* Quick-jump targets: every numbered tab plus the right-side icon
    routes (Config, About) so ⌘K still reaches them after they left the
    numbered nav. */
 const NAV_TARGETS = [...TABS, ...ICON_TABS];

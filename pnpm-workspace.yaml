@@ -4,6 +4,7 @@ packages:
   - "plugins/*"
   - "examples/*"
   - "prototype"
+  - "legacy/prototype"
 
 allowBuilds:
   esbuild: true

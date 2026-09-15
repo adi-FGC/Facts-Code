@@ -80,7 +80,7 @@ import {
   packSnapshotId,
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
-import { mineGitStats, nodeFS } from '@factstack/fs-node';
+import { mineGitStats, mineGitTopology, nodeFS, repoDisplayName } from '@factstack/fs-node';
 import { resolveSyncPack } from './sync-pack.js';
 import {
   approximateTokens,
@@ -112,7 +112,7 @@ import {
 // ── Bootstrap ──────────────────────────────────────────────────────────
 
 const root = resolveRoot();
-const projectName = path.basename(root);
+const projectName = repoDisplayName(root); // the repo's name even from a linked worktree (v0.3.11)
 
 /**
  * Mutable cache of the latest analyzer output. Populated on startup and
@@ -134,6 +134,7 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     projectName,
     gzip: gzippedBytes,
     gitStats: mineGitStats(root),
+    git: mineGitTopology(root),
   });
   // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
   // network-free per INV6 and returns an empty list). Mirrors the CLI.

@@ -1,10 +1,10 @@
-[scan] walking D:/dev/ai agents/claude/RallyPro
+[scan] walking ./RallyPro
 {
   "$schema": "https://factstack.dev/schema/prototype.v1.json",
   "generatedAt": "2026-04-18T20:28:57.293Z",
   "project": {
     "name": "RallyPro",
-    "root": "D:\\dev\\ai agents\\claude\\RallyPro",
+    "root": "./RallyPro",
     "languages": [
       {
         "id": "yaml",

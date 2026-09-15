@@ -39,7 +39,7 @@ FACTS produces two artifacts from one analysis pass: an AI-agent-optimized codeb
 ### Verified against this repo (2026-04-19)
 
 ```
-FACTS · analyzing D:\dev\ai agents\claude\factstack
+FACTS · analyzing ./factstack
   files        103
   LOC          18.7K
   tokens       206.7K (cl100k approx)
