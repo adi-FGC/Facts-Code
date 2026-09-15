@@ -1,4 +1,4 @@
-# @factstack/chrome-ext *(v0.4 stub)*
+# @factstack/chrome-ext _(v0.4 stub)_
 
 **Not built in v0.1.** Reserved for the Chrome extension surface — target audience: CXOs with no local toolchain who want to understand a GitHub repo without cloning.
 

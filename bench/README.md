@@ -6,7 +6,7 @@ set over the committed corpus in [`corpus/`](corpus/README.md):
 - **FACTS side** — one `get_context` call (F4): a ranked, budgeted context
   block. Tokens = the block's total; turns = 1.
 - **Naive side** — what an agent without FACTS does: grep the task's content
-  words (the *same* tokenizer F4 seeds with — one tokenizer, fair comparison)
+  words (the _same_ tokenizer F4 seeds with — one tokenizer, fair comparison)
   against file paths and read every hit in full. Tokens = sum of the matched
   files; turns = one read per file.
 

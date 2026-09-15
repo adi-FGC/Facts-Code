@@ -1,4 +1,4 @@
-# @factstack/webapp *(v0.5 stub)*
+# @factstack/webapp _(v0.5 stub)_
 
 **Not built in v0.1.** Reserved for the cloud-hosted web app surface.
 
