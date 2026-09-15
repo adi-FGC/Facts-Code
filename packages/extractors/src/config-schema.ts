@@ -103,9 +103,7 @@ function isImportMetaEnv(node: AnyNode | null | undefined): boolean {
     obj.property?.type === 'Identifier' &&
     obj.property?.name === 'meta';
   return Boolean(
-    isImportMeta &&
-      node.property?.type === 'Identifier' &&
-      node.property?.name === 'env',
+    isImportMeta && node.property?.type === 'Identifier' && node.property?.name === 'env',
   );
 }
 
@@ -146,7 +144,11 @@ function captureDefaultFromLogical(parent: AnyNode | null, self: AnyNode): strin
   return null;
 }
 
-export function extractEnvVarsJS(source: string, ext: string, parsed?: ParsedFile | null): EnvVarRead[] {
+export function extractEnvVarsJS(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): EnvVarRead[] {
   if (!isParseable(ext)) return [];
   const pf = parsed ?? parseJS(source, ext);
   if (!pf) return [];
@@ -203,7 +205,11 @@ export function extractEnvVarsJS(source: string, ext: string, parsed?: ParsedFil
       const props = n.id.properties ?? [];
       for (const p of props) {
         // ObjectProperty: { key: { name }, value: ... } — for plain `{ FOO }` shorthand value === key
-        if (p.type === 'ObjectProperty' && p.key?.type === 'Identifier' && typeof p.key.name === 'string') {
+        if (
+          p.type === 'ObjectProperty' &&
+          p.key?.type === 'Identifier' &&
+          typeof p.key.name === 'string'
+        ) {
           out.push({
             name: p.key.name,
             access,
@@ -239,18 +245,21 @@ export function extractEnvVarsJS(source: string, ext: string, parsed?: ParsedFil
  * the agent contract is "evidence-first, no guesses".
  * ─────────────────────────────────────────────────────────────── */
 
-const PY_GETENV   = /\bos\.getenv\s*\(\s*(['"])([^'"\\]+)\1\s*(?:,\s*(['"])([^'"\\]*)\3)?\s*\)/g;
-const PY_ENV_BRK  = /\bos\.environ\s*\[\s*(['"])([^'"\\]+)\1\s*\]/g;
-const PY_ENV_GET  = /\bos\.environ\.get\s*\(\s*(['"])([^'"\\]+)\1\s*(?:,\s*(['"])([^'"\\]*)\3)?\s*\)/g;
+const PY_GETENV = /\bos\.getenv\s*\(\s*(['"])([^'"\\]+)\1\s*(?:,\s*(['"])([^'"\\]*)\3)?\s*\)/g;
+const PY_ENV_BRK = /\bos\.environ\s*\[\s*(['"])([^'"\\]+)\1\s*\]/g;
+const PY_ENV_GET =
+  /\bos\.environ\.get\s*\(\s*(['"])([^'"\\]+)\1\s*(?:,\s*(['"])([^'"\\]*)\3)?\s*\)/g;
 
 export function extractEnvVarsPython(source: string): EnvVarRead[] {
   const out: EnvVarRead[] = [];
   // Translate match offset → line number cheaply via newline-prefix count.
   const lineOffsets: number[] = [0];
-  for (let i = 0; i < source.length; i++) if (source.charCodeAt(i) === 10 /*\n*/) lineOffsets.push(i + 1);
+  for (let i = 0; i < source.length; i++)
+    if (source.charCodeAt(i) === 10 /*\n*/) lineOffsets.push(i + 1);
   const lineOf = (offset: number): number => {
     // Binary search for largest lineOffsets[i] <= offset.
-    let lo = 0, hi = lineOffsets.length - 1;
+    let lo = 0,
+      hi = lineOffsets.length - 1;
     while (lo < hi) {
       const mid = (lo + hi + 1) >>> 1;
       if (lineOffsets[mid]! <= offset) lo = mid;
@@ -259,8 +268,13 @@ export function extractEnvVarsPython(source: string): EnvVarRead[] {
     return lo + 1;
   };
 
-  const sweeps: Array<{ rx: RegExp; access: EnvVarAccess; nameGroup: number; defaultGroup: number | null }> = [
-    { rx: PY_GETENV,  access: 'os.getenv',  nameGroup: 2, defaultGroup: 4 },
+  const sweeps: Array<{
+    rx: RegExp;
+    access: EnvVarAccess;
+    nameGroup: number;
+    defaultGroup: number | null;
+  }> = [
+    { rx: PY_GETENV, access: 'os.getenv', nameGroup: 2, defaultGroup: 4 },
     { rx: PY_ENV_BRK, access: 'os.environ', nameGroup: 2, defaultGroup: null },
     { rx: PY_ENV_GET, access: 'os.environ', nameGroup: 2, defaultGroup: 4 },
   ];
@@ -306,7 +320,11 @@ function dedupeAndSort(xs: EnvVarRead[]): EnvVarRead[] {
  * Top-level dispatch. Picks JS/TS or Python based on extension; emits
  * an empty array for everything else (HTML, CSS, JSON, manifests).
  */
-export function extractEnvVars(source: string, ext: string, parsed?: ParsedFile | null): EnvVarRead[] {
+export function extractEnvVars(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): EnvVarRead[] {
   if (isParseable(ext)) return extractEnvVarsJS(source, ext, parsed);
   if (isPython(ext)) return extractEnvVarsPython(source);
   return [];

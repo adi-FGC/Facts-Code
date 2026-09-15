@@ -78,7 +78,11 @@ type AnyNode = {
  * collects nodes we should NOT count as refs (declaration sites,
  * parameter names, property keys), populated as we walk.
  */
-export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFile | null): RawRef[] {
+export function extractSymbolRefs(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): RawRef[] {
   if (!isParseable(ext)) return [];
   const pf = parsed ?? parseJS(source, ext);
   if (!pf) return [];
@@ -89,14 +93,21 @@ export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFi
      main walk skips refs whose underlying node is in this set. */
   walkAst(pf.ast, (n: AnyNode | null) => {
     if (!n || typeof n !== 'object') return;
-    if (n.type === 'FunctionDeclaration' || n.type === 'ClassDeclaration' ||
-        n.type === 'TSInterfaceDeclaration' || n.type === 'TSTypeAliasDeclaration' ||
-        n.type === 'TSEnumDeclaration') {
+    if (
+      n.type === 'FunctionDeclaration' ||
+      n.type === 'ClassDeclaration' ||
+      n.type === 'TSInterfaceDeclaration' ||
+      n.type === 'TSTypeAliasDeclaration' ||
+      n.type === 'TSEnumDeclaration'
+    ) {
       if (n.id) skip.add(n.id as object);
     }
     if (n.type === 'VariableDeclarator' && n.id) skip.add(n.id as object);
-    if (n.type === 'FunctionExpression' || n.type === 'ArrowFunctionExpression' ||
-        n.type === 'FunctionDeclaration') {
+    if (
+      n.type === 'FunctionExpression' ||
+      n.type === 'ArrowFunctionExpression' ||
+      n.type === 'FunctionDeclaration'
+    ) {
       for (const p of n.params ?? []) skip.add(p as object);
     }
     /* Object property: `{ foo: bar }` — `foo` is a key, not a ref to
@@ -131,8 +142,12 @@ export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFi
           heuristic: false,
         });
         claimed.set(c as object, 'call');
-      } else if (c.type === 'MemberExpression' && c.object?.type === 'Identifier' &&
-                 typeof c.object.name === 'string' && !skip.has(c.object as object)) {
+      } else if (
+        c.type === 'MemberExpression' &&
+        c.object?.type === 'Identifier' &&
+        typeof c.object.name === 'string' &&
+        !skip.has(c.object as object)
+      ) {
         /* `X.foo()` — record 'call' for the root identifier and claim
            it so the MemberExpression branch below doesn't double-count
            it as a 'read'. */
@@ -148,9 +163,13 @@ export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFi
 
     /* MemberExpression with Identifier object — kind: 'read', UNLESS
        already claimed as 'call' above. */
-    if (n.type === 'MemberExpression' && n.object?.type === 'Identifier' &&
-        typeof n.object.name === 'string' && !skip.has(n.object as object) &&
-        !claimed.has(n.object as object)) {
+    if (
+      n.type === 'MemberExpression' &&
+      n.object?.type === 'Identifier' &&
+      typeof n.object.name === 'string' &&
+      !skip.has(n.object as object) &&
+      !claimed.has(n.object as object)
+    ) {
       refs.push({
         name: n.object.name as string,
         line: n.object.loc?.start?.line ?? n.loc?.start?.line ?? 0,
@@ -165,7 +184,7 @@ export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFi
       const nm = n.name as AnyNode;
       if (nm.type === 'JSXIdentifier' && typeof nm.name === 'string') {
         const first = nm.name.charCodeAt(0);
-        if (first >= 0x41 && first <= 0x5A) {
+        if (first >= 0x41 && first <= 0x5a) {
           refs.push({
             name: nm.name as string,
             line: nm.loc?.start?.line ?? n.loc?.start?.line ?? 0,
@@ -196,8 +215,12 @@ export function extractSymbolRefs(source: string, ext: string, parsed?: ParsedFi
        `x` here was claimed by MemberExpression, but if used bare
        like `bar` in `f(bar)`, the arg is a fresh Identifier).
        Emit as 'read' when not in skip set AND not already claimed. */
-    if (n.type === 'Identifier' && typeof n.name === 'string' &&
-        !skip.has(n as object) && !claimed.has(n as object)) {
+    if (
+      n.type === 'Identifier' &&
+      typeof n.name === 'string' &&
+      !skip.has(n as object) &&
+      !claimed.has(n as object)
+    ) {
       refs.push({
         name: n.name as string,
         line: n.loc?.start?.line ?? 0,

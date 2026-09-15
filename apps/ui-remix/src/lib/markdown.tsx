@@ -39,26 +39,98 @@ const hStyle = (depth: number) =>
     paddingBottom: depth === 1 ? 'var(--space-3)' : '0',
     borderBottom: depth === 1 ? '1px solid var(--hairline)' : 'none',
     fontSize:
-      depth === 1 ? 'var(--fs-24)'
-      : depth === 2 ? 'var(--fs-20)'
-      : depth === 3 ? 'var(--fs-16)'
-      : 'var(--fs-14)',
+      depth === 1
+        ? 'var(--fs-24)'
+        : depth === 2
+          ? 'var(--fs-20)'
+          : depth === 3
+            ? 'var(--fs-16)'
+            : 'var(--fs-14)',
   });
 const pStyle = css({ margin: '0 0 var(--space-4)', color: 'var(--fg-muted)' });
-const ulStyle = css({ margin: '0 0 var(--space-4)', paddingLeft: 'var(--space-6)', display: 'flex', flexDirection: 'column', gap: '4px' });
+const ulStyle = css({
+  margin: '0 0 var(--space-4)',
+  paddingLeft: 'var(--space-6)',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '4px',
+});
 const liStyle = css({ color: 'var(--fg-muted)' });
-const taskStyle = css({ listStyle: 'none', marginLeft: 'calc(var(--space-6) * -1)', display: 'flex', gap: 'var(--space-2)', alignItems: 'baseline' });
-const boxStyle = (done: boolean) => css({ fontFamily: 'var(--font-mono)', color: done ? 'var(--ok)' : 'var(--fg-subtle)', flex: '0 0 auto' });
-const codeInline = css({ fontFamily: 'var(--font-mono)', fontSize: '0.88em', background: 'var(--code-bg)', padding: '1px 5px', borderRadius: '4px', color: 'var(--fg)' });
-const preStyle = css({ margin: '0 0 var(--space-4)', background: 'var(--surface-1)', border: '1px solid var(--hairline)', borderRadius: '10px', padding: 'var(--space-4)', overflowX: 'auto', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', lineHeight: '1.6', color: 'var(--fg-muted)' });
-const fenceLabel = css({ display: 'block', fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-10)', letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--fg-subtle)', marginBottom: 'var(--space-2)' });
-const quoteStyle = css({ margin: '0 0 var(--space-4)', paddingLeft: 'var(--space-4)', borderLeft: '3px solid var(--accent-soft)', color: 'var(--fg-muted)', fontStyle: 'italic' });
-const hrStyle = css({ border: 'none', borderTop: '1px solid var(--hairline)', margin: 'var(--space-6) 0' });
-const linkStyle = css({ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: '2px' });
+const taskStyle = css({
+  listStyle: 'none',
+  marginLeft: 'calc(var(--space-6) * -1)',
+  display: 'flex',
+  gap: 'var(--space-2)',
+  alignItems: 'baseline',
+});
+const boxStyle = (done: boolean) =>
+  css({
+    fontFamily: 'var(--font-mono)',
+    color: done ? 'var(--ok)' : 'var(--fg-subtle)',
+    flex: '0 0 auto',
+  });
+const codeInline = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.88em',
+  background: 'var(--code-bg)',
+  padding: '1px 5px',
+  borderRadius: '4px',
+  color: 'var(--fg)',
+});
+const preStyle = css({
+  margin: '0 0 var(--space-4)',
+  background: 'var(--surface-1)',
+  border: '1px solid var(--hairline)',
+  borderRadius: '10px',
+  padding: 'var(--space-4)',
+  overflowX: 'auto',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  lineHeight: '1.6',
+  color: 'var(--fg-muted)',
+});
+const fenceLabel = css({
+  display: 'block',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-subtle)',
+  marginBottom: 'var(--space-2)',
+});
+const quoteStyle = css({
+  margin: '0 0 var(--space-4)',
+  paddingLeft: 'var(--space-4)',
+  borderLeft: '3px solid var(--accent-soft)',
+  color: 'var(--fg-muted)',
+  fontStyle: 'italic',
+});
+const hrStyle = css({
+  border: 'none',
+  borderTop: '1px solid var(--hairline)',
+  margin: 'var(--space-6) 0',
+});
+const linkStyle = css({
+  color: 'var(--accent)',
+  textDecoration: 'underline',
+  textUnderlineOffset: '2px',
+});
 const tableWrap = css({ margin: '0 0 var(--space-4)', overflowX: 'auto' });
 const tableStyle = css({ borderCollapse: 'collapse', fontSize: 'var(--fs-13)', width: '100%' });
-const thStyle = css({ textAlign: 'left', padding: 'var(--space-2) var(--space-3)', borderBottom: '1px solid var(--border)', color: 'var(--fg)', fontWeight: '600', whiteSpace: 'nowrap' });
-const tdStyle = css({ padding: 'var(--space-2) var(--space-3)', borderBottom: '1px solid var(--hairline)', color: 'var(--fg-muted)', verticalAlign: 'top' });
+const thStyle = css({
+  textAlign: 'left',
+  padding: 'var(--space-2) var(--space-3)',
+  borderBottom: '1px solid var(--border)',
+  color: 'var(--fg)',
+  fontWeight: '600',
+  whiteSpace: 'nowrap',
+});
+const tdStyle = css({
+  padding: 'var(--space-2) var(--space-3)',
+  borderBottom: '1px solid var(--hairline)',
+  color: 'var(--fg-muted)',
+  verticalAlign: 'top',
+});
 
 /* ─────────── inline ─────────── */
 
@@ -66,7 +138,8 @@ const tdStyle = css({ padding: 'var(--space-2) var(--space-3)', borderBottom: '1
 export function renderInline(text: string): RemixNode[] {
   const out: RemixNode[] = [];
   // Token regex: code, bold, italic, link — first match wins, left to right.
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]]+\]\([^)\s]+[^)]*\))/g;
+  const re =
+    /(`[^`]+`)|(\*\*[^*]+\*\*)|(__[^_]+__)|(\*[^*\n]+\*)|(_[^_\n]+_)|(\[[^\]]+\]\([^)\s]+[^)]*\))/g;
   let last = 0;
   let m: RegExpExecArray | null;
   let k = 0;
@@ -74,7 +147,11 @@ export function renderInline(text: string): RemixNode[] {
     if (m.index > last) out.push(text.slice(last, m.index));
     const tok = m[0];
     if (tok.startsWith('`')) {
-      out.push(<code key={`c${k}`} mix={codeInline}>{tok.slice(1, -1)}</code>);
+      out.push(
+        <code key={`c${k}`} mix={codeInline}>
+          {tok.slice(1, -1)}
+        </code>,
+      );
     } else if (tok.startsWith('**') || tok.startsWith('__')) {
       out.push(<strong key={`b${k}`}>{renderInline(tok.slice(2, -2))}</strong>);
     } else if (tok.startsWith('[')) {
@@ -83,7 +160,12 @@ export function renderInline(text: string): RemixNode[] {
       const href = safeHref(lm?.[2] ?? '#');
       const ext = /^https?:/i.test(href);
       out.push(
-        <a key={`l${k}`} href={href} mix={linkStyle} {...(ext ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+        <a
+          key={`l${k}`}
+          href={href}
+          mix={linkStyle}
+          {...(ext ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+        >
           {label}
         </a>,
       );
@@ -106,7 +188,13 @@ const ULI = /^(\s*)[-*+]\s+(.*)$/;
 const OLI = /^(\s*)\d+[.)]\s+(.*)$/;
 const TASK = /^\[([ xX])\]\s+(.*)$/;
 const TABLE_SEP = /^\s*\|?[\s:|-]*-{2,}[\s:|-]*\|?\s*$/;
-const slug = (s: string) => s.toLowerCase().replace(/[`*_~]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64);
+const slug = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/[`*_~]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64);
 
 /** Render a full Markdown document to a VDOM fragment. */
 export function renderMarkdown(src: string): RemixNode {
@@ -120,7 +208,10 @@ export function renderMarkdown(src: string): RemixNode {
     const line = lines[i] ?? '';
     const trimmed = line.trim();
 
-    if (!trimmed) { i++; continue; }
+    if (!trimmed) {
+      i++;
+      continue;
+    }
 
     // fenced code / mermaid
     const fence = FENCE.exec(trimmed);
@@ -128,11 +219,16 @@ export function renderMarkdown(src: string): RemixNode {
       const lang = (fence[2] ?? '').toLowerCase();
       const buf: string[] = [];
       i++;
-      while (i < lines.length && !FENCE.test((lines[i] ?? '').trim())) { buf.push(lines[i] ?? ''); i++; }
+      while (i < lines.length && !FENCE.test((lines[i] ?? '').trim())) {
+        buf.push(lines[i] ?? '');
+        i++;
+      }
       i++; // closing fence
       push(
         <pre key={`k${key++}`} mix={preStyle}>
-          {lang ? <span mix={fenceLabel}>{lang === 'mermaid' ? 'mermaid diagram' : lang}</span> : null}
+          {lang ? (
+            <span mix={fenceLabel}>{lang === 'mermaid' ? 'mermaid diagram' : lang}</span>
+          ) : null}
           <code>{buf.join('\n')}</code>
         </pre>,
       );
@@ -154,13 +250,24 @@ export function renderMarkdown(src: string): RemixNode {
     }
 
     // horizontal rule
-    if (HR.test(line)) { push(<hr key={`k${key++}`} mix={hrStyle} />); i++; continue; }
+    if (HR.test(line)) {
+      push(<hr key={`k${key++}`} mix={hrStyle} />);
+      i++;
+      continue;
+    }
 
     // blockquote
     if (/^\s{0,3}>/.test(line)) {
       const buf: string[] = [];
-      while (i < lines.length && /^\s{0,3}>/.test(lines[i] ?? '')) { buf.push((lines[i] ?? '').replace(/^\s{0,3}>\s?/, '')); i++; }
-      push(<blockquote key={`k${key++}`} mix={quoteStyle}>{renderInline(buf.join(' '))}</blockquote>);
+      while (i < lines.length && /^\s{0,3}>/.test(lines[i] ?? '')) {
+        buf.push((lines[i] ?? '').replace(/^\s{0,3}>\s?/, ''));
+        i++;
+      }
+      push(
+        <blockquote key={`k${key++}`} mix={quoteStyle}>
+          {renderInline(buf.join(' '))}
+        </blockquote>,
+      );
       continue;
     }
 
@@ -169,14 +276,31 @@ export function renderMarkdown(src: string): RemixNode {
       const header = splitRow(line);
       i += 2;
       const rows: string[][] = [];
-      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i] ?? '')) { rows.push(splitRow(lines[i] ?? '')); i++; }
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i] ?? '')) {
+        rows.push(splitRow(lines[i] ?? ''));
+        i++;
+      }
       push(
         <div key={`k${key++}`} mix={tableWrap}>
           <table mix={tableStyle}>
-            <thead><tr>{header.map((c, ci) => <th key={`h${ci}`} mix={thStyle}>{renderInline(c)}</th>)}</tr></thead>
+            <thead>
+              <tr>
+                {header.map((c, ci) => (
+                  <th key={`h${ci}`} mix={thStyle}>
+                    {renderInline(c)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
             <tbody>
               {rows.map((r, ri) => (
-                <tr key={`r${ri}`}>{header.map((_, ci) => <td key={`d${ci}`} mix={tdStyle}>{renderInline(r[ci] ?? '')}</td>)}</tr>
+                <tr key={`r${ri}`}>
+                  {header.map((_, ci) => (
+                    <td key={`d${ci}`} mix={tdStyle}>
+                      {renderInline(r[ci] ?? '')}
+                    </td>
+                  ))}
+                </tr>
               ))}
             </tbody>
           </table>
@@ -196,7 +320,10 @@ export function renderMarkdown(src: string): RemixNode {
         const um = ULI.exec(ln);
         const om = OLI.exec(ln);
         if (!um && !om) {
-          if ((ln).trim() === '') { i++; break; }
+          if (ln.trim() === '') {
+            i++;
+            break;
+          }
           break;
         }
         const body = (um?.[2] ?? om?.[2] ?? '').trim();
@@ -205,18 +332,33 @@ export function renderMarkdown(src: string): RemixNode {
           const done = (task[1] ?? '').toLowerCase() === 'x';
           items.push(
             <li key={`li${li++}`} mix={taskStyle}>
-              <span aria-hidden="true" mix={boxStyle(done)}>{done ? '☑' : '☐'}</span>
-              <span mix={css({ color: done ? 'var(--fg-subtle)' : 'var(--fg-muted)', textDecoration: done ? 'line-through' : 'none' })}>
+              <span aria-hidden="true" mix={boxStyle(done)}>
+                {done ? '☑' : '☐'}
+              </span>
+              <span
+                mix={css({
+                  color: done ? 'var(--fg-subtle)' : 'var(--fg-muted)',
+                  textDecoration: done ? 'line-through' : 'none',
+                })}
+              >
                 {renderInline(task[2] ?? '')}
               </span>
             </li>,
           );
         } else {
-          items.push(<li key={`li${li++}`} mix={liStyle}>{renderInline(body)}</li>);
+          items.push(
+            <li key={`li${li++}`} mix={liStyle}>
+              {renderInline(body)}
+            </li>,
+          );
         }
         i++;
       }
-      push(<ul key={`k${key++}`} mix={ulStyle}>{items}</ul>);
+      push(
+        <ul key={`k${key++}`} mix={ulStyle}>
+          {items}
+        </ul>,
+      );
       continue;
     }
 
@@ -225,16 +367,32 @@ export function renderMarkdown(src: string): RemixNode {
     while (i < lines.length) {
       const ln = lines[i] ?? '';
       if (!ln.trim()) break;
-      if (HEADING.test(ln) || FENCE.test(ln.trim()) || HR.test(ln) || /^\s{0,3}>/.test(ln) || ULI.test(ln) || OLI.test(ln)) break;
+      if (
+        HEADING.test(ln) ||
+        FENCE.test(ln.trim()) ||
+        HR.test(ln) ||
+        /^\s{0,3}>/.test(ln) ||
+        ULI.test(ln) ||
+        OLI.test(ln)
+      )
+        break;
       buf.push(ln.trim());
       i++;
     }
-    push(<p key={`k${key++}`} mix={pStyle}>{renderInline(buf.join(' '))}</p>);
+    push(
+      <p key={`k${key++}`} mix={pStyle}>
+        {renderInline(buf.join(' '))}
+      </p>,
+    );
   }
 
   return <div mix={prose}>{blocks}</div>;
 }
 
 function splitRow(line: string): string[] {
-  return line.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+  return line
+    .trim()
+    .replace(/^\||\|$/g, '')
+    .split('|')
+    .map((c) => c.trim());
 }

@@ -159,12 +159,16 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
       return <div mix={emptyNote}>No cross-module coupling to chart for this view yet.</div>;
     }
     const logMax = Math.log10(maxCell + 1) || 1;
-    const intensity = (n: number): number =>
-      n === 0 ? 0 : Math.log10(n + 1) / logMax;
+    const intensity = (n: number): number => (n === 0 ? 0 : Math.log10(n + 1) / logMax);
 
     return (
       <div mix={wrap} title={HEATMAP_HINT}>
-        <div mix={[matrix, css({ gridTemplateColumns: `160px repeat(${folders.length}, minmax(44px, 1fr))` })]}>
+        <div
+          mix={[
+            matrix,
+            css({ gridTemplateColumns: `160px repeat(${folders.length}, minmax(44px, 1fr))` }),
+          ]}
+        >
           <div mix={corner} />
           {folders.map((f) => (
             /* Both axes show the module leaf ("spec") with the full key
@@ -172,11 +176,15 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
                and the row track is a fixed 160px that the longest real keys
                (e.g. "packages/emit-browser") overflow. The Couplings table
                below carries the full from/to keys. */
-            <div key={`col-${f}`} mix={colLabel} title={f}><span>{moduleLeaf(f)}</span></div>
+            <div key={`col-${f}`} mix={colLabel} title={f}>
+              <span>{moduleLeaf(f)}</span>
+            </div>
           ))}
           {folders.map((rowName, i) => (
             <>
-              <div key={`row-${rowName}`} mix={rowLabel} title={rowName}>{moduleLeaf(rowName)}</div>
+              <div key={`row-${rowName}`} mix={rowLabel} title={rowName}>
+                {moduleLeaf(rowName)}
+              </div>
               {folders.map((_, j) => {
                 const v = matrixData[i]![j]!;
                 const t = intensity(v);
@@ -187,9 +195,10 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
                       cell,
                       i === j ? cellSelf : css({}),
                       css({
-                        background: v === 0
-                          ? 'transparent'
-                          : `color-mix(in oklab, var(--accent) ${Math.round(t * 60)}%, transparent)`,
+                        background:
+                          v === 0
+                            ? 'transparent'
+                            : `color-mix(in oklab, var(--accent) ${Math.round(t * 60)}%, transparent)`,
                         color: t > 0.55 ? 'var(--bg)' : 'var(--fg)',
                       }),
                     ]}
@@ -204,13 +213,31 @@ export function Heatmap(handle: Handle<HeatmapProps>) {
         </div>
         <div mix={legendRow}>
           <span>
-            <span mix={[legendSwatch, css({ background: 'color-mix(in oklab, var(--accent) 12%, transparent)' })]} /> Few
+            <span
+              mix={[
+                legendSwatch,
+                css({ background: 'color-mix(in oklab, var(--accent) 12%, transparent)' }),
+              ]}
+            />{' '}
+            Few
           </span>
           <span>
-            <span mix={[legendSwatch, css({ background: 'color-mix(in oklab, var(--accent) 36%, transparent)' })]} /> Some
+            <span
+              mix={[
+                legendSwatch,
+                css({ background: 'color-mix(in oklab, var(--accent) 36%, transparent)' }),
+              ]}
+            />{' '}
+            Some
           </span>
           <span>
-            <span mix={[legendSwatch, css({ background: 'color-mix(in oklab, var(--accent) 60%, transparent)' })]} /> Many
+            <span
+              mix={[
+                legendSwatch,
+                css({ background: 'color-mix(in oklab, var(--accent) 60%, transparent)' }),
+              ]}
+            />{' '}
+            Many
           </span>
           <span mix={legendNote}>log scale · max {fmt(maxCell)} edges</span>
         </div>

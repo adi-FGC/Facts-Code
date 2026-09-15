@@ -27,7 +27,7 @@ export interface QueryOptions {
   to?: string;
   /** F3 — traversal direction for `neighbors` (defaults to `both`). */
   direction?: 'out' | 'in' | 'both';
-  filter?: string;     // glob-style, falls back to substring
+  filter?: string; // glob-style, falls back to substring
   limit?: number;
   depth?: number;
   /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
@@ -53,16 +53,32 @@ export function executeQuery(agent: AgentArtifact, opts: QueryOptions): QueryRes
   const a = applyMinConfidence(agent, opts.minConfidence);
 
   switch (opts.verb) {
-    case 'callers':       return callersOf(a, opts.path ?? '', limit, opts.filter);
-    case 'imports':       return importsOf(a, opts.path ?? '', limit, opts.filter, opts.depth ?? 1);
-    case 'cycles':        return allCycles(a, limit, opts.filter);
-    case 'orphans':       return allOrphans(a, limit, opts.filter);
+    case 'callers':
+      return callersOf(a, opts.path ?? '', limit, opts.filter);
+    case 'imports':
+      return importsOf(a, opts.path ?? '', limit, opts.filter, opts.depth ?? 1);
+    case 'cycles':
+      return allCycles(a, limit, opts.filter);
+    case 'orphans':
+      return allOrphans(a, limit, opts.filter);
     // F3 — declarative-engine verbs (operate over file + symbol edges).
-    case 'neighbors':     return neighborsOf(a, opts.path ?? '', opts.direction ?? 'both', opts.depth ?? 1, limit, opts.filter);
-    case 'references':    return referencesOf(a, opts.path ?? '', opts.depth ?? 1, limit, opts.filter);
-    case 'implementers':  return implementersOf(a, opts.path ?? '', limit, opts.filter);
-    case 'path-between':  return pathBetween(a, opts.path ?? '', opts.to ?? '', limit);
-    case 'impact':        return impactOf(a, opts.path ?? '', opts.depth ?? 3, limit, opts.filter);
+    case 'neighbors':
+      return neighborsOf(
+        a,
+        opts.path ?? '',
+        opts.direction ?? 'both',
+        opts.depth ?? 1,
+        limit,
+        opts.filter,
+      );
+    case 'references':
+      return referencesOf(a, opts.path ?? '', opts.depth ?? 1, limit, opts.filter);
+    case 'implementers':
+      return implementersOf(a, opts.path ?? '', limit, opts.filter);
+    case 'path-between':
+      return pathBetween(a, opts.path ?? '', opts.to ?? '', limit);
+    case 'impact':
+      return impactOf(a, opts.path ?? '', opts.depth ?? 3, limit, opts.filter);
   }
 }
 
@@ -90,7 +106,12 @@ function applyMinConfidence(agent: AgentArtifact, min?: Confidence): AgentArtifa
   };
 }
 
-function callersOf(agent: AgentArtifact, path: string, limit: number, filter?: string): QueryResult {
+function callersOf(
+  agent: AgentArtifact,
+  path: string,
+  limit: number,
+  filter?: string,
+): QueryResult {
   if (!path) return { verb: 'callers', target: path, count: 0, results: [] };
   // Prefer the cached `callers` on the graph node (v0.2 addition); fall
   // back to walking edges for older artifacts.
@@ -108,7 +129,13 @@ function callersOf(agent: AgentArtifact, path: string, limit: number, filter?: s
   };
 }
 
-function importsOf(agent: AgentArtifact, path: string, limit: number, filter?: string, depth = 1): QueryResult {
+function importsOf(
+  agent: AgentArtifact,
+  path: string,
+  limit: number,
+  filter?: string,
+  depth = 1,
+): QueryResult {
   if (!path) return { verb: 'imports', target: path, count: 0, results: [] };
   // Breadth-first traversal of outgoing edges up to `depth` levels.
   // Build an adjacency map once so each depth pass is O(E_from_frontier)
@@ -117,7 +144,8 @@ function importsOf(agent: AgentArtifact, path: string, limit: number, filter?: s
   const adj = new Map<string, string[]>();
   for (const e of agent.graph.edges) {
     const list = adj.get(e.from);
-    if (list) list.push(e.to); else adj.set(e.from, [e.to]);
+    if (list) list.push(e.to);
+    else adj.set(e.from, [e.to]);
   }
   const visited = new Set<string>([path]);
   let frontier: string[] = [path];
@@ -134,7 +162,7 @@ function importsOf(agent: AgentArtifact, path: string, limit: number, filter?: s
       }
     }
     if (!next.length) break;
-    frontier = next;                           // replace — don't accumulate
+    frontier = next; // replace — don't accumulate
   }
   visited.delete(path);
   let out = [...visited];
@@ -177,7 +205,7 @@ function allOrphans(agent: AgentArtifact, limit: number, filter?: string): Query
   const outgoing = new Set(agent.graph.edges.map((e) => e.from));
   const entryPaths = new Set([
     ...agent.project.entryPoints,
-    ...agent.routes.map((r) => r.handlerFile).filter(Boolean) as string[],
+    ...(agent.routes.map((r) => r.handlerFile).filter(Boolean) as string[]),
   ]);
   let orphans = agent.graph.nodes
     .filter((n) => isSourceModule(n.path, n.language))
@@ -215,8 +243,18 @@ export interface SubgraphResult {
   truncated: boolean;
 }
 
-interface EdgeLite { from: string; to: string; kind: string; confidence: Confidence; }
-interface NodeMeta { id: string; path: string; name: string; kind: string; }
+interface EdgeLite {
+  from: string;
+  to: string;
+  kind: string;
+  confidence: Confidence;
+}
+interface NodeMeta {
+  id: string;
+  path: string;
+  name: string;
+  kind: string;
+}
 
 function baseName(p: string): string {
   const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
@@ -276,8 +314,14 @@ function resolveTarget(idx: Map<string, NodeMeta>, target: string): string[] {
     if (meta.name.toLowerCase() === lower) byName.push(meta.id);
     if (meta.path === target || meta.path.endsWith('/' + target)) bySuffix.push(meta.id);
   }
-  if (byName.length) { byName.sort(); return byName; }
-  if (bySuffix.length) { bySuffix.sort(); return bySuffix; }
+  if (byName.length) {
+    byName.sort();
+    return byName;
+  }
+  if (bySuffix.length) {
+    bySuffix.sort();
+    return bySuffix;
+  }
   return [];
 }
 
@@ -292,7 +336,8 @@ function adjacency(
   const adj = new Map<string, Array<{ to: string; edge: EdgeLite }>>();
   const add = (a: string, b: string, edge: EdgeLite): void => {
     const l = adj.get(a);
-    if (l) l.push({ to: b, edge }); else adj.set(a, [{ to: b, edge }]);
+    if (l) l.push({ to: b, edge });
+    else adj.set(a, [{ to: b, edge }]);
   };
   for (const e of edges) {
     if (allowed && !allowed.has(e.kind)) continue;
@@ -320,8 +365,14 @@ function bfs(
       if (!outs) continue;
       for (const { to, edge } of outs) {
         const ek = `${edge.from}\t${edge.to}\t${edge.kind}`;
-        if (!edgeSeen.has(ek)) { edgeSeen.add(ek); edges.push(edge); }
-        if (!visited.has(to)) { visited.add(to); next.push(to); }
+        if (!edgeSeen.has(ek)) {
+          edgeSeen.add(ek);
+          edges.push(edge);
+        }
+        if (!visited.has(to)) {
+          visited.add(to);
+          next.push(to);
+        }
       }
     }
     if (!next.length) break;
@@ -348,9 +399,10 @@ export function runGraphQuery(agent: AgentArtifact, q: GraphQuery): SubgraphResu
   const seeds = resolveSelector(idx, q.start);
   const direction = q.traverse?.direction ?? 'out';
   const maxDepth = q.traverse?.maxDepth ?? 1;
-  const allowed = q.traverse?.edgeKinds && q.traverse.edgeKinds.length
-    ? new Set<string>(q.traverse.edgeKinds)
-    : undefined;
+  const allowed =
+    q.traverse?.edgeKinds && q.traverse.edgeKinds.length
+      ? new Set<string>(q.traverse.edgeKinds)
+      : undefined;
   const maxRank = q.where?.minConfidence != null ? CONF_RANK[q.where.minConfidence] : undefined;
 
   const adj = adjacency(allEdgesLite(agent), direction, allowed, maxRank);
@@ -373,7 +425,10 @@ export function runGraphQuery(agent: AgentArtifact, q: GraphQuery): SubgraphResu
   const limit = q.limit ?? 200;
   let truncated = false;
   let outNodes = nodeIds;
-  if (outNodes.length > limit) { outNodes = outNodes.slice(0, limit); truncated = true; }
+  if (outNodes.length > limit) {
+    outNodes = outNodes.slice(0, limit);
+    truncated = true;
+  }
 
   const nodeSet = new Set(outNodes);
   let outEdges = [...reached.edges]
@@ -426,8 +481,14 @@ export function expandWithHops(
       if (!outs) continue;
       for (const { to, edge } of outs) {
         const ek = `${edge.from}\t${edge.to}\t${edge.kind}`;
-        if (!edgeSeen.has(ek)) { edgeSeen.add(ek); edges.push(edge); }
-        if (!hops.has(to)) { hops.set(to, d + 1); next.push(to); }
+        if (!edgeSeen.has(ek)) {
+          edgeSeen.add(ek);
+          edges.push(edge);
+        }
+        if (!hops.has(to)) {
+          hops.set(to, d + 1);
+          next.push(to);
+        }
       }
     }
     if (!next.length) break;
@@ -449,7 +510,11 @@ export function suggestEntities(agent: AgentArtifact, term: string, limit = 10):
   if (!t) return [];
   const out: string[] = [];
   for (const m of buildNodeIndex(agent).values()) {
-    if (m.id.toLowerCase().includes(t) || m.name.toLowerCase().includes(t) || m.path.toLowerCase().includes(t)) {
+    if (
+      m.id.toLowerCase().includes(t) ||
+      m.name.toLowerCase().includes(t) ||
+      m.path.toLowerCase().includes(t)
+    ) {
       out.push(m.id);
     }
   }
@@ -532,7 +597,9 @@ function impactOf(
   const seeds = resolveTarget(idx, target);
   // File seeds (no `#`) traverse import edges; symbol seeds traverse all kinds.
   const isFileSeed = seeds.length > 0 && seeds.every((id) => !id.includes('#'));
-  const allowed = isFileSeed ? new Set<string>(['import', 'dynamic-import', 'type-import']) : undefined;
+  const allowed = isFileSeed
+    ? new Set<string>(['import', 'dynamic-import', 'type-import'])
+    : undefined;
   const adj = adjacency(allEdgesLite(agent), 'in', allowed);
   const { nodes } = bfs(seeds, adj, depth);
   const seedSet = new Set(seeds);
@@ -557,14 +624,25 @@ function pathBetween(agent: AgentArtifact, from: string, to: string, limit: numb
 
   const prev = new Map<string, string | null>();
   const queue: string[] = [];
-  for (const s of [...fromIds].sort()) if (!prev.has(s)) { prev.set(s, null); queue.push(s); }
+  for (const s of [...fromIds].sort())
+    if (!prev.has(s)) {
+      prev.set(s, null);
+      queue.push(s);
+    }
 
   let hit: string | undefined;
   for (let qi = 0; qi < queue.length; qi++) {
     const cur = queue[qi]!;
-    if (toSet.has(cur) && !fromSet.has(cur)) { hit = cur; break; }
+    if (toSet.has(cur) && !fromSet.has(cur)) {
+      hit = cur;
+      break;
+    }
     const outs = (adj.get(cur) ?? []).map((x) => x.to).sort();
-    for (const nx of outs) if (!prev.has(nx)) { prev.set(nx, cur); queue.push(nx); }
+    for (const nx of outs)
+      if (!prev.has(nx)) {
+        prev.set(nx, cur);
+        queue.push(nx);
+      }
   }
 
   const label = `${from}→${to}`;
@@ -572,7 +650,10 @@ function pathBetween(agent: AgentArtifact, from: string, to: string, limit: numb
 
   const path: string[] = [];
   let cur: string | null | undefined = hit;
-  while (cur != null) { path.push(cur); cur = prev.get(cur) ?? null; }
+  while (cur != null) {
+    path.push(cur);
+    cur = prev.get(cur) ?? null;
+  }
   path.reverse();
   return { verb: 'path-between', target: label, count: path.length, results: path.slice(0, limit) };
 }
@@ -593,7 +674,10 @@ function pathBetween(agent: AgentArtifact, from: string, to: string, limit: numb
  */
 function isTestPath(p: string): boolean {
   const n = p.toLowerCase().replace(/\\/g, '/');
-  if (/(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)) return true;
+  if (
+    /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)
+  )
+    return true;
   if (/\.(test|spec)\.[a-z]+$/.test(n)) return true;
   return false;
 }
@@ -606,11 +690,58 @@ function isTestPath(p: string): boolean {
  */
 function isSourceModule(path: string, language: string): boolean {
   const lang = language.toLowerCase();
-  if (['typescript', 'javascript', 'tsx', 'jsx', 'python', 'go', 'rust', 'java', 'kotlin', 'csharp', 'ruby', 'php', 'svelte', 'vue'].includes(lang)) return true;
-  if (lang === 'json' || lang === 'yaml' || lang === 'toml' || lang === 'markdown' || lang === 'html' || lang === 'css' || lang === 'gitignore' || lang === 'dockerignore') return false;
+  if (
+    [
+      'typescript',
+      'javascript',
+      'tsx',
+      'jsx',
+      'python',
+      'go',
+      'rust',
+      'java',
+      'kotlin',
+      'csharp',
+      'ruby',
+      'php',
+      'svelte',
+      'vue',
+    ].includes(lang)
+  )
+    return true;
+  if (
+    lang === 'json' ||
+    lang === 'yaml' ||
+    lang === 'toml' ||
+    lang === 'markdown' ||
+    lang === 'html' ||
+    lang === 'css' ||
+    lang === 'gitignore' ||
+    lang === 'dockerignore'
+  )
+    return false;
   // Fallback: look at the extension.
   const ext = path.slice(path.lastIndexOf('.')).toLowerCase();
-  return ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts', '.py', '.go', '.rs', '.java', '.kt', '.cs', '.rb', '.php', '.svelte', '.vue'].includes(ext);
+  return [
+    '.ts',
+    '.tsx',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.cjs',
+    '.mts',
+    '.cts',
+    '.py',
+    '.go',
+    '.rs',
+    '.java',
+    '.kt',
+    '.cs',
+    '.rb',
+    '.php',
+    '.svelte',
+    '.vue',
+  ].includes(ext);
 }
 
 /**
@@ -622,10 +753,12 @@ function matches(s: string, pattern: string): boolean {
   if (!pattern) return true;
   if (!/[*?]/.test(pattern)) return s.includes(pattern);
   const re = new RegExp(
-    '^' + pattern
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*')
-      .replace(/\?/g, '.') + '$',
+    '^' +
+      pattern
+        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.') +
+      '$',
   );
   return re.test(s);
 }

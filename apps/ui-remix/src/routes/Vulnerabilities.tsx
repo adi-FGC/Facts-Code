@@ -41,12 +41,7 @@ import { vulnSeveritySankey } from '../lib/vulnFlow.ts';
 /* Type-only import — runtime symbols are dynamic-imported below so the
  * OSV client + cache + parser code only downloads when the user actually
  * hits Scan. */
-import type {
-  OsvQuery,
-  OsvResult,
-  OsvVuln,
-  SeverityBucket,
-} from '../lib/osvScanner.ts';
+import type { OsvQuery, OsvResult, OsvVuln, SeverityBucket } from '../lib/osvScanner.ts';
 
 interface VulnerabilitiesProps {
   data: Dataset;
@@ -61,19 +56,21 @@ interface DetectedManifest {
 /* Map a file path to a manifest ecosystem. Each entry is a (basename
    match, ecosystem) pair — keeps the dispatch readable + easy to extend
    when we add PyPI/Cargo parsers in v2. */
-function detectManifests(files: Dataset['tree']['files'] | Array<{ path: string; size: number }>): DetectedManifest[] {
+function detectManifests(
+  files: Dataset['tree']['files'] | Array<{ path: string; size: number }>,
+): DetectedManifest[] {
   /* Walk the dataset's flat file list (we receive the raw array from
      the route — not the tree). Tree is hierarchical; finding all
      manifests requires the flat view. */
   const out: DetectedManifest[] = [];
   for (const f of files) {
     const base = f.path.split('/').pop() ?? '';
-    if (base === 'package.json')   out.push({ path: f.path, ecosystem: 'npm',      size: f.size });
-    if (base === 'pyproject.toml') out.push({ path: f.path, ecosystem: 'pypi',     size: f.size });
-    if (base === 'Cargo.toml')     out.push({ path: f.path, ecosystem: 'cargo',    size: f.size });
-    if (base === 'go.mod')         out.push({ path: f.path, ecosystem: 'go',       size: f.size });
-    if (base === 'pom.xml')        out.push({ path: f.path, ecosystem: 'maven',    size: f.size });
-    if (base === 'Gemfile')        out.push({ path: f.path, ecosystem: 'rubygems', size: f.size });
+    if (base === 'package.json') out.push({ path: f.path, ecosystem: 'npm', size: f.size });
+    if (base === 'pyproject.toml') out.push({ path: f.path, ecosystem: 'pypi', size: f.size });
+    if (base === 'Cargo.toml') out.push({ path: f.path, ecosystem: 'cargo', size: f.size });
+    if (base === 'go.mod') out.push({ path: f.path, ecosystem: 'go', size: f.size });
+    if (base === 'pom.xml') out.push({ path: f.path, ecosystem: 'maven', size: f.size });
+    if (base === 'Gemfile') out.push({ path: f.path, ecosystem: 'rubygems', size: f.size });
   }
   return out.sort((a, b) => a.path.localeCompare(b.path));
 }
@@ -288,10 +285,10 @@ const sevPill = css({
   textAlign: 'center',
 });
 const sevPillCritical = css({ color: 'var(--danger)', borderColor: 'var(--danger)' });
-const sevPillHigh     = css({ color: 'var(--warn)',   borderColor: 'var(--warn)' });
-const sevPillMedium   = css({ color: 'var(--accent)', borderColor: 'var(--accent)' });
-const sevPillLow      = css({ color: 'var(--fg-muted)' });
-const sevPillUnknown  = css({ color: 'var(--fg-faint)' });
+const sevPillHigh = css({ color: 'var(--warn)', borderColor: 'var(--warn)' });
+const sevPillMedium = css({ color: 'var(--accent)', borderColor: 'var(--accent)' });
+const sevPillLow = css({ color: 'var(--fg-muted)' });
+const sevPillUnknown = css({ color: 'var(--fg-faint)' });
 
 const vulnId = css({
   fontFamily: 'var(--font-mono)',
@@ -352,7 +349,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
   async function runScan() {
     if (scanning) return;
     if (!pasteText.trim()) {
-      scanError = 'Paste a package.json (or other supported manifest) into the box above before scanning.';
+      scanError =
+        'Paste a package.json (or other supported manifest) into the box above before scanning.';
       void handle.update();
       return;
     }
@@ -399,7 +397,9 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
        a clean `factstack scan-vulns`, indistinguishable from never scanning. */
     const scan = data.vulnerabilityScan ?? null;
     const scannedClean = !hasArtifactVulns && scan !== null;
-    const scanAge = scan ? fmtAge(Math.max(0, Date.now() - (Date.parse(scan.scannedAt) || Date.now()))) : null;
+    const scanAge = scan
+      ? fmtAge(Math.max(0, Date.now() - (Date.parse(scan.scannedAt) || Date.now())))
+      : null;
     /* Aggregate counts from the artifact for the headline + LabelNumbers. */
     const artifactCounts = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
     for (const v of artifactVulns) artifactCounts[v.severity] = artifactCounts[v.severity] + 1;
@@ -426,8 +426,12 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
        artifact counts, kept separate so users can see both surfaces
        side-by-side when they re-scan a pasted manifest. */
     let totalVulns = 0;
-    let critical = 0, high = 0, medium = 0, low = 0;
-    let cleanPackages = 0, vulnerablePackages = 0;
+    let critical = 0,
+      high = 0,
+      medium = 0,
+      low = 0;
+    let cleanPackages = 0,
+      vulnerablePackages = 0;
     if (results) {
       for (const r of results) {
         if (r.vulns.length === 0) {
@@ -450,45 +454,75 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>
-            Vulnerabilities {
-              hasArtifactVulns
-                ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
-                : scannedClean
-                  ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
+            Vulnerabilities{' '}
+            {hasArtifactVulns
+              ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
+              : scannedClean
+                ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
                 : results
                   ? `· ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
-                  : '· ready to scan'
-            }
+                  : '· ready to scan'}
           </div>
           <h1 mix={headline}>
             {hasArtifactVulns
               ? renderHeadline(artifactCounts.critical, artifactCounts.high, artifactVulns.length)
               : scannedClean
                 ? 'No known vulnerabilities at the queried versions.'
-              : results
-                ? renderHeadline(critical, high, totalVulns)
-                : 'Check your dependencies against the OSV database.'}
+                : results
+                  ? renderHeadline(critical, high, totalVulns)
+                  : 'Check your dependencies against the OSV database.'}
           </h1>
           <p mix={lede}>
-            {hasArtifactVulns
-              ? <>From the last <code class="mono">factstack scan-vulns</code> run {freshness ? `· ${freshness}` : ''}. Re-run that command to refresh the artifact, or paste a different manifest below for a one-off scan.</>
-              : scannedClean
-                ? <>Scanned {scan!.packagesQueried} package{scan!.packagesQueried === 1 ? '' : 's'} against <a href="https://osv.dev" mix={vulnLink}>OSV.dev</a> · {scanAge}{scan!.packagesSkipped ? ` · ${scan!.packagesSkipped} workspace/file dep${scan!.packagesSkipped === 1 ? '' : 's'} not queryable` : ''}. Zero known advisories at the queried versions. Re-run <code class="mono">factstack scan-vulns</code> after bumping dependencies, or paste a manifest below for a one-off scan.</>
-              : <>We detected {manifests.length} manifest{manifests.length === 1 ? '' : 's'} in this project. Paste one into the box below to query <a href="https://osv.dev" mix={vulnLink}>OSV.dev</a> — the same advisory source that powers Dependabot and the OpenSSF scanners. Results are cached locally for 6 hours; no data leaves your browser except the package names + versions.</>}
+            {hasArtifactVulns ? (
+              <>
+                From the last <code class="mono">factstack scan-vulns</code> run{' '}
+                {freshness ? `· ${freshness}` : ''}. Re-run that command to refresh the artifact, or
+                paste a different manifest below for a one-off scan.
+              </>
+            ) : scannedClean ? (
+              <>
+                Scanned {scan!.packagesQueried} package{scan!.packagesQueried === 1 ? '' : 's'}{' '}
+                against{' '}
+                <a href="https://osv.dev" mix={vulnLink}>
+                  OSV.dev
+                </a>{' '}
+                · {scanAge}
+                {scan!.packagesSkipped
+                  ? ` · ${scan!.packagesSkipped} workspace/file dep${scan!.packagesSkipped === 1 ? '' : 's'} not queryable`
+                  : ''}
+                . Zero known advisories at the queried versions. Re-run{' '}
+                <code class="mono">factstack scan-vulns</code> after bumping dependencies, or paste
+                a manifest below for a one-off scan.
+              </>
+            ) : (
+              <>
+                We detected {manifests.length} manifest{manifests.length === 1 ? '' : 's'} in this
+                project. Paste one into the box below to query{' '}
+                <a href="https://osv.dev" mix={vulnLink}>
+                  OSV.dev
+                </a>{' '}
+                — the same advisory source that powers Dependabot and the OpenSSF scanners. Results
+                are cached locally for 6 hours; no data leaves your browser except the package names
+                + versions.
+              </>
+            )}
           </p>
 
           {hasArtifactVulns && (
             <>
               <LabelNumberRow>
                 <LabelNumber label="Critical" value={artifactCounts.critical} />
-                <LabelNumber label="High"     value={artifactCounts.high} />
-                <LabelNumber label="Medium"   value={artifactCounts.medium} />
-                <LabelNumber label="Low"      value={artifactCounts.low} />
+                <LabelNumber label="High" value={artifactCounts.high} />
+                <LabelNumber label="Medium" value={artifactCounts.medium} />
+                <LabelNumber label="Low" value={artifactCounts.low} />
                 <LabelNumber label="Packages" value={artifactByPackage.size} last />
               </LabelNumberRow>
 
               {artifactByPackage.size > 0 && (
-                <Section label="Severity flow" title={`${artifactByPackage.size} package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`}>
+                <Section
+                  label="Severity flow"
+                  title={`${artifactByPackage.size} package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`}
+                >
                   {(() => {
                     const sankey = vulnSeveritySankey(artifactVulns);
                     return (
@@ -508,41 +542,57 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                   const head = group[0]!;
                   return (
                     <div key={key}>
-                      <div mix={css({
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 'var(--fs-12)',
-                        color: 'var(--fg)',
-                        paddingInline: 'var(--space-3)',
-                        paddingBlock: 'var(--space-2)',
-                        background: 'var(--surface-1)',
-                        borderTop: '1px solid var(--hairline)',
-                      })}>
+                      <div
+                        mix={css({
+                          fontFamily: 'var(--font-mono)',
+                          fontSize: 'var(--fs-12)',
+                          color: 'var(--fg)',
+                          paddingInline: 'var(--space-3)',
+                          paddingBlock: 'var(--space-2)',
+                          background: 'var(--surface-1)',
+                          borderTop: '1px solid var(--hairline)',
+                        })}
+                      >
                         <strong mix={pkgName}>{head.package}</strong>
                         <span mix={pkgVersion}>@ {head.installedVersion}</span>
-                        <span mix={pkgAside}>· {group.length} {group.length === 1 ? 'advisory' : 'advisories'}</span>
-                        {head.manifestPath && (
-                          <span mix={pkgAside}>· {head.manifestPath}</span>
-                        )}
+                        <span mix={pkgAside}>
+                          · {group.length} {group.length === 1 ? 'advisory' : 'advisories'}
+                        </span>
+                        {head.manifestPath && <span mix={pkgAside}>· {head.manifestPath}</span>}
                       </div>
                       {group.map((v) => {
                         const pillStyle =
-                          v.severity === 'critical' ? sevPillCritical :
-                          v.severity === 'high'     ? sevPillHigh :
-                          v.severity === 'medium'   ? sevPillMedium :
-                          v.severity === 'low'      ? sevPillLow :
-                                                       sevPillUnknown;
+                          v.severity === 'critical'
+                            ? sevPillCritical
+                            : v.severity === 'high'
+                              ? sevPillHigh
+                              : v.severity === 'medium'
+                                ? sevPillMedium
+                                : v.severity === 'low'
+                                  ? sevPillLow
+                                  : sevPillUnknown;
                         return (
                           <div key={v.id} mix={vulnRow}>
                             <span mix={[sevPill, pillStyle]}>{v.severity}</span>
                             <div>
-                              <a href={v.advisoryUrl} target="_blank" rel="noopener noreferrer" mix={[vulnId, vulnLink]}>
+                              <a
+                                href={v.advisoryUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                mix={[vulnId, vulnLink]}
+                              >
                                 {v.id}
                               </a>
                               {v.summary && <div mix={vulnSummary}>{v.summary}</div>}
                             </div>
                             <div mix={vulnMeta}>
                               installed {v.installedVersion}
-                              {v.fixedVersion && <><br />fixed in {v.fixedVersion}</>}
+                              {v.fixedVersion && (
+                                <>
+                                  <br />
+                                  fixed in {v.fixedVersion}
+                                </>
+                              )}
                             </div>
                           </div>
                         );
@@ -563,18 +613,21 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                     key={m.path}
                     type="button"
                     title={`Load ${m.path} hint into the paste box`}
-                    mix={[manifestRow, on('click', () => {
-                      /* We can't read the file contents (artifact has
+                    mix={[
+                      manifestRow,
+                      on('click', () => {
+                        /* We can't read the file contents (artifact has
                          metadata only) — show a helpful nudge as
                          placeholder text instead. The user opens the
                          actual file locally and pastes its contents. */
-                      pasteText = `// Open ${m.path} in your editor and paste its contents here.\n// Detected ecosystem: ${m.ecosystem}\n`;
-                      if (pasteEl) {
-                        pasteEl.value = pasteText;
-                        pasteEl.focus();
-                      }
-                      void handle.update();
-                    })]}
+                        pasteText = `// Open ${m.path} in your editor and paste its contents here.\n// Detected ecosystem: ${m.ecosystem}\n`;
+                        if (pasteEl) {
+                          pasteEl.value = pasteText;
+                          pasteEl.focus();
+                        }
+                        void handle.update();
+                      }),
+                    ]}
                   >
                     <span mix={manifestEcosystem}>{m.ecosystem}</span>
                     <span mix={manifestPath}>{m.path}</span>
@@ -587,16 +640,22 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
 
           <div mix={sectionLabel}>Scan a manifest</div>
           <div mix={scanForm}>
-            <label for="manifest-paste" mix={scanLabel}>Paste package.json (or supported manifest) contents</label>
+            <label for="manifest-paste" mix={scanLabel}>
+              Paste package.json (or supported manifest) contents
+            </label>
             <textarea
               id="manifest-paste"
-              placeholder={'{\n  "name": "my-app",\n  "dependencies": {\n    "express": "^4.17.1",\n    "lodash": "4.17.20"\n  }\n}'}
+              placeholder={
+                '{\n  "name": "my-app",\n  "dependencies": {\n    "express": "^4.17.1",\n    "lodash": "4.17.20"\n  }\n}'
+              }
               spellcheck={false}
               autocomplete="off"
               disabled={scanning}
               mix={[
                 scanTextarea,
-                ref<HTMLTextAreaElement>((node) => { pasteEl = node; }),
+                ref<HTMLTextAreaElement>((node) => {
+                  pasteEl = node;
+                }),
                 on<HTMLTextAreaElement, 'input'>('input', (e) => {
                   pasteText = (e.currentTarget as HTMLTextAreaElement | null)?.value ?? '';
                   /* Re-render so the Scan button's `disabled` prop
@@ -619,20 +678,34 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                   type="button"
                   disabled={scanning}
                   title="Bypass the local cache and re-query OSV.dev"
-                  mix={[secondaryBtn, on('click', () => {
-                    bypassCache = true;
-                    void runScan();
-                  })]}
+                  mix={[
+                    secondaryBtn,
+                    on('click', () => {
+                      bypassCache = true;
+                      void runScan();
+                    }),
+                  ]}
                 >
                   Force refresh
                 </button>
               )}
               <span mix={scanNote}>
-                {scanning ? 'Two-stage query (batch + per-vuln detail). Usually under 2s.' : 'Cached locally for 6h. Force refresh to re-query.'}
+                {scanning
+                  ? 'Two-stage query (batch + per-vuln detail). Usually under 2s.'
+                  : 'Cached locally for 6h. Force refresh to re-query.'}
               </span>
             </div>
             {scanError && (
-              <div role="alert" mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', color: 'var(--danger)', paddingTop: 'var(--space-3)', borderTop: '1px solid var(--hairline)' })}>
+              <div
+                role="alert"
+                mix={css({
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--fs-12)',
+                  color: 'var(--danger)',
+                  paddingTop: 'var(--space-3)',
+                  borderTop: '1px solid var(--hairline)',
+                })}
+              >
                 {scanError}
               </div>
             )}
@@ -642,58 +715,83 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             <>
               <LabelNumberRow>
                 <LabelNumber label="Critical" value={critical} />
-                <LabelNumber label="High"     value={high} />
-                <LabelNumber label="Medium"   value={medium} />
-                <LabelNumber label="Low"      value={low} />
-                <LabelNumber label="Clean"    value={cleanPackages} last />
+                <LabelNumber label="High" value={high} />
+                <LabelNumber label="Medium" value={medium} />
+                <LabelNumber label="Low" value={low} />
+                <LabelNumber label="Clean" value={cleanPackages} last />
               </LabelNumberRow>
 
               {vulnerablePackages > 0 ? (
                 <Section label="Vulnerable">
-                  {results.filter((r) => r.vulns.length > 0).map((r) => (
-                    <div key={`${r.query.name}@${r.query.version}`}>
-                      <div mix={css({
-                        fontFamily: 'var(--font-mono)',
-                        fontSize: 'var(--fs-12)',
-                        color: 'var(--fg)',
-                        paddingInline: 'var(--space-3)',
-                        paddingBlock: 'var(--space-2)',
-                        background: 'var(--surface-1)',
-                        borderTop: '1px solid var(--hairline)',
-                      })}>
-                        <strong mix={pkgName}>{r.query.name}</strong>
-                        <span mix={pkgVersion}>@ {r.query.version}</span>
-                        <span mix={pkgAside}>· {r.vulns.length} {r.vulns.length === 1 ? 'advisory' : 'advisories'}</span>
-                      </div>
-                      {r.vulns.map((v) => {
-                        /* Inline the severity bucketing + advisory URL
+                  {results
+                    .filter((r) => r.vulns.length > 0)
+                    .map((r) => (
+                      <div key={`${r.query.name}@${r.query.version}`}>
+                        <div
+                          mix={css({
+                            fontFamily: 'var(--font-mono)',
+                            fontSize: 'var(--fs-12)',
+                            color: 'var(--fg)',
+                            paddingInline: 'var(--space-3)',
+                            paddingBlock: 'var(--space-2)',
+                            background: 'var(--surface-1)',
+                            borderTop: '1px solid var(--hairline)',
+                          })}
+                        >
+                          <strong mix={pkgName}>{r.query.name}</strong>
+                          <span mix={pkgVersion}>@ {r.query.version}</span>
+                          <span mix={pkgAside}>
+                            · {r.vulns.length} {r.vulns.length === 1 ? 'advisory' : 'advisories'}
+                          </span>
+                        </div>
+                        {r.vulns.map((v) => {
+                          /* Inline the severity bucketing + advisory URL
                            pulls — kept the helpers in osvScanner.ts but
                            we call them via the dynamic-imported module. */
-                        return (
-                          <VulnRowView
-                            key={v.id}
-                            vuln={v}
-                            installedVersion={r.query.version}
-                            pkgName={r.query.name}
-                          />
-                        );
-                      })}
-                    </div>
-                  ))}
+                          return (
+                            <VulnRowView
+                              key={v.id}
+                              vuln={v}
+                              installedVersion={r.query.version}
+                              pkgName={r.query.name}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
                 </Section>
               ) : (
-                <div mix={css({
-                  padding: 'var(--space-5)',
-                  border: '1px solid var(--hairline)',
-                  borderLeft: '2px solid var(--ok)',
-                  background: 'color-mix(in oklab, var(--ok) 4%, transparent)',
-                  marginTop: 'var(--space-5)',
-                })}>
-                  <div mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)', letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--ok)', marginBottom: 'var(--space-2)' })}>
+                <div
+                  mix={css({
+                    padding: 'var(--space-5)',
+                    border: '1px solid var(--hairline)',
+                    borderLeft: '2px solid var(--ok)',
+                    background: 'color-mix(in oklab, var(--ok) 4%, transparent)',
+                    marginTop: 'var(--space-5)',
+                  })}
+                >
+                  <div
+                    mix={css({
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: 'var(--fs-11)',
+                      letterSpacing: '0.14em',
+                      textTransform: 'uppercase',
+                      color: 'var(--ok)',
+                      marginBottom: 'var(--space-2)',
+                    })}
+                  >
                     All clear
                   </div>
-                  <div mix={css({ fontFamily: 'var(--font-body)', fontSize: 'var(--fs-14)', color: 'var(--fg-muted)', lineHeight: '1.55' })}>
-                    Scanned {cleanPackages} package{cleanPackages === 1 ? '' : 's'} against OSV.dev. Zero known advisories at the queried versions. Re-scan when you bump deps.
+                  <div
+                    mix={css({
+                      fontFamily: 'var(--font-body)',
+                      fontSize: 'var(--fs-14)',
+                      color: 'var(--fg-muted)',
+                      lineHeight: '1.55',
+                    })}
+                  >
+                    Scanned {cleanPackages} package{cleanPackages === 1 ? '' : 's'} against OSV.dev.
+                    Zero known advisories at the queried versions. Re-scan when you bump deps.
                   </div>
                 </div>
               )}
@@ -745,11 +843,15 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
     const advisoryUrl = pickAdvisoryUrlLocal(vuln);
     const fixedIn = pickFixedVersionLocal(vuln, pkgName);
     const pillStyle =
-      bucket === 'critical' ? sevPillCritical :
-      bucket === 'high'     ? sevPillHigh :
-      bucket === 'medium'   ? sevPillMedium :
-      bucket === 'low'      ? sevPillLow :
-                              sevPillUnknown;
+      bucket === 'critical'
+        ? sevPillCritical
+        : bucket === 'high'
+          ? sevPillHigh
+          : bucket === 'medium'
+            ? sevPillMedium
+            : bucket === 'low'
+              ? sevPillLow
+              : sevPillUnknown;
 
     return (
       <div mix={vulnRow}>
@@ -758,13 +860,16 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
           <a href={advisoryUrl} target="_blank" rel="noopener noreferrer" mix={[vulnId, vulnLink]}>
             {vuln.id}
           </a>
-          {vuln.summary && (
-            <div mix={vulnSummary}>{vuln.summary}</div>
-          )}
+          {vuln.summary && <div mix={vulnSummary}>{vuln.summary}</div>}
         </div>
         <div mix={vulnMeta}>
           installed {installedVersion}
-          {fixedIn && <><br />fixed in {fixedIn}</>}
+          {fixedIn && (
+            <>
+              <br />
+              fixed in {fixedIn}
+            </>
+          )}
         </div>
       </div>
     );
@@ -823,9 +928,10 @@ function pickAdvisoryUrlLocal(v: OsvVuln): string {
   // poisoned javascript:/data: reference URL can never become a rendered href.
   const isHttp = (u: string) => /^https?:\/\//i.test(u);
   const refs = v.references ?? [];
-  const ref = refs.find((r) => r.type === 'ADVISORY' && isHttp(r.url))
-    ?? refs.find((r) => isHttp(r.url) && r.url.includes('github.com/advisories'))
-    ?? refs.find((r) => isHttp(r.url));
+  const ref =
+    refs.find((r) => r.type === 'ADVISORY' && isHttp(r.url)) ??
+    refs.find((r) => isHttp(r.url) && r.url.includes('github.com/advisories')) ??
+    refs.find((r) => isHttp(r.url));
   return ref?.url ?? `https://osv.dev/vulnerability/${v.id}`;
 }
 
@@ -838,9 +944,10 @@ function fmtBytes(n: number): string {
 }
 
 function renderHeadline(critical: number, high: number, total: number): string {
-  if (critical > 0) return `${critical} critical vulnerabilit${critical === 1 ? 'y' : 'ies'} found.`;
-  if (high > 0)     return `${high} high-severity vulnerabilit${high === 1 ? 'y' : 'ies'} found.`;
-  if (total > 0)    return `${total} known advisor${total === 1 ? 'y' : 'ies'} matched your deps.`;
+  if (critical > 0)
+    return `${critical} critical vulnerabilit${critical === 1 ? 'y' : 'ies'} found.`;
+  if (high > 0) return `${high} high-severity vulnerabilit${high === 1 ? 'y' : 'ies'} found.`;
+  if (total > 0) return `${total} known advisor${total === 1 ? 'y' : 'ies'} matched your deps.`;
   return 'No known vulnerabilities at queried versions.';
 }
 

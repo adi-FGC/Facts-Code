@@ -24,7 +24,11 @@ function decl(
 function imp(resolved: string, specifiers: string[]): FileOutline['imports'][number] {
   return { source: resolved, resolved, specifiers, isTypeOnly: false };
 }
-function outline(path: string, declarations: SymbolDecl[], imports: FileOutline['imports'] = []): FileOutline {
+function outline(
+  path: string,
+  declarations: SymbolDecl[],
+  imports: FileOutline['imports'] = [],
+): FileOutline {
   return { path, declarations, imports } as unknown as FileOutline;
 }
 function ref(name: string, line: number, kind: RawRef['kind'] = 'call'): RawRef {
@@ -69,7 +73,11 @@ describe('buildSymbolGraph (F2)', () => {
     const a = outline('a.ts', [decl('caller', 1, 10)]);
     const b = outline('b.ts', [decl('lonely', 1, 5)]);
     const g = buildSymbolGraph([a, b], new Map([['a.ts', [ref('lonely', 5)]]]));
-    expect(g.symbolEdges[0]).toMatchObject({ to: 'b.ts#lonely@1', confidence: 'inferred', confidenceScore: 0.7 });
+    expect(g.symbolEdges[0]).toMatchObject({
+      to: 'b.ts#lonely@1',
+      confidence: 'inferred',
+      confidenceScore: 0.7,
+    });
   });
 
   it('name in several other files → ambiguous 0.4, picks lowest id', () => {
@@ -77,7 +85,11 @@ describe('buildSymbolGraph (F2)', () => {
     const b = outline('b.ts', [decl('dup', 1, 5)]);
     const c = outline('c.ts', [decl('dup', 1, 5)]);
     const g = buildSymbolGraph([a, b, c], new Map([['a.ts', [ref('dup', 5)]]]));
-    expect(g.symbolEdges[0]).toMatchObject({ to: 'b.ts#dup@1', confidence: 'ambiguous', confidenceScore: 0.4 });
+    expect(g.symbolEdges[0]).toMatchObject({
+      to: 'b.ts#dup@1',
+      confidence: 'ambiguous',
+      confidenceScore: 0.4,
+    });
   });
 
   it('attributes a ref to the innermost enclosing declaration', () => {
@@ -105,7 +117,9 @@ describe('buildSymbolGraph (F2)', () => {
     const a = outline('a.ts', [decl('c', 1, 10)], [imp('b.ts', ['t'])]);
     const b = outline('b.ts', [decl('t', 1, 5, { exported: true })]);
     const refs = new Map([['a.ts', [ref('t', 5), ref('t', 6, 'read')]]]);
-    expect(JSON.stringify(buildSymbolGraph([a, b], refs))).toBe(JSON.stringify(buildSymbolGraph([a, b], refs)));
+    expect(JSON.stringify(buildSymbolGraph([a, b], refs))).toBe(
+      JSON.stringify(buildSymbolGraph([a, b], refs)),
+    );
   });
 
   // ── F2 precision fix: the name-collision fallback ignores test files ──
@@ -114,15 +128,25 @@ describe('buildSymbolGraph (F2)', () => {
     // its only global match is a fixture builder in a test file → no edge.
     const src = outline('src/diagram.ts', [decl('build', 1, 30)]);
     const test = outline('test/query.test.ts', [decl('node', 42, 44)]);
-    const g = buildSymbolGraph([src, test], new Map([['src/diagram.ts', [ref('node', 10, 'read')]]]));
+    const g = buildSymbolGraph(
+      [src, test],
+      new Map([['src/diagram.ts', [ref('node', 10, 'read')]]]),
+    );
     expect(g.symbolEdges).toHaveLength(0);
   });
 
   it('control: the same ref still resolves when the only match is non-test code', () => {
     const src = outline('src/diagram.ts', [decl('build', 1, 30)]);
     const other = outline('src/graph.ts', [decl('node', 1, 5)]);
-    const g = buildSymbolGraph([src, other], new Map([['src/diagram.ts', [ref('node', 10, 'read')]]]));
-    expect(g.symbolEdges[0]).toMatchObject({ to: 'src/graph.ts#node@1', confidence: 'inferred', confidenceScore: 0.7 });
+    const g = buildSymbolGraph(
+      [src, other],
+      new Map([['src/diagram.ts', [ref('node', 10, 'read')]]]),
+    );
+    expect(g.symbolEdges[0]).toMatchObject({
+      to: 'src/graph.ts#node@1',
+      confidence: 'inferred',
+      confidenceScore: 0.7,
+    });
   });
 
   it('control: a genuine test→test reference still resolves via the import path (0.9)', () => {
@@ -131,6 +155,10 @@ describe('buildSymbolGraph (F2)', () => {
     const t1 = outline('test/a.test.ts', [decl('caller', 1, 10)], [imp('test/helpers.ts', ['mk'])]);
     const t2 = outline('test/helpers.ts', [decl('mk', 1, 5, { exported: true })]);
     const g = buildSymbolGraph([t1, t2], new Map([['test/a.test.ts', [ref('mk', 5)]]]));
-    expect(g.symbolEdges[0]).toMatchObject({ to: 'test/helpers.ts#mk@1', confidence: 'inferred', confidenceScore: 0.9 });
+    expect(g.symbolEdges[0]).toMatchObject({
+      to: 'test/helpers.ts#mk@1',
+      confidence: 'inferred',
+      confidenceScore: 0.9,
+    });
   });
 });

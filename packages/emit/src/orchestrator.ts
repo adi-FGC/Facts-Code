@@ -180,7 +180,11 @@ export async function writeArtifactsTo(
       // PACK-3: the prev MUST be a master — diffing against a diff (kind:'diff')
       // would compute a delta-of-a-delta the consumer could never apply. decode
       // treats an absent kind as a legacy master, so reject only explicit diffs.
-      if (prev.trailer && prev.header.kind !== 'diff' && prev.header.schema === next.header.schema) {
+      if (
+        prev.trailer &&
+        prev.header.kind !== 'diff' &&
+        prev.header.schema === next.header.schema
+      ) {
         const header: PackHeader = {
           producer: next.header.producer,
           schema: next.header.schema,

@@ -41,12 +41,7 @@ export const LEARNINGS_SCHEMA_VERSION = 'factstack-learnings.v1' as const;
  * outcome yet — a follow-up event with the same ticketId + a final
  * outcome closes the loop. `self-calibrate` is reserved for events
  * FACTS emits about its own runs (not about external proposals). */
-export const LearningOutcomeSchema = z.enum([
-  'accepted',
-  'rejected',
-  'pending',
-  'self-calibrate',
-]);
+export const LearningOutcomeSchema = z.enum(['accepted', 'rejected', 'pending', 'self-calibrate']);
 export type LearningOutcome = z.infer<typeof LearningOutcomeSchema>;
 
 export const LearningEventSchema = z.object({
@@ -101,7 +96,10 @@ export function formatLearningEvent(event: unknown): string {
 /** Parse a JSONL document into events. Tolerates blank lines and
  *  malformed lines (skipped, returned in `errors[]`). The strict
  *  validation here keeps quirky data from poisoning the consumer. */
-export function parseLearningsJsonl(text: string): { events: LearningEvent[]; errors: Array<{ line: number; reason: string }> } {
+export function parseLearningsJsonl(text: string): {
+  events: LearningEvent[];
+  errors: Array<{ line: number; reason: string }>;
+} {
   const events: LearningEvent[] = [];
   const errors: Array<{ line: number; reason: string }> = [];
   const lines = text.split(/\r?\n/);
@@ -117,7 +115,10 @@ export function parseLearningsJsonl(text: string): { events: LearningEvent[]; er
     }
     const result = LearningEventSchema.safeParse(parsed);
     if (!result.success) {
-      errors.push({ line: i + 1, reason: result.error.issues.map((iss) => iss.message).join('; ') });
+      errors.push({
+        line: i + 1,
+        reason: result.error.issues.map((iss) => iss.message).join('; '),
+      });
       continue;
     }
     events.push(result.data);
@@ -331,9 +332,15 @@ export function buildContextStore(events: LearningEvent[]): ContextStore {
     entities: e.filesAffected ?? [],
   }));
   return {
-    decisions: records.filter((r) => r.kind === 'decision' || r.kind === 'fact').sort(byRecencyThenKey),
-    tasks: records.filter((r) => r.kind === 'task' && r.status === 'pending').sort(byRecencyThenKey),
-    openQuestions: records.filter((r) => r.kind === 'question' && r.status === 'pending').sort(byRecencyThenKey),
+    decisions: records
+      .filter((r) => r.kind === 'decision' || r.kind === 'fact')
+      .sort(byRecencyThenKey),
+    tasks: records
+      .filter((r) => r.kind === 'task' && r.status === 'pending')
+      .sort(byRecencyThenKey),
+    openQuestions: records
+      .filter((r) => r.kind === 'question' && r.status === 'pending')
+      .sort(byRecencyThenKey),
   };
 }
 
@@ -458,7 +465,10 @@ export function sessionActionEvent(input: SessionActionInput): LearningEvent {
     outcome: 'accepted',
     filesAffected: input.entities,
     tags: ['session'],
-    meta: { entities: input.entities, ...(input.tokens !== undefined ? { tokens: input.tokens } : {}) },
+    meta: {
+      entities: input.entities,
+      ...(input.tokens !== undefined ? { tokens: input.tokens } : {}),
+    },
     ...(input.timestamp !== undefined ? { timestamp: input.timestamp } : {}),
   });
 }

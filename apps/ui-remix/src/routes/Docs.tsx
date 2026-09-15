@@ -26,11 +26,26 @@ import { DocsDiagrams } from '../ui/docs/DocsDiagrams.tsx';
 import { DocsFeatures } from '../ui/docs/DocsFeatures.tsx';
 
 const emptyWrap = css({
-  maxWidth: 'var(--content-max)', marginInline: 'auto', paddingInline: 'var(--gutter)', paddingBlock: 'var(--space-12)',
+  maxWidth: 'var(--content-max)',
+  marginInline: 'auto',
+  paddingInline: 'var(--gutter)',
+  paddingBlock: 'var(--space-12)',
 });
-const emptyH = css({ fontFamily: 'var(--font-display, var(--font-body))', fontSize: 'var(--fs-24)', fontWeight: '600', letterSpacing: '-0.02em', margin: '0 0 var(--space-3)' });
+const emptyH = css({
+  fontFamily: 'var(--font-display, var(--font-body))',
+  fontSize: 'var(--fs-24)',
+  fontWeight: '600',
+  letterSpacing: '-0.02em',
+  margin: '0 0 var(--space-3)',
+});
 const emptyP = css({ color: 'var(--fg-muted)', fontSize: 'var(--fs-14)', maxWidth: '60ch' });
-const codeInline = css({ fontFamily: 'var(--font-mono)', fontSize: '0.9em', background: 'var(--code-bg)', padding: '1px 5px', borderRadius: '4px' });
+const codeInline = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.9em',
+  background: 'var(--code-bg)',
+  padding: '1px 5px',
+  borderRadius: '4px',
+});
 
 export function Docs(handle: Handle<{ data: Dataset }>) {
   return () => {
@@ -40,12 +55,13 @@ export function Docs(handle: Handle<{ data: Dataset }>) {
         <div mix={emptyWrap}>
           <h1 mix={emptyH}>No documentation flagged.</h1>
           <p mix={emptyP}>
-            This analysis didn't flag any documentation or spec files. FACTS picks up
-            Markdown, text, RST/AsciiDoc, HTML under a <code mix={codeInline}>docs/</code> folder,
+            This analysis didn't flag any documentation or spec files. FACTS picks up Markdown,
+            text, RST/AsciiDoc, HTML under a <code mix={codeInline}>docs/</code> folder,
             OpenAPI/Swagger specs, JSON Schema, and well-known files like
-            <code mix={codeInline}>README</code>, <code mix={codeInline}>CHANGELOG</code>,
-            and <code mix={codeInline}>CONTRIBUTING</code>. Re-run <code mix={codeInline}>factstack analyze</code>{' '}
-            after adding docs and they'll appear here.
+            <code mix={codeInline}>README</code>, <code mix={codeInline}>CHANGELOG</code>, and{' '}
+            <code mix={codeInline}>CONTRIBUTING</code>. Re-run{' '}
+            <code mix={codeInline}>factstack analyze</code> after adding docs and they'll appear
+            here.
           </p>
         </div>
       );

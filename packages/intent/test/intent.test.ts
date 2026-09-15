@@ -71,8 +71,12 @@ describe('inferIntent — null branches (no signal)', () => {
   it('returns null for a TypeScript-only project with no frameworks', () => {
     const agent = makeAgent({
       project: {
-        name: 't', root: '.', languages: ['TypeScript'], frameworks: ['TypeScript'],
-        entryPoints: [], monorepo: null,
+        name: 't',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: ['TypeScript'],
+        entryPoints: [],
+        monorepo: null,
       } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBeNull();
@@ -83,11 +87,19 @@ describe('inferIntent — Python frameworks', () => {
   it('FastAPI service with route count', () => {
     const agent = makeAgent({
       project: {
-        name: 'api', root: '.', languages: ['Python'], frameworks: ['FastAPI'],
-        entryPoints: [], monorepo: null,
+        name: 'api',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['FastAPI'],
+        entryPoints: [],
+        monorepo: null,
       } as AgentArtifact['project'],
       routes: Array.from({ length: 12 }, (_, i) => ({
-        framework: 'fastapi', method: 'GET', path: `/r${i}`, handlerFile: 'main.py', handlerSymbol: null,
+        framework: 'fastapi',
+        method: 'GET',
+        path: `/r${i}`,
+        handlerFile: 'main.py',
+        handlerSymbol: null,
       })),
     });
     expect(inferIntent(agent, makeHuman())).toBe('A FastAPI service with 12 routes.');
@@ -95,30 +107,74 @@ describe('inferIntent — Python frameworks', () => {
 
   it('FastAPI service singular when 1 route', () => {
     const agent = makeAgent({
-      project: { name: 'api', root: '.', languages: ['Python'], frameworks: ['FastAPI'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
-      routes: [{ framework: 'fastapi', method: 'GET', path: '/r', handlerFile: 'main.py', handlerSymbol: null }],
+      project: {
+        name: 'api',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['FastAPI'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
+      routes: [
+        {
+          framework: 'fastapi',
+          method: 'GET',
+          path: '/r',
+          handlerFile: 'main.py',
+          handlerSymbol: null,
+        },
+      ],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A FastAPI service with 1 route.');
   });
 
   it('FastAPI without routes still names the framework', () => {
     const agent = makeAgent({
-      project: { name: 'api', root: '.', languages: ['Python'], frameworks: ['FastAPI'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'api',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['FastAPI'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A FastAPI service.');
   });
 
   it('Django web app naming', () => {
     const agent = makeAgent({
-      project: { name: 'd', root: '.', languages: ['Python'], frameworks: ['Django'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
-      routes: [{ framework: 'django', method: 'GET', path: '/', handlerFile: 'views.py', handlerSymbol: null }],
+      project: {
+        name: 'd',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['Django'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
+      routes: [
+        {
+          framework: 'django',
+          method: 'GET',
+          path: '/',
+          handlerFile: 'views.py',
+          handlerSymbol: null,
+        },
+      ],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Django web app with 1 route.');
   });
 
   it('Flask service', () => {
     const agent = makeAgent({
-      project: { name: 'f', root: '.', languages: ['Python'], frameworks: ['Flask'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'f',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['Flask'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Flask service.');
   });
@@ -127,10 +183,29 @@ describe('inferIntent — Python frameworks', () => {
 describe('inferIntent — JS server frameworks', () => {
   it('Express with routes', () => {
     const agent = makeAgent({
-      project: { name: 'e', root: '.', languages: ['JavaScript'], frameworks: ['Express'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'e',
+        root: '.',
+        languages: ['JavaScript'],
+        frameworks: ['Express'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
       routes: [
-        { framework: 'express', method: 'GET', path: '/x', handlerFile: 'a.js', handlerSymbol: null },
-        { framework: 'express', method: 'POST', path: '/y', handlerFile: 'b.js', handlerSymbol: null },
+        {
+          framework: 'express',
+          method: 'GET',
+          path: '/x',
+          handlerFile: 'a.js',
+          handlerSymbol: null,
+        },
+        {
+          framework: 'express',
+          method: 'POST',
+          path: '/y',
+          handlerFile: 'b.js',
+          handlerSymbol: null,
+        },
       ],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Express application with 2 routes.');
@@ -138,8 +213,23 @@ describe('inferIntent — JS server frameworks', () => {
 
   it('Next.js application with routes', () => {
     const agent = makeAgent({
-      project: { name: 'n', root: '.', languages: ['TypeScript'], frameworks: ['Next.js', 'React'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
-      routes: [{ framework: 'next', method: null, path: '/', handlerFile: 'app/page.tsx', handlerSymbol: null }],
+      project: {
+        name: 'n',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: ['Next.js', 'React'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
+      routes: [
+        {
+          framework: 'next',
+          method: null,
+          path: '/',
+          handlerFile: 'app/page.tsx',
+          handlerSymbol: null,
+        },
+      ],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Next.js application with 1 route.');
   });
@@ -148,21 +238,42 @@ describe('inferIntent — JS server frameworks', () => {
 describe('inferIntent — UI frameworks', () => {
   it('Vite-built React UI', () => {
     const agent = makeAgent({
-      project: { name: 'r', root: '.', languages: ['TypeScript'], frameworks: ['React', 'Vite'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'r',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: ['React', 'Vite'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Vite-built React UI.');
   });
 
   it('plain React UI without a build tool', () => {
     const agent = makeAgent({
-      project: { name: 'r', root: '.', languages: ['JavaScript'], frameworks: ['React'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'r',
+        root: '.',
+        languages: ['JavaScript'],
+        frameworks: ['React'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A React UI.');
   });
 
   it('Vite-built Svelte UI', () => {
     const agent = makeAgent({
-      project: { name: 's', root: '.', languages: ['JavaScript'], frameworks: ['Svelte', 'Vite'], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 's',
+        root: '.',
+        languages: ['JavaScript'],
+        frameworks: ['Svelte', 'Vite'],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Vite-built Svelte UI.');
   });
@@ -171,7 +282,14 @@ describe('inferIntent — UI frameworks', () => {
 describe('inferIntent — CLI', () => {
   it('detects a Node CLI from a cli.ts file', () => {
     const agent = makeAgent({
-      project: { name: 'c', root: '.', languages: ['TypeScript'], frameworks: [], entryPoints: [], monorepo: null } as AgentArtifact['project'],
+      project: {
+        name: 'c',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: null,
+      } as AgentArtifact['project'],
       files: [makeFile('src/cli.ts')],
     });
     expect(inferIntent(agent, makeHuman())).toBe('A Node CLI tool.');
@@ -182,8 +300,11 @@ describe('inferIntent — monorepo', () => {
   it('enumerates apps under apps/* with their kinds', () => {
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['TypeScript'],
-        frameworks: ['Remix', 'React'], entryPoints: [],
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: ['Remix', 'React'],
+        entryPoints: [],
         monorepo: { manager: 'pnpm', workspaces: [] },
       } as AgentArtifact['project'],
       files: [
@@ -205,8 +326,12 @@ describe('inferIntent — monorepo', () => {
        for an empty project). */
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['TypeScript'], frameworks: [],
-        entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] },
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
       } as AgentArtifact['project'],
       files: [makeFile('apps/somecustomthing/src/index.ts')],
     });
@@ -218,8 +343,12 @@ describe('inferIntent — monorepo', () => {
        emit "a browser extension" exactly once — not twice. */
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['TypeScript'], frameworks: [],
-        entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] },
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
       } as AgentArtifact['project'],
       files: [
         makeFile('apps/chrome-ext/src/x.ts'),
@@ -235,24 +364,37 @@ describe('inferIntent — monorepo', () => {
   it('classifies vscode-ext as VS Code extension, not browser extension', () => {
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['TypeScript'], frameworks: [],
-        entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] },
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
       } as AgentArtifact['project'],
       files: [makeFile('apps/vscode-ext/src/x.ts')],
     });
-    expect(inferIntent(agent, makeHuman())).toBe(
-      'A pnpm monorepo containing a VS Code extension.',
-    );
+    expect(inferIntent(agent, makeHuman())).toBe('A pnpm monorepo containing a VS Code extension.');
   });
 
   it('falls back to single-app intent prefixed with the manager when no apps/', () => {
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['Python'], frameworks: ['FastAPI'],
+        name: 'mono',
+        root: '.',
+        languages: ['Python'],
+        frameworks: ['FastAPI'],
         entryPoints: [],
         monorepo: { manager: 'turbo', workspaces: [] },
       } as AgentArtifact['project'],
-      routes: [{ framework: 'fastapi', method: 'GET', path: '/r', handlerFile: 'm.py', handlerSymbol: null }],
+      routes: [
+        {
+          framework: 'fastapi',
+          method: 'GET',
+          path: '/r',
+          handlerFile: 'm.py',
+          handlerSymbol: null,
+        },
+      ],
     });
     expect(inferIntent(agent, makeHuman())).toBe(
       'A turbo monorepo with fastAPI service with 1 route.',
@@ -264,8 +406,12 @@ describe('inferIntent — determinism', () => {
   it('produces byte-identical output across two calls with the same input', () => {
     const agent = makeAgent({
       project: {
-        name: 'mono', root: '.', languages: ['TypeScript'], frameworks: ['Remix', 'React'],
-        entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] },
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: ['Remix', 'React'],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
       } as AgentArtifact['project'],
       files: [makeFile('apps/cli/src/index.ts'), makeFile('apps/ui-remix/src/main.tsx')],
     });
@@ -282,11 +428,25 @@ describe('inferIntent — determinism', () => {
     ];
     const filesB = [...filesA].reverse();
     const projA = makeAgent({
-      project: { name: 'm', root: '.', languages: ['TypeScript'], frameworks: [], entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] } } as AgentArtifact['project'],
+      project: {
+        name: 'm',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
+      } as AgentArtifact['project'],
       files: filesA,
     });
     const projB = makeAgent({
-      project: { name: 'm', root: '.', languages: ['TypeScript'], frameworks: [], entryPoints: [], monorepo: { manager: 'pnpm', workspaces: [] } } as AgentArtifact['project'],
+      project: {
+        name: 'm',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
+      } as AgentArtifact['project'],
       files: filesB,
     });
     expect(inferIntent(projA, makeHuman())).toBe(inferIntent(projB, makeHuman()));

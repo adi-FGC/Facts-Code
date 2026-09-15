@@ -15,7 +15,7 @@ import {
  */
 
 describe('mergeMcpConfig (F12)', () => {
-  it('creates a fresh config in each agent\'s native shape', () => {
+  it("creates a fresh config in each agent's native shape", () => {
     const claude = mergeMcpConfig('claude', null);
     expect(claude.ok && JSON.parse(claude.content)).toEqual({
       mcpServers: { factstack: { command: 'npx', args: ['-y', 'factstack-mcp'] } },
@@ -52,7 +52,10 @@ describe('mergeMcpConfig (F12)', () => {
   it('updates an existing entry when the command changes (changed:true)', () => {
     const first = mergeMcpConfig('claude', null);
     if (!first.ok) throw new Error(first.reason);
-    const r = mergeMcpConfig('claude', first.content, { command: 'node', args: ['dist/server.js'] });
+    const r = mergeMcpConfig('claude', first.content, {
+      command: 'node',
+      args: ['dist/server.js'],
+    });
     if (!r.ok) throw new Error(r.reason);
     expect(r.changed).toBe(true);
     expect(JSON.parse(r.content).mcpServers.factstack.command).toBe('node');
@@ -82,7 +85,10 @@ describe('mergeMcpConfig (F12)', () => {
 
 describe('parseServerCommand (F12 — review fix)', () => {
   it('splits plain commands on whitespace', () => {
-    expect(parseServerCommand('npx -y factstack-mcp')).toEqual({ command: 'npx', args: ['-y', 'factstack-mcp'] });
+    expect(parseServerCommand('npx -y factstack-mcp')).toEqual({
+      command: 'npx',
+      args: ['-y', 'factstack-mcp'],
+    });
   });
 
   it('preserves quoted paths containing spaces', () => {
@@ -107,7 +113,10 @@ describe('parseServerCommand (F12 — review fix)', () => {
 
 describe('removeMcpConfig (F12 uninstall)', () => {
   it('removes only the factstack entry', () => {
-    const installed = mergeMcpConfig('claude', JSON.stringify({ mcpServers: { github: { command: 'gh-mcp', args: [] } } }));
+    const installed = mergeMcpConfig(
+      'claude',
+      JSON.stringify({ mcpServers: { github: { command: 'gh-mcp', args: [] } } }),
+    );
     if (!installed.ok) throw new Error(installed.reason);
     const r = removeMcpConfig('claude', installed.content);
     if (!r.ok) throw new Error(r.reason);

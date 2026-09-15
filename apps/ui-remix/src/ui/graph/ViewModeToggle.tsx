@@ -59,7 +59,8 @@ const segment = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover': {
     color: 'var(--accent)',
@@ -95,8 +96,8 @@ const activeRail = css({
 const MODES: ReadonlyArray<{ key: GraphViewMode; label: string; hint: string }> = [
   { key: 'heatmap', label: 'Heatmap', hint: 'Module × module coupling matrix' },
   { key: 'diagram', label: 'Diagram', hint: 'Sugiyama layered DAG' },
-  { key: 'sankey',  label: 'Sankey',  hint: 'Module → module import flow' },
-  { key: 'layers',  label: 'Layers',  hint: 'Files grouped by depth + cycles' },
+  { key: 'sankey', label: 'Sankey', hint: 'Module → module import flow' },
+  { key: 'layers', label: 'Layers', hint: 'Files grouped by depth + cycles' },
 ];
 
 export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
@@ -108,7 +109,29 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
        Nth slot. */
     const activeIdx = MODES.findIndex((m) => m.key === value);
     return (
-      <div mix={[wrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, MODES, value, (k) => { onChange(k); writeStoredMode(k); }, 'tab')) e.preventDefault(); })]} role="tablist" aria-label="Graph view mode">
+      <div
+        mix={[
+          wrap,
+          on<HTMLDivElement>('keydown', (e) => {
+            if (
+              moveRoving(
+                (e as unknown as KeyboardEvent).key,
+                e.currentTarget,
+                MODES,
+                value,
+                (k) => {
+                  onChange(k);
+                  writeStoredMode(k);
+                },
+                'tab',
+              )
+            )
+              e.preventDefault();
+          }),
+        ]}
+        role="tablist"
+        aria-label="Graph view mode"
+      >
         {MODES.map((m) => {
           const isActive = m.key === value;
           return (
@@ -119,11 +142,15 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
               aria-selected={isActive ? 'true' : 'false'}
               tabIndex={isActive ? 0 : -1}
               title={m.hint}
-              mix={[segment, isActive ? segmentActive : null, on('click', () => {
-                if (isActive) return;
-                onChange(m.key);
-                writeStoredMode(m.key);
-              })]}
+              mix={[
+                segment,
+                isActive ? segmentActive : null,
+                on('click', () => {
+                  if (isActive) return;
+                  onChange(m.key);
+                  writeStoredMode(m.key);
+                }),
+              ]}
             >
               {m.label}
             </button>
@@ -131,7 +158,10 @@ export function ViewModeToggle(handle: Handle<ViewModeToggleProps>) {
         })}
         {/* The sliding rail. transform driven by activeIdx so it
             tweens between segments via the CSS transition above. */}
-        <span aria-hidden="true" mix={[activeRail, css({ transform: `translateX(${activeIdx * 100}%)` })]} />
+        <span
+          aria-hidden="true"
+          mix={[activeRail, css({ transform: `translateX(${activeIdx * 100}%)` })]}
+        />
       </div>
     );
   };

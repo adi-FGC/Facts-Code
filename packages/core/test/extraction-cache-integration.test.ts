@@ -53,11 +53,21 @@ describe('analyze() + extraction cache — INCREMENTAL == FULL (INV2)', () => {
     const noCache = await analyze(fs, { root: '.', projectName: 'app', symbols: true });
 
     const cache = new MemCache();
-    const cold = await analyze(fs, { root: '.', projectName: 'app', symbols: true, extractionCache: cache });
+    const cold = await analyze(fs, {
+      root: '.',
+      projectName: 'app',
+      symbols: true,
+      extractionCache: cache,
+    });
     expect(cache.misses).toBeGreaterThan(0); // cold = everything parsed fresh
     expect(cache.hits).toBe(0);
 
-    const warm = await analyze(fs, { root: '.', projectName: 'app', symbols: true, extractionCache: cache });
+    const warm = await analyze(fs, {
+      root: '.',
+      projectName: 'app',
+      symbols: true,
+      extractionCache: cache,
+    });
     expect(cache.hits).toBeGreaterThan(0); // warm = served from cache
 
     expect(stripVolatile(cold.agent)).toEqual(stripVolatile(noCache.agent));
@@ -66,7 +76,11 @@ describe('analyze() + extraction cache — INCREMENTAL == FULL (INV2)', () => {
 
   it('a one-file edit re-parses ~that one file', async () => {
     const cache = new MemCache();
-    await analyze(memoryFS({ ...FILES }), { root: '.', projectName: 'app', extractionCache: cache });
+    await analyze(memoryFS({ ...FILES }), {
+      root: '.',
+      projectName: 'app',
+      extractionCache: cache,
+    });
     const coldMisses = cache.misses;
     expect(coldMisses).toBeGreaterThan(1);
 
@@ -89,12 +103,21 @@ describe('analyze() + extraction cache — INCREMENTAL == FULL (INV2)', () => {
   it('a --symbols run does not reuse a no-symbols cache entry (refs-mode segregation)', async () => {
     const cache = new MemCache();
     // Prime WITHOUT symbols.
-    await analyze(memoryFS({ ...FILES }), { root: '.', projectName: 'app', extractionCache: cache });
+    await analyze(memoryFS({ ...FILES }), {
+      root: '.',
+      projectName: 'app',
+      extractionCache: cache,
+    });
     cache.hits = 0;
     cache.misses = 0;
     // Re-run WITH symbols — the keys differ (r1 vs r0), so code files miss again
     // and produce refs (otherwise the symbol graph would be silently empty).
-    const withSyms = await analyze(memoryFS({ ...FILES }), { root: '.', projectName: 'app', symbols: true, extractionCache: cache });
+    const withSyms = await analyze(memoryFS({ ...FILES }), {
+      root: '.',
+      projectName: 'app',
+      symbols: true,
+      extractionCache: cache,
+    });
     expect(cache.misses).toBeGreaterThan(0);
     expect(withSyms.agent.graph.symbolNodes.length).toBeGreaterThan(0);
   });

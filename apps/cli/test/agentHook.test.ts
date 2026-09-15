@@ -9,14 +9,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  existsSync,
-  rmSync,
-} from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -33,9 +26,7 @@ describe('ensureFreshnessHook (pure merge)', () => {
     const post = settings.hooks?.PostToolUse;
     expect(post).toHaveLength(1);
     expect(post![0]!.matcher).toBe(FRESHNESS_HOOK_MATCHER);
-    expect(post![0]!.hooks).toEqual([
-      { type: 'command', command: FRESHNESS_HOOK_COMMAND },
-    ]);
+    expect(post![0]!.hooks).toEqual([{ type: 'command', command: FRESHNESS_HOOK_COMMAND }]);
   });
 
   it('is idempotent — a second run adds nothing', () => {
@@ -67,7 +58,10 @@ describe('ensureFreshnessHook (pure merge)', () => {
     const input = {
       hooks: {
         PostToolUse: [
-          { matcher: FRESHNESS_HOOK_MATCHER, hooks: [{ type: 'command', command: 'echo existing' }] },
+          {
+            matcher: FRESHNESS_HOOK_MATCHER,
+            hooks: [{ type: 'command', command: 'echo existing' }],
+          },
         ],
       },
     };

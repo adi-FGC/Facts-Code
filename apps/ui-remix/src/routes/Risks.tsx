@@ -62,9 +62,9 @@ export function Risks(handle: Handle<RisksProps>) {
             <div mix={kicker}>Risks · 0 findings</div>
             <h1 mix={headline}>Nothing to flag today.</h1>
             <p mix={lede}>
-              No exposed secrets, no unresolved imports, no dependency cycles,
-              no license conflicts. The next analysis will repopulate this
-              page the moment something is worth your attention.
+              No exposed secrets, no unresolved imports, no dependency cycles, no license conflicts.
+              The next analysis will repopulate this page the moment something is worth your
+              attention.
             </p>
           </div>
           <MarginColumn>
@@ -89,17 +89,19 @@ export function Risks(handle: Handle<RisksProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Risks · {data.risks.length} {data.risks.length === 1 ? 'finding' : 'findings'}</div>
+          <div mix={kicker}>
+            Risks · {data.risks.length} {data.risks.length === 1 ? 'finding' : 'findings'}
+          </div>
           <h1 mix={headline}>What to look at first.</h1>
           <p mix={lede}>
-            Highest-severity items lead. Each finding ties back to a file
-            and line; click through to read the exact source.
+            Highest-severity items lead. Each finding ties back to a file and line; click through to
+            read the exact source.
           </p>
           <LabelNumberRow>
             <LabelNumber label="Critical" value={counts.critical ?? 0} />
-            <LabelNumber label="High"     value={counts.high     ?? 0} />
-            <LabelNumber label="Medium"   value={counts.medium   ?? 0} />
-            <LabelNumber label="Low"      value={counts.low      ?? 0} last />
+            <LabelNumber label="High" value={counts.high ?? 0} />
+            <LabelNumber label="Medium" value={counts.medium ?? 0} />
+            <LabelNumber label="Low" value={counts.low ?? 0} last />
           </LabelNumberRow>
 
           {SEV_ORDER.filter((s) => bySeverity.has(s)).map((sev) => (
@@ -129,7 +131,9 @@ export function Risks(handle: Handle<RisksProps>) {
               tone="danger"
               aside="see legacy Risks tab for redacted previews"
             >
-              {(counts.critical ?? 0) + (counts.high ?? 0)} item{(counts.critical ?? 0) + (counts.high ?? 0) === 1 ? '' : 's'} need rotation or removal before next deploy.
+              {(counts.critical ?? 0) + (counts.high ?? 0)} item
+              {(counts.critical ?? 0) + (counts.high ?? 0) === 1 ? '' : 's'} need rotation or
+              removal before next deploy.
             </FootnoteChip>
           )}
         </MarginColumn>

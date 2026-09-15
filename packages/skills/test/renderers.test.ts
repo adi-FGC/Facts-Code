@@ -38,7 +38,24 @@ function representativeSpec(): SkillSpec {
       entryPoints: ['npm run dev', 'npm test'],
       monorepo: null,
     },
-    files: [{ path: 'a.ts', language: 'typescript', loc: 100, bytes: 3000, bundleSize: null, tokenCost: 50, imports: [], exports: [], declarations: [], todos: [], complexity: { cyclomatic: 0, cognitive: 0 }, status: 'ok', lastModifiedMs: null, churnScore: null }],
+    files: [
+      {
+        path: 'a.ts',
+        language: 'typescript',
+        loc: 100,
+        bytes: 3000,
+        bundleSize: null,
+        tokenCost: 50,
+        imports: [],
+        exports: [],
+        declarations: [],
+        todos: [],
+        complexity: { cyclomatic: 0, cognitive: 0 },
+        status: 'ok',
+        lastModifiedMs: null,
+        churnScore: null,
+      },
+    ],
     /* Include graph edges so the keyFiles section renders. Without
        this, every renderer's "## Read these first" / "## Key files"
        section gets omitted (per the SECTION OMISSION contract) and
@@ -52,12 +69,44 @@ function representativeSpec(): SkillSpec {
       cycles: [],
     },
     capabilities: ['Renders a React UI', 'Uses Vite for bundling'],
-    risks: [{ severity: 'high', category: 'secret', rule: 'r', message: 'High-sev finding', file: 'a.ts' }],
-    vulnerabilities: [{ id: 'GHSA-x', severity: 'high', ecosystem: 'npm', package: 'lodash', installedVersion: '4.17.20', fixedVersion: '4.17.21', advisoryUrl: 'https://example.test', lastChecked: 0, manifestPath: 'package.json' }],
+    risks: [
+      {
+        severity: 'high',
+        category: 'secret',
+        rule: 'r',
+        message: 'High-sev finding',
+        file: 'a.ts',
+      },
+    ],
+    vulnerabilities: [
+      {
+        id: 'GHSA-x',
+        severity: 'high',
+        ecosystem: 'npm',
+        package: 'lodash',
+        installedVersion: '4.17.20',
+        fixedVersion: '4.17.21',
+        advisoryUrl: 'https://example.test',
+        lastChecked: 0,
+        manifestPath: 'package.json',
+      },
+    ],
     stats: { loc: 100, fileCount: 1, packageCount: 1, totalTokenCost: 50 },
     routes: [
-      { framework: 'express', method: 'GET',  path: '/health', handlerFile: 'a.ts', handlerSymbol: null },
-      { framework: 'express', method: 'POST', path: '/users',  handlerFile: 'a.ts', handlerSymbol: null },
+      {
+        framework: 'express',
+        method: 'GET',
+        path: '/health',
+        handlerFile: 'a.ts',
+        handlerSymbol: null,
+      },
+      {
+        framework: 'express',
+        method: 'POST',
+        path: '/users',
+        handlerFile: 'a.ts',
+        handlerSymbol: null,
+      },
     ],
   });
   const human = makeHuman({
@@ -198,7 +247,7 @@ describe('agentsRenderer', () => {
     expect(Object.keys(agentsRenderer.render(representativeSpec()))).toEqual(['AGENTS.md']);
   });
 
-  it("leads with the \"use the pack, don't scan\" directive", () => {
+  it('leads with the "use the pack, don\'t scan" directive', () => {
     const body = agentsRenderer.render(representativeSpec())['AGENTS.md']!;
     expect(body).toContain('## Before you scan: use the FACTS map');
     expect(body).toContain('.facts/agent.pack');
@@ -294,8 +343,10 @@ describe('buildSkillsTo', () => {
     /* Caller is responsible for surfacing typos; orchestrator stays
        pure. Asserts the documented behavior. */
     const writer = new MemoryFileWriter();
-    const result = await buildSkillsTo(writer, makeAgent(), makeHuman(),
-      ['claude', 'cusror' as unknown as 'cursor']);
+    const result = await buildSkillsTo(writer, makeAgent(), makeHuman(), [
+      'claude',
+      'cusror' as unknown as 'cursor',
+    ]);
     expect(result.formats).toEqual(['claude']);
   });
 

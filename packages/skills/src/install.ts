@@ -101,13 +101,24 @@ export function parseServerCommand(raw: string): McpServerCommand | null {
   let quoted = false; // a quoted-empty token ("") still counts as a token
   for (const ch of raw) {
     if (quote) {
-      if (ch === quote) { quote = null; continue; }
+      if (ch === quote) {
+        quote = null;
+        continue;
+      }
       cur += ch;
       continue;
     }
-    if (ch === '"' || ch === "'") { quote = ch; quoted = true; continue; }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      quoted = true;
+      continue;
+    }
     if (/\s/.test(ch)) {
-      if (cur || quoted) { tokens.push(cur); cur = ''; quoted = false; }
+      if (cur || quoted) {
+        tokens.push(cur);
+        cur = '';
+        quoted = false;
+      }
       continue;
     }
     cur += ch;
@@ -155,13 +166,22 @@ export function mergeMcpConfig(
 ): MergeResult {
   const root = parseExisting(existing);
   if (root === null) {
-    return { ok: false, reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} is not a JSON object — fix or remove it, then re-run (refusing to overwrite a hand-edited file)` };
+    return {
+      ok: false,
+      reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} is not a JSON object — fix or remove it, then re-run (refusing to overwrite a hand-edited file)`,
+    };
   }
   const key = configRootKey(agent);
   // A PRESENT but non-object "${key}" (array, string, …) is a hand-edited file
   // we don't understand — refusing beats silently replacing it (never clobber).
-  if (root[key] !== undefined && (typeof root[key] !== 'object' || root[key] === null || Array.isArray(root[key]))) {
-    return { ok: false, reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} has a non-object "${key}" — fix it manually, then re-run (refusing to overwrite)` };
+  if (
+    root[key] !== undefined &&
+    (typeof root[key] !== 'object' || root[key] === null || Array.isArray(root[key]))
+  ) {
+    return {
+      ok: false,
+      reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} has a non-object "${key}" — fix it manually, then re-run (refusing to overwrite)`,
+    };
   }
   const servers = (root[key] as Record<string, unknown> | undefined) ?? {};
   const next = serverEntry(agent, server);
@@ -179,11 +199,20 @@ export function mergeMcpConfig(
 export function removeMcpConfig(agent: InstallAgent, existing: string | null): MergeResult {
   const root = parseExisting(existing);
   if (root === null) {
-    return { ok: false, reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} is not a JSON object — nothing removed` };
+    return {
+      ok: false,
+      reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} is not a JSON object — nothing removed`,
+    };
   }
   const key = configRootKey(agent);
-  if (root[key] !== undefined && (typeof root[key] !== 'object' || root[key] === null || Array.isArray(root[key]))) {
-    return { ok: false, reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} has a non-object "${key}" — nothing removed` };
+  if (
+    root[key] !== undefined &&
+    (typeof root[key] !== 'object' || root[key] === null || Array.isArray(root[key]))
+  ) {
+    return {
+      ok: false,
+      reason: `existing ${INSTALL_TARGETS[agent].mcpConfigPath} has a non-object "${key}" — nothing removed`,
+    };
   }
   const servers = { ...((root[key] as Record<string, unknown> | undefined) ?? {}) };
   if (!(MCP_SERVER_KEY in servers)) {

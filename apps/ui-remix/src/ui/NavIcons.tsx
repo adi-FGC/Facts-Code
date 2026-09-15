@@ -19,13 +19,16 @@ import { adoptCss } from '../lib/adoptCss.ts';
    not @keyframes). Injected once, guarded by id. */
 const KEYFRAMES_ID = 'nav-icon-keyframes';
 function ensureKeyframes() {
-  adoptCss(KEYFRAMES_ID, `
+  adoptCss(
+    KEYFRAMES_ID,
+    `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes nav-gear-spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
       @keyframes nav-about-q { 0%,100% { opacity: 1; transform: rotateY(0) } 45% { opacity: 0; transform: rotateY(90deg) } 55% { opacity: 0 } }
       @keyframes nav-about-x { 0%,45% { opacity: 0 } 55% { opacity: 1; transform: rotateY(0) } 0%,100% { opacity: 0; transform: rotateY(-90deg) } }
     }
-  `);
+  `,
+  );
 }
 
 /* ─────────── shared button shell ─────────── */
@@ -40,7 +43,8 @@ const iconLink = css({
   color: 'var(--fg-muted)',
   textDecoration: 'none',
   borderRadius: '0',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
 });
@@ -162,8 +166,12 @@ export function AboutIcon(handle: Handle<{}>) {
         mix={[iconLink, isActive ? iconLinkActive : null]}
       >
         <span aria-hidden="true" mix={[glyphStack, aboutMorph]}>
-          <span class="nav-q" mix={[glyph, glyphQ]}>?</span>
-          <span class="nav-x" mix={[glyph, glyphX]}>!</span>
+          <span class="nav-q" mix={[glyph, glyphQ]}>
+            ?
+          </span>
+          <span class="nav-x" mix={[glyph, glyphX]}>
+            !
+          </span>
         </span>
       </a>
     );

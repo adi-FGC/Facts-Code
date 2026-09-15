@@ -76,9 +76,10 @@ export function buildMemory(
      (not `??`) so empty-string intent triggers the fallback —
      pre-v0.3.10 fixtures set intent: '' as a placeholder and we
      don't want them to render as a blank blockquote. */
-  const headline = (human.summary.intent && human.summary.intent.length > 0)
-    ? human.summary.intent
-    : human.summary.oneLiner;
+  const headline =
+    human.summary.intent && human.summary.intent.length > 0
+      ? human.summary.intent
+      : human.summary.oneLiner;
   sections.push(`> ${normalizeOneLiner(headline)}`);
   sections.push('');
   sections.push(
@@ -100,7 +101,8 @@ export function buildMemory(
   const fws = (agent.project.frameworks ?? []).filter(Boolean);
   if (fws.length) {
     const shown = fws.slice(0, TRUNCATE_FRAMEWORKS).join(', ');
-    const more = fws.length > TRUNCATE_FRAMEWORKS ? ` (+${fws.length - TRUNCATE_FRAMEWORKS} more)` : '';
+    const more =
+      fws.length > TRUNCATE_FRAMEWORKS ? ` (+${fws.length - TRUNCATE_FRAMEWORKS} more)` : '';
     sections.push(`- **Frameworks**: ${shown}${more}`);
   }
   sections.push(
@@ -135,14 +137,22 @@ export function buildMemory(
     sections.push('');
     const line = topo.originDefault ?? topo.defaultBranch ?? 'the default branch';
     for (const w of topo.worktrees.slice(0, TRUNCATE_WORKTREES)) {
-      const name = w.relPath === '.' ? (w.path.split('/').filter(Boolean).at(-1) ?? w.path) : (w.relPath ?? w.path);
-      const dirt = [
-        w.dirty.staged ? `${w.dirty.staged} staged` : '',
-        w.dirty.modified ? `${w.dirty.modified} modified` : '',
-        w.dirty.untracked ? `${w.dirty.untracked} untracked` : '',
-        w.dirty.conflicts ? `${w.dirty.conflicts} conflicts` : '',
-      ].filter(Boolean).join(', ') || (w.tree === 'unavailable' ? 'status unavailable' : 'clean');
-      const unique = w.uniqueCount ? ` · ${w.uniqueCount} commit${w.uniqueCount === 1 ? '' : 's'} not in ${line}` : '';
+      const name =
+        w.relPath === '.'
+          ? (w.path.split('/').filter(Boolean).at(-1) ?? w.path)
+          : (w.relPath ?? w.path);
+      const dirt =
+        [
+          w.dirty.staged ? `${w.dirty.staged} staged` : '',
+          w.dirty.modified ? `${w.dirty.modified} modified` : '',
+          w.dirty.untracked ? `${w.dirty.untracked} untracked` : '',
+          w.dirty.conflicts ? `${w.dirty.conflicts} conflicts` : '',
+        ]
+          .filter(Boolean)
+          .join(', ') || (w.tree === 'unavailable' ? 'status unavailable' : 'clean');
+      const unique = w.uniqueCount
+        ? ` · ${w.uniqueCount} commit${w.uniqueCount === 1 ? '' : 's'} not in ${line}`
+        : '';
       const asked = w.requestedAt ? ` · requested ${w.requestedAt.slice(0, 10)}` : '';
       sections.push(
         `- **${name}** (${w.kind}${w.isCurrent ? ', here' : ''}) — ${w.branch ?? 'detached'} · ${w.integration} · ${w.publish} · ${dirt}${unique}` +
@@ -150,7 +160,9 @@ export function buildMemory(
       );
     }
     if (topo.worktrees.length > TRUNCATE_WORKTREES) {
-      sections.push(`- _(+${topo.worktrees.length - TRUNCATE_WORKTREES} more — see the Worktrees tab or the pack's worktrees table)_`);
+      sections.push(
+        `- _(+${topo.worktrees.length - TRUNCATE_WORKTREES} more — see the Worktrees tab or the pack's worktrees table)_`,
+      );
     }
     if (topo.gaps.length) sections.push(`- _Gaps_: ${topo.gaps.join(', ')}`);
   }
@@ -166,17 +178,20 @@ export function buildMemory(
     if (store.tasks.length) {
       sections.push('');
       sections.push('**Open tasks**');
-      for (const t of store.tasks.slice(0, TRUNCATE_WORKING_TASKS)) sections.push(`- [ ] ${truncateWorking(t.text)}`);
+      for (const t of store.tasks.slice(0, TRUNCATE_WORKING_TASKS))
+        sections.push(`- [ ] ${truncateWorking(t.text)}`);
     }
     if (store.decisions.length) {
       sections.push('');
       sections.push('**Recent decisions**');
-      for (const d of store.decisions.slice(0, TRUNCATE_WORKING_DECISIONS)) sections.push(`- ${truncateWorking(d.text)}`);
+      for (const d of store.decisions.slice(0, TRUNCATE_WORKING_DECISIONS))
+        sections.push(`- ${truncateWorking(d.text)}`);
     }
     if (store.openQuestions.length) {
       sections.push('');
       sections.push('**Open questions**');
-      for (const q of store.openQuestions.slice(0, TRUNCATE_WORKING_QUESTIONS)) sections.push(`- ${truncateWorking(q.text)}`);
+      for (const q of store.openQuestions.slice(0, TRUNCATE_WORKING_QUESTIONS))
+        sections.push(`- ${truncateWorking(q.text)}`);
     }
   }
 
@@ -217,7 +232,10 @@ export function buildMemory(
     for (const fw of sortedFrameworks) {
       sections.push(`### ${fw}`);
       sections.push('');
-      const list = groups.get(fw)!.slice().sort((a, b) => byCodeUnit(a.path || '', b.path || ''));
+      const list = groups
+        .get(fw)!
+        .slice()
+        .sort((a, b) => byCodeUnit(a.path || '', b.path || ''));
       for (const r of list.slice(0, TRUNCATE_ROUTES_PER_GROUP)) {
         sections.push(`- ${r.method ?? 'GET'} \`${r.path}\``);
       }
@@ -235,9 +253,11 @@ export function buildMemory(
     sections.push('');
     sections.push('## Key files');
     sections.push('');
-    sections.push(ranked
-      ? 'Most important files by graph centrality (PageRank over the import graph) — read these first to understand the API surface.'
-      : 'Files most-imported by the rest of the codebase — read these first to understand the API surface.');
+    sections.push(
+      ranked
+        ? 'Most important files by graph centrality (PageRank over the import graph) — read these first to understand the API surface.'
+        : 'Files most-imported by the rest of the codebase — read these first to understand the API surface.',
+    );
     sections.push('');
     for (const k of keyFiles) {
       const imp = typeof k.importance === 'number' ? `, importance ${k.importance}` : '';
@@ -251,7 +271,9 @@ export function buildMemory(
     sections.push('');
     sections.push('## Modules');
     sections.push('');
-    sections.push('Clusters of files that import each other — each named by its most important member.');
+    sections.push(
+      'Clusters of files that import each other — each named by its most important member.',
+    );
     sections.push('');
     for (const m of modules.slice(0, TRUNCATE_MODULES)) {
       sections.push(`- **\`${m.name}\`** — ${m.memberCount} files`);
@@ -405,9 +427,14 @@ function topModules(agent: AgentArtifact): Array<{ name: string; memberCount: nu
  * `extracted` (pre-F1 artifacts) so old inputs never inflate "to verify".
  */
 function edgeConfidence(agent: AgentArtifact): {
-  extracted: number; inferred: number; ambiguous: number; uncertain: number;
+  extracted: number;
+  inferred: number;
+  ambiguous: number;
+  uncertain: number;
 } {
-  let extracted = 0, inferred = 0, ambiguous = 0;
+  let extracted = 0,
+    inferred = 0,
+    ambiguous = 0;
   for (const e of agent.graph.edges) {
     const c = e.confidence ?? 'extracted';
     if (c === 'inferred') inferred++;
@@ -445,9 +472,20 @@ function buildTour(agent: AgentArtifact): Array<{ label: string; value: string }
   return [
     { label: 'Manifest', value: manifest ? `\`${manifest}\`` : '_(no manifest at root)_' },
     { label: 'Entry', value: entry ? `\`${entry}\`` : '_(no entry point detected)_' },
-    { label: 'Most-imported file', value: top ? `\`${top.path}\` (imported by ${top.inDegree})` : '_(no import edges yet)_' },
-    { label: 'First route', value: firstRoute ? `\`${firstRoute.handlerFile}\` (${firstRoute.method ?? 'GET'} ${firstRoute.path})` : '_(no routes detected)_' },
-    { label: 'Sample test', value: sampleTest ? `\`${sampleTest.path}\`` : '_(no tests detected)_' },
+    {
+      label: 'Most-imported file',
+      value: top ? `\`${top.path}\` (imported by ${top.inDegree})` : '_(no import edges yet)_',
+    },
+    {
+      label: 'First route',
+      value: firstRoute
+        ? `\`${firstRoute.handlerFile}\` (${firstRoute.method ?? 'GET'} ${firstRoute.path})`
+        : '_(no routes detected)_',
+    },
+    {
+      label: 'Sample test',
+      value: sampleTest ? `\`${sampleTest.path}\`` : '_(no tests detected)_',
+    },
   ];
 }
 

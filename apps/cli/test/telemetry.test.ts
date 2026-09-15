@@ -38,7 +38,12 @@ describe('createTelemetry — local metrics', () => {
   it('records events, durations, file counts, and error categories', async () => {
     const dir = tempDir();
     try {
-      const t = createTelemetry({ dir, remoteUrl: null, now: () => '2026-06-05T00:00:00.000Z', uuid: () => 'fixed-id' });
+      const t = createTelemetry({
+        dir,
+        remoteUrl: null,
+        now: () => '2026-06-05T00:00:00.000Z',
+        uuid: () => 'fixed-id',
+      });
       await t.recordEvent('analyze.complete', { durationMs: 1200, fileCount: 389 });
       await t.recordEvent('analyze.complete', { durationMs: 800, fileCount: 390 });
       await t.recordEvent('cli.error', { errorCategory: 'parse' });
@@ -59,7 +64,8 @@ describe('createTelemetry — local metrics', () => {
     const dir = tempDir();
     try {
       const t = createTelemetry({ dir, remoteUrl: null });
-      for (let i = 0; i < 130; i++) await t.recordEvent('analyze.complete', { durationMs: i, fileCount: i });
+      for (let i = 0; i < 130; i++)
+        await t.recordEvent('analyze.complete', { durationMs: i, fileCount: i });
       const m = await t.loadMetrics();
       expect(m.durationsMs).toHaveLength(100);
       expect(m.fileCounts).toHaveLength(100);
@@ -94,7 +100,10 @@ describe('createTelemetry — remote gating', () => {
       const t = createTelemetry({
         dir,
         remoteUrl: 'https://collector.test',
-        fetch: async (u, i) => { calls.push({ u, i }); return undefined; },
+        fetch: async (u, i) => {
+          calls.push({ u, i });
+          return undefined;
+        },
       });
       await t.recordEvent('analyze.complete', { durationMs: 1, fileCount: 1 });
       expect(calls).toHaveLength(0);
@@ -110,18 +119,30 @@ describe('createTelemetry — remote gating', () => {
       const t = createTelemetry({
         dir,
         remoteUrl: 'https://collector.test',
-        fetch: async (_u, i) => { bodies.push(i.body); return undefined; },
+        fetch: async (_u, i) => {
+          bodies.push(i.body);
+          return undefined;
+        },
         uuid: () => 'id-1',
       });
       await t.setOptedIn(true);
-      await t.recordEvent('analyze.complete', { durationMs: 1200, fileCount: 389, appVersion: '0.1.0' });
+      await t.recordEvent('analyze.complete', {
+        durationMs: 1200,
+        fileCount: 389,
+        appVersion: '0.1.0',
+      });
       expect(bodies).toHaveLength(1);
       const payload = JSON.parse(bodies[0]!);
       // Exact key set — any extra key would be a privacy leak.
       expect(Object.keys(payload).sort()).toEqual(
         ['appVersion', 'durationMs', 'event', 'fileCount', 'installId', 'ts'].sort(),
       );
-      expect(payload).toMatchObject({ installId: 'id-1', event: 'analyze.complete', durationMs: 1200, fileCount: 389 });
+      expect(payload).toMatchObject({
+        installId: 'id-1',
+        event: 'analyze.complete',
+        durationMs: 1200,
+        fileCount: 389,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -134,7 +155,10 @@ describe('createTelemetry — remote gating', () => {
       const t = createTelemetry({
         dir,
         remoteUrl: 'https://collector.test',
-        fetch: async () => { calls.push(1); return undefined; },
+        fetch: async () => {
+          calls.push(1);
+          return undefined;
+        },
       });
       await t.setOptedIn(true);
       await t.recordEvent('x', { durationMs: 1 });

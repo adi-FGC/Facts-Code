@@ -9,7 +9,12 @@ import type { SiteRenderer } from '../types.js';
 export const robotsRenderer: SiteRenderer = {
   id: 'robots',
   render(reg: SiteRegistry): Record<string, string> {
-    const body = ['User-agent: *', 'Allow: /', `Sitemap: ${reg.hosts.cloudflare}/sitemap.xml`, ''].join('\n');
+    const body = [
+      'User-agent: *',
+      'Allow: /',
+      `Sitemap: ${reg.hosts.cloudflare}/sitemap.xml`,
+      '',
+    ].join('\n');
     return { 'robots.txt': body };
   },
 };

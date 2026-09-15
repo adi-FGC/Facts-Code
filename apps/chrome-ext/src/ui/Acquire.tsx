@@ -166,29 +166,50 @@ export function renderAcquire(p: AcquireProps): RemixNode {
       <div>
         {kicker('FactStack')}
         <h1 mix={hero}>Understand any codebase.</h1>
-        <p mix={sub}>Analyze it from this panel — no install, no checkout. Everything runs in your browser.</p>
+        <p mix={sub}>
+          Analyze it from this panel — no install, no checkout. Everything runs in your browser.
+        </p>
       </div>
 
       {p.inExtension && !p.activeTabLoaded && (
-        <div mix={tabCardPending}>{spinner()}<span>Checking active tab…</span></div>
+        <div mix={tabCardPending}>
+          {spinner()}
+          <span>Checking active tab…</span>
+        </div>
       )}
       {p.activeTabLoaded && repo && (
         <div mix={tabCard}>
           <div mix={tabCardLabel}>GitHub · active tab</div>
           <div mix={repoName}>{repoLabel(repo)}</div>
-          {btn({ label: 'Analyze this repo', kind: 'primary', full: true, onClick: () => p.onAnalyzeRepo(repo) })}
+          {btn({
+            label: 'Analyze this repo',
+            kind: 'primary',
+            full: true,
+            onClick: () => p.onAnalyzeRepo(repo),
+          })}
         </div>
       )}
 
-      <div mix={divider}><span>{repo ? 'or' : 'GitHub'}</span></div>
+      <div mix={divider}>
+        <span>{repo ? 'or' : 'GitHub'}</span>
+      </div>
 
       <div mix={field}>
-        <label mix={fieldLabel} for={REPO_INPUT_ID}>Repo — owner/repo or URL</label>
+        <label mix={fieldLabel} for={REPO_INPUT_ID}>
+          Repo — owner/repo or URL
+        </label>
         <div mix={inputRow}>
           <input
             id={REPO_INPUT_ID}
-            {...(p.error && p.error !== CANCELLED ? { 'aria-invalid': 'true', 'aria-describedby': 'factstack-acquire-error' } : {})}
-            mix={[input, on('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') p.onAnalyzeManual(); })]}
+            {...(p.error && p.error !== CANCELLED
+              ? { 'aria-invalid': 'true', 'aria-describedby': 'factstack-acquire-error' }
+              : {})}
+            mix={[
+              input,
+              on('keydown', (e) => {
+                if ((e as KeyboardEvent).key === 'Enter') p.onAnalyzeManual();
+              }),
+            ]}
             placeholder="vercel/next.js"
             spellcheck={false}
             autocomplete="off"
@@ -197,33 +218,38 @@ export function renderAcquire(p: AcquireProps): RemixNode {
         </div>
       </div>
 
-      <div mix={divider}><span>local</span></div>
+      <div mix={divider}>
+        <span>local</span>
+      </div>
 
-      {p.canLocal
-        ? btn({ label: 'Analyze a local folder', full: true, onClick: p.onLocal })
-        : (
-          <p mix={sub}>
-            Folder analysis needs Chrome/Edge 114+ (File System Access). Use the GitHub path above.
-          </p>
-        )}
+      {p.canLocal ? (
+        btn({ label: 'Analyze a local folder', full: true, onClick: p.onLocal })
+      ) : (
+        <p mix={sub}>
+          Folder analysis needs Chrome/Edge 114+ (File System Access). Use the GitHub path above.
+        </p>
+      )}
 
       {btn({ label: 'Explore the demo', full: true, onClick: p.onDemo })}
 
       {!p.inExtension && (
         <div mix={previewNote}>
-          Preview mode — active-tab detection works once installed as a Chrome extension. Use a repo or the demo here.
+          Preview mode — active-tab detection works once installed as a Chrome extension. Use a repo
+          or the demo here.
         </div>
       )}
 
       <div aria-live="polite" aria-atomic="true">
         {p.error && p.error !== CANCELLED && (
-          <div id="factstack-acquire-error" mix={errorBox} role="alert">{p.error}</div>
+          <div id="factstack-acquire-error" mix={errorBox} role="alert">
+            {p.error}
+          </div>
         )}
       </div>
 
       <p mix={footnote}>
-        Local-folder analysis is network-free — nothing leaves your machine. GitHub analysis reads the repo through
-        the GitHub API into memory and analyzes it locally.
+        Local-folder analysis is network-free — nothing leaves your machine. GitHub analysis reads
+        the repo through the GitHub API into memory and analyzes it locally.
       </p>
     </div>
   );

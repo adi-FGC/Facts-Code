@@ -7,7 +7,10 @@ import { NodeFileWriter } from '../src/node-writer.js';
 let tmp: string;
 
 beforeEach(() => {
-  tmp = join(tmpdir(), `factstack-node-writer-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  tmp = join(
+    tmpdir(),
+    `factstack-node-writer-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+  );
   mkdirSync(tmp, { recursive: true });
 });
 

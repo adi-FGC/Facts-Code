@@ -48,8 +48,9 @@ export function buildSiteRegistry(input: BuildSiteRegistryInput): SiteRegistry {
   /* Derive the onboarding sequence from the catalog's onboardingOrder,
      ascending. Sorting a filtered copy keeps MCP_TOOL_CATALOG's ListTools
      order untouched. */
-  const onboardingSequence: readonly string[] = MCP_TOOL_CATALOG
-    .filter((t) => t.onboardingOrder !== undefined)
+  const onboardingSequence: readonly string[] = MCP_TOOL_CATALOG.filter(
+    (t) => t.onboardingOrder !== undefined,
+  )
     .slice()
     .sort((a, b) => (a.onboardingOrder ?? 0) - (b.onboardingOrder ?? 0))
     .map((t) => t.name);

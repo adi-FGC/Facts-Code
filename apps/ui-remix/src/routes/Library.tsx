@@ -38,8 +38,8 @@ interface LibraryProps {
    tabular-nums (already on RuledCell mono) to keep the columns true. */
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 10_000)    return (n / 1_000).toFixed(1) + 'K';
-  if (n >= 1_000)     return (n / 1_000).toFixed(2) + 'K';
+  if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
   return n.toLocaleString('en-US');
 }
 
@@ -59,24 +59,27 @@ function aggregate(node: DatasetTreeNode): { files: number; loc: number; tokens:
 type Kind = 'app' | 'pkg' | 'docs' | 'tests' | 'cfg' | 'other';
 
 function classify(name: string): { kind: Kind; hint: string } {
-  if (name === 'apps' || name === 'app')         return { kind: 'app',   hint: 'application code' };
-  if (name === 'packages' || name === 'libs')    return { kind: 'pkg',   hint: 'shared libraries' };
-  if (name === 'plugins')                        return { kind: 'pkg',   hint: 'extension plugins' };
-  if (name === 'examples' || name === 'example') return { kind: 'docs',  hint: 'reference fixtures' };
+  if (name === 'apps' || name === 'app') return { kind: 'app', hint: 'application code' };
+  if (name === 'packages' || name === 'libs') return { kind: 'pkg', hint: 'shared libraries' };
+  if (name === 'plugins') return { kind: 'pkg', hint: 'extension plugins' };
+  if (name === 'examples' || name === 'example')
+    return { kind: 'docs', hint: 'reference fixtures' };
   if (name === 'docs' || name === 'documentation') return { kind: 'docs', hint: 'documentation' };
-  if (name === 'tests' || name === 'test' || name === 'spec' || name === '__tests__') return { kind: 'tests', hint: 'test suite' };
-  if (name.startsWith('.'))                      return { kind: 'cfg',   hint: 'config / metadata' };
-  if (name === 'prototype' || name === 'legacy') return { kind: 'docs',  hint: 'reference / legacy code' };
-  if (name === 'scripts' || name === 'tools')    return { kind: 'cfg',   hint: 'build / tooling' };
+  if (name === 'tests' || name === 'test' || name === 'spec' || name === '__tests__')
+    return { kind: 'tests', hint: 'test suite' };
+  if (name.startsWith('.')) return { kind: 'cfg', hint: 'config / metadata' };
+  if (name === 'prototype' || name === 'legacy')
+    return { kind: 'docs', hint: 'reference / legacy code' };
+  if (name === 'scripts' || name === 'tools') return { kind: 'cfg', hint: 'build / tooling' };
   return { kind: 'other', hint: 'project files' };
 }
 
 const KIND_COLOR: Record<Kind, string> = {
-  app:   'var(--accent)',
-  pkg:   'var(--info)',
-  docs:  'var(--fg-muted)',
+  app: 'var(--accent)',
+  pkg: 'var(--info)',
+  docs: 'var(--fg-muted)',
   tests: 'var(--ok)',
-  cfg:   'var(--fg-subtle)',
+  cfg: 'var(--fg-subtle)',
   other: 'var(--fg-faint)',
 };
 
@@ -112,14 +115,15 @@ const lede = css({
   marginBottom: 'var(--space-12)',
 });
 
-const kindTag = (kind: Kind) => css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  fontWeight: '500',
-  letterSpacing: '0.12em',
-  textTransform: 'uppercase',
-  color: KIND_COLOR[kind],
-});
+const kindTag = (kind: Kind) =>
+  css({
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--fs-10)',
+    fontWeight: '500',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: KIND_COLOR[kind],
+  });
 
 const nameStyle = css({
   fontFamily: 'var(--font-display)',
@@ -150,7 +154,12 @@ const hintStyle = css({
 type SortMode = 'weight' | 'kind' | 'name';
 
 const KIND_ORDER: Record<Kind, number> = {
-  app: 0, pkg: 1, tests: 2, docs: 3, cfg: 4, other: 5,
+  app: 0,
+  pkg: 1,
+  tests: 2,
+  docs: 3,
+  cfg: 4,
+  other: 5,
 };
 
 const sortBar = css({
@@ -178,7 +187,8 @@ const sortSeg = css({
   letterSpacing: 'inherit',
   textTransform: 'inherit',
   '&:last-child': { borderRight: 'none' },
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
 });
 
 const sortSegActive = css({
@@ -200,8 +210,8 @@ const sortRow = css({
 
 const SORT_LABELS: Array<{ key: SortMode; label: string }> = [
   { key: 'weight', label: 'Weight' },
-  { key: 'kind',   label: 'Kind' },
-  { key: 'name',   label: 'Name' },
+  { key: 'kind', label: 'Kind' },
+  { key: 'name', label: 'Name' },
 ];
 
 export function Library(handle: Handle<LibraryProps>) {
@@ -237,8 +247,8 @@ export function Library(handle: Handle<LibraryProps>) {
     }
 
     const totalTokens = top.reduce((s, g) => s + g.tokens, 0);
-    const totalFiles  = top.reduce((s, g) => s + g.files, 0);
-    const totalLoc    = top.reduce((s, g) => s + g.loc, 0);
+    const totalFiles = top.reduce((s, g) => s + g.files, 0);
+    const totalLoc = top.reduce((s, g) => s + g.loc, 0);
 
     return (
       <ContentWithMargin>
@@ -248,16 +258,15 @@ export function Library(handle: Handle<LibraryProps>) {
           </div>
           <h1 mix={headline}>The project's table of contents.</h1>
           <p mix={lede}>
-            Top-level packages — sortable by weight (token cost),
-            kind (apps → packages → tests → docs), or name. The mono
-            tag at the start of each row marks role at a glance.
+            Top-level packages — sortable by weight (token cost), kind (apps → packages → tests →
+            docs), or name. The mono tag at the start of each row marks role at a glance.
           </p>
 
           <LabelNumberRow>
             <LabelNumber label="Packages" value={top.length} />
-            <LabelNumber label="Files"    value={fmt(totalFiles)} />
-            <LabelNumber label="Lines"    value={fmt(totalLoc)} />
-            <LabelNumber label="Tokens"   value={fmt(totalTokens)} unit="cl100k" last />
+            <LabelNumber label="Files" value={fmt(totalFiles)} />
+            <LabelNumber label="Lines" value={fmt(totalLoc)} />
+            <LabelNumber label="Tokens" value={fmt(totalTokens)} unit="cl100k" last />
           </LabelNumberRow>
 
           {/* v0.3.11 H2: sort-mode segmented control. Lives outside
@@ -265,7 +274,26 @@ export function Library(handle: Handle<LibraryProps>) {
               "Sort by" label without disturbing Section's heading. */}
           <div mix={sortRow}>
             <span>Sort by</span>
-            <div mix={[sortBar, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, SORT_LABELS, sortMode, setSort, 'radio')) e.preventDefault(); })]} role="radiogroup" aria-label="Sort packages by">
+            <div
+              mix={[
+                sortBar,
+                on<HTMLDivElement>('keydown', (e) => {
+                  if (
+                    moveRoving(
+                      (e as unknown as KeyboardEvent).key,
+                      e.currentTarget,
+                      SORT_LABELS,
+                      sortMode,
+                      setSort,
+                      'radio',
+                    )
+                  )
+                    e.preventDefault();
+                }),
+              ]}
+              role="radiogroup"
+              aria-label="Sort packages by"
+            >
               {SORT_LABELS.map((s) => {
                 const active = s.key === sortMode;
                 return (
@@ -300,9 +328,15 @@ export function Library(handle: Handle<LibraryProps>) {
               <RuledRow header>
                 <RuledCell header>Kind</RuledCell>
                 <RuledCell header>Name</RuledCell>
-                <RuledCell header align="right">Files</RuledCell>
-                <RuledCell header align="right">Lines</RuledCell>
-                <RuledCell header align="right">Tokens</RuledCell>
+                <RuledCell header align="right">
+                  Files
+                </RuledCell>
+                <RuledCell header align="right">
+                  Lines
+                </RuledCell>
+                <RuledCell header align="right">
+                  Tokens
+                </RuledCell>
               </RuledRow>
               {top.map((g) => (
                 <RuledRow key={g.name}>
@@ -313,9 +347,15 @@ export function Library(handle: Handle<LibraryProps>) {
                     <span mix={nameStyle}>{g.name}</span>
                     <span mix={hintStyle}>{g.hint}</span>
                   </RuledCell>
-                  <RuledCell mono align="right">{fmt(g.files)}</RuledCell>
-                  <RuledCell mono align="right">{fmt(g.loc)}</RuledCell>
-                  <RuledCell mono align="right">{fmt(g.tokens)}</RuledCell>
+                  <RuledCell mono align="right">
+                    {fmt(g.files)}
+                  </RuledCell>
+                  <RuledCell mono align="right">
+                    {fmt(g.loc)}
+                  </RuledCell>
+                  <RuledCell mono align="right">
+                    {fmt(g.tokens)}
+                  </RuledCell>
                 </RuledRow>
               ))}
             </RuledTable>
@@ -324,13 +364,12 @@ export function Library(handle: Handle<LibraryProps>) {
 
         <MarginColumn>
           <FootnoteChip label="Coming with v0.4.6" tone="accent">
-            Symbol-level browse: components, hooks, pages, utilities,
-            server APIs, types — each row links to its outline + call
-            sites.
+            Symbol-level browse: components, hooks, pages, utilities, server APIs, types — each row
+            links to its outline + call sites.
           </FootnoteChip>
           <FootnoteChip label="Today" aside="package-level rollup only">
-            Per-directory file count + LOC + token cost. Click a row in
-            the file tree (left) for individual file metadata.
+            Per-directory file count + LOC + token cost. Click a row in the file tree (left) for
+            individual file metadata.
           </FootnoteChip>
         </MarginColumn>
       </ContentWithMargin>

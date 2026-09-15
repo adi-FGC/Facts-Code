@@ -21,7 +21,10 @@ export type Progress = AnalyzeProgress;
 export const CANCELLED = '__factstack_cancelled__';
 
 export function canPickLocalFolder(): boolean {
-  return typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
+  return (
+    typeof (window as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker ===
+    'function'
+  );
 }
 
 export async function acquireGitHub(
@@ -40,12 +43,18 @@ export async function acquireGitHub(
   return { dataset, source: { kind: 'github', label: repoLabel(repo), at: Date.now() } };
 }
 
-export async function acquireLocalFolder(onProgress?: (p: Progress) => void): Promise<LoadedDataset> {
-  const picker = (window as unknown as {
-    showDirectoryPicker?: (opts?: { mode?: 'read' }) => Promise<FileSystemDirectoryHandle>;
-  }).showDirectoryPicker;
+export async function acquireLocalFolder(
+  onProgress?: (p: Progress) => void,
+): Promise<LoadedDataset> {
+  const picker = (
+    window as unknown as {
+      showDirectoryPicker?: (opts?: { mode?: 'read' }) => Promise<FileSystemDirectoryHandle>;
+    }
+  ).showDirectoryPicker;
   if (typeof picker !== 'function') {
-    throw new Error('Folder analysis needs the File System Access API (Chrome/Edge 114+). Use the GitHub path instead.');
+    throw new Error(
+      'Folder analysis needs the File System Access API (Chrome/Edge 114+). Use the GitHub path instead.',
+    );
   }
   let handle: FileSystemDirectoryHandle;
   try {

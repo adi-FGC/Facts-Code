@@ -28,7 +28,14 @@ function baseAgent(): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    project: { name: 'bench', root: '.', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'bench',
+      root: '.',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -44,9 +51,26 @@ function makeHuman(): HumanArtifact {
     $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    summary: { oneLiner: 'bench', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'ok' } },
+    summary: {
+      oneLiner: 'bench',
+      intent: '',
+      capabilities: [],
+      entryPoints: [],
+      health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'ok' },
+    },
     stack: [],
-    tree: { id: 'root', name: 'root', path: '.', kind: 'directory', language: null, loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [] },
+    tree: {
+      id: 'root',
+      name: 'root',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
+    },
     graph: { nodes: [], edges: [], cycles: [] },
     activity: [],
     risks: [],
@@ -84,7 +108,9 @@ describe('F8 diff-chain benchmark — warm re-analyze size win', () => {
 
     // Warm run — same repo plus CHANGED new findings, prior master supplied.
     const w2 = new MemoryFileWriter();
-    const r = await writeArtifactsTo(w2, agentWithRisks(COLD + CHANGED), makeHuman(), { prevPackBody: master });
+    const r = await writeArtifactsTo(w2, agentWithRisks(COLD + CHANGED), makeHuman(), {
+      prevPackBody: master,
+    });
     const diff = w2.get('agent.diff.pack')!;
 
     const masterBytes = bytes(master);
@@ -108,7 +134,8 @@ describe('F8 diff-chain benchmark — warm re-analyze size win', () => {
     const rebuilt = applyChain(decode(master), [decode(diff)]);
     const newMasterRisks = decode(w2.get('agent.pack')!).tables.get('risks')!;
     expect(newMasterRisks.rows.length).toBe(COLD + CHANGED);
-    const asSet = (rows: readonly (readonly (string | null)[])[]) => rows.map((r) => JSON.stringify(r)).sort();
+    const asSet = (rows: readonly (readonly (string | null)[])[]) =>
+      rows.map((r) => JSON.stringify(r)).sort();
     expect(asSet(rebuilt.get('risks')!.rows)).toEqual(asSet(newMasterRisks.rows));
   });
 });

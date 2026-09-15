@@ -40,7 +40,12 @@ import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 export type ScanRequest =
   | { id: string; kind: 'scan:local'; root: FileSystemDirectoryHandle; projectName?: string }
-  | { id: string; kind: 'scan:files'; files: Array<{ path: string; file: File }>; projectName?: string }
+  | {
+      id: string;
+      kind: 'scan:files';
+      files: Array<{ path: string; file: File }>;
+      projectName?: string;
+    }
   | { id: string; kind: 'scan:github'; spec: GitHubFetchSpec };
 
 export type ScanResponse =
@@ -106,8 +111,18 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
     if (req.kind === 'scan:local') {
       const fs = new FsaBrowserFS(req.root);
       const onProgress = throttledProgress(req.id, 'analyzing');
-      post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Walking…' });
-      const result = await analyze(fs, buildAnalyzeOpts(req.projectName ?? req.root.name, onProgress));
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Walking…',
+      });
+      const result = await analyze(
+        fs,
+        buildAnalyzeOpts(req.projectName ?? req.root.name, onProgress),
+      );
       post({ id: req.id, type: 'done', ...result });
       return;
     }
@@ -137,7 +152,10 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
       });
       const fs = new MemoryFS(files);
       const onProgress = throttledProgress(req.id, 'analyzing');
-      const result = await analyze(fs, buildAnalyzeOpts(req.projectName ?? 'local files', onProgress));
+      const result = await analyze(
+        fs,
+        buildAnalyzeOpts(req.projectName ?? 'local files', onProgress),
+      );
       post({ id: req.id, type: 'done', ...result });
       return;
     }
@@ -157,7 +175,14 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
         });
       });
       const onProgress = throttledProgress(req.id, 'analyzing');
-      post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Analyzing…' });
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Analyzing…',
+      });
       const projectName = `${req.spec.owner}/${req.spec.repo}${req.spec.ref ? '@' + req.spec.ref : ''}`;
       const result = await analyze(fs, buildAnalyzeOpts(projectName, onProgress));
       post({ id: req.id, type: 'done', ...result });

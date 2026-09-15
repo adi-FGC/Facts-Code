@@ -100,8 +100,8 @@ describe('agentToSkillSpec — stack fields', () => {
     const spec = agentToSkillSpec(agent, makeHuman());
     expect(spec.languages.length).toBe(3);
     expect(spec.languages[0]).toEqual({ id: 'typescript', pct: 61 }); // 100/165 ≈ 61%
-    expect(spec.languages[1]).toEqual({ id: 'python', pct: 30 });     // 50/165 ≈ 30%
-    expect(spec.languages[2]).toEqual({ id: 'json', pct: 6 });        // 10/165 ≈ 6%
+    expect(spec.languages[1]).toEqual({ id: 'python', pct: 30 }); // 50/165 ≈ 30%
+    expect(spec.languages[2]).toEqual({ id: 'json', pct: 6 }); // 10/165 ≈ 6%
   });
 
   it('returns empty languages array when no source files', () => {
@@ -110,7 +110,9 @@ describe('agentToSkillSpec — stack fields', () => {
   });
 
   it('carries stats through unchanged', () => {
-    const agent = makeAgent({ stats: { loc: 100, fileCount: 5, packageCount: 2, totalTokenCost: 12345 } });
+    const agent = makeAgent({
+      stats: { loc: 100, fileCount: 5, packageCount: 2, totalTokenCost: 12345 },
+    });
     const spec = agentToSkillSpec(agent, makeHuman());
     expect(spec.stats).toEqual({ files: 5, loc: 100, tokens: 12345 });
   });
@@ -175,15 +177,17 @@ describe('agentToSkillSpec — risk surface', () => {
   it('only includes high + critical risks', () => {
     const agent = makeAgent({
       risks: [
-        { severity: 'low' as const,      category: 'todo',   rule: 'r-low',  message: 'low' },
-        { severity: 'medium' as const,   category: 'todo',   rule: 'r-med',  message: 'med' },
-        { severity: 'high' as const,     category: 'secret', rule: 'r-high', message: 'hi'  },
-        { severity: 'critical' as const, category: 'secret', rule: 'r-crit', message: 'cr'  },
+        { severity: 'low' as const, category: 'todo', rule: 'r-low', message: 'low' },
+        { severity: 'medium' as const, category: 'todo', rule: 'r-med', message: 'med' },
+        { severity: 'high' as const, category: 'secret', rule: 'r-high', message: 'hi' },
+        { severity: 'critical' as const, category: 'secret', rule: 'r-crit', message: 'cr' },
       ],
     });
     const spec = agentToSkillSpec(agent, makeHuman());
     expect(spec.openRisks.length).toBe(2);
-    expect(spec.openRisks.every((r) => r.severity === 'high' || r.severity === 'critical')).toBe(true);
+    expect(spec.openRisks.every((r) => r.severity === 'high' || r.severity === 'critical')).toBe(
+      true,
+    );
   });
 
   it('caps openRisks at CAPS.risks', () => {
@@ -202,8 +206,28 @@ describe('agentToSkillSpec — risk surface', () => {
   it('surfaces vulnerabilityCount from agent.vulnerabilities.length', () => {
     const agent = makeAgent({
       vulnerabilities: [
-        { id: 'CVE-1', severity: 'high',     ecosystem: 'npm', package: 'a', installedVersion: '1', fixedVersion: '2', advisoryUrl: 'u', lastChecked: 1, manifestPath: 'p' },
-        { id: 'CVE-2', severity: 'critical', ecosystem: 'npm', package: 'b', installedVersion: '1', fixedVersion: '2', advisoryUrl: 'u', lastChecked: 1, manifestPath: 'p' },
+        {
+          id: 'CVE-1',
+          severity: 'high',
+          ecosystem: 'npm',
+          package: 'a',
+          installedVersion: '1',
+          fixedVersion: '2',
+          advisoryUrl: 'u',
+          lastChecked: 1,
+          manifestPath: 'p',
+        },
+        {
+          id: 'CVE-2',
+          severity: 'critical',
+          ecosystem: 'npm',
+          package: 'b',
+          installedVersion: '1',
+          fixedVersion: '2',
+          advisoryUrl: 'u',
+          lastChecked: 1,
+          manifestPath: 'p',
+        },
       ],
     });
     expect(agentToSkillSpec(agent, makeHuman()).vulnerabilityCount).toBe(2);
@@ -262,11 +286,18 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
     const edges: { from: string; to: string; kind: 'import' }[] = [];
     // hub{i} gets in-degree i+1; build CAPS.keyFiles + 2 hubs so the cap bites.
     for (let i = 0; i <= CAPS.keyFiles + 1; i++) {
-      for (let j = 0; j <= i; j++) edges.push({ from: `s${i}_${j}`, to: `hub${i}.ts`, kind: 'import' });
+      for (let j = 0; j <= i; j++)
+        edges.push({ from: `s${i}_${j}`, to: `hub${i}.ts`, kind: 'import' });
     }
-    const spec = agentToSkillSpec(makeAgent({ graph: { nodes: [], edges, cycles: [] } }), makeHuman());
+    const spec = agentToSkillSpec(
+      makeAgent({ graph: { nodes: [], edges, cycles: [] } }),
+      makeHuman(),
+    );
     expect(spec.keyFiles).toHaveLength(CAPS.keyFiles);
-    expect(spec.keyFiles[0]).toEqual({ path: `hub${CAPS.keyFiles + 1}.ts`, inDegree: CAPS.keyFiles + 2 });
+    expect(spec.keyFiles[0]).toEqual({
+      path: `hub${CAPS.keyFiles + 1}.ts`,
+      inDegree: CAPS.keyFiles + 2,
+    });
   });
 
   it('sorts routes by framework then path (not insertion order)', () => {
@@ -278,17 +309,21 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
         { framework: 'astro', method: 'GET', path: '/m', handlerFile: 'h', handlerSymbol: null },
       ],
     });
-    expect(agentToSkillSpec(agent, makeHuman()).routes.map((r) => `${r.framework} ${r.path}`)).toEqual([
-      'astro /m',
-      'express /a',
-      'express /z',
-    ]);
+    expect(
+      agentToSkillSpec(agent, makeHuman()).routes.map((r) => `${r.framework} ${r.path}`),
+    ).toEqual(['astro /m', 'express /a', 'express /z']);
   });
 
   it('defaults a route method to GET when absent', () => {
     const agent = makeAgent({
       routes: [
-        { framework: 'express', method: undefined as unknown as string, path: '/x', handlerFile: 'h', handlerSymbol: null },
+        {
+          framework: 'express',
+          method: undefined as unknown as string,
+          path: '/x',
+          handlerFile: 'h',
+          handlerSymbol: null,
+        },
       ],
     });
     expect(agentToSkillSpec(agent, makeHuman()).routes[0]!.method).toBe('GET');
@@ -297,7 +332,13 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
   it('includes a risk file only when the finding has one', () => {
     const agent = makeAgent({
       risks: [
-        { severity: 'high' as const, category: 'secret', rule: 'r1', message: 'has file', file: 'a.ts' },
+        {
+          severity: 'high' as const,
+          category: 'secret',
+          rule: 'r1',
+          message: 'has file',
+          file: 'a.ts',
+        },
         { severity: 'high' as const, category: 'cycle', rule: 'r2', message: 'no file' },
       ],
     });
@@ -308,7 +349,13 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
 
   it('returns empty intent when both intent and oneLiner are empty', () => {
     const human = makeHuman({
-      summary: { oneLiner: '', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'ok' } },
+      summary: {
+        oneLiner: '',
+        intent: '',
+        capabilities: [],
+        entryPoints: [],
+        health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'ok' },
+      },
     });
     expect(agentToSkillSpec(makeAgent(), human).intent).toBe('');
   });
@@ -316,7 +363,10 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
   it('returns no languages when files exist but total LOC is zero', () => {
     /* Distinct from the "no source files" case: files are present, but
        the totalLoc === 0 guard still short-circuits to []. */
-    const spec = agentToSkillSpec(makeAgent({ files: [fakeFile('empty.ts', 'typescript', 0)] }), makeHuman());
+    const spec = agentToSkillSpec(
+      makeAgent({ files: [fakeFile('empty.ts', 'typescript', 0)] }),
+      makeHuman(),
+    );
     expect(spec.languages).toEqual([]);
   });
 });

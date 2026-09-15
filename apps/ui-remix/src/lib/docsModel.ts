@@ -62,19 +62,35 @@ export interface TodoSummary {
 
 export function summarizeTodos(docs: DocFile[]): TodoSummary {
   const buckets: DocTodoBucket[] = [];
-  let totalCheckboxes = 0, totalDone = 0, totalMarkers = 0;
+  let totalCheckboxes = 0,
+    totalDone = 0,
+    totalMarkers = 0;
   for (const d of docs) {
     if (!d.todos.length) continue;
-    let checkboxes = 0, done = 0, markers = 0;
+    let checkboxes = 0,
+      done = 0,
+      markers = 0;
     for (const t of d.todos) {
       if (t.done === null) markers++;
-      else { checkboxes++; if (t.done) done++; }
+      else {
+        checkboxes++;
+        if (t.done) done++;
+      }
     }
-    totalCheckboxes += checkboxes; totalDone += done; totalMarkers += markers;
-    buckets.push({ docPath: d.path, docTitle: d.title || d.name, items: d.todos, checkboxes, done, markers });
+    totalCheckboxes += checkboxes;
+    totalDone += done;
+    totalMarkers += markers;
+    buckets.push({
+      docPath: d.path,
+      docTitle: d.title || d.name,
+      items: d.todos,
+      checkboxes,
+      done,
+      markers,
+    });
   }
   // Most actionable first: open checkboxes, then markers, then completed.
-  buckets.sort((a, b) => (b.checkboxes - b.done + b.markers) - (a.checkboxes - a.done + a.markers));
+  buckets.sort((a, b) => b.checkboxes - b.done + b.markers - (a.checkboxes - a.done + a.markers));
   return { buckets, totalCheckboxes, totalDone, totalMarkers };
 }
 
@@ -110,26 +126,37 @@ export function detectRoadmaps(docs: DocFile[]): Roadmap[] {
   for (const d of docs) {
     const checks = d.todos.filter((t) => t.done !== null);
     if (checks.length === 0) continue;
-    const isRoadmapish = d.kind === 'roadmap' || /roadmap|plan|milestone|phase|backlog/i.test(d.title) || checks.length >= 3;
+    const isRoadmapish =
+      d.kind === 'roadmap' ||
+      /roadmap|plan|milestone|phase|backlog/i.test(d.title) ||
+      checks.length >= 3;
     if (!isRoadmapish) continue;
 
     const order: string[] = [];
     const groups = new Map<string, RoadmapItem[]>();
     for (const t of checks) {
       const key = t.section ?? '';
-      if (!groups.has(key)) { groups.set(key, []); order.push(key); }
+      if (!groups.has(key)) {
+        groups.set(key, []);
+        order.push(key);
+      }
       groups.get(key)!.push({ text: t.text, done: t.done === true, line: t.line });
     }
     const sections: RoadmapSection[] = order.map((title) => {
       const items = groups.get(title) ?? [];
-      return { title: title || '(top level)', items, done: items.filter((x) => x.done).length, total: items.length };
+      return {
+        title: title || '(top level)',
+        items,
+        done: items.filter((x) => x.done).length,
+        total: items.length,
+      };
     });
     const done = sections.reduce((s, x) => s + x.done, 0);
     const total = sections.reduce((s, x) => s + x.total, 0);
     roadmaps.push({ docPath: d.path, docTitle: d.title || d.name, sections, done, total });
   }
   // Furthest-from-done first so the work that needs attention leads.
-  roadmaps.sort((a, b) => (b.total - b.done) - (a.total - a.done));
+  roadmaps.sort((a, b) => b.total - b.done - (a.total - a.done));
   return roadmaps;
 }
 
@@ -179,7 +206,10 @@ export interface FeatureModel {
 const FEATURE_HEADING = /\b(features?|capabilit(?:y|ies)|what (?:it|we) (?:can )?do|surfaces?)\b/i;
 
 export function extractFeatures(data: Dataset): FeatureModel {
-  const fromAnalyzer = (data.summary?.capabilities ?? []).map((c) => ({ head: c.head, sub: c.sub }));
+  const fromAnalyzer = (data.summary?.capabilities ?? []).map((c) => ({
+    head: c.head,
+    sub: c.sub,
+  }));
   const fromDocs: DocFeature[] = [];
   for (const d of getDocs(data)) {
     const hs = d.headings;
@@ -192,7 +222,12 @@ export function extractFeatures(data: Dataset): FeatureModel {
         const c = hs[j];
         if (!c || c.depth <= h.depth) break;
         if (c.depth === h.depth + 1) {
-          fromDocs.push({ docPath: d.path, docTitle: d.title || d.name, text: c.text, line: c.line });
+          fromDocs.push({
+            docPath: d.path,
+            docTitle: d.title || d.name,
+            text: c.text,
+            line: c.line,
+          });
         }
       }
     }

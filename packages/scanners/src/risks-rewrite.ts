@@ -88,7 +88,10 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
     `${file ?? 'A source file'} looks like code by its name but its content reads as binary — most likely it was saved in an unusual encoding (like UTF-16). The analyzer couldn't measure it; re-save the file as UTF-8 to bring it back into the report.`,
 
   'import-cycle': ({ technical }) => {
-    const fileCount = technical.match(/across (\d+) file/i)?.[1] ?? technical.match(/(\d+)\s*files?/i)?.[1] ?? 'several';
+    const fileCount =
+      technical.match(/across (\d+) file/i)?.[1] ??
+      technical.match(/(\d+)\s*files?/i)?.[1] ??
+      'several';
     return `A circular dependency between ${fileCount} files makes this code harder to test and easier to break in unexpected ways. The cycle forces the whole loop to rebuild together.`;
   },
 

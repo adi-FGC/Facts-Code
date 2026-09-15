@@ -29,7 +29,14 @@
  *   node scripts/inject-data.mjs --src path.json # explicit override
  *   node scripts/inject-data.mjs --root ../..    # custom repo root
  */
-import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  mkdirSync,
+  copyFileSync,
+} from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,7 +133,10 @@ if (dataset && Array.isArray(dataset.docs)) {
       stripped++;
     }
   }
-  if (stripped > 0) console.log(`[inject-data] dropped raw content from ${stripped} HTML doc(s) to keep the static dataset lean`);
+  if (stripped > 0)
+    console.log(
+      `[inject-data] dropped raw content from ${stripped} HTML doc(s) to keep the static dataset lean`,
+    );
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -178,14 +188,22 @@ try {
     },
     entryPoints: s.entryPoints,
     risks: arr(s.risks).map((r) => ({
-      severity: r.severity, category: r.category, rule: r.rule,
-      file: r.file, line: r.line, message: r.message,
+      severity: r.severity,
+      category: r.category,
+      rule: r.rule,
+      file: r.file,
+      line: r.line,
+      message: r.message,
     })),
     vulnerabilities: s.vulnerabilities,
     fullDataset: '/data/factstack.json',
     pack: '/factstack.pack',
   };
-  writeFileSync(resolve(APP_DIR, 'dist', 'data', 'summary.json'), JSON.stringify(digest, null, 2), 'utf8');
+  writeFileSync(
+    resolve(APP_DIR, 'dist', 'data', 'summary.json'),
+    JSON.stringify(digest, null, 2),
+    'utf8',
+  );
   console.log(`[inject-data] wrote dist/data/summary.json (compact chatbot digest)`);
 } catch (e) {
   console.warn(`[inject-data] could not write dist/data/summary.json: ${e?.message || e}`);
@@ -330,7 +348,7 @@ function scrubGitTopology(root) {
   (git.worktrees ?? []).forEach((w, i) => {
     if (typeof w.path === 'string') byPath.set(w.path, label(w, i));
   });
-  const relabel = (p) => (typeof p === 'string' ? byPath.get(p) ?? '«path»' : p);
+  const relabel = (p) => (typeof p === 'string' ? (byPath.get(p) ?? '«path»') : p);
 
   git.repoRoot = '.';
   git.currentPath = '.';
@@ -374,11 +392,16 @@ function scrubStrings(s, byPath) {
  */
 function scrubPack(raw, repoRoot, extraSubs) {
   let text = scrubText(raw, repoRoot);
-  for (const [from, to] of extraSubs ?? []) if (text.includes(from)) text = text.split(from).join(to);
+  for (const [from, to] of extraSubs ?? [])
+    if (text.includes(from)) text = text.split(from).join(to);
   const kept = [];
   let table = null;
   for (const line of text.split('\n')) {
-    if (line.startsWith('& ')) { table = line.slice(2).split('\t')[0]; kept.push(line); continue; }
+    if (line.startsWith('& ')) {
+      table = line.slice(2).split('\t')[0];
+      kept.push(line);
+      continue;
+    }
     if (/^; end rows=\d+ tables=\d+ sha256=[0-9a-f]{12}$/.test(line)) continue; // re-minted below
     if (table === 'features' && /^[-+] /.test(line)) {
       const cells = line.slice(2).split('\t');
@@ -408,7 +431,9 @@ function scrubPack(raw, repoRoot, extraSubs) {
 function loadSnapshots(snapDir) {
   if (!existsSync(snapDir)) return [];
   try {
-    const files = readdirSync(snapDir).filter((n) => n.endsWith('.json')).sort();
+    const files = readdirSync(snapDir)
+      .filter((n) => n.endsWith('.json'))
+      .sort();
     const out = [];
     for (const name of files) {
       try {
@@ -421,7 +446,9 @@ function loadSnapshots(snapDir) {
           risks: body.risks ?? 0,
           todos: body.todos ?? 0,
         });
-      } catch { /* skip malformed snapshot files */ }
+      } catch {
+        /* skip malformed snapshot files */
+      }
     }
     return out;
   } catch {

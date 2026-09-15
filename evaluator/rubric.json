@@ -40,21 +40,21 @@
     },
     {
       "key": "rollback_recovery",
-      "weight": 0.10,
+      "weight": 0.1,
       "desc": "Rollback completeness: code AND schema AND already-applied DATA migrations/backfills; reversibility; recovery from a bad ship without stranding state.",
       "band_1": "Covers code rollback, expand-contract schema, and the DATA/backfill dimension explicitly; every forward step has a stated reverse.",
       "band_0": "Only mentions redeploying the previous build; schema/data rollback absent or hand-waved."
     },
     {
       "key": "review_coverage_honesty",
-      "weight": 0.10,
+      "weight": 0.1,
       "desc": "Review layers cover the change surface; blind spots (e.g. auth/RLS, perf) stated honestly rather than over-claimed; cheap->expensive ordering.",
       "band_1": "Layered review with each layer's blind spot named; no coverage over-claim; adversarial pass with a threat model.",
       "band_0": "Claims coverage it doesn't have, or omits whole surfaces (security/perf) with no acknowledgement."
     },
     {
       "key": "token_operational_efficiency",
-      "weight": 0.10,
+      "weight": 0.1,
       "desc": "Uses cheap-context tooling (e.g. factstack/.pack for whole-repo context, blast-radius queries before edits) and robust agent orchestration (concurrency caps, rate-limit batching/retry, resume/caching, structured returns).",
       "band_1": "Concrete cheap-context step wired in with when-to-use; fan-out template bakes in the concurrency cap + batched-retry the ops lessons demand; structured returns.",
       "band_0": "No token-efficiency tooling; orchestration guidance that repeats the exact failure its own ops-lessons warn about."

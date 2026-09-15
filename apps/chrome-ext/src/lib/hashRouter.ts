@@ -3,7 +3,9 @@
  * SPA path-fallback, so we route on `location.hash` (#/security/vulns) instead
  * of pushState paths. Native `hashchange` gives back/forward for free.
  */
-const FIRE = (): void => { window.dispatchEvent(new Event('factstack:hashnav')); };
+const FIRE = (): void => {
+  window.dispatchEvent(new Event('factstack:hashnav'));
+};
 
 export function currentPath(): string {
   const h = location.hash.replace(/^#/u, '');

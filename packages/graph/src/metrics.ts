@@ -26,10 +26,10 @@ export interface GraphMetrics {
   community: Map<string, number>;
 }
 
-const PAGERANK_ITERS = 30;   // fixed — determinism over convergence-stopping
+const PAGERANK_ITERS = 30; // fixed — determinism over convergence-stopping
 const DAMPING = 0.85;
 const LABELPROP_PASSES = 10; // fixed
-const PRECISION = 1e4;       // 4 decimal places
+const PRECISION = 1e4; // 4 decimal places
 
 function round4(x: number): number {
   return Math.round(x * PRECISION) / PRECISION;

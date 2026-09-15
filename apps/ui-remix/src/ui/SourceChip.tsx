@@ -51,14 +51,17 @@ interface SourceChipProps {
  * you're looking at is now THIS source." */
 const FLASH_KEYFRAMES_ID = 'source-chip-keyframes';
 function ensureFlashKeyframes() {
-  adoptCss(FLASH_KEYFRAMES_ID, `
+  adoptCss(
+    FLASH_KEYFRAMES_ID,
+    `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes source-chip-flash {
         0%   { background: var(--accent-soft); border-left-color: var(--accent) }
         100% { background: transparent;        border-left-color: var(--border)  }
       }
     }
-  `);
+  `,
+  );
 }
 
 const wrap = css({
@@ -78,7 +81,8 @@ const wrap = css({
   font: 'inherit',
   textAlign: 'left',
   color: 'var(--fg-muted)',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart), border-color var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart), border-color var(--dur-quick) var(--ease-out-quart)',
   '&:hover': {
     color: 'var(--fg)',
     background: 'var(--accent-soft)',
@@ -181,8 +185,12 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
      setScheduleUpdate AFTER the setup function returns — so a sync call
      here throws "scheduleUpdate not implemented". One microtask is enough
      to let the runtime wire up before update() fires. */
-  queueMicrotask(() => { void refresh(); });
-  const unsub = onCurrentSourceChange(() => { void refresh(); });
+  queueMicrotask(() => {
+    void refresh();
+  });
+  const unsub = onCurrentSourceChange(() => {
+    void refresh();
+  });
   handle.signal.addEventListener('abort', unsub);
 
   function openPicker() {
@@ -199,7 +207,9 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
     const glyph = activeRecent ? recentGlyph(activeRecent) : '·';
     const label = activeRecent ? recentLabel(activeRecent) : projectName;
     const subline = activeRecent
-      ? (activeRecent.kind === 'local' ? 'Local folder' : 'GitHub repo')
+      ? activeRecent.kind === 'local'
+        ? 'Local folder'
+        : 'GitHub repo'
       : projectRoot;
     const titleAttr = `Currently showing: ${label}${subline ? ` — ${subline}` : ''}. Click to open another project.`;
     const shouldFlash = flashKey > lastRenderedKey;
@@ -217,12 +227,22 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
         key={`source-${flashKey}`}
         title={titleAttr}
         aria-label={titleAttr}
-        mix={[wrap, shouldFlash ? wrapFlash : null, on<HTMLButtonElement, 'click'>('click', openPicker)]}
+        mix={[
+          wrap,
+          shouldFlash ? wrapFlash : null,
+          on<HTMLButtonElement, 'click'>('click', openPicker),
+        ]}
       >
-        <span aria-hidden="true" mix={glyphCell}>{glyph}</span>
+        <span aria-hidden="true" mix={glyphCell}>
+          {glyph}
+        </span>
         <span mix={stack}>
           <span mix={sourceName}>{label}</span>
-          {subline && <span mix={sourceSub} dir={activeRecent ? 'ltr' : 'rtl'}>{subline}</span>}
+          {subline && (
+            <span mix={sourceSub} dir={activeRecent ? 'ltr' : 'rtl'}>
+              {subline}
+            </span>
+          )}
         </span>
       </button>
     );

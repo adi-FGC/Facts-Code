@@ -43,7 +43,8 @@ export const McpResourceCatalog = [
     uri: McpResourceUris.routes,
     mimeType: 'application/json',
     name: 'Routes',
-    description: 'Detected HTTP/page routes across Next.js, Remix, Express, FastAPI, Flask, Django.',
+    description:
+      'Detected HTTP/page routes across Next.js, Remix, Express, FastAPI, Flask, Django.',
   },
   {
     uri: McpResourceUris.risks,
@@ -67,18 +68,18 @@ export const ReanalyzeFileInputSchema = z.object({
  *  `QueryVerb` type both derive from it so there's exactly one place
  *  to add a verb. */
 export const QUERY_VERBS = [
-  'callers',       // files that import the given path
-  'imports',       // files imported BY the given path
-  'cycles',        // all SCCs in the dependency graph
-  'orphans',       // files with zero incoming edges
+  'callers', // files that import the given path
+  'imports', // files imported BY the given path
+  'cycles', // all SCCs in the dependency graph
+  'orphans', // files with zero incoming edges
   // F3 — declarative-engine verbs (sugar over runGraphQuery). The first four
   // stay as-is; these add symbol-graph reach + path finding.
-  'neighbors',     // nodes adjacent to a target (direction-controlled)
-  'path-between',  // shortest path from `path` to `to`
-  'references',    // symbols that reference a target symbol (symbol graph, in-edges)
-  'implementers',  // symbols that implement/extend a target symbol (symbol graph)
+  'neighbors', // nodes adjacent to a target (direction-controlled)
+  'path-between', // shortest path from `path` to `to`
+  'references', // symbols that reference a target symbol (symbol graph, in-edges)
+  'implementers', // symbols that implement/extend a target symbol (symbol graph)
   // F5 — blast radius: everything transitively affected by changing the target.
-  'impact',        // reverse reachability (in-edges, depth-bounded)
+  'impact', // reverse reachability (in-edges, depth-bounded)
 ] as const;
 export const QueryVerbSchema = z.enum(QUERY_VERBS);
 export type QueryVerb = z.infer<typeof QueryVerbSchema>;
@@ -96,8 +97,15 @@ export type QueryVerb = z.infer<typeof QueryVerbSchema>;
  *  share an edge. Mirrors `GraphEdgeSchema.kind` + `SymbolEdgeSchema.kind` in
  *  agent.ts; keep in sync if either enum changes. */
 export const EDGE_KINDS = [
-  'import', 'dynamic-import', 'type-import',                  // file-level (GraphEdge)
-  'call', 'read', 'jsx', 'type-ref', 'implements', 'extends', // symbol-level (SymbolEdge)
+  'import',
+  'dynamic-import',
+  'type-import', // file-level (GraphEdge)
+  'call',
+  'read',
+  'jsx',
+  'type-ref',
+  'implements',
+  'extends', // symbol-level (SymbolEdge)
 ] as const;
 export const EdgeKindSchema = z.enum(EDGE_KINDS);
 export type EdgeKind = z.infer<typeof EdgeKindSchema>;
@@ -159,59 +167,68 @@ export const QueryInputSchema = z
   });
 export type QueryInput = z.infer<typeof QueryInputSchema>;
 
-export const QueryGraphInputSchema = z.object({
-  /** Structured verb selector. Defaults to `callers` for backward compat
-   *  with tool callers that only pass a `filter`. */
-  verb: QueryVerbSchema.default('callers'),
-  /** Target path/symbol-id for the single-target verbs (`callers`, `imports`,
-   *  `neighbors`, `references`, `implementers`) and the source endpoint for
-   *  `path-between` — REQUIRED for those. Ignored for `cycles` / `orphans`.
-   *  The schema's refine guards this so callers don't silently get empty
-   *  results when they forget. */
-  path: z.string().optional(),
-  /** F3 — destination endpoint for `path-between` (the `path` field is the
-   *  source). Ignored by every other verb. */
-  to: z.string().optional(),
-  /** F3 — traversal direction for `neighbors` (`out` = depends-on,
-   *  `in` = depended-on-by, `both` = either). Defaults to `both` in the
-   *  engine; other verbs fix their own direction. */
-  direction: z.enum(['out', 'in', 'both']).optional(),
-  /** Glob-style filter matching file paths in the graph. Optional; when
-   *  present, further restricts the result set for any verb. */
-  filter: z.string().optional(),
-  /** Maximum nodes to return. Default prevents accidentally huge responses. */
-  limit: z.number().int().positive().default(200),
-  /** Include transitive imports up to this depth from each matching node.
-   *  Also bounds `neighbors` / `references` / `implementers` / `impact` reach.
-   *  Intentionally NOT defaulted here: `executeQuery` applies the
-   *  verb-appropriate default when omitted (1 for most verbs, 3 for `impact`'s
-   *  blast radius). A blanket `.default(1)` here would mask `impact`'s deeper
-   *  default — the omitted value would arrive as 1, never reaching the `?? 3`
-   *  fallback. */
-  depth: z.number().int().nonnegative().optional(),
-  /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
-   *  `ambiguous`). Omit for all edges. `cycles` ignores it (SCCs are
-   *  precomputed). */
-  minConfidence: ConfidenceSchema.optional(),
-}).refine(
-  // Single-target verbs need `path`.
-  (v) => !(
-    (v.verb === 'callers' || v.verb === 'imports' || v.verb === 'neighbors' ||
-     v.verb === 'references' || v.verb === 'implementers' || v.verb === 'path-between' ||
-     v.verb === 'impact') && !v.path
-  ),
-  {
-    message: 'this verb requires a `path` argument (the target symbol/file).',
-    path: ['path'],
-  },
-).refine(
-  // `path-between` additionally needs a destination.
-  (v) => !(v.verb === 'path-between' && !v.to),
-  {
-    message: 'verb "path-between" requires a `to` argument (the destination).',
-    path: ['to'],
-  },
-);
+export const QueryGraphInputSchema = z
+  .object({
+    /** Structured verb selector. Defaults to `callers` for backward compat
+     *  with tool callers that only pass a `filter`. */
+    verb: QueryVerbSchema.default('callers'),
+    /** Target path/symbol-id for the single-target verbs (`callers`, `imports`,
+     *  `neighbors`, `references`, `implementers`) and the source endpoint for
+     *  `path-between` — REQUIRED for those. Ignored for `cycles` / `orphans`.
+     *  The schema's refine guards this so callers don't silently get empty
+     *  results when they forget. */
+    path: z.string().optional(),
+    /** F3 — destination endpoint for `path-between` (the `path` field is the
+     *  source). Ignored by every other verb. */
+    to: z.string().optional(),
+    /** F3 — traversal direction for `neighbors` (`out` = depends-on,
+     *  `in` = depended-on-by, `both` = either). Defaults to `both` in the
+     *  engine; other verbs fix their own direction. */
+    direction: z.enum(['out', 'in', 'both']).optional(),
+    /** Glob-style filter matching file paths in the graph. Optional; when
+     *  present, further restricts the result set for any verb. */
+    filter: z.string().optional(),
+    /** Maximum nodes to return. Default prevents accidentally huge responses. */
+    limit: z.number().int().positive().default(200),
+    /** Include transitive imports up to this depth from each matching node.
+     *  Also bounds `neighbors` / `references` / `implementers` / `impact` reach.
+     *  Intentionally NOT defaulted here: `executeQuery` applies the
+     *  verb-appropriate default when omitted (1 for most verbs, 3 for `impact`'s
+     *  blast radius). A blanket `.default(1)` here would mask `impact`'s deeper
+     *  default — the omitted value would arrive as 1, never reaching the `?? 3`
+     *  fallback. */
+    depth: z.number().int().nonnegative().optional(),
+    /** F1 — keep only edges at least this certain (`extracted` > `inferred` >
+     *  `ambiguous`). Omit for all edges. `cycles` ignores it (SCCs are
+     *  precomputed). */
+    minConfidence: ConfidenceSchema.optional(),
+  })
+  .refine(
+    // Single-target verbs need `path`.
+    (v) =>
+      !(
+        (v.verb === 'callers' ||
+          v.verb === 'imports' ||
+          v.verb === 'neighbors' ||
+          v.verb === 'references' ||
+          v.verb === 'implementers' ||
+          v.verb === 'path-between' ||
+          v.verb === 'impact') &&
+        !v.path
+      ),
+    {
+      message: 'this verb requires a `path` argument (the target symbol/file).',
+      path: ['path'],
+    },
+  )
+  .refine(
+    // `path-between` additionally needs a destination.
+    (v) => !(v.verb === 'path-between' && !v.to),
+    {
+      message: 'verb "path-between" requires a `to` argument (the destination).',
+      path: ['to'],
+    },
+  );
 
 export const GetOutlineInputSchema = z.object({
   path: z.string(),
@@ -363,7 +380,8 @@ export const McpTools = {
    */
   reanalyze_file: {
     name: 'reanalyze_file',
-    description: 'DEPRECATED in v0.2: triggers a full re-analyze of the project. True per-file incremental analysis lands with the v0.3 SQLite index.',
+    description:
+      'DEPRECATED in v0.2: triggers a full re-analyze of the project. True per-file incremental analysis lands with the v0.3 SQLite index.',
     input: ReanalyzeFileInputSchema,
   },
   query_graph: {

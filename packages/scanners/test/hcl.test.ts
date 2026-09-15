@@ -88,7 +88,9 @@ resource "aws_instance" "web" { bucket = aws_s3_bucket.b.id }`;
       'aws_instance.web',
       'aws_s3_bucket.b',
     ]);
-    expect(r.dependencies).toContainEqual(expect.objectContaining({ fromName: 'web', toName: 'b' }));
+    expect(r.dependencies).toContainEqual(
+      expect.objectContaining({ fromName: 'web', toName: 'b' }),
+    );
   });
 
   it('does not miscount braces inside a heredoc body', () => {

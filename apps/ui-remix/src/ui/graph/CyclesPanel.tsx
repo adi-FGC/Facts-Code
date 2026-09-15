@@ -64,11 +64,13 @@ export function CyclesPanel(handle: Handle<CyclesPanelProps>) {
     const { cycles } = handle.props;
     if (cycles.length === 0) return null;
     return (
-      <Section label="Cycles" title={`${cycles.length} dependency loop${cycles.length === 1 ? '' : 's'}`}>
+      <Section
+        label="Cycles"
+        title={`${cycles.length} dependency loop${cycles.length === 1 ? '' : 's'}`}
+      >
         <p mix={intro}>
-          Each cycle below means the listed files mutually import each
-          other. Loops force the whole group to rebuild together and
-          make the layer a fiction. Break the weakest link first.
+          Each cycle below means the listed files mutually import each other. Loops force the whole
+          group to rebuild together and make the layer a fiction. Break the weakest link first.
         </p>
         {cycles.map((c, i) => (
           <div key={i}>
@@ -78,7 +80,9 @@ export function CyclesPanel(handle: Handle<CyclesPanelProps>) {
             <ul mix={cycleList}>
               {c.map((p) => (
                 <li key={p} mix={cycleItem}>
-                  <a href={`/files?p=${encodeURIComponent(p)}`} mix={fileLink}>{p}</a>
+                  <a href={`/files?p=${encodeURIComponent(p)}`} mix={fileLink}>
+                    {p}
+                  </a>
                 </li>
               ))}
             </ul>

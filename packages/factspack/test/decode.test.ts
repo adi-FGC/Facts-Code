@@ -66,20 +66,14 @@ describe('decode — happy path', () => {
   });
 
   it('handles missing trailing newline (spec §10)', () => {
-    const text = HEADER_LINE.slice(0, -1) + // drop final \n
+    const text =
+      HEADER_LINE.slice(0, -1) + // drop final \n
       '\n@ F1=a.ts\n& t\tF\n- F1'; // and the body has none either
     expect(() => decodeLegacy(text)).not.toThrow();
   });
 
   it('skips empty lines', () => {
-    const text =
-      HEADER_LINE +
-      '\n' +
-      '@ F1=a.ts\n' +
-      '\n' +
-      '& t\tF\n' +
-      '\n' +
-      '- F1\n';
+    const text = HEADER_LINE + '\n' + '@ F1=a.ts\n' + '\n' + '& t\tF\n' + '\n' + '- F1\n';
     const decoded = decodeLegacy(text);
     expect(decoded.tables.get('t')!.rows).toEqual([['a.ts']]);
   });
@@ -88,8 +82,8 @@ describe('decode — happy path', () => {
     const text =
       HEADER_LINE +
       '& t\ta\tb\n' +
-      '- x\t-\n' +    // null
-      '- y\t\n';      // empty string
+      '- x\t-\n' + // null
+      '- y\t\n'; // empty string
     const decoded = decodeLegacy(text);
     const rows = decoded.tables.get('t')!.rows;
     expect(rows[0]).toEqual(['x', null]);
@@ -139,7 +133,8 @@ describe('decode — happy path', () => {
 
 describe('decode — v0.2 header extras (S5)', () => {
   it('reads seq/parent/kind/generated from fields 5-8', () => {
-    const text = '# factstack/0.4\tagent-v4\tdeadbeef\t10\t2\tabcdef012345\tdiff\t2026-06-12T00:00:00.000Z\n& t\ta\n';
+    const text =
+      '# factstack/0.4\tagent-v4\tdeadbeef\t10\t2\tabcdef012345\tdiff\t2026-06-12T00:00:00.000Z\n& t\ta\n';
     const h = decodeLegacy(text).header;
     expect(h.seq).toBe(2);
     expect(h.parent).toBe('abcdef012345');
@@ -170,9 +165,9 @@ describe('decode — v0.2 header extras (S5)', () => {
   });
 
   it('rejects a non-integer or lenient seq', () => {
-    expect(() => decode('# f/1\ts-v1\tabc\t0\tx\n')).toThrow(/seq/);     // non-numeric
-    expect(() => decode('# f/1\ts-v1\tabc\t0\t1e2\n')).toThrow(/seq/);   // Number() leniency
-    expect(() => decode('# f/1\ts-v1\tabc\t0\t0x2\n')).toThrow(/seq/);   // hex
+    expect(() => decode('# f/1\ts-v1\tabc\t0\tx\n')).toThrow(/seq/); // non-numeric
+    expect(() => decode('# f/1\ts-v1\tabc\t0\t1e2\n')).toThrow(/seq/); // Number() leniency
+    expect(() => decode('# f/1\ts-v1\tabc\t0\t0x2\n')).toThrow(/seq/); // hex
   });
 
   it('rejects an unknown kind', () => {
@@ -239,14 +234,16 @@ describe('decode — v0.2 trailer verification (S4)', () => {
     // Trailer claims 2 rows but the body only carries one — truncated.
     const cut = body.replace('- 2\tF1\n', '');
     const sha = createHash('sha256').update(cut, 'utf8').digest('hex').slice(0, 12);
-    expect(() => decode(`${cut}; end rows=2 tables=1 sha256=${sha}\n`))
-      .toThrow(/truncated or tampered.*rows=2/);
+    expect(() => decode(`${cut}; end rows=2 tables=1 sha256=${sha}\n`)).toThrow(
+      /truncated or tampered.*rows=2/,
+    );
   });
 
   it('rejects when the table count mismatches', () => {
     const sha = createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12);
-    expect(() => decode(`${body}; end rows=2 tables=5 sha256=${sha}\n`))
-      .toThrow(/truncated or tampered.*tables=5/);
+    expect(() => decode(`${body}; end rows=2 tables=5 sha256=${sha}\n`)).toThrow(
+      /truncated or tampered.*tables=5/,
+    );
   });
 
   it('rejects when the sha256 mismatches (tampered byte)', () => {
@@ -256,8 +253,9 @@ describe('decode — v0.2 trailer verification (S4)', () => {
   });
 
   it('rejects content after the trailer (trailer must be last)', () => {
-    expect(() => decode(withTrailer(body, 2, 1) + '- 3\tF1\n'))
-      .toThrow(/trailer must be the final line/);
+    expect(() => decode(withTrailer(body, 2, 1) + '- 3\tF1\n')).toThrow(
+      /trailer must be the final line/,
+    );
   });
 
   it('tolerates trailing empty lines after the trailer', () => {
@@ -267,11 +265,16 @@ describe('decode — v0.2 trailer verification (S4)', () => {
   it('mid-pack truncation of an encoded pack throws', () => {
     const out = encode({
       header: { producer: 'f/1', schema: 's-v1', snapshotId: 'abc', rowCount: null },
-      tables: [{
-        name: 't',
-        columns: [{ name: 'id' }, { name: 'F' }],
-        rows: Array.from({ length: 50 }, (_, i) => [String(i), `src/file${i % 7}.ts`] as [string, string]),
-      }],
+      tables: [
+        {
+          name: 't',
+          columns: [{ name: 'id' }, { name: 'F' }],
+          rows: Array.from(
+            { length: 50 },
+            (_, i) => [String(i), `src/file${i % 7}.ts`] as [string, string],
+          ),
+        },
+      ],
     });
     expect(() => decode(out.slice(0, out.length - 120))).toThrow(PackDecodeError);
   });
@@ -299,7 +302,9 @@ describe('decode — rejection cases', () => {
   });
 
   it('rejects row with wrong cell count', () => {
-    expect(() => decode(HEADER_LINE + '& t\ta\tb\n- onlyone\n')).toThrow(/1 cells, schema expects 2/);
+    expect(() => decode(HEADER_LINE + '& t\ta\tb\n- onlyone\n')).toThrow(
+      /1 cells, schema expects 2/,
+    );
   });
 
   it('rejects row with no active schema', () => {
@@ -348,11 +353,7 @@ describe('decode — escapes inside cells', () => {
   });
 
   it('unescapes dict values', () => {
-    const text =
-      HEADER_LINE +
-      '@ F1=weird\\tname\n' +
-      '& t\tF\n' +
-      '- F1\n';
+    const text = HEADER_LINE + '@ F1=weird\\tname\n' + '& t\tF\n' + '- F1\n';
     expect(decodeLegacy(text).tables.get('t')!.rows[0]![0]).toBe('weird\tname');
   });
 });
@@ -360,7 +361,13 @@ describe('decode — escapes inside cells', () => {
 describe('decode — strict v0.2a profile (the default)', () => {
   it('accepts a well-formed master emitted by encode()', () => {
     const out = encode({
-      header: { producer: 'f/1', schema: 's-v1', snapshotId: 'abc', rowCount: null, kind: 'master' },
+      header: {
+        producer: 'f/1',
+        schema: 's-v1',
+        snapshotId: 'abc',
+        rowCount: null,
+        kind: 'master',
+      },
       tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['x'], ['y']] }],
     });
     expect(() => decode(out)).not.toThrow();
@@ -392,8 +399,8 @@ describe('decode — strict v0.2a profile (the default)', () => {
   });
 
   it('rejects an empty or lenient header rowCount field (not just non-numeric)', () => {
-    expect(() => decode('# f/1\ts-v1\tabc\t\n')).toThrow(/non-negative integer/);    // empty
-    expect(() => decode('# f/1\ts-v1\tabc\t1e2\n')).toThrow(/non-negative integer/);  // Number() leniency
+    expect(() => decode('# f/1\ts-v1\tabc\t\n')).toThrow(/non-negative integer/); // empty
+    expect(() => decode('# f/1\ts-v1\tabc\t1e2\n')).toThrow(/non-negative integer/); // Number() leniency
     expect(() => decode('# f/1\ts-v1\tabc\t0x10\n')).toThrow(/non-negative integer/); // hex
   });
 
@@ -403,22 +410,30 @@ describe('decode — strict v0.2a profile (the default)', () => {
 
   it('rejects a master whose header rowCount disagrees with the trailer', () => {
     const b = '# f/1\ts-v1\tabc\t99\t-\t-\tmaster\n& t\ta\n- 1\n- 2\n';
-    expect(() => decode(withTrailer(b, 2, 1))).toThrow(/master header rowCount=99 but trailer rows=2/);
+    expect(() => decode(withTrailer(b, 2, 1))).toThrow(
+      /master header rowCount=99 but trailer rows=2/,
+    );
   });
 
   it('rejects a diff whose header rowCount is not the 0 sentinel', () => {
     const b = '# f/1\ts-v1\tabc\t5\t-\t-\tdiff\n& t\ta\n+ 1\n';
-    expect(() => decode(withTrailer(b, 1, 1))).toThrow(/kind=diff header rowCount must be the 0 sentinel/);
+    expect(() => decode(withTrailer(b, 1, 1))).toThrow(
+      /kind=diff header rowCount must be the 0 sentinel/,
+    );
   });
 
   it('rejects a master carrying incremental + / x operations', () => {
     const b = '# f/1\ts-v1\tabc\t1\t-\t-\tmaster\n& t\ta\n+ 1\n';
-    expect(() => decode(withTrailer(b, 1, 1))).toThrow(/kind=master but table 't' carries incremental/);
+    expect(() => decode(withTrailer(b, 1, 1))).toThrow(
+      /kind=master but table 't' carries incremental/,
+    );
   });
 
   it('rejects a diff carrying baseline - rows', () => {
     const b = '# f/1\ts-v1\tabc\t0\t-\t-\tdiff\n& t\ta\n- 1\n';
-    expect(() => decode(withTrailer(b, 1, 1))).toThrow(/kind=diff but table 't' carries 1 baseline/);
+    expect(() => decode(withTrailer(b, 1, 1))).toThrow(
+      /kind=diff but table 't' carries 1 baseline/,
+    );
   });
 
   it('enforces resource ceilings (maxRows)', () => {
@@ -432,14 +447,30 @@ describe('decode — strict v0.2a profile (the default)', () => {
   });
 
   it('encode() refuses kind=diff; encodeIncremental() refuses kind=master', () => {
-    expect(() => encode({
-      header: { producer: 'f/1', schema: 's-v1', snapshotId: 'abc', rowCount: null, kind: 'diff' },
-      tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['x']] }],
-    })).toThrow(/encode\(\) produces a 'master'/);
-    expect(() => encodeIncremental({
-      header: { producer: 'f/1', schema: 's-v1', snapshotId: 'abc', rowCount: null, kind: 'master' },
-      tables: [{ name: 't', columns: [{ name: 'a' }], addedRows: [['x']], deletedIds: [] }],
-    })).toThrow(/encodeIncremental\(\) produces a 'diff'/);
+    expect(() =>
+      encode({
+        header: {
+          producer: 'f/1',
+          schema: 's-v1',
+          snapshotId: 'abc',
+          rowCount: null,
+          kind: 'diff',
+        },
+        tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['x']] }],
+      }),
+    ).toThrow(/encode\(\) produces a 'master'/);
+    expect(() =>
+      encodeIncremental({
+        header: {
+          producer: 'f/1',
+          schema: 's-v1',
+          snapshotId: 'abc',
+          rowCount: null,
+          kind: 'master',
+        },
+        tables: [{ name: 't', columns: [{ name: 'a' }], addedRows: [['x']], deletedIds: [] }],
+      }),
+    ).toThrow(/encodeIncremental\(\) produces a 'diff'/);
   });
 
   it('legacy mode still tolerates the trailer-less pack strict rejects', () => {

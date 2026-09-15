@@ -68,7 +68,12 @@ export function moveRoving<K extends string>(
   select: (key: K) => void,
   itemRole: 'radio' | 'tab',
 ): boolean {
-  const next = nextRovingIndex(key, items.findIndex((it) => it.key === currentKey), items.length, { loop: true });
+  const next = nextRovingIndex(
+    key,
+    items.findIndex((it) => it.key === currentKey),
+    items.length,
+    { loop: true },
+  );
   if (next === null) return false;
   select(items[next]!.key);
   group?.querySelectorAll<HTMLElement>(`[role="${itemRole}"]`)[next]?.focus();

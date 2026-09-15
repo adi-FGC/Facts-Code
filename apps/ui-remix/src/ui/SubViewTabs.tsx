@@ -102,7 +102,8 @@ const seg = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
@@ -144,12 +145,34 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
 
   return () => {
     const { data, views, ariaLabel } = handle.props;
-    const activeIdx = Math.max(0, views.findIndex((v) => v.key === active));
+    const activeIdx = Math.max(
+      0,
+      views.findIndex((v) => v.key === active),
+    );
     const current = views[activeIdx] ?? views[0]!;
     return (
       <>
         <div mix={bar}>
-          <div mix={[segWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, views, active, setActive, 'tab')) e.preventDefault(); })]} role="tablist" aria-label={ariaLabel}>
+          <div
+            mix={[
+              segWrap,
+              on<HTMLDivElement>('keydown', (e) => {
+                if (
+                  moveRoving(
+                    (e as unknown as KeyboardEvent).key,
+                    e.currentTarget,
+                    views,
+                    active,
+                    setActive,
+                    'tab',
+                  )
+                )
+                  e.preventDefault();
+              }),
+            ]}
+            role="tablist"
+            aria-label={ariaLabel}
+          >
             {views.map((v) => {
               const isActive = v.key === active;
               return (
@@ -167,7 +190,13 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
             })}
             <span
               aria-hidden="true"
-              mix={[rail, css({ width: `calc(100% / ${views.length})`, transform: `translateX(${activeIdx * 100}%)` })]}
+              mix={[
+                rail,
+                css({
+                  width: `calc(100% / ${views.length})`,
+                  transform: `translateX(${activeIdx * 100}%)`,
+                }),
+              ]}
             />
           </div>
         </div>

@@ -42,7 +42,11 @@ function makeArtifact(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
 function node(path: string, language: string = 'typescript', extra: Record<string, unknown> = {}) {
   return { id: path, path, language, loc: 10, tokenCost: 50, status: 'ok' as const, ...extra };
 }
-function edge(from: string, to: string, kind: 'import' | 'dynamic-import' | 'type-import' = 'import') {
+function edge(
+  from: string,
+  to: string,
+  kind: 'import' | 'dynamic-import' | 'type-import' = 'import',
+) {
   return { from, to, kind };
 }
 function edgeC(from: string, to: string, confidence: 'extracted' | 'inferred' | 'ambiguous') {
@@ -176,7 +180,10 @@ describe('executeQuery — cycles verb', () => {
       graph: {
         nodes: [],
         edges: [],
-        cycles: [['a.ts', 'b.ts'], ['c.ts', 'd.ts', 'e.ts']],
+        cycles: [
+          ['a.ts', 'b.ts'],
+          ['c.ts', 'd.ts', 'e.ts'],
+        ],
       },
     });
     const r = executeQuery(agent, { verb: 'cycles' });
@@ -188,7 +195,10 @@ describe('executeQuery — cycles verb', () => {
       graph: {
         nodes: [],
         edges: [],
-        cycles: [['src/a.ts', 'src/b.ts'], ['lib/c.ts', 'lib/d.ts']],
+        cycles: [
+          ['src/a.ts', 'src/b.ts'],
+          ['lib/c.ts', 'lib/d.ts'],
+        ],
       },
     });
     const r = executeQuery(agent, { verb: 'cycles', filter: 'src' });
@@ -222,8 +232,12 @@ describe('executeQuery — orphans verb (v0.2 noise filtering)', () => {
   it('skips files in declared entryPoints', () => {
     const agent = makeArtifact({
       project: {
-        name: 'test', root: '/test', languages: [], frameworks: [],
-        entryPoints: ['src/index.ts'], monorepo: null,
+        name: 'test',
+        root: '/test',
+        languages: [],
+        frameworks: [],
+        entryPoints: ['src/index.ts'],
+        monorepo: null,
       },
       graph: {
         nodes: [node('src/index.ts'), node('src/lib.ts')],
@@ -244,7 +258,13 @@ describe('executeQuery — orphans verb (v0.2 noise filtering)', () => {
         cycles: [],
       },
       routes: [
-        { framework: 'express', method: 'POST', path: '/login', handlerFile: 'src/api/login.ts', handlerSymbol: null },
+        {
+          framework: 'express',
+          method: 'POST',
+          path: '/login',
+          handlerFile: 'src/api/login.ts',
+          handlerSymbol: null,
+        },
       ],
     });
     const r = executeQuery(agent, { verb: 'orphans' });
@@ -326,7 +346,14 @@ describe('executeQuery — glob matcher', () => {
 
   it('star wildcard', () => {
     const agent = makeArtifact({
-      graph: { nodes: [], edges: [], cycles: [['a/x.ts', 'a/y.ts'], ['b/c.ts', 'b/d.ts']] },
+      graph: {
+        nodes: [],
+        edges: [],
+        cycles: [
+          ['a/x.ts', 'a/y.ts'],
+          ['b/c.ts', 'b/d.ts'],
+        ],
+      },
     });
     expect(executeQuery(agent, { verb: 'cycles', filter: 'a/*.ts' }).count).toBe(1);
   });
@@ -359,23 +386,29 @@ describe('executeQuery — minConfidence filter (F1)', () => {
   }
 
   it('no threshold returns every edge', () => {
-    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts' }).results)
-      .toEqual(['b.ts', 'c.ts', 'd.ts']);
+    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts' }).results).toEqual([
+      'b.ts',
+      'c.ts',
+      'd.ts',
+    ]);
   });
 
   it('minConfidence=extracted keeps only the most certain edge', () => {
-    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'extracted' }).results)
-      .toEqual(['b.ts']);
+    expect(
+      executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'extracted' }).results,
+    ).toEqual(['b.ts']);
   });
 
   it('minConfidence=inferred keeps extracted + inferred', () => {
-    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'inferred' }).results)
-      .toEqual(['b.ts', 'c.ts']);
+    expect(
+      executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'inferred' }).results,
+    ).toEqual(['b.ts', 'c.ts']);
   });
 
   it('minConfidence=ambiguous is the loosest threshold (keeps everything)', () => {
-    expect(executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'ambiguous' }).results)
-      .toEqual(['b.ts', 'c.ts', 'd.ts']);
+    expect(
+      executeQuery(mixed(), { verb: 'imports', path: 'a.ts', minConfidence: 'ambiguous' }).results,
+    ).toEqual(['b.ts', 'c.ts', 'd.ts']);
   });
 
   it('callers: a threshold bypasses the cached path-only callers index so the filter applies', () => {
@@ -389,7 +422,9 @@ describe('executeQuery — minConfidence filter (F1)', () => {
     // No threshold → the cached caller index wins (fast path).
     expect(executeQuery(agent, { verb: 'callers', path: 'b.ts' }).results).toEqual(['a.ts']);
     // Threshold drops the only (ambiguous) edge → no callers survive.
-    expect(executeQuery(agent, { verb: 'callers', path: 'b.ts', minConfidence: 'extracted' }).results).toEqual([]);
+    expect(
+      executeQuery(agent, { verb: 'callers', path: 'b.ts', minConfidence: 'extracted' }).results,
+    ).toEqual([]);
   });
 
   it('is pure — never mutates the input agent', () => {

@@ -24,7 +24,7 @@ import { TABS, activeTab } from '../lib/routes.ts';
 const wrap = css({
   display: 'flex',
   alignItems: 'center',
-  gap: 'var(--space-2)',     /* tightened from --space-3 (12 → 8px) */
+  gap: 'var(--space-2)' /* tightened from --space-3 (12 → 8px) */,
   flex: '1',
   /* Audit M5 fix: without min-width: 0, the flex child refuses to
      shrink below its content width, which lets the project chip push
@@ -40,14 +40,16 @@ const wrap = css({
      the container by ~1px. Pinning overflow-y to hidden suppresses it
      without losing the horizontal scroll affordance. */
   overflowY: 'hidden',
-  scrollbarWidth: 'none',     /* Firefox */
+  scrollbarWidth: 'none' /* Firefox */,
   /* WebKit: pseudo-element selector escape hatch for the css() runtime. */
   '&::-webkit-scrollbar': { display: 'none', width: '0', height: '0' },
   /* Phone: the scrollbar is hidden, so fade both edges to signal the row
      scrolls. QA ISSUE-2 affordance — pairs with scroll-active-into-view. */
   '@media (max-width: 599px)': {
-    maskImage: 'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
-    WebkitMaskImage: 'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
+    maskImage:
+      'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
+    WebkitMaskImage:
+      'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
   },
 });
 
@@ -55,10 +57,10 @@ const link = css({
   position: 'relative',
   display: 'inline-flex',
   alignItems: 'baseline',
-  gap: '6px',                          /* was var(--space-2) (8px) */
+  gap: '6px' /* was var(--space-2) (8px) */,
   paddingTop: 'var(--space-3)',
   paddingBottom: 'var(--space-3)',
-  paddingLeft: '4px',                  /* small tap target padding */
+  paddingLeft: '4px' /* small tap target padding */,
   paddingRight: '4px',
   textDecoration: 'none',
   color: 'var(--fg-muted)',
@@ -141,7 +143,7 @@ export function NumberedNav(handle: Handle<{}>) {
        scrollLeft to its valid range, so no manual bounds needed. */
     const navRect = navEl.getBoundingClientRect();
     const tabRect = active.getBoundingClientRect();
-    navEl.scrollLeft += (tabRect.left - navRect.left) - (navRect.width - tabRect.width) / 2;
+    navEl.scrollLeft += tabRect.left - navRect.left - (navRect.width - tabRect.width) / 2;
   }
 
   const onNav = () => {
@@ -161,7 +163,13 @@ export function NumberedNav(handle: Handle<{}>) {
       <nav
         role="tablist"
         aria-label="Primary navigation"
-        mix={[wrap, ref<HTMLElement>((node) => { navEl = node; scrollActiveIntoView(); })]}
+        mix={[
+          wrap,
+          ref<HTMLElement>((node) => {
+            navEl = node;
+            scrollActiveIntoView();
+          }),
+        ]}
       >
         {TABS.map((t, i) => {
           const isActive = t.key === current;
@@ -178,9 +186,7 @@ export function NumberedNav(handle: Handle<{}>) {
             >
               <span mix={[number, isActive ? numberActive : null]}>{idx}</span>
               <span>{t.label}</span>
-              {!t.ported && (
-                <span aria-label="porting" role="img" mix={portingMark} />
-              )}
+              {!t.ported && <span aria-label="porting" role="img" mix={portingMark} />}
               {isActive && <span aria-hidden="true" mix={ruleActive} />}
             </a>
           );

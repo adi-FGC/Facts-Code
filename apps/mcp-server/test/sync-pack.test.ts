@@ -7,7 +7,15 @@
  * reconstructs the current master.
  */
 import { describe, expect, it } from 'vitest';
-import { applyChain, computeDiff, decode, encode, encodeIncremental, type PackHeader, type PackRow } from '@factstack/factspack';
+import {
+  applyChain,
+  computeDiff,
+  decode,
+  encode,
+  encodeIncremental,
+  type PackHeader,
+  type PackRow,
+} from '@factstack/factspack';
 import { resolveSyncPack } from '../src/sync-pack.js';
 
 const HEADER: PackHeader = {
@@ -22,12 +30,22 @@ const HEADER: PackHeader = {
 };
 
 function master(rows: PackRow[]): string {
-  return encode({ header: HEADER, tables: [{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows }] });
+  return encode({
+    header: HEADER,
+    tables: [{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows }],
+  });
 }
 
-const m1 = master([['a.ts', '1'], ['b.ts', '2']]);
+const m1 = master([
+  ['a.ts', '1'],
+  ['b.ts', '2'],
+]);
 const sha1 = decode(m1).trailer!.sha256;
-const m2 = master([['a.ts', '1'], ['b.ts', '9'], ['c.ts', '3']]); // b changed, c added
+const m2 = master([
+  ['a.ts', '1'],
+  ['b.ts', '9'],
+  ['c.ts', '3'],
+]); // b changed, c added
 const sha2 = decode(m2).trailer!.sha256;
 const diff = encodeIncremental({
   header: { ...HEADER, snapshotId: 's2', rowCount: 0, seq: 2, parent: sha1, kind: 'diff' },
@@ -70,7 +88,14 @@ describe('resolveSyncPack — current / diff / full decision', () => {
 
   it('falls through to full when the diff does not bridge the held master', () => {
     const otherParentDiff = encodeIncremental({
-      header: { ...HEADER, snapshotId: 's2', rowCount: 0, seq: 2, parent: 'ffffffffffff', kind: 'diff' },
+      header: {
+        ...HEADER,
+        snapshotId: 's2',
+        rowCount: 0,
+        seq: 2,
+        parent: 'ffffffffffff',
+        kind: 'diff',
+      },
       tables: computeDiff(decode(m1), decode(m2)),
     });
     const r = resolveSyncPack(m2, otherParentDiff, sha1);

@@ -80,7 +80,9 @@ const reg = buildSiteRegistry({ version, generatedAt: new Date().toISOString() }
    `.well-known/mcp.json` creates dist/.well-known/ on the fly. */
 const writer = new NodeFileWriter(DIST, '');
 const result = await buildSiteArtifactsTo(writer, reg);
-console.log(`[generate-discovery] wrote ${Object.keys(result.files).length} artifacts into dist/ (${(result.bytesWritten / 1024).toFixed(1)} KB)`);
+console.log(
+  `[generate-discovery] wrote ${Object.keys(result.files).length} artifacts into dist/ (${(result.bytesWritten / 1024).toFixed(1)} KB)`,
+);
 for (const p of Object.keys(result.files).sort()) console.log(`  + ${p}`);
 
 /* Splice the <meta> fragment into dist/index.html at the placeholder
@@ -100,12 +102,18 @@ if (!html.includes(META_NEEDLE)) {
      index.html. A missing needle on a fresh build is a real regression, so
      warn rather than silently skip — but don't fail the build, since the
      artifacts above are the load-bearing output. */
-  console.log(`[generate-discovery] meta slot "${META_NEEDLE}" not found in dist/index.html — skipping meta injection (already injected or placeholder removed).`);
+  console.log(
+    `[generate-discovery] meta slot "${META_NEEDLE}" not found in dist/index.html — skipping meta injection (already injected or placeholder removed).`,
+  );
 } else {
   const fragment = renderMetaFragment(reg);
   const next = html.replace(META_NEEDLE, () => fragment);
   writeFileSync(distHtml, next, 'utf8');
-  console.log(`[generate-discovery] injected ${fragment.length} B of <meta>/<link> tags into dist/index.html`);
+  console.log(
+    `[generate-discovery] injected ${fragment.length} B of <meta>/<link> tags into dist/index.html`,
+  );
 }
 
-console.log(`[generate-discovery] version ${version} · ${reg.mcp.tools.length} MCP tools · ${reg.routes.length} routes`);
+console.log(
+  `[generate-discovery] version ${version} · ${reg.mcp.tools.length} MCP tools · ${reg.routes.length} routes`,
+);

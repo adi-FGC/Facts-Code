@@ -151,9 +151,7 @@ export interface BrowserSkillsResult {
  * This is the "make any project opened in the web app self-instruct its
  * agent" half — pairs with `writeBrowserArtifacts` (the pack itself).
  */
-export async function writeBrowserSkills(
-  opts: BrowserSkillsOptions,
-): Promise<BrowserSkillsResult> {
+export async function writeBrowserSkills(opts: BrowserSkillsOptions): Promise<BrowserSkillsResult> {
   /* subdir '' → write at the picked root, NOT under .facts/. */
   const writer = new FsaFileWriter(opts.root, '');
   const result = await buildSkillsTo(
@@ -182,9 +180,7 @@ export async function writeBrowserSkills(
  * would let one `readSnapshotsFrom(reader)` orchestrator replace both
  * implementations. Tracked in CONTEXT.md.
  */
-export async function readBrowserSnapshots(
-  root: FileSystemDirectoryHandle,
-): Promise<
+export async function readBrowserSnapshots(root: FileSystemDirectoryHandle): Promise<
   Array<{
     at: string;
     loc: number;
@@ -215,7 +211,9 @@ export async function readBrowserSnapshots(
     todos: number;
   }> = [];
   const names: string[] = [];
-  for await (const name of (snapDir as unknown as { keys: () => AsyncIterableIterator<string> }).keys()) {
+  for await (const name of (
+    snapDir as unknown as { keys: () => AsyncIterableIterator<string> }
+  ).keys()) {
     if (name.endsWith('.json')) names.push(name);
   }
   names.sort();

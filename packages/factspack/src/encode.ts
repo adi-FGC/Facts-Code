@@ -62,7 +62,9 @@ export function encode(opts: EncodeOptions): string {
      for `kind=diff` here is a category error; route them to
      encodeIncremental so the count semantics stay disentangled. */
   if (opts.header.kind === 'diff') {
-    throw new PackEncodeError("encode() produces a 'master'; use encodeIncremental() for kind='diff'");
+    throw new PackEncodeError(
+      "encode() produces a 'master'; use encodeIncremental() for kind='diff'",
+    );
   }
   const enc = new Encoder();
   /* For each baseline table, declare schema once then emit a `-` line
@@ -92,10 +94,16 @@ export function encode(opts: EncodeOptions): string {
     rowCount: opts.header.rowCount ?? total,
   });
 
-  return assemble(headerOut, metaLines(withCapsTyped(opts.meta, opts.tables), enc), enc.dictLines(), tableLines, {
-    rows: total,
-    tables: distinctTableCount(opts.tables),
-  });
+  return assemble(
+    headerOut,
+    metaLines(withCapsTyped(opts.meta, opts.tables), enc),
+    enc.dictLines(),
+    tableLines,
+    {
+      rows: total,
+      tables: distinctTableCount(opts.tables),
+    },
+  );
 }
 
 /**
@@ -109,7 +117,9 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
      rowCount is the `0` sentinel (spec §4.5/§7). Reject a `master` kind
      or a non-zero rowCount so a diff can never masquerade as a master. */
   if (opts.header.kind === 'master') {
-    throw new PackEncodeError("encodeIncremental() produces a 'diff'; use encode() for kind='master'");
+    throw new PackEncodeError(
+      "encodeIncremental() produces a 'diff'; use encode() for kind='master'",
+    );
   }
   if (opts.header.rowCount != null && opts.header.rowCount !== 0) {
     throw new PackEncodeError(
@@ -141,10 +151,16 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
   /* Trailer rows for a patch pack = `+` additions + `x` deletions —
      the same "total data row lines" formula decode() recomputes. */
   const total = opts.tables.reduce((s, t) => s + t.addedRows.length + t.deletedIds.length, 0);
-  return assemble(headerOut, metaLines(withCapsTyped(opts.meta, opts.tables), enc), enc.dictLines(), tableLines, {
-    rows: total,
-    tables: distinctTableCount(opts.tables),
-  });
+  return assemble(
+    headerOut,
+    metaLines(withCapsTyped(opts.meta, opts.tables), enc),
+    enc.dictLines(),
+    tableLines,
+    {
+      rows: total,
+      tables: distinctTableCount(opts.tables),
+    },
+  );
 }
 
 /* ───────────────────── private helpers ───────────────────── */
@@ -155,7 +171,11 @@ function renderHeader(h: PackHeader): string {
      producer/version, schema/version, snapshotId fields can't contain
      tabs themselves — we reject any input that would corrupt the
      header line. */
-  for (const [k, v] of Object.entries({ producer: h.producer, schema: h.schema, snapshotId: h.snapshotId })) {
+  for (const [k, v] of Object.entries({
+    producer: h.producer,
+    schema: h.schema,
+    snapshotId: h.snapshotId,
+  })) {
     if (typeof v !== 'string' || v.length === 0) {
       throw new PackEncodeError(`Header.${k} must be a non-empty string`);
     }
@@ -174,8 +194,13 @@ function renderHeader(h: PackHeader): string {
  * four are absent (the v3 4-field header stays byte-identical).
  */
 function renderHeaderExtras(h: PackHeader): string {
-  if (h.seq === undefined && h.parent === undefined && h.kind === undefined
-    && h.generated === undefined && h.corpus === undefined) {
+  if (
+    h.seq === undefined &&
+    h.parent === undefined &&
+    h.kind === undefined &&
+    h.generated === undefined &&
+    h.corpus === undefined
+  ) {
     return '';
   }
   if (h.seq !== undefined && (!Number.isInteger(h.seq) || h.seq < 0)) {
@@ -184,7 +209,11 @@ function renderHeaderExtras(h: PackHeader): string {
   if (h.kind !== undefined && h.kind !== 'master' && h.kind !== 'diff') {
     throw new PackEncodeError(`Header.kind must be 'master' or 'diff', got '${h.kind}'`);
   }
-  for (const [k, v] of Object.entries({ parent: h.parent, generated: h.generated, corpus: h.corpus })) {
+  for (const [k, v] of Object.entries({
+    parent: h.parent,
+    generated: h.generated,
+    corpus: h.corpus,
+  })) {
     if (v === undefined) continue;
     if (typeof v !== 'string' || v.length === 0 || /[\t\n\r]/.test(v)) {
       throw new PackEncodeError(`Header.${k} must be a non-empty string without tab/newline/CR`);
@@ -194,8 +223,10 @@ function renderHeaderExtras(h: PackHeader): string {
      slots, so passing it as a real value would silently decode back as absent
      (a round-trip hole). parent='-' is the meaningful genesis value and is
      exempt. Reject the others, mirroring the rowLine '-' guard. */
-  if (h.generated === '-') throw new PackEncodeError("Header.generated must not be '-' (the reserved absent placeholder)");
-  if (h.corpus === '-') throw new PackEncodeError("Header.corpus must not be '-' (the reserved absent placeholder)");
+  if (h.generated === '-')
+    throw new PackEncodeError("Header.generated must not be '-' (the reserved absent placeholder)");
+  if (h.corpus === '-')
+    throw new PackEncodeError("Header.corpus must not be '-' (the reserved absent placeholder)");
   const slots = [
     h.seq !== undefined ? String(h.seq) : '-',
     h.parent ?? '-',
@@ -205,8 +236,13 @@ function renderHeaderExtras(h: PackHeader): string {
   ];
   // Trim trailing placeholders — emit only up to the last real field.
   let last = slots.length - 1;
-  const defined = [h.seq !== undefined, h.parent !== undefined, h.kind !== undefined,
-    h.generated !== undefined, h.corpus !== undefined];
+  const defined = [
+    h.seq !== undefined,
+    h.parent !== undefined,
+    h.kind !== undefined,
+    h.generated !== undefined,
+    h.corpus !== undefined,
+  ];
   while (last >= 0 && !defined[last]) last--;
   return '\t' + slots.slice(0, last + 1).join('\t');
 }
@@ -217,16 +253,22 @@ function declSchemaLine(name: string, columns: PackColumn[]): string {
   }
   for (const c of columns) {
     if (!c.name || c.name.indexOf('\t') >= 0 || c.name.indexOf('\n') >= 0) {
-      throw new PackEncodeError(`Column name '${c.name}' is invalid (empty or contains tab/newline)`);
+      throw new PackEncodeError(
+        `Column name '${c.name}' is invalid (empty or contains tab/newline)`,
+      );
     }
     if (c.type !== undefined) {
       /* agent-v5 typed token `name:type`. The decoder splits on the FIRST ':',
          so the NAME must not contain ':' and the type must be a clean token. */
       if (c.name.indexOf(':') >= 0) {
-        throw new PackEncodeError(`Column '${c.name}' carries a type but its name contains ':' (ambiguous with the type token)`);
+        throw new PackEncodeError(
+          `Column '${c.name}' carries a type but its name contains ':' (ambiguous with the type token)`,
+        );
       }
       if (!c.type || /[\t\n:]/.test(c.type)) {
-        throw new PackEncodeError(`Column '${c.name}' type '${c.type}' is invalid (empty or contains tab/newline/':')`);
+        throw new PackEncodeError(
+          `Column '${c.name}' type '${c.type}' is invalid (empty or contains tab/newline/':')`,
+        );
       }
     }
     if (c.internGroup !== undefined) {
@@ -318,7 +360,9 @@ function withCapsTyped(
   const hasTyped = tables.some((t) => t.columns.some((c) => c.type !== undefined));
   if (!hasTyped) return meta;
   const legend = meta?.legend ?? [];
-  const declared = legend.some((l) => l.startsWith('caps ') && l.slice(5).split(/\s+/).includes('typed'));
+  const declared = legend.some(
+    (l) => l.startsWith('caps ') && l.slice(5).split(/\s+/).includes('typed'),
+  );
   if (declared) return meta;
   return { ...meta, legend: ['caps typed', ...legend] };
 }
@@ -425,8 +469,10 @@ class Encoder {
   hotLine(ns: string, top: number): string | null {
     const ranked = [...this.uses.entries()]
       .filter(([, u]) => u.ns === ns)
-      .sort(([ka, a], [kb, b]) => b.count - a.count
-        || Number(ka.slice(ns.length)) - Number(kb.slice(ns.length)))
+      .sort(
+        ([ka, a], [kb, b]) =>
+          b.count - a.count || Number(ka.slice(ns.length)) - Number(kb.slice(ns.length)),
+      )
       .slice(0, top);
     if (ranked.length === 0) return null;
     const hints = ranked.map(([key, u]) => {

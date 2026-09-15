@@ -47,44 +47,63 @@ describe('cleanVersion', () => {
 describe('checkOutdated', () => {
   it('flags a dep behind the registry latest', async () => {
     const { fn } = stubFetch({ lodash: '4.17.21' });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'lodash', current: '4.17.20' }], { fetch: fn });
-    expect(r).toMatchObject({ name: 'lodash', current: '4.17.20', latest: '4.17.21', isOutdated: true });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'lodash', current: '4.17.20' }], {
+      fetch: fn,
+    });
+    expect(r).toMatchObject({
+      name: 'lodash',
+      current: '4.17.20',
+      latest: '4.17.21',
+      isOutdated: true,
+    });
   });
 
   it('marks an up-to-date dep as not outdated', async () => {
     const { fn } = stubFetch({ react: '18.2.0' });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'react', current: '18.2.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'react', current: '18.2.0' }], {
+      fetch: fn,
+    });
     expect(r!.isOutdated).toBe(false);
     expect(r!.latest).toBe('18.2.0');
   });
 
   it('cleans a range marker before comparing', async () => {
     const up = stubFetch({ vite: '5.0.0' });
-    const [same] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '^5.0.0' }], { fetch: up.fn });
+    const [same] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '^5.0.0' }], {
+      fetch: up.fn,
+    });
     expect(same).toMatchObject({ current: '5.0.0', isOutdated: false });
 
     const behind = stubFetch({ vite: '5.4.0' });
-    const [moved] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '^5.0.0' }], { fetch: behind.fn });
+    const [moved] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '^5.0.0' }], {
+      fetch: behind.fn,
+    });
     expect(moved).toMatchObject({ current: '5.0.0', latest: '5.4.0', isOutdated: true });
   });
 
   it('skips non-npm ecosystems without calling fetch', async () => {
     const { fn, calls } = stubFetch({});
-    const [r] = await checkOutdated([{ ecosystem: 'pypi', name: 'requests', current: '2.0.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'pypi', name: 'requests', current: '2.0.0' }], {
+      fetch: fn,
+    });
     expect(r).toMatchObject({ latest: null, isOutdated: false, error: 'non-npm ecosystem' });
     expect(calls).toHaveLength(0);
   });
 
   it('tolerates HTTP errors (latest null, not outdated)', async () => {
     const { fn } = stubFetch({ 'ghost-pkg': { status: 404 } });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'ghost-pkg', current: '1.0.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'ghost-pkg', current: '1.0.0' }], {
+      fetch: fn,
+    });
     expect(r).toMatchObject({ latest: null, isOutdated: false });
     expect(r!.error).toContain('404');
   });
 
   it('tolerates a thrown/rejected fetch', async () => {
     const { fn } = stubFetch({ flaky: 'reject' });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'flaky', current: '1.0.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'flaky', current: '1.0.0' }], {
+      fetch: fn,
+    });
     expect(r).toMatchObject({ latest: null, isOutdated: false });
     expect(r!.error).toBe('network down');
   });
@@ -104,7 +123,9 @@ describe('checkOutdated', () => {
 
   it('URL-encodes scoped package names', async () => {
     const { fn, calls } = stubFetch({ '@babel/core': '7.24.0' });
-    await checkOutdated([{ ecosystem: 'npm', name: '@babel/core', current: '7.20.0' }], { fetch: fn });
+    await checkOutdated([{ ecosystem: 'npm', name: '@babel/core', current: '7.20.0' }], {
+      fetch: fn,
+    });
     expect(calls[0]).toBe('https://registry.npmjs.org/%40babel%2Fcore/latest');
   });
 
@@ -113,20 +134,27 @@ describe('checkOutdated', () => {
        newer than `latest` would trip a `--fail-on` CI gate on a current tree.
        Semver compare: only `current < latest` is behind. */
     const { fn } = stubFetch({ vite: '5.0.0' });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '5.4.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'vite', current: '5.4.0' }], {
+      fetch: fn,
+    });
     expect(r!.isOutdated).toBe(false);
     expect(r!.latest).toBe('5.0.0');
   });
 
   it('treats a prerelease as behind its release', async () => {
     const { fn } = stubFetch({ next: '14.0.0' });
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'next', current: '14.0.0-canary.3' }], { fetch: fn });
+    const [r] = await checkOutdated(
+      [{ ecosystem: 'npm', name: 'next', current: '14.0.0-canary.3' }],
+      { fetch: fn },
+    );
     expect(r!.isOutdated).toBe(true);
   });
 
   it('marks an unparseable registry version as errored, not outdated', async () => {
     const { fn } = stubFetch({ weird: 'next' }); // the `latest` dist-tag isn't semver
-    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'weird', current: '1.0.0' }], { fetch: fn });
+    const [r] = await checkOutdated([{ ecosystem: 'npm', name: 'weird', current: '1.0.0' }], {
+      fetch: fn,
+    });
     expect(r!.isOutdated).toBe(false);
     expect(r!.error).toBe('unparseable version');
   });
@@ -137,7 +165,10 @@ describe('checkOutdated', () => {
       sawSignal = !!init?.signal;
       return { ok: true, status: 200, json: async () => ({ version: '1.0.0' }) };
     };
-    await checkOutdated([{ ecosystem: 'npm', name: 'x', current: '1.0.0' }], { fetch: fn, timeoutMs: 5000 });
+    await checkOutdated([{ ecosystem: 'npm', name: 'x', current: '1.0.0' }], {
+      fetch: fn,
+      timeoutMs: 5000,
+    });
     expect(sawSignal).toBe(true);
   });
 });

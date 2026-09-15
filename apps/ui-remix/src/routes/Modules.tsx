@@ -48,9 +48,9 @@ export function Modules(handle: Handle<ModulesProps>) {
       return (
         <Section label="Modules" title="Graph analytics">
           <p mix={emptyText}>
-            This dataset doesn't include graph analytics yet. Re-analyze the project
-            with the latest FACTS (<span mix={code}>factstack analyze</span>) to
-            populate file importance (PageRank centrality) and module clusters.
+            This dataset doesn't include graph analytics yet. Re-analyze the project with the latest
+            FACTS (<span mix={code}>factstack analyze</span>) to populate file importance (PageRank
+            centrality) and module clusters.
           </p>
         </Section>
       );
@@ -61,8 +61,16 @@ export function Modules(handle: Handle<ModulesProps>) {
         storageKey="factstack:modules-view"
         ariaLabel="Modules view"
         views={[
-          { key: 'key-files', label: 'Key Files', render: () => <KeyFilesTable files={view.keyFiles} /> },
-          { key: 'modules', label: 'Modules', render: () => <ModulesView modules={view.modules} /> },
+          {
+            key: 'key-files',
+            label: 'Key Files',
+            render: () => <KeyFilesTable files={view.keyFiles} />,
+          },
+          {
+            key: 'modules',
+            label: 'Modules',
+            render: () => <ModulesView modules={view.modules} />,
+          },
         ]}
       />
     );

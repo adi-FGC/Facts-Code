@@ -119,9 +119,26 @@ describe('formatLearningEvent / parseLearningsJsonl round-trip', () => {
 
   it('round-trips three events as a JSONL batch', () => {
     const events = [
-      proposalEvent({ agent: 'claude', action: 'a1', outcome: 'pending', timestamp: T('2026-05-01T10:00:00Z') }),
-      proposalEvent({ agent: 'gpt', action: 'a2', outcome: 'rejected', timestamp: T('2026-05-01T11:00:00Z') }),
-      selfCalibrateEvent({ fileCount: 168, totalLoc: 30000, totalTokens: 55000, riskCount: 2, durationMs: 1200, timestamp: T('2026-05-01T12:00:00Z') }),
+      proposalEvent({
+        agent: 'claude',
+        action: 'a1',
+        outcome: 'pending',
+        timestamp: T('2026-05-01T10:00:00Z'),
+      }),
+      proposalEvent({
+        agent: 'gpt',
+        action: 'a2',
+        outcome: 'rejected',
+        timestamp: T('2026-05-01T11:00:00Z'),
+      }),
+      selfCalibrateEvent({
+        fileCount: 168,
+        totalLoc: 30000,
+        totalTokens: 55000,
+        riskCount: 2,
+        durationMs: 1200,
+        timestamp: T('2026-05-01T12:00:00Z'),
+      }),
     ];
     const text = events.map(formatLearningEvent).join('');
     const { events: parsed, errors } = parseLearningsJsonl(text);
@@ -130,7 +147,12 @@ describe('formatLearningEvent / parseLearningsJsonl round-trip', () => {
   });
 
   it('skips blank lines without erroring', () => {
-    const e = proposalEvent({ agent: 'x', action: 'y', outcome: 'accepted', timestamp: T('2026-05-01T10:00:00Z') });
+    const e = proposalEvent({
+      agent: 'x',
+      action: 'y',
+      outcome: 'accepted',
+      timestamp: T('2026-05-01T10:00:00Z'),
+    });
     const text = '\n\n' + formatLearningEvent(e) + '\n\n';
     const { events, errors } = parseLearningsJsonl(text);
     expect(errors).toEqual([]);
@@ -138,7 +160,12 @@ describe('formatLearningEvent / parseLearningsJsonl round-trip', () => {
   });
 
   it('reports invalid JSON lines via errors[]', () => {
-    const e = proposalEvent({ agent: 'x', action: 'y', outcome: 'accepted', timestamp: T('2026-05-01T10:00:00Z') });
+    const e = proposalEvent({
+      agent: 'x',
+      action: 'y',
+      outcome: 'accepted',
+      timestamp: T('2026-05-01T10:00:00Z'),
+    });
     const text = 'this is not json\n' + formatLearningEvent(e);
     const { events, errors } = parseLearningsJsonl(text);
     expect(errors.length).toBe(1);
@@ -147,8 +174,20 @@ describe('formatLearningEvent / parseLearningsJsonl round-trip', () => {
   });
 
   it('reports schema-mismatched lines via errors[]', () => {
-    const e = proposalEvent({ agent: 'x', action: 'y', outcome: 'accepted', timestamp: T('2026-05-01T10:00:00Z') });
-    const badLine = JSON.stringify({ schemaVersion: 'wrong-version', timestamp: T('2026-05-01T10:00:00Z'), agent: 'x', action: 'y', outcome: 'accepted' }) + '\n';
+    const e = proposalEvent({
+      agent: 'x',
+      action: 'y',
+      outcome: 'accepted',
+      timestamp: T('2026-05-01T10:00:00Z'),
+    });
+    const badLine =
+      JSON.stringify({
+        schemaVersion: 'wrong-version',
+        timestamp: T('2026-05-01T10:00:00Z'),
+        agent: 'x',
+        action: 'y',
+        outcome: 'accepted',
+      }) + '\n';
     const text = badLine + formatLearningEvent(e);
     const { events, errors } = parseLearningsJsonl(text);
     expect(errors.length).toBe(1);
@@ -158,10 +197,35 @@ describe('formatLearningEvent / parseLearningsJsonl round-trip', () => {
 
 describe('queryLearnings filters', () => {
   const events = [
-    proposalEvent({ agent: 'claude', action: 'fix', outcome: 'accepted', timestamp: T('2026-05-01T10:00:00Z'), tags: ['security'] }),
-    proposalEvent({ agent: 'gpt', action: 'fix', outcome: 'rejected', timestamp: T('2026-05-01T11:00:00Z'), tags: ['perf'] }),
-    proposalEvent({ agent: 'claude', action: 'refactor', outcome: 'pending', timestamp: T('2026-05-02T10:00:00Z'), tags: ['security', 'cleanup'] }),
-    selfCalibrateEvent({ fileCount: 100, totalLoc: 1000, totalTokens: 5000, riskCount: 0, durationMs: 500, timestamp: T('2026-05-02T11:00:00Z') }),
+    proposalEvent({
+      agent: 'claude',
+      action: 'fix',
+      outcome: 'accepted',
+      timestamp: T('2026-05-01T10:00:00Z'),
+      tags: ['security'],
+    }),
+    proposalEvent({
+      agent: 'gpt',
+      action: 'fix',
+      outcome: 'rejected',
+      timestamp: T('2026-05-01T11:00:00Z'),
+      tags: ['perf'],
+    }),
+    proposalEvent({
+      agent: 'claude',
+      action: 'refactor',
+      outcome: 'pending',
+      timestamp: T('2026-05-02T10:00:00Z'),
+      tags: ['security', 'cleanup'],
+    }),
+    selfCalibrateEvent({
+      fileCount: 100,
+      totalLoc: 1000,
+      totalTokens: 5000,
+      riskCount: 0,
+      durationMs: 500,
+      timestamp: T('2026-05-02T11:00:00Z'),
+    }),
   ];
 
   it('returns all events when no filter is given', () => {
@@ -253,7 +317,7 @@ describe('selfCalibrateEvent + proposalEvent builders', () => {
     expect(() =>
       proposalEvent({
         agent: 'x',
-        action: 'a'.repeat(100),  // too long
+        action: 'a'.repeat(100), // too long
         outcome: 'accepted',
       } as Parameters<typeof proposalEvent>[0]),
     ).toThrow();
@@ -263,8 +327,12 @@ describe('selfCalibrateEvent + proposalEvent builders', () => {
 describe('determinism', () => {
   it('produces stable output for the same input', () => {
     const ts = T('2026-05-02T10:00:00Z');
-    const a = formatLearningEvent(proposalEvent({ agent: 'claude', action: 'x', outcome: 'pending', timestamp: ts }));
-    const b = formatLearningEvent(proposalEvent({ agent: 'claude', action: 'x', outcome: 'pending', timestamp: ts }));
+    const a = formatLearningEvent(
+      proposalEvent({ agent: 'claude', action: 'x', outcome: 'pending', timestamp: ts }),
+    );
+    const b = formatLearningEvent(
+      proposalEvent({ agent: 'claude', action: 'x', outcome: 'pending', timestamp: ts }),
+    );
     expect(a).toBe(b);
   });
 });

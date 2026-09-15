@@ -56,11 +56,15 @@ describe('resolveInRoot — cross-platform containment (XP-1)', () => {
   it.runIf(onWindows)('handles a UNC root without false-rejecting its own files', () => {
     const uncRoot = '\\\\server\\share\\proj';
     expect(() => resolveInRoot(uncRoot, 'src\\x.ts')).not.toThrow();
-    expect(path.relative(uncRoot, resolveInRoot(uncRoot, 'src\\x.ts'))).toBe(path.join('src', 'x.ts'));
+    expect(path.relative(uncRoot, resolveInRoot(uncRoot, 'src\\x.ts'))).toBe(
+      path.join('src', 'x.ts'),
+    );
   });
 
   it.runIf(onWindows)('still rejects a drive-absolute escape on Windows', () => {
-    expect(() => resolveInRoot('C:\\projects\\app', 'C:\\Windows\\System32\\config')).toThrow(/outside project root/);
+    expect(() => resolveInRoot('C:\\projects\\app', 'C:\\Windows\\System32\\config')).toThrow(
+      /outside project root/,
+    );
   });
 });
 

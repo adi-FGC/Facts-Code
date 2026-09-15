@@ -12,11 +12,34 @@ import type { AgentArtifact, GraphQuery, SymbolNode, SymbolEdge } from '@factsta
  * truncation/determinism behavior on a mixed file+symbol fixture.
  */
 
-function sym(id: string, path: string, name: string, kind: string, start: number, end = start): SymbolNode {
-  return { id, path, name, kind: kind as SymbolNode['kind'], startLine: start, endLine: end, exported: true };
+function sym(
+  id: string,
+  path: string,
+  name: string,
+  kind: string,
+  start: number,
+  end = start,
+): SymbolNode {
+  return {
+    id,
+    path,
+    name,
+    kind: kind as SymbolNode['kind'],
+    startLine: start,
+    endLine: end,
+    exported: true,
+  };
 }
-function sedge(from: string, to: string, kind: SymbolEdge['kind'], confidence: SymbolEdge['confidence'] = 'extracted', score?: number): SymbolEdge {
-  return score != null ? { from, to, kind, confidence, confidenceScore: score } : { from, to, kind, confidence };
+function sedge(
+  from: string,
+  to: string,
+  kind: SymbolEdge['kind'],
+  confidence: SymbolEdge['confidence'] = 'extracted',
+  score?: number,
+): SymbolEdge {
+  return score != null
+    ? { from, to, kind, confidence, confidenceScore: score }
+    : { from, to, kind, confidence };
 }
 
 function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
@@ -24,7 +47,14 @@ function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-06-08T00:00:00Z',
-    project: { name: 't', root: '/t', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 't',
+      root: '/t',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], ...graph },
     routes: [],
@@ -64,7 +94,11 @@ const mixed = makeArtifact({
 describe('F3 — verb parity (engine reproduces the tuned verbs)', () => {
   const fileOnly = makeArtifact({
     nodes: [fileNode('src/a.ts'), fileNode('src/b.ts'), fileNode('src/c.ts')],
-    edges: [fileEdge('src/b.ts', 'src/a.ts'), fileEdge('src/c.ts', 'src/a.ts'), fileEdge('src/c.ts', 'src/b.ts')],
+    edges: [
+      fileEdge('src/b.ts', 'src/a.ts'),
+      fileEdge('src/c.ts', 'src/a.ts'),
+      fileEdge('src/c.ts', 'src/b.ts'),
+    ],
     cycles: [],
   });
 
@@ -77,7 +111,12 @@ describe('F3 — verb parity (engine reproduces the tuned verbs)', () => {
 
   it('neighbors(out, depth) == imports', () => {
     const imports = executeQuery(fileOnly, { verb: 'imports', path: 'src/c.ts', depth: 2 });
-    const neigh = executeQuery(fileOnly, { verb: 'neighbors', path: 'src/c.ts', direction: 'out', depth: 2 });
+    const neigh = executeQuery(fileOnly, {
+      verb: 'neighbors',
+      path: 'src/c.ts',
+      direction: 'out',
+      depth: 2,
+    });
     expect(neigh.results).toEqual(imports.results);
     expect(neigh.results).toEqual(['src/a.ts', 'src/b.ts']);
   });
@@ -143,7 +182,10 @@ describe('F3 — runGraphQuery (declarative)', () => {
     };
     const r = runGraphQuery(mixed, q);
     expect(r.nodes).toEqual(['src/a.ts', 'src/b.ts', 'src/c.ts']);
-    expect(r.edges.map((e) => `${e.from}->${e.to}`)).toEqual(['src/b.ts->src/a.ts', 'src/c.ts->src/b.ts']);
+    expect(r.edges.map((e) => `${e.from}->${e.to}`)).toEqual([
+      'src/b.ts->src/a.ts',
+      'src/c.ts->src/b.ts',
+    ]);
     expect(r.truncated).toBe(false);
   });
 

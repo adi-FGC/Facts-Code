@@ -89,14 +89,22 @@ export function listRisksToPack(risks: Risk[], snapshotId: string): string {
     r.message,
     r.messageTechnical ?? null,
   ]);
-  const tables: PackTable[] = [{
-    name: 'risks',
-    columns: [
-      { name: 'id' }, { name: 'sev' }, { name: 'cat' }, { name: 'rule' },
-      { name: 'F' }, { name: 'line' }, { name: 'msg' }, { name: 'tech' },
-    ],
-    rows,
-  }];
+  const tables: PackTable[] = [
+    {
+      name: 'risks',
+      columns: [
+        { name: 'id' },
+        { name: 'sev' },
+        { name: 'cat' },
+        { name: 'rule' },
+        { name: 'F' },
+        { name: 'line' },
+        { name: 'msg' },
+        { name: 'tech' },
+      ],
+      rows,
+    },
+  ];
   return encode({ header: header('risks-v1', snapshotId), tables });
 }
 
@@ -158,16 +166,19 @@ export function getOutlineToPack(
       {
         name: 'declarations',
         columns: [
-          { name: 'id' }, { name: 'name' }, { name: 'kind' },
-          { name: 'start' }, { name: 'end' }, { name: 'exp' }, { name: 'parent' },
+          { name: 'id' },
+          { name: 'name' },
+          { name: 'kind' },
+          { name: 'start' },
+          { name: 'end' },
+          { name: 'exp' },
+          { name: 'parent' },
         ],
         rows,
       },
       {
         name: 'refs',
-        columns: [
-          { name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' },
-        ],
+        columns: [{ name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' }],
         rows: refRows,
       },
     ],
@@ -260,7 +271,13 @@ export function subgraphToPack(
     {
       name: 'nodes',
       // `node` (the id) is unique per row → literal PK; `F` (path) interns.
-      columns: [{ name: 'id' }, { name: 'node' }, { name: 'F' }, { name: 'kind' }, { name: 'name' }],
+      columns: [
+        { name: 'id' },
+        { name: 'node' },
+        { name: 'F' },
+        { name: 'kind' },
+        { name: 'name' },
+      ],
       rows: nodeRows,
     },
     {
@@ -351,9 +368,16 @@ export function contextToPack(result: ContextLike, snapshotId: string): string {
       name: 'ranked',
       // `node` (id) is unique → literal PK; `F` (path) interns across rows.
       columns: [
-        { name: 'id' }, { name: 'node' }, { name: 'F' }, { name: 'kind' },
-        { name: 'name' }, { name: 'line' }, { name: 'score' }, { name: 'tok' },
-        { name: 'hops' }, { name: 'seed' },
+        { name: 'id' },
+        { name: 'node' },
+        { name: 'F' },
+        { name: 'kind' },
+        { name: 'name' },
+        { name: 'line' },
+        { name: 'score' },
+        { name: 'tok' },
+        { name: 'hops' },
+        { name: 'seed' },
       ],
       rows: rankedRows,
     },
@@ -365,8 +389,12 @@ export function contextToPack(result: ContextLike, snapshotId: string): string {
     {
       name: 'meta',
       columns: [
-        { name: 'totalTokens' }, { name: 'budget' }, { name: 'truncated' },
-        { name: 'coldStart' }, { name: 'items' }, { name: 'edges' },
+        { name: 'totalTokens' },
+        { name: 'budget' },
+        { name: 'truncated' },
+        { name: 'coldStart' },
+        { name: 'items' },
+        { name: 'edges' },
       ],
       rows: [metaRow],
     },
@@ -397,14 +425,20 @@ export function getConfigToPack(envVars: EnvVar[], snapshotId: string): string {
   }
   return encode({
     header: header('envs-v1', snapshotId),
-    tables: [{
-      name: 'envs',
-      columns: [
-        { name: 'id' }, { name: 'N' }, { name: 'F' },
-        { name: 'line' }, { name: 'access' }, { name: 'default' },
-      ],
-      rows,
-    }],
+    tables: [
+      {
+        name: 'envs',
+        columns: [
+          { name: 'id' },
+          { name: 'N' },
+          { name: 'F' },
+          { name: 'line' },
+          { name: 'access' },
+          { name: 'default' },
+        ],
+        rows,
+      },
+    ],
   });
 }
 
@@ -433,15 +467,24 @@ export function queryLearningsToPack(events: LearningEvent[], snapshotId: string
   ]);
   return encode({
     header: header('learnings-v1', snapshotId),
-    tables: [{
-      name: 'learnings',
-      columns: [
-        { name: 'id' }, { name: 'ts' }, { name: 'A' }, { name: 'M' },
-        { name: 'action' }, { name: 'outcome' }, { name: 'ticket' },
-        { name: 'conf' }, { name: 'reason' }, { name: 'meta' },
-      ],
-      rows,
-    }],
+    tables: [
+      {
+        name: 'learnings',
+        columns: [
+          { name: 'id' },
+          { name: 'ts' },
+          { name: 'A' },
+          { name: 'M' },
+          { name: 'action' },
+          { name: 'outcome' },
+          { name: 'ticket' },
+          { name: 'conf' },
+          { name: 'reason' },
+          { name: 'meta' },
+        ],
+        rows,
+      },
+    ],
   });
 }
 

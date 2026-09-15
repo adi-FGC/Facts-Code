@@ -13,11 +13,22 @@ import type { RepoRef } from '../lib/githubUrl.ts';
 import { parseRepoInput } from '../lib/githubUrl.ts';
 import { onNavigate, navigate, back, pathSegments } from '../lib/hashRouter.ts';
 import {
-  acquireGitHub, acquireLocalFolder, acquireDemo, canPickLocalFolder, CANCELLED, type Progress,
+  acquireGitHub,
+  acquireLocalFolder,
+  acquireDemo,
+  canPickLocalFolder,
+  CANCELLED,
+  type Progress,
 } from '../lib/acquire.ts';
 import { renderAcquire, REPO_INPUT_ID } from '../ui/Acquire.tsx';
 import { renderHome } from '../ui/Home.tsx';
-import { renderModules, renderSecurity, renderFiles, renderHistory, renderAbout } from '../ui/routes.tsx';
+import {
+  renderModules,
+  renderSecurity,
+  renderFiles,
+  renderHistory,
+  renderAbout,
+} from '../ui/routes.tsx';
 import { progressBlock, scrollRegion } from '../ui/kit.tsx';
 
 const ROUTE_TITLES: Record<string, string> = {
@@ -242,14 +253,30 @@ export function App(handle: Handle<Record<string, never>>) {
   function topBar(title: string, crumb: string | null, canBack: boolean): RemixNode {
     return (
       <div mix={barCls}>
-        {canBack
-          ? <button type="button" mix={[iconBtn, on('click', () => back())]} aria-label="Back" title="Back">‹</button>
-          : <span mix={brandDot}>FS</span>}
+        {canBack ? (
+          <button
+            type="button"
+            mix={[iconBtn, on('click', () => back())]}
+            aria-label="Back"
+            title="Back"
+          >
+            ‹
+          </button>
+        ) : (
+          <span mix={brandDot}>FS</span>
+        )}
         <div mix={barTitleWrap}>
           {crumb && <div mix={barCrumb}>{crumb}</div>}
           <div mix={barTitle}>{title}</div>
         </div>
-        <button type="button" mix={[newBtn, on('click', () => reset())]} title="Analyze something else" aria-label="Analyze another repo">New</button>
+        <button
+          type="button"
+          mix={[newBtn, on('click', () => reset())]}
+          title="Analyze something else"
+          aria-label="Analyze another repo"
+        >
+          New
+        </button>
       </div>
     );
   }
@@ -285,22 +312,31 @@ export function App(handle: Handle<Record<string, never>>) {
     const segs = pathSegments();
     const route = segs[0] ?? '';
     const data = loaded.dataset;
-    const title = route === '' ? (data.project?.name ?? 'FactStack') : (ROUTE_TITLES[route] ?? 'FactStack');
+    const title =
+      route === '' ? (data.project?.name ?? 'FactStack') : (ROUTE_TITLES[route] ?? 'FactStack');
     const crumb = route === '' ? null : route.toUpperCase();
     const body =
-      route === 'modules' ? renderModules(data)
-      : route === 'security' ? renderSecurity(data)
-      : route === 'files' ? renderFiles(data)
-      : route === 'history' ? renderHistory(data)
-      : route === 'about' ? renderAbout(data, loaded.source.label)
-      : renderHome(data, navigate);
+      route === 'modules'
+        ? renderModules(data)
+        : route === 'security'
+          ? renderSecurity(data)
+          : route === 'files'
+            ? renderFiles(data)
+            : route === 'history'
+              ? renderHistory(data)
+              : route === 'about'
+                ? renderAbout(data, loaded.source.label)
+                : renderHome(data, navigate);
 
     return (
       <div mix={appCls}>
         {topBar(title, crumb, route !== '')}
         {/* Announce route changes to screen readers (the visual title is in the
             top bar; this sr-only live region voices it on drill/back). */}
-        <div class="sr-only" aria-live="polite" aria-atomic="true">{crumb ? crumb + ' — ' : ''}{title}</div>
+        <div class="sr-only" aria-live="polite" aria-atomic="true">
+          {crumb ? crumb + ' — ' : ''}
+          {title}
+        </div>
         {scrollRegion(body)}
       </div>
     );

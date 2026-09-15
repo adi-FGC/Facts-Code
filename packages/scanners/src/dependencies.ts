@@ -27,10 +27,7 @@
  * every other scanner in this package.
  */
 
-import type {
-  DependencyManifest,
-  ManifestEcosystem,
-} from '@factstack/spec';
+import type { DependencyManifest, ManifestEcosystem } from '@factstack/spec';
 
 /** Map a file path to a manifest ecosystem. Returns null when the path
  *  doesn't match any known manifest basename — so a caller's "is this
@@ -38,15 +35,24 @@ import type {
 export function detectManifestEcosystem(path: string): ManifestEcosystem | null {
   const base = path.split('/').pop() ?? '';
   switch (base) {
-    case 'package.json':   return 'npm';
-    case 'pyproject.toml': return 'pypi';
-    case 'setup.py':       return 'pypi';
-    case 'requirements.txt': return 'pypi';
-    case 'Cargo.toml':     return 'cargo';
-    case 'go.mod':         return 'go';
-    case 'pom.xml':        return 'maven';
-    case 'Gemfile':        return 'rubygems';
-    default: return null;
+    case 'package.json':
+      return 'npm';
+    case 'pyproject.toml':
+      return 'pypi';
+    case 'setup.py':
+      return 'pypi';
+    case 'requirements.txt':
+      return 'pypi';
+    case 'Cargo.toml':
+      return 'cargo';
+    case 'go.mod':
+      return 'go';
+    case 'pom.xml':
+      return 'maven';
+    case 'Gemfile':
+      return 'rubygems';
+    default:
+      return null;
   }
 }
 
@@ -66,10 +72,7 @@ export function detectManifestEcosystem(path: string): ManifestEcosystem | null 
  * a manifest with empty deps is meaningful — it tells the UI "we know
  * about this manifest, parser is just incomplete."
  */
-export function scanDependencyManifest(
-  path: string,
-  text: string,
-): DependencyManifest | null {
+export function scanDependencyManifest(path: string, text: string): DependencyManifest | null {
   const ecosystem = detectManifestEcosystem(path);
   if (!ecosystem) return null;
 

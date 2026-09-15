@@ -25,7 +25,11 @@ beforeEach(() => {
   tmp = mkdtempSync(join(tmpdir(), 'factstack-emit-'));
 });
 afterEach(() => {
-  try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+  try {
+    rmSync(tmp, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
 });
 
 function makeAgent(): AgentArtifact {
@@ -33,7 +37,14 @@ function makeAgent(): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    project: { name: 'test', root: tmp, languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'test',
+      root: tmp,
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -49,9 +60,26 @@ function makeHuman(): HumanArtifact {
     $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    summary: { oneLiner: 'x', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 1, todos: 2, secrets: 0, headline: 'ok' } },
+    summary: {
+      oneLiner: 'x',
+      intent: '',
+      capabilities: [],
+      entryPoints: [],
+      health: { broken: 0, stale: 1, todos: 2, secrets: 0, headline: 'ok' },
+    },
     stack: [],
-    tree: { id: 'root', name: 'root', path: '.', kind: 'directory', language: null, loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [] },
+    tree: {
+      id: 'root',
+      name: 'root',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
+    },
     graph: { nodes: [], edges: [], cycles: [] },
     activity: [],
     risks: [],
@@ -75,7 +103,12 @@ describe('writeArtifacts — .gitignore management (Node shim)', () => {
   });
 
   it('skips gitignore when addGitignoreEntry: false', async () => {
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), addGitignoreEntry: false });
+    await writeArtifacts({
+      root: tmp,
+      agent: makeAgent(),
+      human: makeHuman(),
+      addGitignoreEntry: false,
+    });
     expect(existsSync(join(tmp, '.gitignore'))).toBe(false);
   });
 });
@@ -87,9 +120,19 @@ describe('readSnapshots (Node-only sidecar reader)', () => {
   });
 
   it('returns snapshots sorted by name (chronological since names are ISO)', async () => {
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
+    await writeArtifacts({
+      root: tmp,
+      agent: makeAgent(),
+      human: makeHuman(),
+      writeSnapshot: true,
+    });
     await new Promise((r) => setTimeout(r, 10));
-    await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
+    await writeArtifacts({
+      root: tmp,
+      agent: makeAgent(),
+      human: makeHuman(),
+      writeSnapshot: true,
+    });
     const snaps = await readSnapshots(tmp);
     expect(snaps.length).toBeGreaterThanOrEqual(1);
     // Each entry has the documented shape
@@ -123,7 +166,12 @@ describe('writeArtifacts — return-shape parity (Node shim)', () => {
   });
 
   it('includes the snapshot under snapshots/ when written', async () => {
-    const r = await writeArtifacts({ root: tmp, agent: makeAgent(), human: makeHuman(), writeSnapshot: true });
+    const r = await writeArtifacts({
+      root: tmp,
+      agent: makeAgent(),
+      human: makeHuman(),
+      writeSnapshot: true,
+    });
     expect(r.snapshotPath).not.toBeNull();
     expect(r.snapshotPath!).toMatch(/[/\\]snapshots[/\\]/);
     expect(existsSync(r.snapshotPath!)).toBe(true);

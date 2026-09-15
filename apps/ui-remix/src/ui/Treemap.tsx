@@ -142,7 +142,11 @@ export function Treemap(handle: Handle<TreemapProps>) {
               </g>
             );
             return linkFor ? (
-              <a key={`a-${r.id}`} href={linkFor(r.id)} aria-label={`${r.label}, ${formatValue(r.value)}`}>
+              <a
+                key={`a-${r.id}`}
+                href={linkFor(r.id)}
+                aria-label={`${r.label}, ${formatValue(r.value)}`}
+              >
                 {body}
               </a>
             ) : (

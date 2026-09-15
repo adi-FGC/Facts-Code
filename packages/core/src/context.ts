@@ -24,12 +24,7 @@
  */
 
 import type { AgentArtifact } from '@factstack/spec';
-import {
-  findEntities,
-  suggestEntities,
-  expandWithHops,
-  type SubgraphResult,
-} from './query.js';
+import { findEntities, suggestEntities, expandWithHops, type SubgraphResult } from './query.js';
 
 // Indexed-access aliases — track the schema without importing exact type names.
 type GraphNode = AgentArtifact['graph']['nodes'][number];
@@ -86,10 +81,40 @@ const FALLBACK_TOKENS_PER_LINE = 8;
  *  (role, user, auth, field, …) are intentionally NOT here. */
 const MIN_TOKEN_LEN = 3;
 const STOPWORDS = new Set([
-  'add', 'new', 'fix', 'the', 'and', 'for', 'with', 'this', 'that', 'from',
-  'into', 'make', 'update', 'change', 'create', 'remove', 'delete', 'support',
-  'using', 'feature', 'refactor', 'implement', 'want', 'need', 'please',
-  'should', 'could', 'would', 'when', 'where', 'what', 'file', 'files', 'use',
+  'add',
+  'new',
+  'fix',
+  'the',
+  'and',
+  'for',
+  'with',
+  'this',
+  'that',
+  'from',
+  'into',
+  'make',
+  'update',
+  'change',
+  'create',
+  'remove',
+  'delete',
+  'support',
+  'using',
+  'feature',
+  'refactor',
+  'implement',
+  'want',
+  'need',
+  'please',
+  'should',
+  'could',
+  'would',
+  'when',
+  'where',
+  'what',
+  'file',
+  'files',
+  'use',
 ]);
 
 export interface ContextRequest {
@@ -197,9 +222,29 @@ function wordHit(words: Set<string>, token: string): boolean {
  *  like "add a role field" wants source files, not a README that shares a word).
  *  Allow-by-default for anything else so unknown source languages aren't lost. */
 const NON_SOURCE_LANGS = new Set([
-  'json', 'yaml', 'yml', 'toml', 'markdown', 'md', 'mdx', 'html', 'htm', 'css',
-  'scss', 'sass', 'less', 'gitignore', 'dockerignore', 'text', 'txt', 'xml',
-  'svg', 'csv', 'lock', 'ini', 'env',
+  'json',
+  'yaml',
+  'yml',
+  'toml',
+  'markdown',
+  'md',
+  'mdx',
+  'html',
+  'htm',
+  'css',
+  'scss',
+  'sass',
+  'less',
+  'gitignore',
+  'dockerignore',
+  'text',
+  'txt',
+  'xml',
+  'svg',
+  'csv',
+  'lock',
+  'ini',
+  'env',
 ]);
 function isSourceNode(language: string): boolean {
   return !NON_SOURCE_LANGS.has(language.toLowerCase());
@@ -260,7 +305,8 @@ export function assembleContext(agent: AgentArtifact, req: ContextRequest): Cont
       for (const t of tokens) if (wordHit(words, t)) hits++;
       if (hits > 0) scored.push({ id, hits, imp: importanceOf(id) });
     };
-    for (const n of agent.graph.nodes) if (isSourceNode(n.language)) consider(n.path, n.path, baseName(n.path));
+    for (const n of agent.graph.nodes)
+      if (isSourceNode(n.language)) consider(n.path, n.path, baseName(n.path));
     for (const s of agent.graph.symbolNodes ?? []) consider(s.id, s.path, s.name);
     scored.sort((a, b) =>
       b.hits !== a.hits ? b.hits - a.hits : b.imp !== a.imp ? b.imp - a.imp : a.id < b.id ? -1 : 1,
@@ -349,14 +395,29 @@ export function assembleContext(agent: AgentArtifact, req: ContextRequest): Cont
     // Word-boundary match (same matcher as seeding) — fraction of task words the
     // node's name/path hits. Keeps "graph" out of "typography" here too.
     const words = nodeWordSet(path, name);
-    const nameMatch = tokens.length ? tokens.filter((t) => wordHit(words, t)).length / tokens.length : 0;
+    const nameMatch = tokens.length
+      ? tokens.filter((t) => wordHit(words, t)).length / tokens.length
+      : 0;
 
     const base =
-      W_IMPORTANCE * importance + W_PROXIMITY * proximity + W_NAMEMATCH * nameMatch + W_RECENCY * recency;
+      W_IMPORTANCE * importance +
+      W_PROXIMITY * proximity +
+      W_NAMEMATCH * nameMatch +
+      W_RECENCY * recency;
     // F9 — clamp the session bonus into the base so score stays in [0,1].
     const score = round4(Math.min(1, base + (recentSet.has(id) ? SESSION_BONUS : 0)));
 
-    return { id, path, name, kind, line, score, tokenCost: tokenCostOf(id), hops: hop, isSeed: seedIdSet.has(id) };
+    return {
+      id,
+      path,
+      name,
+      kind,
+      line,
+      score,
+      tokenCost: tokenCostOf(id),
+      hops: hop,
+      isSeed: seedIdSet.has(id),
+    };
   });
 
   // ── 4. budget ─────────────────────────────────────────────────────────────
@@ -406,5 +467,14 @@ export function assembleContext(agent: AgentArtifact, req: ContextRequest): Cont
   const keep = new Set(included.keys());
   const outEdges = edges.filter((e) => keep.has(e.from) && keep.has(e.to));
 
-  return { query: req.query, items, edges: outEdges, totalTokens, budgetTokens, truncated, coldStart, seeds };
+  return {
+    query: req.query,
+    items,
+    edges: outEdges,
+    totalTokens,
+    budgetTokens,
+    truncated,
+    coldStart,
+    seeds,
+  };
 }

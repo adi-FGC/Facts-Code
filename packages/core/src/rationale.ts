@@ -17,7 +17,13 @@
  * level without F2" per the plan.
  */
 
-import type { FileOutline, Symbol as SymbolDecl, SymbolNode, Rationale, RationaleKind } from '@factstack/spec';
+import type {
+  FileOutline,
+  Symbol as SymbolDecl,
+  SymbolNode,
+  Rationale,
+  RationaleKind,
+} from '@factstack/spec';
 import { symbolId } from '@factstack/spec';
 
 /** Cap rationale text so a giant block comment can't bloat the artifact. */
@@ -38,7 +44,10 @@ function enclosing(nodes: readonly SymbolNode[], line: number): SymbolNode | und
   let best: SymbolNode | undefined;
   for (const n of nodes) {
     if (line < n.startLine || line > n.endLine) continue;
-    if (!best) { best = n; continue; }
+    if (!best) {
+      best = n;
+      continue;
+    }
     const span = n.endLine - n.startLine;
     const bestSpan = best.endLine - best.startLine;
     if (span < bestSpan || (span === bestSpan && n.startLine > best.startLine)) best = n;
@@ -67,7 +76,8 @@ export function buildRationale(
   const nodesByFile = new Map<string, SymbolNode[]>();
   for (const n of symbolNodes) {
     const arr = nodesByFile.get(n.path);
-    if (arr) arr.push(n); else nodesByFile.set(n.path, [n]);
+    if (arr) arr.push(n);
+    else nodesByFile.set(n.path, [n]);
   }
 
   const out: Rationale[] = [];
@@ -107,11 +117,12 @@ export function buildRationale(
   }
 
   // Deterministic order: file → line → kind → id (stable on ties).
-  out.sort((a, b) =>
-    (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
-    (a.line - b.line) ||
-    (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0) ||
-    (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  out.sort(
+    (a, b) =>
+      (a.file < b.file ? -1 : a.file > b.file ? 1 : 0) ||
+      a.line - b.line ||
+      (a.kind < b.kind ? -1 : a.kind > b.kind ? 1 : 0) ||
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
   return out;
 }

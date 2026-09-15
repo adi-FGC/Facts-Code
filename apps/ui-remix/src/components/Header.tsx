@@ -23,7 +23,7 @@ const wrap = css({
   /* brand · nav · project chip · theme toggle */
   gridTemplateColumns: 'auto 1fr auto auto',
   alignItems: 'center',
-  columnGap: 'var(--space-5)',     /* tightened from --space-6 */
+  columnGap: 'var(--space-5)' /* tightened from --space-6 */,
   paddingInline: 'var(--gutter)',
   borderRadius: '0',
   minWidth: '0',

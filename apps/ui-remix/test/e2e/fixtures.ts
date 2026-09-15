@@ -46,27 +46,71 @@ export const ROUTES: readonly RouteSpec[] = [
     headlines: [],
     interactiveSelector: 'h1',
   },
-  { path: '/about',           name: 'About',           headlines: ['FACTS — Fun AI Coding Tools.'] },
+  { path: '/about', name: 'About', headlines: ['FACTS — Fun AI Coding Tools.'] },
   /* v0.9 canonical merged tab — defaults to the Graph sub-view. */
-  { path: '/architecture',    name: 'Architecture',    headlines: ['Where the dependency lives.'], interactiveSelector: 'h1' },
-  { path: '/config',          name: 'Config',          headlines: ['What this codebase needs from its environment.'] },
-  { path: '/credentials',     name: 'Credentials',     headlines: ['Nothing leaked.', 'Rotate these now.'] },
-  { path: '/files',           name: 'Files',           headlines: ["That path isn't in the index.", 'Every file, ranked by weight.'] },
-  { path: '/flow',            name: 'Flow',            headlines: ['How data moves through this system.'], interactiveSelector: 'svg' },
-  { path: '/graph',           name: 'Graph',           headlines: ['Where the dependency lives.'] },
-  { path: '/history',         name: 'History',         headlines: ['One snapshot so far.', 'Trends over time.'] },
+  {
+    path: '/architecture',
+    name: 'Architecture',
+    headlines: ['Where the dependency lives.'],
+    interactiveSelector: 'h1',
+  },
+  {
+    path: '/config',
+    name: 'Config',
+    headlines: ['What this codebase needs from its environment.'],
+  },
+  {
+    path: '/credentials',
+    name: 'Credentials',
+    headlines: ['Nothing leaked.', 'Rotate these now.'],
+  },
+  {
+    path: '/files',
+    name: 'Files',
+    headlines: ["That path isn't in the index.", 'Every file, ranked by weight.'],
+  },
+  {
+    path: '/flow',
+    name: 'Flow',
+    headlines: ['How data moves through this system.'],
+    interactiveSelector: 'svg',
+  },
+  { path: '/graph', name: 'Graph', headlines: ['Where the dependency lives.'] },
+  { path: '/history', name: 'History', headlines: ['One snapshot so far.', 'Trends over time.'] },
   /* v0.3.11 — the Worktrees tab. Both headlines are dataset-driven: the empty
      state for a non-git project, and the verdict sentence when topology is
      present (asserted on its stable prefix via `interactiveSelector`). */
-  { path: '/worktrees',       name: 'Worktrees',       headlines: [], interactiveSelector: 'h1' },
-  { path: '/library',         name: 'Library',         headlines: ["The project's table of contents."] },
-  { path: '/review',          name: 'Review',          headlines: [] /* H1 is the dynamic verdict headline; assert h1 exists */, interactiveSelector: 'h1' },
-  { path: '/risks',           name: 'Risks',           headlines: ['Nothing to flag today.', 'What to look at first.'] },
-  { path: '/routes',          name: 'Routes',          headlines: ['No routes surfaced.', 'What this thing does.'] },
+  { path: '/worktrees', name: 'Worktrees', headlines: [], interactiveSelector: 'h1' },
+  { path: '/library', name: 'Library', headlines: ["The project's table of contents."] },
+  {
+    path: '/review',
+    name: 'Review',
+    headlines: [] /* H1 is the dynamic verdict headline; assert h1 exists */,
+    interactiveSelector: 'h1',
+  },
+  {
+    path: '/risks',
+    name: 'Risks',
+    headlines: ['Nothing to flag today.', 'What to look at first.'],
+  },
+  { path: '/routes', name: 'Routes', headlines: ['No routes surfaced.', 'What this thing does.'] },
   /* v0.9 canonical merged tab — defaults to the Risks sub-view. */
-  { path: '/security',        name: 'Security',        headlines: ['Nothing to flag today.', 'What to look at first.'] },
-  { path: '/tests',           name: 'Tests',           headlines: ['No test files detected.', "What's actually tested."] },
-  { path: '/vulnerabilities', name: 'Vulnerabilities', headlines: [] /* H1 is dataset-driven; assert on h1 existing */, interactiveSelector: 'h1' },
+  {
+    path: '/security',
+    name: 'Security',
+    headlines: ['Nothing to flag today.', 'What to look at first.'],
+  },
+  {
+    path: '/tests',
+    name: 'Tests',
+    headlines: ['No test files detected.', "What's actually tested."],
+  },
+  {
+    path: '/vulnerabilities',
+    name: 'Vulnerabilities',
+    headlines: [] /* H1 is dataset-driven; assert on h1 existing */,
+    interactiveSelector: 'h1',
+  },
 ];
 
 /* ─────────── shared fixtures ─────────── */
@@ -209,7 +253,9 @@ export async function waitForReady(page: Page): Promise<void> {
   await page
     .locator('[aria-label="Loading FACTS dashboard"]')
     .waitFor({ state: 'hidden', timeout: 10_000 })
-    .catch(() => { /* skeleton never appeared — fine */ });
+    .catch(() => {
+      /* skeleton never appeared — fine */
+    });
 
   /* Race: whichever of these resolves first wins.
    *   - `main#main` → happy path, shell + route mounted.
@@ -231,7 +277,11 @@ export async function waitForReady(page: Page): Promise<void> {
     /* Pull the ErrorScreen's diagnostic line if it rendered (App.tsx
      * shows the err.message in a <p class="mono"> below the heading)
      * so the failure message includes both "what we saw" and "why". */
-    const diag = await page.locator('.mono').first().textContent().catch(() => null);
+    const diag = await page
+      .locator('.mono')
+      .first()
+      .textContent()
+      .catch(() => null);
     throw new Error(
       `waitForReady: dataset failed to load — page rendered the ErrorScreen.\n` +
         `  Diagnostic: ${diag?.trim() ?? '(not surfaced)'}\n` +

@@ -14,51 +14,54 @@ export interface FrameworkDetection {
 
 /** Known dependency → framework-name map. Order wins: first hit per package. */
 const DEP_TO_FRAMEWORK: Array<[RegExp, string]> = [
-  [/^react$/,                        'React'],
-  [/^react-dom$/,                    'React'],
-  [/^react-router$/,                 'React Router'],
-  [/^react-router-dom$/,             'React Router'],
-  [/^@remix-run\//,                  'Remix'],
-  [/^remix$/,                        'Remix'],
-  [/^next$/,                         'Next.js'],
-  [/^vite$/,                         'Vite'],
-  [/^@vitejs\/plugin-/,              'Vite'],
-  [/^vue$/,                          'Vue'],
-  [/^@nuxt\//,                       'Nuxt'],
-  [/^svelte$/,                       'Svelte'],
-  [/^@sveltejs\//,                   'SvelteKit'],
-  [/^solid-js$/,                     'Solid'],
-  [/^astro$/,                        'Astro'],
-  [/^tailwindcss$/,                  'Tailwind CSS'],
-  [/^@tailwindcss\//,                'Tailwind CSS'],
-  [/^turbo$/,                        'Turborepo'],
-  [/^nx$/,                           'Nx'],
-  [/^lerna$/,                        'Lerna'],
-  [/^oxlint$/,                       'oxlint'],
-  [/^oxfmt$/,                        'oxfmt'],
-  [/^eslint$/,                       'ESLint'],
-  [/^prettier$/,                     'Prettier'],
-  [/^typescript$/,                   'TypeScript'],
-  [/^vitest$/,                       'Vitest'],
-  [/^jest$/,                         'Jest'],
-  [/^playwright$/,                   'Playwright'],
-  [/^@playwright\//,                 'Playwright'],
-  [/^framer-motion$/,                'Framer Motion'],
-  [/^@xyflow\//,                     'xyflow'],
-  [/^zod$/,                          'Zod'],
-  [/^fastapi$/i,                     'FastAPI'],
-  [/^flask$/i,                       'Flask'],
-  [/^django$/i,                      'Django'],
-  [/^express$/,                      'Express'],
-  [/^koa$/,                          'Koa'],
-  [/^hono$/,                         'Hono'],
-  [/^stripe$/,                       'Stripe'],
+  [/^react$/, 'React'],
+  [/^react-dom$/, 'React'],
+  [/^react-router$/, 'React Router'],
+  [/^react-router-dom$/, 'React Router'],
+  [/^@remix-run\//, 'Remix'],
+  [/^remix$/, 'Remix'],
+  [/^next$/, 'Next.js'],
+  [/^vite$/, 'Vite'],
+  [/^@vitejs\/plugin-/, 'Vite'],
+  [/^vue$/, 'Vue'],
+  [/^@nuxt\//, 'Nuxt'],
+  [/^svelte$/, 'Svelte'],
+  [/^@sveltejs\//, 'SvelteKit'],
+  [/^solid-js$/, 'Solid'],
+  [/^astro$/, 'Astro'],
+  [/^tailwindcss$/, 'Tailwind CSS'],
+  [/^@tailwindcss\//, 'Tailwind CSS'],
+  [/^turbo$/, 'Turborepo'],
+  [/^nx$/, 'Nx'],
+  [/^lerna$/, 'Lerna'],
+  [/^oxlint$/, 'oxlint'],
+  [/^oxfmt$/, 'oxfmt'],
+  [/^eslint$/, 'ESLint'],
+  [/^prettier$/, 'Prettier'],
+  [/^typescript$/, 'TypeScript'],
+  [/^vitest$/, 'Vitest'],
+  [/^jest$/, 'Jest'],
+  [/^playwright$/, 'Playwright'],
+  [/^@playwright\//, 'Playwright'],
+  [/^framer-motion$/, 'Framer Motion'],
+  [/^@xyflow\//, 'xyflow'],
+  [/^zod$/, 'Zod'],
+  [/^fastapi$/i, 'FastAPI'],
+  [/^flask$/i, 'Flask'],
+  [/^django$/i, 'Django'],
+  [/^express$/, 'Express'],
+  [/^koa$/, 'Koa'],
+  [/^hono$/, 'Hono'],
+  [/^stripe$/, 'Stripe'],
 ];
 
 export function scanFrameworksFromPackageJson(text: string): FrameworkDetection {
   let pkg: Record<string, unknown>;
-  try { pkg = JSON.parse(text) as Record<string, unknown>; }
-  catch { return { frameworks: [], scripts: {} }; }
+  try {
+    pkg = JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    return { frameworks: [], scripts: {} };
+  }
 
   const deps = Object.assign(
     {},
@@ -69,7 +72,10 @@ export function scanFrameworksFromPackageJson(text: string): FrameworkDetection 
   const found = new Set<string>();
   for (const name of Object.keys(deps)) {
     for (const [re, label] of DEP_TO_FRAMEWORK) {
-      if (re.test(name)) { found.add(label); break; }
+      if (re.test(name)) {
+        found.add(label);
+        break;
+      }
     }
   }
   const scripts = (pkg.scripts as Record<string, string>) ?? {};
@@ -84,7 +90,10 @@ export function scanFrameworksFromRequirements(text: string): string[] {
     const name = line.split(/[=<>~!]/)[0]?.trim();
     if (!name) continue;
     for (const [re, label] of DEP_TO_FRAMEWORK) {
-      if (re.test(name)) { found.add(label); break; }
+      if (re.test(name)) {
+        found.add(label);
+        break;
+      }
     }
   }
   return [...found].sort();

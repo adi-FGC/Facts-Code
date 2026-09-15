@@ -30,7 +30,9 @@ declare const fetch: FetchFn;
 
 /* `AbortSignal.timeout(ms)` is a Node 18+/browser global the bare ES2022 lib
  * doesn't type. Declare the slice we use (same tactic as `fetch` above). */
-interface AbortSignalLike { readonly aborted: boolean }
+interface AbortSignalLike {
+  readonly aborted: boolean;
+}
 declare const AbortSignal: { timeout(ms: number): AbortSignalLike };
 
 const REGISTRY = 'https://registry.npmjs.org/';
@@ -73,7 +75,9 @@ export interface CheckOutdatedOptions {
 /** Strip a leading semver range operator so `^4.17.20` → `4.17.20`. Mirrors
  *  the cleaning facts-tree's `/api/deps-outdated` did before comparing. */
 export function cleanVersion(v: string): string {
-  return String(v).replace(/^[\^~>=<\s]+/, '').trim();
+  return String(v)
+    .replace(/^[\^~>=<\s]+/, '')
+    .trim();
 }
 
 /** SemVer §2/§9 numeric identifier: `0`, or a non-zero digit followed by more
@@ -99,8 +103,8 @@ interface SemVer {
 export function parseSemver(v: string): SemVer | null {
   const cleaned = cleanVersion(v);
   if (cleaned === '') return null;
-  const core = cleaned.split('+')[0]!;            // drop build metadata
-  const dashAt = core.indexOf('-');               // split release / prerelease
+  const core = cleaned.split('+')[0]!; // drop build metadata
+  const dashAt = core.indexOf('-'); // split release / prerelease
   const releaseStr = dashAt >= 0 ? core.slice(0, dashAt) : core;
   const preStr = dashAt >= 0 ? core.slice(dashAt + 1) : '';
   const nums = releaseStr.split('.');
@@ -145,7 +149,7 @@ export function compareSemver(a: string, b: string): number | null {
   for (let i = 0; i < n; i++) {
     const x = pa.prerelease[i];
     const y = pb.prerelease[i];
-    if (x === undefined) return -1;                // shorter prerelease set is lower
+    if (x === undefined) return -1; // shorter prerelease set is lower
     if (y === undefined) return 1;
     const xn = /^\d+$/.test(x);
     const yn = /^\d+$/.test(y);
@@ -153,7 +157,7 @@ export function compareSemver(a: string, b: string): number | null {
       const d = Number(x) - Number(y);
       if (d !== 0) return d;
     } else if (xn !== yn) {
-      return xn ? -1 : 1;                           // numeric identifiers rank below alphanumeric
+      return xn ? -1 : 1; // numeric identifiers rank below alphanumeric
     } else if (x !== y) {
       return x < y ? -1 : 1;
     }

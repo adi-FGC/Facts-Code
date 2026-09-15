@@ -99,19 +99,22 @@ const svgEl = css({
      data-hover-step="N" on the SVG; the per-step message group has
      data-step="N"; CSS matches them. */
   '&[data-hover-step] .seq-arrow, &[data-hover-step] .seq-arrow-label': {
-    transition: 'opacity var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
+    transition:
+      'opacity var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
     opacity: '0.18',
   },
-  '&[data-hover-step] .seq-msg[data-active] .seq-arrow, &[data-hover-step] .seq-msg[data-active] .seq-arrow-label': {
-    opacity: '1',
-    stroke: 'var(--accent)',
-  },
+  '&[data-hover-step] .seq-msg[data-active] .seq-arrow, &[data-hover-step] .seq-msg[data-active] .seq-arrow-label':
+    {
+      opacity: '1',
+      stroke: 'var(--accent)',
+    },
 });
 
 const lifelineHeader = css({
   cursor: 'grab',
   '> rect': {
-    transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
+    transition:
+      'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
   },
   '&:hover > rect': {
     fill: 'var(--accent-soft)',
@@ -152,7 +155,8 @@ const copyBtn = css({
   paddingInline: 'var(--space-3)',
   paddingBlock: '4px',
   cursor: 'pointer',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
 });
 
@@ -222,7 +226,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
     if (svgRef && step) {
       svgRef.setAttribute('data-hover-step', step);
       /* Mark the matching message active so CSS un-dims it. */
-      svgRef.querySelectorAll('.seq-msg[data-active]').forEach((el) => el.removeAttribute('data-active'));
+      svgRef
+        .querySelectorAll('.seq-msg[data-active]')
+        .forEach((el) => el.removeAttribute('data-active'));
       grp?.setAttribute('data-active', '');
     }
   }
@@ -233,7 +239,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
     if (stillInside) return;
     if (svgRef) {
       svgRef.removeAttribute('data-hover-step');
-      svgRef.querySelectorAll('.seq-msg[data-active]').forEach((el) => el.removeAttribute('data-active'));
+      svgRef
+        .querySelectorAll('.seq-msg[data-active]')
+        .forEach((el) => el.removeAttribute('data-active'));
     }
   }
 
@@ -290,7 +298,10 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
     void navigator.clipboard.writeText(result.dsl);
     copied = true;
     void handle.update();
-    setTimeout(() => { copied = false; void handle.update(); }, 1400);
+    setTimeout(() => {
+      copied = false;
+      void handle.update();
+    }, 1400);
   }
 
   return () => {
@@ -301,9 +312,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
       return (
         <div mix={wrap}>
           <div mix={empty}>
-            No messages to render — the entry point doesn't import any in-project files.
-            Pick a different entry above, or check that the dependency graph has edges
-            (Astro/path-alias imports may need analyzer support).
+            No messages to render — the entry point doesn't import any in-project files. Pick a
+            different entry above, or check that the dependency graph has edges (Astro/path-alias
+            imports may need analyzer support).
           </div>
         </div>
       );
@@ -316,7 +327,11 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
        comfortably, with a min of 140 px so columns don't crowd on
        short names. */
     const maxLabel = Math.max(...ordered.map((p) => basename(p).length));
-    const columnWidth = Math.max(140, estimateTextWidth(basename(ordered[0] ?? ''), 7) + 40, maxLabel * 7 + 40);
+    const columnWidth = Math.max(
+      140,
+      estimateTextWidth(basename(ordered[0] ?? ''), 7) + 40,
+      maxLabel * 7 + 40,
+    );
     const headerHeight = 56;
     const messageHeight = 36;
     const padding = 24;
@@ -354,7 +369,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
     return (
       <div mix={wrap}>
         <div mix={meta}>
-          <span>Sequence · {ordered.length} actor{ordered.length === 1 ? '' : 's'}</span>
+          <span>
+            Sequence · {ordered.length} actor{ordered.length === 1 ? '' : 's'}
+          </span>
           <span mix={metaCount}>
             {result.messages.length} message{result.messages.length === 1 ? '' : 's'}
             {result.truncated && <span mix={truncatedFlag}>· truncated</span>}
@@ -374,13 +391,37 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
               diagram.css): primary = call/import, return = response,
               async = cycle/dynamic. */}
           <defs>
-            <marker id="seq-arrow-primary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <marker
+              id="seq-arrow-primary"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
               <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-primary)" />
             </marker>
-            <marker id="seq-arrow-return" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <marker
+              id="seq-arrow-return"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
               <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-return)" />
             </marker>
-            <marker id="seq-arrow-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <marker
+              id="seq-arrow-async"
+              viewBox="0 0 10 10"
+              refX="9"
+              refY="5"
+              markerWidth="6"
+              markerHeight="6"
+              orient="auto-start-reverse"
+            >
               <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--dg-edge-async)" />
             </marker>
           </defs>
@@ -431,10 +472,18 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                 <a
                   key={`head-${id}`}
                   href={`/files?p=${encodeURIComponent(id)}`}
-                  mix={[lifelineHeader, isDragging ? lifelineHeaderDragging : null,
-                    on<SVGAElement, 'pointerdown'>('pointerdown', (e) => onHeaderDown(e as PointerEvent, id)) as never,
-                    on<SVGAElement, 'pointermove'>('pointermove', (e) => onHeaderMove(e as PointerEvent)) as never,
-                    on<SVGAElement, 'pointerup'>('pointerup', (e) => onHeaderUp(e as PointerEvent, columnWidth)) as never,
+                  mix={[
+                    lifelineHeader,
+                    isDragging ? lifelineHeaderDragging : null,
+                    on<SVGAElement, 'pointerdown'>('pointerdown', (e) =>
+                      onHeaderDown(e as PointerEvent, id),
+                    ) as never,
+                    on<SVGAElement, 'pointermove'>('pointermove', (e) =>
+                      onHeaderMove(e as PointerEvent),
+                    ) as never,
+                    on<SVGAElement, 'pointerup'>('pointerup', (e) =>
+                      onHeaderUp(e as PointerEvent, columnWidth),
+                    ) as never,
                   ]}
                   data-actor-id={id}
                 >
@@ -456,7 +505,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                     fill="var(--fg)"
                     font-size="12"
                   >
-                    {label.length > Math.floor((columnWidth - 30) / 7) ? label.slice(0, Math.floor((columnWidth - 30) / 7) - 1) + '…' : label}
+                    {label.length > Math.floor((columnWidth - 30) / 7)
+                      ? label.slice(0, Math.floor((columnWidth - 30) / 7) - 1) + '…'
+                      : label}
                   </text>
                 </a>
               );
@@ -475,7 +526,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
               const stepX = 6;
               return (
                 <g key={`msg-${idx}`} class="seq-msg" data-step={String(m.step)}>
-                  <text x={stepX} y={y + 4} fill="var(--fg-faint)" font-size="9">{m.step}</text>
+                  <text x={stepX} y={y + 4} fill="var(--fg-faint)" font-size="9">
+                    {m.step}
+                  </text>
                   <a href={`/files?p=${encodeURIComponent(m.to)}`}>
                     <title>{`${m.from} ${m.isReturn ? '↩︎' : '→'} ${m.to}${m.isCycle ? ' (cycle)' : ''}`}</title>
                     {/* Hit-area rect to make the click target generous. */}
@@ -492,10 +545,28 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
                       y1={y}
                       x2={x2}
                       y2={y}
-                      stroke={m.isCycle ? 'var(--dg-edge-async)' : m.isReturn ? 'var(--dg-edge-return)' : 'var(--dg-edge-primary)'}
+                      stroke={
+                        m.isCycle
+                          ? 'var(--dg-edge-async)'
+                          : m.isReturn
+                            ? 'var(--dg-edge-return)'
+                            : 'var(--dg-edge-primary)'
+                      }
                       stroke-width={m.isReturn ? '1.4' : '1.8'}
-                      stroke-dasharray={m.isReturn ? 'var(--dg-edge-dash-return)' : (m.isCycle ? 'var(--dg-edge-dash-async)' : 'none')}
-                      marker-end={m.isCycle ? 'url(#seq-arrow-async)' : m.isReturn ? 'url(#seq-arrow-return)' : 'url(#seq-arrow-primary)'}
+                      stroke-dasharray={
+                        m.isReturn
+                          ? 'var(--dg-edge-dash-return)'
+                          : m.isCycle
+                            ? 'var(--dg-edge-dash-async)'
+                            : 'none'
+                      }
+                      marker-end={
+                        m.isCycle
+                          ? 'url(#seq-arrow-async)'
+                          : m.isReturn
+                            ? 'url(#seq-arrow-return)'
+                            : 'url(#seq-arrow-primary)'
+                      }
                       stroke-opacity="0.92"
                     />
                     <text
@@ -524,7 +595,9 @@ export function SequenceDiagram(handle: Handle<SequenceDiagramProps>) {
               type="button"
               mix={[copyBtn, on<HTMLButtonElement, 'click'>('click', copyDsl)]}
               title="Copy DSL — paste into swimlanes.io for customization"
-            >{copied ? 'Copied' : 'Copy'}</button>
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
           </div>
           <pre mix={dslPre}>{result.dsl}</pre>
         </div>

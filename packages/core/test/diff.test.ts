@@ -14,7 +14,14 @@ function makeArtifact(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-05-01T00:00:00Z',
-    project: { name: 'test', root: '/test', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'test',
+      root: '/test',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -26,13 +33,30 @@ function makeArtifact(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
   } as AgentArtifact;
 }
 
-function file(path: string, loc: number, tokenCost: number, todos: Array<{ kind: string; line: number; text: string; authoredAt: null }> = []) {
+function file(
+  path: string,
+  loc: number,
+  tokenCost: number,
+  todos: Array<{ kind: string; line: number; text: string; authoredAt: null }> = [],
+) {
   return {
-    path, language: 'typescript', loc, bytes: loc * 30,
-    bundleSize: null, tokenCost, imports: [], exports: [], declarations: [],
-    routes: [], components: [], tests: [], todos,
-    complexity: { cyclomatic: 1, cognitive: 1 }, status: 'ok' as const,
-    lastModifiedMs: null, churnScore: null,
+    path,
+    language: 'typescript',
+    loc,
+    bytes: loc * 30,
+    bundleSize: null,
+    tokenCost,
+    imports: [],
+    exports: [],
+    declarations: [],
+    routes: [],
+    components: [],
+    tests: [],
+    todos,
+    complexity: { cyclomatic: 1, cognitive: 1 },
+    status: 'ok' as const,
+    lastModifiedMs: null,
+    churnScore: null,
   };
 }
 
@@ -62,8 +86,12 @@ describe('diffArtifacts — file-level changes', () => {
   });
 
   it('orders changed files by absolute token delta desc', () => {
-    const a = makeArtifact({ files: [file('a.ts', 10, 50), file('b.ts', 10, 50), file('c.ts', 10, 50)] });
-    const b = makeArtifact({ files: [file('a.ts', 10, 60), file('b.ts', 10, 200), file('c.ts', 10, 30)] });
+    const a = makeArtifact({
+      files: [file('a.ts', 10, 50), file('b.ts', 10, 50), file('c.ts', 10, 50)],
+    });
+    const b = makeArtifact({
+      files: [file('a.ts', 10, 60), file('b.ts', 10, 200), file('c.ts', 10, 30)],
+    });
     const d = diffArtifacts({ artifact: a }, { artifact: b });
     // Order: |b: 150| > |c: -20| > |a: 10|
     expect(d.files.changed.map((c) => c.path)).toEqual(['b.ts', 'c.ts', 'a.ts']);
@@ -87,7 +115,10 @@ describe('diffArtifacts — file-level changes', () => {
 
 describe('diffArtifacts — incomplete flag (snapshot endpoints)', () => {
   it('sets incomplete: true when from.files is empty', () => {
-    const a = makeArtifact({ files: [], stats: { loc: 100, fileCount: 5, packageCount: 1, totalTokenCost: 500 } });
+    const a = makeArtifact({
+      files: [],
+      stats: { loc: 100, fileCount: 5, packageCount: 1, totalTokenCost: 500 },
+    });
     const b = makeArtifact({ files: [file('a.ts', 10, 50)] });
     const d = diffArtifacts({ artifact: a }, { artifact: b });
     expect(d.files.incomplete).toBe(true);
@@ -131,8 +162,12 @@ describe('diffArtifacts — deterministic generatedAt (DET-1)', () => {
   it('tiebreaks equal-magnitude token deltas by path (DET-3)', () => {
     // c.ts and b.ts both move by |20|; a.ts by |10|. The |20| pair must order
     // by path (b before c) so the sort is total and deterministic.
-    const a = makeArtifact({ files: [file('a.ts', 10, 50), file('b.ts', 10, 50), file('c.ts', 10, 50)] });
-    const b = makeArtifact({ files: [file('a.ts', 10, 60), file('b.ts', 10, 70), file('c.ts', 10, 30)] });
+    const a = makeArtifact({
+      files: [file('a.ts', 10, 50), file('b.ts', 10, 50), file('c.ts', 10, 50)],
+    });
+    const b = makeArtifact({
+      files: [file('a.ts', 10, 60), file('b.ts', 10, 70), file('c.ts', 10, 30)],
+    });
     const d = diffArtifacts({ artifact: a }, { artifact: b });
     expect(d.files.changed.map((c) => c.path)).toEqual(['b.ts', 'c.ts', 'a.ts']);
   });
@@ -223,10 +258,7 @@ describe('diffArtifacts — endpoint markers', () => {
  * `vulnerabilities` field never fires and the runtime value is
  * literally `undefined`. Real fixtures behave this way.
  */
-function vuln(
-  id: string,
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'unknown' = 'high',
-) {
+function vuln(id: string, severity: 'critical' | 'high' | 'medium' | 'low' | 'unknown' = 'high') {
   return {
     id,
     severity,

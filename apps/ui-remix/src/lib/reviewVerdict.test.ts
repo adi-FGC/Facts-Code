@@ -12,7 +12,12 @@ function ds(over: Partial<Dataset> = {}): Dataset {
   return {
     generatedAt: '2026-06-01T00:00:00Z',
     project: { name: 't', root: '.', languages: [], frameworks: [] },
-    summary: { oneLiner: '', description: '', capabilities: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0 } },
+    summary: {
+      oneLiner: '',
+      description: '',
+      capabilities: [],
+      health: { broken: 0, stale: 0, todos: 0, secrets: 0 },
+    },
     stats: { files: 2, loc: 20, size: 0, gzip: 0, tokens: 80 },
     tree: { name: '', path: '', files: [], children: [] },
     edges: [],
@@ -54,7 +59,12 @@ describe('buildReviewVerdict — posture', () => {
 
   it('inherits the worst vulnerability severity', () => {
     const v = buildReviewVerdict(
-      ds({ vulnerabilities: [{ id: 'CVE-1', severity: 'medium' }, { id: 'CVE-2', severity: 'critical' }] as NonNullable<Dataset['vulnerabilities']> }),
+      ds({
+        vulnerabilities: [
+          { id: 'CVE-1', severity: 'medium' },
+          { id: 'CVE-2', severity: 'critical' },
+        ] as NonNullable<Dataset['vulnerabilities']>,
+      }),
       null,
     );
     expect(v.posture.vulnerabilities).toBe(2);
@@ -87,11 +97,21 @@ describe('buildReviewVerdict — posture', () => {
 });
 
 describe('buildReviewVerdict — trend', () => {
-  const baseline: ReviewBaseline = { at: '2026-05-01T00:00:00Z', loc: 10, tokens: 40, files: 1, risks: 2, todos: 1 };
+  const baseline: ReviewBaseline = {
+    at: '2026-05-01T00:00:00Z',
+    loc: 10,
+    tokens: 40,
+    files: 1,
+    risks: 2,
+    todos: 1,
+  };
 
   it('reports count deltas vs the baseline', () => {
     const v = buildReviewVerdict(
-      ds({ risks: [secretRisk, secretRisk, secretRisk, secretRisk, secretRisk] as Dataset['risks'], stats: { files: 3, loc: 30, size: 0, gzip: 0, tokens: 120 } }),
+      ds({
+        risks: [secretRisk, secretRisk, secretRisk, secretRisk, secretRisk] as Dataset['risks'],
+        stats: { files: 3, loc: 30, size: 0, gzip: 0, tokens: 120 },
+      }),
       baseline,
     );
     expect(v.trend).not.toBeNull();

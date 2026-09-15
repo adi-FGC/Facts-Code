@@ -83,17 +83,18 @@ const entryRow = css({
   },
 });
 
-const kindTag = (color: string) => css({
-  display: 'inline-block',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  fontWeight: '500',
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  color,
-  whiteSpace: 'nowrap',
-  width: '40px',
-});
+const kindTag = (color: string) =>
+  css({
+    display: 'inline-block',
+    fontFamily: 'var(--font-mono)',
+    fontSize: 'var(--fs-10)',
+    fontWeight: '500',
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color,
+    whiteSpace: 'nowrap',
+    width: '40px',
+  });
 
 const entryPath = css({
   fontFamily: 'var(--font-mono)',
@@ -122,22 +123,22 @@ const monoCode = css({
 
 /** HTTP method → mono tag color. Reads as a glance signal in dense lists. */
 const METHOD_COLOR: Record<string, string> = {
-  GET:    'var(--info)',
-  POST:   'var(--accent)',
-  PUT:    'var(--warn)',
-  PATCH:  'var(--warn)',
+  GET: 'var(--info)',
+  POST: 'var(--accent)',
+  PUT: 'var(--warn)',
+  PATCH: 'var(--warn)',
   DELETE: 'var(--danger)',
 };
 
 function entryKindColor(kind: string): string {
   if (kind === 'cli') return 'var(--accent)';
-  if (kind === 'ui')  return 'var(--info)';
+  if (kind === 'ui') return 'var(--info)';
   return 'var(--fg-subtle)';
 }
 
 function entryKindLabel(kind: string): string {
   if (kind === 'cli') return 'cli';
-  if (kind === 'ui')  return 'ui';
+  if (kind === 'ui') return 'ui';
   if (kind === 'event-handler') return 'evt';
   return 'rt';
 }
@@ -157,9 +158,9 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
             <div mix={kicker}>Routes · audit</div>
             <h1 mix={headline}>No routes surfaced.</h1>
             <p mix={lede}>
-              The analyzer didn't detect HTTP routes, page handlers, or CLI
-              entry points in this project. Run <code mix={monoCode}>factstack analyze</code>{' '}
-              with framework detection enabled to populate this page.
+              The analyzer didn't detect HTTP routes, page handlers, or CLI entry points in this
+              project. Run <code mix={monoCode}>factstack analyze</code> with framework detection
+              enabled to populate this page.
             </p>
           </div>
           <MarginColumn>
@@ -184,19 +185,19 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>
-            Routes · {eps.length} {eps.length === 1 ? 'entry' : 'entries'} · {routes.length} {routes.length === 1 ? 'endpoint' : 'endpoints'}
+            Routes · {eps.length} {eps.length === 1 ? 'entry' : 'entries'} · {routes.length}{' '}
+            {routes.length === 1 ? 'endpoint' : 'endpoints'}
           </div>
           <h1 mix={headline}>What this thing does.</h1>
           <p mix={lede}>
-            Every entry point a user or an AI agent can hit. CLI commands and
-            page URLs above; HTTP routes grouped by framework below. Each row
-            ties back to the file that handles it.
+            Every entry point a user or an AI agent can hit. CLI commands and page URLs above; HTTP
+            routes grouped by framework below. Each row ties back to the file that handles it.
           </p>
 
           <LabelNumberRow>
             <LabelNumber label="Entry points" value={eps.length} />
-            <LabelNumber label="HTTP routes"  value={routes.length} />
-            <LabelNumber label="Frameworks"   value={frameworks.length} last />
+            <LabelNumber label="HTTP routes" value={routes.length} />
+            <LabelNumber label="Frameworks" value={frameworks.length} last />
           </LabelNumberRow>
 
           {/* Entry points — package scripts + UI URLs */}
@@ -205,9 +206,7 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
               <div mix={entryGroup}>
                 {eps.map((ep, i) => (
                   <div key={i} mix={entryRow}>
-                    <span mix={kindTag(entryKindColor(ep.kind))}>
-                      {entryKindLabel(ep.kind)}
-                    </span>
+                    <span mix={kindTag(entryKindColor(ep.kind))}>{entryKindLabel(ep.kind)}</span>
                     <span mix={entryPath}>{ep.label || ep.path}</span>
                     {/* Audit H3 fix: drop the `|| ep.kind` fallback so the
                         right column shows file path or nothing — never
@@ -223,9 +222,16 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
               backgrounds. RuledRow's `display:contents` lets the parent
               grid template own column widths. */}
           {frameworks.map((fw) => {
-            const list = byFramework.get(fw)!.slice().sort((a, b) => (a.path || '').localeCompare(b.path || ''));
+            const list = byFramework
+              .get(fw)!
+              .slice()
+              .sort((a, b) => (a.path || '').localeCompare(b.path || ''));
             return (
-              <Section key={fw} label={`Framework · ${fw}`} title={fw === 'node-http' ? 'Node http' : fw}>
+              <Section
+                key={fw}
+                label={`Framework · ${fw}`}
+                title={fw === 'node-http' ? 'Node http' : fw}
+              >
                 {/* Audit H2 fix: 80px first column so "Method" header
                     doesn't truncate to "ME…" under the uppercase 0.14em
                     tracking the RuledCell header style applies. */}
@@ -241,13 +247,17 @@ export function RoutesTab(handle: Handle<RoutesProps>) {
                     return (
                       <RuledRow key={i}>
                         <RuledCell mono>
-                          <span mix={css({ color: c, fontWeight: '500', letterSpacing: '0.06em' })}>{m}</span>
+                          <span mix={css({ color: c, fontWeight: '500', letterSpacing: '0.06em' })}>
+                            {m}
+                          </span>
                         </RuledCell>
                         <RuledCell mono>{r.path || '/'}</RuledCell>
                         <RuledCell mono muted>
                           {r.handlerFile}
                           {r.handlerSymbol && (
-                            <span mix={css({ color: 'var(--fg-faint)', marginLeft: '6px' })}>· {r.handlerSymbol}</span>
+                            <span mix={css({ color: 'var(--fg-faint)', marginLeft: '6px' })}>
+                              · {r.handlerSymbol}
+                            </span>
                           )}
                         </RuledCell>
                       </RuledRow>

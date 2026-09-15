@@ -91,11 +91,11 @@ export function EntityList(handle: Handle<EntityListProps>) {
     if (entities.length === 0) {
       return (
         <div mix={emptyState}>
-          No data-tier files detected. The classifier looks for files
-          matching <span class="mono">/schemas?/</span>, <span class="mono">/models?/</span>,
-          <span class="mono"> /entities/</span>, <span class="mono">/db/</span>,
-          or filenames like <span class="mono">*.schema.ts</span>,
-          <span class="mono"> *.model.ts</span>, <span class="mono">*.entity.ts</span>.
+          No data-tier files detected. The classifier looks for files matching{' '}
+          <span class="mono">/schemas?/</span>, <span class="mono">/models?/</span>,
+          <span class="mono"> /entities/</span>, <span class="mono">/db/</span>, or filenames like{' '}
+          <span class="mono">*.schema.ts</span>,<span class="mono"> *.model.ts</span>,{' '}
+          <span class="mono">*.entity.ts</span>.
         </div>
       );
     }
@@ -104,7 +104,9 @@ export function EntityList(handle: Handle<EntityListProps>) {
         <RuledRow header>
           <RuledCell header>Entity</RuledCell>
           <RuledCell header>Folder</RuledCell>
-          <RuledCell header align="right">Referrers</RuledCell>
+          <RuledCell header align="right">
+            Referrers
+          </RuledCell>
           <RuledCell header>Sample callers</RuledCell>
         </RuledRow>
         {entities.map((e) => {
@@ -113,13 +115,17 @@ export function EntityList(handle: Handle<EntityListProps>) {
           return (
             <RuledRow key={e.path}>
               <RuledCell>
-                <a href={`/files?p=${encodeURIComponent(e.path)}`} mix={fileLink}>{concept}</a>
-                {concept !== name && (
-                  <span mix={dirText}> · {name}</span>
-                )}
+                <a href={`/files?p=${encodeURIComponent(e.path)}`} mix={fileLink}>
+                  {concept}
+                </a>
+                {concept !== name && <span mix={dirText}> · {name}</span>}
               </RuledCell>
-              <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-              <RuledCell mono align="right">{fmt(e.referrers)}</RuledCell>
+              <RuledCell>
+                <span mix={dirText}>{dir || '·'}</span>
+              </RuledCell>
+              <RuledCell mono align="right">
+                {fmt(e.referrers)}
+              </RuledCell>
               <RuledCell>
                 {e.sampleReferrers.length === 0 ? (
                   <span mix={dirText}>unused</span>
@@ -129,7 +135,9 @@ export function EntityList(handle: Handle<EntityListProps>) {
                       const { name: rn, dir: rd } = splitDirAndName(ref);
                       return (
                         <span key={ref}>
-                          <a href={`/files?p=${encodeURIComponent(ref)}`} mix={fileLink}>{rn}</a>
+                          <a href={`/files?p=${encodeURIComponent(ref)}`} mix={fileLink}>
+                            {rn}
+                          </a>
                           {rd && <span mix={dirText}> · {rd}</span>}
                           {i < e.sampleReferrers.length - 1 && <span mix={sep}>·</span>}
                         </span>

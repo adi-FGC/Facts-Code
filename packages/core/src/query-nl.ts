@@ -36,20 +36,107 @@ export type NlResult =
 
 /** Words that never name a graph entity — skipped when scanning for seeds. */
 const STOP = new Set([
-  'who', 'what', 'whats', 'which', 'where', 'how', 'why', 'when',
-  'call', 'calls', 'called', 'calling', 'caller', 'callers',
-  'use', 'uses', 'used', 'using', 'user', // 'user' is a stopword as a question word; a real `User` symbol still resolves via the token's original case in findEntities
-  'reference', 'references', 'referenced', 'referencing',
-  'import', 'imports', 'imported', 'importing', 'importer', 'importers',
-  'depend', 'depends', 'depended', 'depending', 'dependency', 'dependencies',
-  'the', 'a', 'an', 'of', 'to', 'on', 'in', 'into', 'by', 'for', 'from', 'and', 'or',
-  'is', 'are', 'be', 'does', 'do', 'did', 'that', 'this', 'these', 'those',
-  'between', 'path', 'paths', 'connection', 'connected', 'reach', 'reaches', 'reachable',
-  'unused', 'orphan', 'orphans', 'orphaned', 'unreferenced', 'dead', 'code',
-  'cycle', 'cycles', 'circular', 'cyclic', 'loop', 'loops',
-  'find', 'show', 'list', 'me', 'get', 'all', 'any', 'some',
-  'file', 'files', 'symbol', 'symbols', 'function', 'functions', 'class', 'classes',
-  'module', 'modules', 'thing', 'things', 'it', 'its',
+  'who',
+  'what',
+  'whats',
+  'which',
+  'where',
+  'how',
+  'why',
+  'when',
+  'call',
+  'calls',
+  'called',
+  'calling',
+  'caller',
+  'callers',
+  'use',
+  'uses',
+  'used',
+  'using',
+  'user', // 'user' is a stopword as a question word; a real `User` symbol still resolves via the token's original case in findEntities
+  'reference',
+  'references',
+  'referenced',
+  'referencing',
+  'import',
+  'imports',
+  'imported',
+  'importing',
+  'importer',
+  'importers',
+  'depend',
+  'depends',
+  'depended',
+  'depending',
+  'dependency',
+  'dependencies',
+  'the',
+  'a',
+  'an',
+  'of',
+  'to',
+  'on',
+  'in',
+  'into',
+  'by',
+  'for',
+  'from',
+  'and',
+  'or',
+  'is',
+  'are',
+  'be',
+  'does',
+  'do',
+  'did',
+  'that',
+  'this',
+  'these',
+  'those',
+  'between',
+  'path',
+  'paths',
+  'connection',
+  'connected',
+  'reach',
+  'reaches',
+  'reachable',
+  'unused',
+  'orphan',
+  'orphans',
+  'orphaned',
+  'unreferenced',
+  'dead',
+  'code',
+  'cycle',
+  'cycles',
+  'circular',
+  'cyclic',
+  'loop',
+  'loops',
+  'find',
+  'show',
+  'list',
+  'me',
+  'get',
+  'all',
+  'any',
+  'some',
+  'file',
+  'files',
+  'symbol',
+  'symbols',
+  'function',
+  'functions',
+  'class',
+  'classes',
+  'module',
+  'modules',
+  'thing',
+  'things',
+  'it',
+  'its',
 ]);
 
 function tokenize(q: string): string[] {
@@ -79,7 +166,10 @@ function didYouMean(agent: AgentArtifact, tried: string[], reason: string): NlRe
   const seen = new Set<string>();
   for (const tok of tried) {
     for (const id of suggestEntities(agent, tok)) {
-      if (!seen.has(id)) { seen.add(id); candidates.push(id); }
+      if (!seen.has(id)) {
+        seen.add(id);
+        candidates.push(id);
+      }
     }
   }
   return { ok: false, reason, candidates: candidates.slice(0, 10) };
@@ -103,8 +193,10 @@ export function planFromQuestion(agent: AgentArtifact, question: string): NlResu
   if (between) {
     const left = pickEntity(agent, tokenize(between[1] ?? ''));
     const right = pickEntity(agent, tokenize(between[2] ?? ''));
-    if (left.ambiguous) return didYouMean(agent, left.tried, 'The source entity is ambiguous — pick one:');
-    if (right.ambiguous) return didYouMean(agent, right.tried, 'The destination entity is ambiguous — pick one:');
+    if (left.ambiguous)
+      return didYouMean(agent, left.tried, 'The source entity is ambiguous — pick one:');
+    if (right.ambiguous)
+      return didYouMean(agent, right.tried, 'The destination entity is ambiguous — pick one:');
     if (left.id && right.id) {
       return {
         ok: true,
@@ -117,14 +209,22 @@ export function planFromQuestion(agent: AgentArtifact, question: string): NlResu
         },
       };
     }
-    return didYouMean(agent, [...left.tried, ...right.tried], 'Could not resolve both endpoints. Did you mean:');
+    return didYouMean(
+      agent,
+      [...left.tried, ...right.tried],
+      'Could not resolve both endpoints. Did you mean:',
+    );
   }
 
   // ── Template: orphans (no entity) ───────────────────────────────────────
   if (/\b(unused|orphan|orphans|orphaned|unreferenced|dead\s+code)\b/.test(lower)) {
     return {
       ok: true,
-      plan: { interpretation: 'orphans — source files with no incoming imports', entities: [], verb: 'orphans' },
+      plan: {
+        interpretation: 'orphans — source files with no incoming imports',
+        entities: [],
+        verb: 'orphans',
+      },
     };
   }
 
@@ -132,7 +232,11 @@ export function planFromQuestion(agent: AgentArtifact, question: string): NlResu
   if (/\b(cycle|cycles|circular|cyclic)\b/.test(lower)) {
     return {
       ok: true,
-      plan: { interpretation: 'cycles — circular dependency groups (SCCs)', entities: [], verb: 'cycles' },
+      plan: {
+        interpretation: 'cycles — circular dependency groups (SCCs)',
+        entities: [],
+        verb: 'cycles',
+      },
     };
   }
 
@@ -150,16 +254,22 @@ export function planFromQuestion(agent: AgentArtifact, question: string): NlResu
   if (incoming || outgoing) {
     const picked = pickEntity(agent, tokens);
     if (picked.ambiguous) {
-      return { ok: false, reason: 'That name matches several entities — pick one:', candidates: picked.ambiguous.slice(0, 10) };
+      return {
+        ok: false,
+        reason: 'That name matches several entities — pick one:',
+        candidates: picked.ambiguous.slice(0, 10),
+      };
     }
-    if (!picked.id) return didYouMean(agent, picked.tried, 'No matching entity found. Did you mean:');
+    if (!picked.id)
+      return didYouMean(agent, picked.tried, 'No matching entity found. Did you mean:');
 
     // Incoming wins when both cue groups fire (e.g. "who depends on X" matches
     // both) because "who/what <verb>" is the stronger directional signal.
     const direction: 'in' | 'out' = incoming ? 'in' : 'out';
-    const label = direction === 'in'
-      ? `callers — nodes that reference \`${picked.id}\``
-      : `imports — nodes that \`${picked.id}\` depends on`;
+    const label =
+      direction === 'in'
+        ? `callers — nodes that reference \`${picked.id}\``
+        : `imports — nodes that \`${picked.id}\` depends on`;
     return {
       ok: true,
       plan: {
@@ -194,7 +304,15 @@ export function planFromQuestion(agent: AgentArtifact, question: string): NlResu
     };
   }
   if (picked.ambiguous) {
-    return { ok: false, reason: 'That name matches several entities — pick one:', candidates: picked.ambiguous.slice(0, 10) };
+    return {
+      ok: false,
+      reason: 'That name matches several entities — pick one:',
+      candidates: picked.ambiguous.slice(0, 10),
+    };
   }
-  return didYouMean(agent, picked.tried.length ? picked.tried : tokens, 'Could not map that question to the graph. Did you mean:');
+  return didYouMean(
+    agent,
+    picked.tried.length ? picked.tried : tokens,
+    'Could not map that question to the graph. Did you mean:',
+  );
 }

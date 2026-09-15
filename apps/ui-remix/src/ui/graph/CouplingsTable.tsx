@@ -39,16 +39,22 @@ export function CouplingsTable(handle: Handle<CouplingsTableProps>) {
         <RuledTable minWidth="28rem" cols="minmax(0, 1fr) 32px minmax(0, 1fr) auto">
           <RuledRow header>
             <RuledCell header>From</RuledCell>
-            <RuledCell header>{' '}</RuledCell>
+            <RuledCell header> </RuledCell>
             <RuledCell header>To</RuledCell>
-            <RuledCell header align="right">Edges</RuledCell>
+            <RuledCell header align="right">
+              Edges
+            </RuledCell>
           </RuledRow>
           {couplings.map((c, i) => (
             <RuledRow key={i}>
               <RuledCell mono>{c.from}</RuledCell>
-              <RuledCell muted align="center"><span mix={arrow}>→</span></RuledCell>
+              <RuledCell muted align="center">
+                <span mix={arrow}>→</span>
+              </RuledCell>
               <RuledCell mono>{c.to}</RuledCell>
-              <RuledCell mono align="right">{fmt(c.count)}</RuledCell>
+              <RuledCell mono align="right">
+                {fmt(c.count)}
+              </RuledCell>
             </RuledRow>
           ))}
         </RuledTable>

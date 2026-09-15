@@ -15,8 +15,26 @@ function makeAgent(overrides: Record<string, unknown> = {}): AgentArtifact {
       ],
       edges: [{ from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' }],
       cycles: [],
-      symbolNodes: [{ id: 'a.ts#foo@1', path: 'a.ts', name: 'foo', kind: 'function', startLine: 1, endLine: 5, exported: true }],
-      symbolEdges: [{ from: 'a.ts#foo@1', to: 'b.ts#bar@1', kind: 'call', confidence: 'inferred', confidenceScore: 0.9 }],
+      symbolNodes: [
+        {
+          id: 'a.ts#foo@1',
+          path: 'a.ts',
+          name: 'foo',
+          kind: 'function',
+          startLine: 1,
+          endLine: 5,
+          exported: true,
+        },
+      ],
+      symbolEdges: [
+        {
+          from: 'a.ts#foo@1',
+          to: 'b.ts#bar@1',
+          kind: 'call',
+          confidence: 'inferred',
+          confidenceScore: 0.9,
+        },
+      ],
     },
     ...overrides,
   } as unknown as AgentArtifact;
@@ -32,20 +50,32 @@ describe('graph export (F14)', () => {
     expect(doc.graph.directed).toBe(true);
     expect(doc.graph.label).toBe('demo');
     const sym = doc.graph.edges.find((e: { source: string }) => e.source === 'a.ts#foo@1');
-    expect(sym).toMatchObject({ target: 'b.ts#bar@1', relation: 'call', metadata: { confidence: 'inferred' } });
+    expect(sym).toMatchObject({
+      target: 'b.ts#bar@1',
+      relation: 'call',
+      metadata: { confidence: 'inferred' },
+    });
   });
 
   it('graphml round-trips node + edge counts', () => {
     const xml = toGraphML(makeAgent());
-    expect((xml.match(/<node /g) || [])).toHaveLength(3);
-    expect((xml.match(/<edge /g) || [])).toHaveLength(2);
+    expect(xml.match(/<node /g) || []).toHaveLength(3);
+    expect(xml.match(/<edge /g) || []).toHaveLength(2);
     expect(xml.startsWith('<?xml')).toBe(true);
     expect(xml).toContain('edgedefault="directed"');
     expect(xml).toContain('<data key="ekind">import</data>');
   });
 
   it('escapes XML special chars in ids/labels', () => {
-    const a = makeAgent({ graph: { nodes: [{ id: 'a&b<c>.ts', path: 'a&b<c>.ts', language: 'ts' }], edges: [], cycles: [], symbolNodes: [], symbolEdges: [] } });
+    const a = makeAgent({
+      graph: {
+        nodes: [{ id: 'a&b<c>.ts', path: 'a&b<c>.ts', language: 'ts' }],
+        edges: [],
+        cycles: [],
+        symbolNodes: [],
+        symbolEdges: [],
+      },
+    });
     const xml = toGraphML(a);
     expect(xml).toContain('id="a&amp;b&lt;c&gt;.ts"');
     expect(xml).not.toContain('<c>.ts');
@@ -58,7 +88,15 @@ describe('graph export (F14)', () => {
   });
 
   it('degrades to the file graph when no symbols are present', () => {
-    const a = makeAgent({ graph: { nodes: [{ id: 'a.ts', path: 'a.ts', language: 'ts' }], edges: [], cycles: [], symbolNodes: [], symbolEdges: [] } });
+    const a = makeAgent({
+      graph: {
+        nodes: [{ id: 'a.ts', path: 'a.ts', language: 'ts' }],
+        edges: [],
+        cycles: [],
+        symbolNodes: [],
+        symbolEdges: [],
+      },
+    });
     const doc = JSON.parse(toJsonGraph(a));
     expect(doc.graph.metadata.nodeCount).toBe(1);
     expect(doc.graph.metadata.edgeCount).toBe(0);

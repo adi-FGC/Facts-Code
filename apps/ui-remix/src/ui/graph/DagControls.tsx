@@ -89,7 +89,8 @@ const segment = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover:not(:disabled)': {
     color: 'var(--accent)',
@@ -127,7 +128,8 @@ const standalone = css({
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   cursor: 'pointer',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover:not(:disabled)': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -179,18 +181,30 @@ export function DagControls(handle: Handle<DagControlsProps>) {
             type="button"
             aria-pressed={styleMode === 'classic' ? 'true' : 'false'}
             title="Monochrome, hairline borders, no arrowheads"
-            mix={[segment, styleMode === 'classic' ? segmentActive : null, on('click', () => {
-              if (styleMode !== 'classic') onStyleModeChange('classic');
-            })]}
-          >Classic</button>
+            mix={[
+              segment,
+              styleMode === 'classic' ? segmentActive : null,
+              on('click', () => {
+                if (styleMode !== 'classic') onStyleModeChange('classic');
+              }),
+            ]}
+          >
+            Classic
+          </button>
           <button
             type="button"
             aria-pressed={styleMode === 'neo' ? 'true' : 'false'}
             title="Dynamic color-coded imports/exports, arrowheads, and horizontal guide lines"
-            mix={[segment, styleMode === 'neo' ? segmentActive : null, on('click', () => {
-              if (styleMode !== 'neo') onStyleModeChange('neo');
-            })]}
-          >Neo-DAG</button>
+            mix={[
+              segment,
+              styleMode === 'neo' ? segmentActive : null,
+              on('click', () => {
+                if (styleMode !== 'neo') onStyleModeChange('neo');
+              }),
+            ]}
+          >
+            Neo-DAG
+          </button>
         </div>
 
         {/* Granularity: Files | Symbols */}
@@ -199,21 +213,35 @@ export function DagControls(handle: Handle<DagControlsProps>) {
             type="button"
             aria-pressed={granularity === 'files' ? 'true' : 'false'}
             title="File-level dependency graph"
-            mix={[segment, granularity === 'files' ? segmentActive : null, on('click', () => {
-              if (granularity !== 'files') onGranularityChange('files');
-            })]}
-          >Files</button>
+            mix={[
+              segment,
+              granularity === 'files' ? segmentActive : null,
+              on('click', () => {
+                if (granularity !== 'files') onGranularityChange('files');
+              }),
+            ]}
+          >
+            Files
+          </button>
           <button
             type="button"
             disabled={!symbolsAvailable}
             aria-pressed={granularity === 'symbols' ? 'true' : 'false'}
-            title={symbolsAvailable
-              ? 'Symbol-level (function/class) dependency graph'
-              : 'Symbol-level edges arrive in v0.4.4. The toggle lights up automatically when the analyzer ships them.'}
-            mix={[segment, granularity === 'symbols' ? segmentActive : null, on('click', () => {
-              if (symbolsAvailable && granularity !== 'symbols') onGranularityChange('symbols');
-            })]}
-          >Symbols</button>
+            title={
+              symbolsAvailable
+                ? 'Symbol-level (function/class) dependency graph'
+                : 'Symbol-level edges arrive in v0.4.4. The toggle lights up automatically when the analyzer ships them.'
+            }
+            mix={[
+              segment,
+              granularity === 'symbols' ? segmentActive : null,
+              on('click', () => {
+                if (symbolsAvailable && granularity !== 'symbols') onGranularityChange('symbols');
+              }),
+            ]}
+          >
+            Symbols
+          </button>
         </div>
 
         {/* Show-all toggle */}
@@ -221,14 +249,20 @@ export function DagControls(handle: Handle<DagControlsProps>) {
           type="button"
           disabled={!canShowAll}
           aria-pressed={showAll ? 'true' : 'false'}
-          title={canShowAll
-            ? showAll
-              ? `Limit back to top ${nodeCap} by degree`
-              : `Render all ${totalNodes} nodes (may be dense)`
-            : `Project has ${totalNodes} nodes — already showing all of them`}
-          mix={[standalone, showAll ? segmentActive : null, on('click', () => {
-            if (canShowAll) onShowAllChange(!showAll);
-          })]}
+          title={
+            canShowAll
+              ? showAll
+                ? `Limit back to top ${nodeCap} by degree`
+                : `Render all ${totalNodes} nodes (may be dense)`
+              : `Project has ${totalNodes} nodes — already showing all of them`
+          }
+          mix={[
+            standalone,
+            showAll ? segmentActive : null,
+            on('click', () => {
+              if (canShowAll) onShowAllChange(!showAll);
+            }),
+          ]}
         >
           {showAll ? `Top ${nodeCap}` : `Show all ${totalNodes}`}
         </button>
@@ -241,16 +275,24 @@ export function DagControls(handle: Handle<DagControlsProps>) {
           type="button"
           disabled={!communitiesAvailable}
           aria-pressed={colorByCommunity ? 'true' : 'false'}
-          title={communitiesAvailable
-            ? colorByCommunity
-              ? 'Back to monochrome nodes'
-              : 'Color nodes by module (label-propagation community)'
-            : 'No community metrics in this dataset — re-run `factstack analyze` to compute graph analytics.'}
-          mix={[standalone, colorByCommunity ? segmentActive : null, on('click', () => {
-            if (communitiesAvailable) onColorByCommunityChange(!colorByCommunity);
-          })]}
+          title={
+            communitiesAvailable
+              ? colorByCommunity
+                ? 'Back to monochrome nodes'
+                : 'Color nodes by module (label-propagation community)'
+              : 'No community metrics in this dataset — re-run `factstack analyze` to compute graph analytics.'
+          }
+          mix={[
+            standalone,
+            colorByCommunity ? segmentActive : null,
+            on('click', () => {
+              if (communitiesAvailable) onColorByCommunityChange(!colorByCommunity);
+            }),
+          ]}
         >
-          <span aria-hidden="true" mix={dimGlyph}>◑</span>
+          <span aria-hidden="true" mix={dimGlyph}>
+            ◑
+          </span>
           Communities
         </button>
 
@@ -261,12 +303,16 @@ export function DagControls(handle: Handle<DagControlsProps>) {
         <button
           type="button"
           disabled={!zoomedOrPanned}
-          title={zoomedOrPanned
-            ? 'Reset zoom, pan, and dragged-node positions'
-            : 'View is at default · Hold Alt and drag a node to reposition it · Drag the background to pan · Ctrl/⌘ + wheel to zoom'}
+          title={
+            zoomedOrPanned
+              ? 'Reset zoom, pan, and dragged-node positions'
+              : 'View is at default · Hold Alt and drag a node to reposition it · Drag the background to pan · Ctrl/⌘ + wheel to zoom'
+          }
           mix={[standalone, on('click', onResetZoom)]}
         >
-          <span aria-hidden="true" mix={dimGlyph}>⊙</span>
+          <span aria-hidden="true" mix={dimGlyph}>
+            ⊙
+          </span>
           Reset
         </button>
       </div>

@@ -48,7 +48,14 @@ function throttledProgress(id: string, phase: string): (pct: number, file: strin
     const now = performance.now();
     if (now - last < 100 && pct < 1) return;
     last = now;
-    post({ id, type: 'progress', phase, current: Math.round(pct * 100), total: 100, label: file || phase });
+    post({
+      id,
+      type: 'progress',
+      phase,
+      current: Math.round(pct * 100),
+      total: 100,
+      label: file || phase,
+    });
   };
 }
 
@@ -57,18 +64,42 @@ self.addEventListener('message', async (ev: MessageEvent<AnalyzeRequest>) => {
   try {
     if (req.kind === 'github') {
       const fs = await fetchGitHubToMemory(req.spec, (p) => {
-        post({ id: req.id, type: 'progress', phase: p.phase, current: p.current, total: p.total, label: p.label });
+        post({
+          id: req.id,
+          type: 'progress',
+          phase: p.phase,
+          current: p.current,
+          total: p.total,
+          label: p.label,
+        });
       });
-      post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Analyzing…' });
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Analyzing…',
+      });
       const projectName = `${req.spec.owner}/${req.spec.repo}${req.spec.ref ? '@' + req.spec.ref : ''}`;
-      const result = await analyze(fs, { projectName, onProgress: throttledProgress(req.id, 'analyzing') });
+      const result = await analyze(fs, {
+        projectName,
+        onProgress: throttledProgress(req.id, 'analyzing'),
+      });
       post({ id: req.id, type: 'done', ...result });
       return;
     }
 
     if (req.kind === 'local') {
       const fs = new FsaBrowserFS(req.root);
-      post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Walking…' });
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Walking…',
+      });
       const result = await analyze(fs, {
         projectName: req.projectName ?? req.root.name,
         onProgress: throttledProgress(req.id, 'analyzing'),
@@ -82,11 +113,25 @@ self.addEventListener('message', async (ev: MessageEvent<AnalyzeRequest>) => {
       const total = req.files.length;
       for (let i = 0; i < req.files.length; i++) {
         const entry = req.files[i]!;
-        post({ id: req.id, type: 'progress', phase: 'reading', current: i, total, label: entry.path });
+        post({
+          id: req.id,
+          type: 'progress',
+          phase: 'reading',
+          current: i,
+          total,
+          label: entry.path,
+        });
         files[entry.path] = await entry.file.text();
       }
       const fs = new MemoryFS(files);
-      post({ id: req.id, type: 'progress', phase: 'analyzing', current: 0, total: 0, label: 'Analyzing…' });
+      post({
+        id: req.id,
+        type: 'progress',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Analyzing…',
+      });
       const result = await analyze(fs, {
         projectName: req.projectName ?? 'local files',
         onProgress: throttledProgress(req.id, 'analyzing'),
@@ -95,7 +140,11 @@ self.addEventListener('message', async (ev: MessageEvent<AnalyzeRequest>) => {
       return;
     }
 
-    post({ id: (req as { id?: string }).id ?? '?', type: 'error', message: `Unknown analyze kind` });
+    post({
+      id: (req as { id?: string }).id ?? '?',
+      type: 'error',
+      message: `Unknown analyze kind`,
+    });
   } catch (err) {
     post({ id: req.id, type: 'error', message: err instanceof Error ? err.message : String(err) });
   }

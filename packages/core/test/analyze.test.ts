@@ -61,7 +61,7 @@ describe('analyze — oneLiner generation', () => {
   it('falls back to package.json description when README has no prose', async () => {
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'pkg', description: 'A query builder.' }),
-      'README.md': '# pkg\n\n## Installation\n',  // only headings
+      'README.md': '# pkg\n\n## Installation\n', // only headings
       'src/index.ts': 'export const x = 1;\n',
     });
     const r = await analyze(fs, { root: '.', projectName: 'pkg' });
@@ -95,7 +95,8 @@ describe('analyze — oneLiner generation', () => {
   it('skips badges and headings in README', async () => {
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'pkg' }),
-      'README.md': '# pkg\n\n[![CI](http://example.com/ci.svg)](http://example.com)\n\n![logo](logo.png)\n\nThe real tagline.\n',
+      'README.md':
+        '# pkg\n\n[![CI](http://example.com/ci.svg)](http://example.com)\n\n![logo](logo.png)\n\nThe real tagline.\n',
       'src/index.ts': 'export const x = 1;\n',
     });
     const r = await analyze(fs, { root: '.', projectName: 'pkg' });
@@ -125,7 +126,9 @@ describe('analyze — framework detection', () => {
       'src/App.tsx': 'export const App = () => null;\n',
     });
     const r = await analyze(fs, { root: '.', projectName: 'app' });
-    expect(r.agent.project.frameworks).toEqual(expect.arrayContaining(['React', 'Vite', 'Tailwind CSS']));
+    expect(r.agent.project.frameworks).toEqual(
+      expect.arrayContaining(['React', 'Vite', 'Tailwind CSS']),
+    );
   });
 });
 
@@ -162,7 +165,8 @@ describe('analyze — route detection + reclassification', () => {
         name: 'app',
         dependencies: { react: '^19.0.0', 'react-router-dom': '^7.0.0' },
       }),
-      'src/pages/DashboardStudent.jsx': 'export default function DashboardStudent() { return null; }\n',
+      'src/pages/DashboardStudent.jsx':
+        'export default function DashboardStudent() { return null; }\n',
     });
     const r = await analyze(fs, { root: '.', projectName: 'app' });
     expect(r.agent.routes.find((rt) => rt.path === '/dashboard-student')).toBeDefined();
@@ -199,7 +203,7 @@ describe('analyze — risks pipeline', () => {
     // the canonical AWS-published example tokens are publicly documented but
     // GitHub Push Protection still flags the literal forms. Split here so
     // future commits don't re-trigger; runtime byte sequence is unchanged.
-    const AWS_KEY    = 'AKIAI' + 'OSFODNN' + '7EXAMPLE';
+    const AWS_KEY = 'AKIAI' + 'OSFODNN' + '7EXAMPLE';
     const AWS_SECRET = 'wJalr' + 'XUtnFEMI/K7MDENG' + '/bPxRfiCYEXAMPLEKEY';
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'app' }),
@@ -235,7 +239,8 @@ describe('analyze — entry points', () => {
   it('does NOT duplicate routes into entryPoints (v0.2.1 polish)', async () => {
     const fs = memoryFS({
       'package.json': JSON.stringify({
-        name: 'app', scripts: { dev: 'vite' },
+        name: 'app',
+        scripts: { dev: 'vite' },
         dependencies: { react: '^19.0.0', 'react-router-dom': '^7.0.0' },
       }),
       'src/pages/Home.jsx': 'export default function Home() { return null; }\n',
@@ -326,7 +331,8 @@ describe('analyze — onProgress callback', () => {
       'src/b.ts': 'export const b = 2;\n',
     });
     await analyze(fs, {
-      root: '.', projectName: 'app',
+      root: '.',
+      projectName: 'app',
       onProgress: (pct, file) => events.push({ pct, file }),
     });
     expect(events.length).toBeGreaterThan(0);
@@ -454,8 +460,10 @@ describe('analyze — symbol graph (F2)', () => {
   // resolved-backfill → buildSymbolGraph), not the resolver in isolation.
   const symbolsFixture: Record<string, string> = {
     'package.json': JSON.stringify({ name: 'sym', version: '0.0.0' }),
-    'src/a.ts': 'export function helper() {\n  return 42;\n}\n\nexport function caller() {\n  return helper();\n}\n',
-    'src/b.ts': "import { helper } from './a';\n\nexport function runHelper() {\n  return helper();\n}\n",
+    'src/a.ts':
+      'export function helper() {\n  return 42;\n}\n\nexport function caller() {\n  return helper();\n}\n',
+    'src/b.ts':
+      "import { helper } from './a';\n\nexport function runHelper() {\n  return helper();\n}\n",
   };
 
   it('stays empty unless opts.symbols is set (gated --symbols rollout)', async () => {
@@ -469,7 +477,9 @@ describe('analyze — symbol graph (F2)', () => {
     const fs = memoryFS(symbolsFixture);
     const r = await analyze(fs, { root: '.', projectName: 'sym', symbols: true });
 
-    const helper = r.agent.graph.symbolNodes.find((n) => n.path === 'src/a.ts' && n.name === 'helper');
+    const helper = r.agent.graph.symbolNodes.find(
+      (n) => n.path === 'src/a.ts' && n.name === 'helper',
+    );
     expect(helper).toBeDefined();
 
     // Same-file caller() → helper(): fully extracted, no confidence score.
@@ -564,7 +574,9 @@ describe('analyze — read failures are never status ok (facts+ eval regression)
     // bytes come from stat — the row must not look like an empty file.
     expect(row.bytes).toBeGreaterThan(0);
 
-    const risk = r.agent.risks.find((k) => k.category === 'read-error' && k.file === 'src/engine.ts');
+    const risk = r.agent.risks.find(
+      (k) => k.category === 'read-error' && k.file === 'src/engine.ts',
+    );
     expect(risk).toBeDefined();
     expect(risk!.severity).toBe('medium');
 
@@ -611,7 +623,8 @@ describe('analyze — unresolved imports into unscanned directories (dist/)', ()
     // message claimed "dependency removed or path stale" — wrong diagnosis.
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
-      'worker/audit.ts': "import { axeMap } from '../packages/runtime/dist/axe-map.js';\nexport const m = axeMap;\n",
+      'worker/audit.ts':
+        "import { axeMap } from '../packages/runtime/dist/axe-map.js';\nexport const m = axeMap;\n",
       'packages/runtime/dist/axe-map.js': 'export const axeMap = {};\n',
     });
     const r = await analyze(fs, { root: '.', projectName: 'p' });
@@ -642,9 +655,11 @@ describe('analyze — source files sniffed as binary are not silent', () => {
     // The actual root cause of the eval miss: ONE literal NUL inside a
     // template string tripped the binary sniff, and the skip was recorded
     // as `ok` with loc 0.
-    const source = 'export function cacheKey(files: string[]): string {\n' +
+    const source =
+      'export function cacheKey(files: string[]): string {\n' +
       '  return files.map((f) => `${f}\0suffix`).join("|");\n' +
-      '}\n' + '// padding\n'.repeat(300);
+      '}\n' +
+      '// padding\n'.repeat(300);
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
       'src/engine.ts': source,
@@ -682,7 +697,16 @@ describe('analyze — source files sniffed as binary are not silent', () => {
 
 describe('secrets in test fixtures (v0.3.11)', () => {
   it('classifies test / fixture paths by convention', () => {
-    for (const p of ['test/a.ts', 'packages/x/test/a.ts', 'src/__tests__/a.ts', 'src/__fixtures__/keys.ts', 'fixtures/k.json', 'src/a.test.ts', 'src/a.spec.tsx', 'testdata/x']) {
+    for (const p of [
+      'test/a.ts',
+      'packages/x/test/a.ts',
+      'src/__tests__/a.ts',
+      'src/__fixtures__/keys.ts',
+      'fixtures/k.json',
+      'src/a.test.ts',
+      'src/a.spec.tsx',
+      'testdata/x',
+    ]) {
       expect(isTestFixturePath(p), p).toBe(true);
     }
     for (const p of ['src/config.ts', 'src/testing-utils.ts', 'contest/a.ts', 'src/latest.ts']) {

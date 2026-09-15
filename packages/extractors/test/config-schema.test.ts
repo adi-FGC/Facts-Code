@@ -20,11 +20,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  extractEnvVars,
-  extractEnvVarsJS,
-  extractEnvVarsPython,
-} from '../src/config-schema.js';
+import { extractEnvVars, extractEnvVarsJS, extractEnvVarsPython } from '../src/config-schema.js';
 
 describe('extractEnvVarsJS — direct member access', () => {
   it('detects process.env.FOO', () => {
@@ -54,23 +50,16 @@ describe('extractEnvVarsJS — direct member access', () => {
 describe('extractEnvVarsJS — computed string access', () => {
   it('detects process.env["FOO"] (double quotes)', () => {
     const out = extractEnvVarsJS(`const x = process.env["FOO"];`, '.ts');
-    expect(out).toEqual([
-      { name: 'FOO', access: 'process.env', line: 1, defaultValue: null },
-    ]);
+    expect(out).toEqual([{ name: 'FOO', access: 'process.env', line: 1, defaultValue: null }]);
   });
 
   it("detects process.env['BAR'] (single quotes)", () => {
     const out = extractEnvVarsJS(`const x = process.env['BAR'];`, '.ts');
-    expect(out).toEqual([
-      { name: 'BAR', access: 'process.env', line: 1, defaultValue: null },
-    ]);
+    expect(out).toEqual([{ name: 'BAR', access: 'process.env', line: 1, defaultValue: null }]);
   });
 
   it('does NOT detect process.env[dynamicKey] (non-literal)', () => {
-    const out = extractEnvVarsJS(
-      `const k = 'FOO'; const x = process.env[k];`,
-      '.ts',
-    );
+    const out = extractEnvVarsJS(`const k = 'FOO'; const x = process.env[k];`, '.ts');
     expect(out).toEqual([]);
   });
 });
@@ -83,28 +72,19 @@ describe('extractEnvVarsJS — destructuring', () => {
   });
 
   it('detects destructuring from import.meta.env', () => {
-    const out = extractEnvVarsJS(
-      `const { VITE_API, VITE_KEY } = import.meta.env;`,
-      '.ts',
-    );
+    const out = extractEnvVarsJS(`const { VITE_API, VITE_KEY } = import.meta.env;`, '.ts');
     expect(out.map((e) => e.access)).toEqual(['import.meta.env', 'import.meta.env']);
   });
 });
 
 describe('extractEnvVarsJS — default value capture', () => {
   it('captures ?? default literal', () => {
-    const out = extractEnvVarsJS(
-      `const port = process.env.PORT ?? '3000';`,
-      '.ts',
-    );
+    const out = extractEnvVarsJS(`const port = process.env.PORT ?? '3000';`, '.ts');
     expect(out[0]?.defaultValue).toBe('3000');
   });
 
   it('captures || default literal', () => {
-    const out = extractEnvVarsJS(
-      `const env = process.env.NODE_ENV || 'development';`,
-      '.ts',
-    );
+    const out = extractEnvVarsJS(`const env = process.env.NODE_ENV || 'development';`, '.ts');
     expect(out[0]?.defaultValue).toBe('development');
   });
 
@@ -124,9 +104,7 @@ describe('extractEnvVarsPython', () => {
 
   it('detects os.getenv("FOO", "default") and captures the default', () => {
     const out = extractEnvVarsPython(`x = os.getenv("PORT", "8080")`);
-    expect(out).toEqual([
-      { name: 'PORT', access: 'os.getenv', line: 1, defaultValue: '8080' },
-    ]);
+    expect(out).toEqual([{ name: 'PORT', access: 'os.getenv', line: 1, defaultValue: '8080' }]);
   });
 
   it('detects os.environ["FOO"]', () => {
@@ -144,12 +122,9 @@ describe('extractEnvVarsPython', () => {
   });
 
   it('reports the correct line number for matches deeper in the file', () => {
-    const src = [
-      'def main():',
-      '    print("hi")',
-      '    x = os.getenv("FOO")',
-      '    return x',
-    ].join('\n');
+    const src = ['def main():', '    print("hi")', '    x = os.getenv("FOO")', '    return x'].join(
+      '\n',
+    );
     const out = extractEnvVarsPython(src);
     expect(out[0]?.line).toBe(3);
   });
@@ -196,10 +171,6 @@ describe('determinism + ordering', () => {
       const z = process.env.ALPHA;
     `;
     const out = extractEnvVarsJS(src, '.ts');
-    expect(out.map((e) => `${e.name}:${e.line}`)).toEqual([
-      'ALPHA:3',
-      'ALPHA:4',
-      'ZULU:2',
-    ]);
+    expect(out.map((e) => `${e.name}:${e.line}`)).toEqual(['ALPHA:3', 'ALPHA:4', 'ZULU:2']);
   });
 });

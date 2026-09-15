@@ -17,10 +17,10 @@ import { rewriteRiskMessage, applyRewrite, RULE_REWRITES } from '../src/risks-re
  * meaningless to a CXO, not every technical word ever. */
 const FORBIDDEN_JARGON = [
   /\bentropy\b/i,
-  /\bSCA\b/,           // case-sensitive; "SCA" is the acronym, lowercase "sca" is fine in "scan"
+  /\bSCA\b/, // case-sensitive; "SCA" is the acronym, lowercase "sca" is fine in "scan"
   /\bSPDX\b/i,
   /\btransitive\b/i,
-  /\bAST\b/,           // case-sensitive; lowercase appears in many words
+  /\bAST\b/, // case-sensitive; lowercase appears in many words
 ];
 
 describe('rewriteRiskMessage — every rule produces a clean string', () => {

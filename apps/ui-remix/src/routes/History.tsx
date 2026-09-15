@@ -82,9 +82,8 @@ export function History(handle: Handle<HistoryProps>) {
             <h1 mix={headline}>One snapshot so far.</h1>
             <p mix={lede}>
               Trend lines populate after multiple analyses. Re-run{' '}
-              <code mix={monoCode}>factstack analyze</code>{' '}
-              on a recurring schedule (a CI step, a watch loop, or a cron)
-              to populate LOC, risk count, and token-cost evolution here.
+              <code mix={monoCode}>factstack analyze</code> on a recurring schedule (a CI step, a
+              watch loop, or a cron) to populate LOC, risk count, and token-cost evolution here.
             </p>
           </div>
           <MarginColumn>
@@ -96,27 +95,29 @@ export function History(handle: Handle<HistoryProps>) {
       );
     }
     const series = {
-      loc:    history.map((h) => h.loc),
+      loc: history.map((h) => h.loc),
       tokens: history.map((h) => h.tokens),
-      files:  history.map((h) => h.files),
-      risks:  history.map((h) => h.risks),
+      files: history.map((h) => h.files),
+      risks: history.map((h) => h.risks),
     };
     const last = history[history.length - 1]!;
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>History · {history.length} {history.length === 1 ? 'snapshot' : 'snapshots'}</div>
+          <div mix={kicker}>
+            History · {history.length} {history.length === 1 ? 'snapshot' : 'snapshots'}
+          </div>
           <h1 mix={headline}>Trends over time.</h1>
           <p mix={lede}>
-            Each row below is a single analysis pass. The figures above
-            track the latest value with a sparkline of the full series.
+            Each row below is a single analysis pass. The figures above track the latest value with
+            a sparkline of the full series.
           </p>
 
           <LabelNumberRow>
             <LabelNumber
               label="Lines"
               value={fmt(last.loc)}
-              trailing={<Sparkline values={series.loc}    label="lines over time" />}
+              trailing={<Sparkline values={series.loc} label="lines over time" />}
             />
             <LabelNumber
               label="Tokens"
@@ -126,12 +127,14 @@ export function History(handle: Handle<HistoryProps>) {
             <LabelNumber
               label="Files"
               value={fmt(last.files)}
-              trailing={<Sparkline values={series.files}  label="files over time" />}
+              trailing={<Sparkline values={series.files} label="files over time" />}
             />
             <LabelNumber
               label="Risks"
               value={last.risks}
-              trailing={<Sparkline values={series.risks}  label="risks over time" color="var(--danger)" />}
+              trailing={
+                <Sparkline values={series.risks} label="risks over time" color="var(--danger)" />
+              }
               last
             />
           </LabelNumberRow>
@@ -140,24 +143,47 @@ export function History(handle: Handle<HistoryProps>) {
             <RuledTable minWidth="34rem" cols="auto auto auto auto auto auto">
               <RuledRow header>
                 <RuledCell header>When</RuledCell>
-                <RuledCell header align="right">Files</RuledCell>
-                <RuledCell header align="right">Lines</RuledCell>
-                <RuledCell header align="right">Tokens</RuledCell>
-                <RuledCell header align="right">Risks</RuledCell>
-                <RuledCell header align="right">TODOs</RuledCell>
+                <RuledCell header align="right">
+                  Files
+                </RuledCell>
+                <RuledCell header align="right">
+                  Lines
+                </RuledCell>
+                <RuledCell header align="right">
+                  Tokens
+                </RuledCell>
+                <RuledCell header align="right">
+                  Risks
+                </RuledCell>
+                <RuledCell header align="right">
+                  TODOs
+                </RuledCell>
               </RuledRow>
-              {history.slice().reverse().map((h, i) => (
-                <RuledRow key={i}>
-                  <RuledCell mono>
-                    {new Date(h.at).toISOString().slice(0, 19).replace('T', ' ')}
-                  </RuledCell>
-                  <RuledCell mono align="right">{fmt(h.files)}</RuledCell>
-                  <RuledCell mono align="right">{fmt(h.loc)}</RuledCell>
-                  <RuledCell mono align="right">{fmt(h.tokens)}</RuledCell>
-                  <RuledCell mono align="right">{h.risks}</RuledCell>
-                  <RuledCell mono align="right">{h.todos}</RuledCell>
-                </RuledRow>
-              ))}
+              {history
+                .slice()
+                .reverse()
+                .map((h, i) => (
+                  <RuledRow key={i}>
+                    <RuledCell mono>
+                      {new Date(h.at).toISOString().slice(0, 19).replace('T', ' ')}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {fmt(h.files)}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {fmt(h.loc)}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {fmt(h.tokens)}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {h.risks}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {h.todos}
+                    </RuledCell>
+                  </RuledRow>
+                ))}
             </RuledTable>
           </Section>
         </div>

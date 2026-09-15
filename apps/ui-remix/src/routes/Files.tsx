@@ -44,13 +44,13 @@ interface FilesProps {
  * ────────────────────────────────────────────────────────────────── */
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 10_000)    return (n / 1_000).toFixed(1) + 'K';
-  if (n >= 1_000)     return (n / 1_000).toFixed(2) + 'K';
+  if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
   return n.toLocaleString('en-US');
 }
 function fmtBytes(n: number): string {
   if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' MB';
-  if (n >= 1024)        return (n / 1024).toFixed(1) + ' KB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
   return n + ' B';
 }
 
@@ -193,11 +193,11 @@ const todoText = css({
 });
 
 const TODO_KIND_COLOR: Record<string, string> = {
-  TODO:  'var(--info)',
+  TODO: 'var(--info)',
   FIXME: 'var(--warn)',
-  HACK:  'var(--warn)',
-  XXX:   'var(--danger)',
-  NOTE:  'var(--fg-muted)',
+  HACK: 'var(--warn)',
+  XXX: 'var(--danger)',
+  NOTE: 'var(--fg-muted)',
 };
 
 /* ──────────────────────────────────────────────────────────────────
@@ -231,12 +231,18 @@ function readIndexMode(): IndexMode {
   try {
     const v = localStorage.getItem(INDEX_VIEW_KEY);
     if (v === 'tables' || v === 'map') return v;
-  } catch { /* swallow */ }
+  } catch {
+    /* swallow */
+  }
   return 'tables';
 }
 function writeIndexMode(v: IndexMode): void {
   if (typeof localStorage === 'undefined') return;
-  try { localStorage.setItem(INDEX_VIEW_KEY, v); } catch { /* swallow */ }
+  try {
+    localStorage.setItem(INDEX_VIEW_KEY, v);
+  } catch {
+    /* swallow */
+  }
 }
 
 /* Segmented control — same grammar as the Flow / Graph view toggles. */
@@ -265,7 +271,8 @@ const modeSeg = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
@@ -306,14 +313,16 @@ export function Files(handle: Handle<FilesProps>) {
         return (
           <ContentWithMargin>
             <div mix={css({ gridColumn: '1', minWidth: '0' })}>
-              <a href="/files" mix={backLink}>← All files</a>
+              <a href="/files" mix={backLink}>
+                ← All files
+              </a>
               <div mix={kicker}>Files · not found</div>
               <h1 mix={headline}>That path isn't in the index.</h1>
               <p mix={lede}>
                 <span mix={css({ fontFamily: 'var(--font-mono)', fontSize: '0.92em' })}>{sel}</span>{' '}
-                wasn't found in the latest snapshot. The tree may have been
-                re-walked since the link was shared. Pick another file from
-                the index, or re-run <span mix={css({ fontFamily: 'var(--font-mono)' })}>factstack analyze</span>.
+                wasn't found in the latest snapshot. The tree may have been re-walked since the link
+                was shared. Pick another file from the index, or re-run{' '}
+                <span mix={css({ fontFamily: 'var(--font-mono)' })}>factstack analyze</span>.
               </p>
             </div>
             <MarginColumn>
@@ -334,21 +343,22 @@ export function Files(handle: Handle<FilesProps>) {
       return (
         <ContentWithMargin>
           <div mix={css({ gridColumn: '1', minWidth: '0' })}>
-            <a href="/files" mix={backLink}>← All files</a>
+            <a href="/files" mix={backLink}>
+              ← All files
+            </a>
             <div mix={kicker}>Files · {file.language?.label ?? 'Unknown'}</div>
             {dir && <div mix={crumbs}>{dir}/</div>}
             <h1 mix={[headline, headlineBreak]}>{name}</h1>
             <p mix={lede}>
-              {file.language?.label ?? 'Unknown'} · {fmt(file.loc)} lines ·{' '}
-              {fmt(file.tokens)} tokens · last touched{' '}
-              {new Date(file.mtime).toISOString().slice(0, 10)}.
+              {file.language?.label ?? 'Unknown'} · {fmt(file.loc)} lines · {fmt(file.tokens)}{' '}
+              tokens · last touched {new Date(file.mtime).toISOString().slice(0, 10)}.
             </p>
 
             <LabelNumberRow>
-              <LabelNumber label="Lines"  value={fmt(file.loc)} />
+              <LabelNumber label="Lines" value={fmt(file.loc)} />
               <LabelNumber label="Tokens" value={fmt(file.tokens)} unit="cl100k" />
-              <LabelNumber label="Bytes"  value={fmtBytes(file.size)} />
-              <LabelNumber label="TODOs"  value={file.todos} last />
+              <LabelNumber label="Bytes" value={fmtBytes(file.size)} />
+              <LabelNumber label="TODOs" value={file.todos} last />
             </LabelNumberRow>
 
             {/* TODOs are the only outline-shaped data we have until the
@@ -360,7 +370,12 @@ export function Files(handle: Handle<FilesProps>) {
                 {file.todoEntries.map((t, i) => (
                   <div key={i} mix={todoRow}>
                     <span mix={todoLine}>L{t.line}</span>
-                    <span mix={[todoKind, css({ color: TODO_KIND_COLOR[t.kind.toUpperCase()] ?? 'var(--fg-muted)' })]}>
+                    <span
+                      mix={[
+                        todoKind,
+                        css({ color: TODO_KIND_COLOR[t.kind.toUpperCase()] ?? 'var(--fg-muted)' }),
+                      ]}
+                    >
                       {t.kind}
                     </span>
                     <span mix={todoText}>{t.text}</span>
@@ -370,7 +385,10 @@ export function Files(handle: Handle<FilesProps>) {
             )}
 
             {imports.length > 0 && (
-              <Section label="Imports" title={`${imports.length} ${imports.length === 1 ? 'file' : 'files'} this depends on`}>
+              <Section
+                label="Imports"
+                title={`${imports.length} ${imports.length === 1 ? 'file' : 'files'} this depends on`}
+              >
                 <RuledTable cols="80px minmax(0, 1fr)">
                   <RuledRow header>
                     <RuledCell header>Kind</RuledCell>
@@ -378,9 +396,17 @@ export function Files(handle: Handle<FilesProps>) {
                   </RuledRow>
                   {imports.map((e, i) => (
                     <RuledRow key={i}>
-                      <RuledCell mono muted>{e.kind === 'type-import' ? 'TYPE' : e.kind === 'dynamic-import' ? 'DYN' : 'IMP'}</RuledCell>
+                      <RuledCell mono muted>
+                        {e.kind === 'type-import'
+                          ? 'TYPE'
+                          : e.kind === 'dynamic-import'
+                            ? 'DYN'
+                            : 'IMP'}
+                      </RuledCell>
                       <RuledCell>
-                        <a href={`/files?p=${encodeURIComponent(e.to)}`} mix={fileLink}>{e.to}</a>
+                        <a href={`/files?p=${encodeURIComponent(e.to)}`} mix={fileLink}>
+                          {e.to}
+                        </a>
                       </RuledCell>
                     </RuledRow>
                   ))}
@@ -389,7 +415,10 @@ export function Files(handle: Handle<FilesProps>) {
             )}
 
             {importedBy.length > 0 && (
-              <Section label="Imported by" title={`${importedBy.length} ${importedBy.length === 1 ? 'file depends' : 'files depend'} on this`}>
+              <Section
+                label="Imported by"
+                title={`${importedBy.length} ${importedBy.length === 1 ? 'file depends' : 'files depend'} on this`}
+              >
                 <RuledTable cols="80px minmax(0, 1fr)">
                   <RuledRow header>
                     <RuledCell header>Kind</RuledCell>
@@ -397,9 +426,17 @@ export function Files(handle: Handle<FilesProps>) {
                   </RuledRow>
                   {importedBy.map((e, i) => (
                     <RuledRow key={i}>
-                      <RuledCell mono muted>{e.kind === 'type-import' ? 'TYPE' : e.kind === 'dynamic-import' ? 'DYN' : 'IMP'}</RuledCell>
+                      <RuledCell mono muted>
+                        {e.kind === 'type-import'
+                          ? 'TYPE'
+                          : e.kind === 'dynamic-import'
+                            ? 'DYN'
+                            : 'IMP'}
+                      </RuledCell>
                       <RuledCell>
-                        <a href={`/files?p=${encodeURIComponent(e.from)}`} mix={fileLink}>{e.from}</a>
+                        <a href={`/files?p=${encodeURIComponent(e.from)}`} mix={fileLink}>
+                          {e.from}
+                        </a>
                       </RuledCell>
                     </RuledRow>
                   ))}
@@ -410,16 +447,24 @@ export function Files(handle: Handle<FilesProps>) {
             {imports.length === 0 && importedBy.length === 0 && file.todoEntries.length === 0 && (
               <Section label="Quiet file" title="Nothing else to report">
                 <p mix={css({ color: 'var(--fg-muted)', maxWidth: '60ch', lineHeight: '1.6' })}>
-                  No tracked imports, no callers, no TODOs. Either a leaf
-                  asset (CSS, config, fixture) or freshly-added code the
-                  graph hasn't crawled yet.
+                  No tracked imports, no callers, no TODOs. Either a leaf asset (CSS, config,
+                  fixture) or freshly-added code the graph hasn't crawled yet.
                 </p>
               </Section>
             )}
           </div>
 
           <MarginColumn>
-            <FootnoteChip label="Status" tone={file.status === 'ok' ? 'ok' : file.status === 'broken' || file.status === 'read_error' ? 'danger' : 'warn'}>
+            <FootnoteChip
+              label="Status"
+              tone={
+                file.status === 'ok'
+                  ? 'ok'
+                  : file.status === 'broken' || file.status === 'read_error'
+                    ? 'danger'
+                    : 'warn'
+              }
+            >
               {file.status.toUpperCase()}
             </FootnoteChip>
             {/* v0.3.8 — reading-time chip when present. Skipped/empty
@@ -452,8 +497,10 @@ export function Files(handle: Handle<FilesProps>) {
                       >
                         <span mix={css({ color: 'var(--fg)' })}>{display}</span>
                         <span mix={css({ color: 'var(--fg-faint)' })}>
-                          {' · '}{c.commits} commit{c.commits === 1 ? '' : 's'}
-                          {' · '}{days}d ago
+                          {' · '}
+                          {c.commits} commit{c.commits === 1 ? '' : 's'}
+                          {' · '}
+                          {days}d ago
                         </span>
                       </li>
                     );
@@ -462,7 +509,13 @@ export function Files(handle: Handle<FilesProps>) {
               </FootnoteChip>
             )}
             <FootnoteChip label="Path" aside="copy-friendly">
-              <span mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-11)', wordBreak: 'break-all' })}>
+              <span
+                mix={css({
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 'var(--fs-11)',
+                  wordBreak: 'break-all',
+                })}
+              >
                 {file.path}
               </span>
             </FootnoteChip>
@@ -480,7 +533,8 @@ export function Files(handle: Handle<FilesProps>) {
       .filter((f) => f.status !== 'ok' || f.todos > 0)
       .sort((a, b) => {
         // Sort: broken/parse_error/read_error first, then stale, then by todo count desc.
-        const sevOf = (s: string) => s === 'broken' || s === 'parse_error' || s === 'read_error' ? 2 : s === 'stale' ? 1 : 0;
+        const sevOf = (s: string) =>
+          s === 'broken' || s === 'parse_error' || s === 'read_error' ? 2 : s === 'stale' ? 1 : 0;
         const sevA = sevOf(a.status);
         const sevB = sevOf(b.status);
         if (sevA !== sevB) return sevB - sevA;
@@ -489,8 +543,10 @@ export function Files(handle: Handle<FilesProps>) {
       .slice(0, 25);
 
     const totalTokens = all.reduce((s, f) => s + f.tokens, 0);
-    const totalLoc    = all.reduce((s, f) => s + f.loc, 0);
-    const brokenCount = all.filter((f) => f.status === 'broken' || f.status === 'parse_error' || f.status === 'read_error').length;
+    const totalLoc = all.reduce((s, f) => s + f.loc, 0);
+    const brokenCount = all.filter(
+      (f) => f.status === 'broken' || f.status === 'parse_error' || f.status === 'read_error',
+    ).length;
     /* Count stale over the FULL list, not the capped `attention` slice, so the
        "At risk" headline sums two terms over one population. (The slice ranks
        broken-family files above stale, so >25 broken files would otherwise
@@ -512,25 +568,39 @@ export function Files(handle: Handle<FilesProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1', minWidth: '0' })}>
-          <div mix={kicker}>Files · {fmt(all.length)} {all.length === 1 ? 'file' : 'files'}</div>
+          <div mix={kicker}>
+            Files · {fmt(all.length)} {all.length === 1 ? 'file' : 'files'}
+          </div>
           <h1 mix={headline}>Every file, ranked by weight.</h1>
           <p mix={lede}>
-            Token cost is the price of asking an AI agent to load a file.
-            The heaviest first. Files needing attention follow — broken,
-            stale, or carrying open TODOs.
+            Token cost is the price of asking an AI agent to load a file. The heaviest first. Files
+            needing attention follow — broken, stale, or carrying open TODOs.
           </p>
 
           <LabelNumberRow>
             <LabelNumber label="All files" value={fmt(all.length)} />
-            <LabelNumber label="Lines"   value={fmt(totalLoc)} />
-            <LabelNumber label="Tokens"  value={fmt(totalTokens)} unit="cl100k" />
+            <LabelNumber label="Lines" value={fmt(totalLoc)} />
+            <LabelNumber label="Tokens" value={fmt(totalTokens)} unit="cl100k" />
             <LabelNumber label="At risk" value={brokenCount + staleCount} last />
           </LabelNumberRow>
 
           <div
-            mix={[modeToggle, on<HTMLDivElement>('keydown', (e) => {
-              if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, INDEX_MODES, indexMode, setIndexMode, 'tab')) e.preventDefault();
-            })]}
+            mix={[
+              modeToggle,
+              on<HTMLDivElement>('keydown', (e) => {
+                if (
+                  moveRoving(
+                    (e as unknown as KeyboardEvent).key,
+                    e.currentTarget,
+                    INDEX_MODES,
+                    indexMode,
+                    setIndexMode,
+                    'tab',
+                  )
+                )
+                  e.preventDefault();
+              }),
+            ]}
             role="tablist"
             aria-label="Files index view"
           >
@@ -543,8 +613,14 @@ export function Files(handle: Handle<FilesProps>) {
                   role="tab"
                   aria-selected={active ? 'true' : 'false'}
                   tabIndex={active ? 0 : -1}
-                  title={m.key === 'map' ? 'Treemap — area = tokens, colour = language' : 'Ranked tables'}
-                  mix={[modeSeg, active ? modeSegActive : null, on('click', () => setIndexMode(m.key))]}
+                  title={
+                    m.key === 'map' ? 'Treemap — area = tokens, colour = language' : 'Ranked tables'
+                  }
+                  mix={[
+                    modeSeg,
+                    active ? modeSegActive : null,
+                    on('click', () => setIndexMode(m.key)),
+                  ]}
                 >
                   {m.label}
                 </button>
@@ -553,7 +629,10 @@ export function Files(handle: Handle<FilesProps>) {
           </div>
 
           {indexMode === 'map' && (
-            <Section label="Code map" title={`${mapItems.length} heaviest files · area = tokens, colour = language`}>
+            <Section
+              label="Code map"
+              title={`${mapItems.length} heaviest files · area = tokens, colour = language`}
+            >
               <Treemap
                 items={mapItems}
                 height={480}
@@ -565,7 +644,10 @@ export function Files(handle: Handle<FilesProps>) {
                 <div mix={legendRow}>
                   {legend.map((l) => (
                     <span key={l.id} mix={legendItem}>
-                      <span mix={[legendSwatch, css({ background: l.iconColor })]} aria-hidden="true" />
+                      <span
+                        mix={[legendSwatch, css({ background: l.iconColor })]}
+                        aria-hidden="true"
+                      />
                       {l.label} · {fmt(l.tokens)}
                     </span>
                   ))}
@@ -576,65 +658,106 @@ export function Files(handle: Handle<FilesProps>) {
 
           {indexMode === 'tables' && (
             <>
-          <Section label="Heaviest" title="Top 25 by token cost">
-            <RuledTable minWidth="38rem" cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto auto">
-              <RuledRow header>
-                <RuledCell header>Name</RuledCell>
-                <RuledCell header>Folder</RuledCell>
-                <RuledCell header align="right">Lines</RuledCell>
-                <RuledCell header align="right">Tokens</RuledCell>
-                <RuledCell header align="right">TODOs</RuledCell>
-                <RuledCell header align="right">Status</RuledCell>
-              </RuledRow>
-              {heaviest.map((f) => {
-                const { dir, name } = splitDirAndName(f.path);
-                return (
-                  <RuledRow key={f.path}>
-                    <RuledCell>
-                      <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{name}</a>
+              <Section label="Heaviest" title="Top 25 by token cost">
+                <RuledTable
+                  minWidth="38rem"
+                  cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto auto"
+                >
+                  <RuledRow header>
+                    <RuledCell header>Name</RuledCell>
+                    <RuledCell header>Folder</RuledCell>
+                    <RuledCell header align="right">
+                      Lines
                     </RuledCell>
-                    <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-                    <RuledCell mono align="right">{fmt(f.loc)}</RuledCell>
-                    <RuledCell mono align="right">{fmt(f.tokens)}</RuledCell>
-                    <RuledCell mono align="right">{f.todos > 0 ? f.todos : '—'}</RuledCell>
-                    <RuledCell align="right">
-                      <StatusChip kind={f.status} />
+                    <RuledCell header align="right">
+                      Tokens
+                    </RuledCell>
+                    <RuledCell header align="right">
+                      TODOs
+                    </RuledCell>
+                    <RuledCell header align="right">
+                      Status
                     </RuledCell>
                   </RuledRow>
-                );
-              })}
-            </RuledTable>
-          </Section>
+                  {heaviest.map((f) => {
+                    const { dir, name } = splitDirAndName(f.path);
+                    return (
+                      <RuledRow key={f.path}>
+                        <RuledCell>
+                          <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                            {name}
+                          </a>
+                        </RuledCell>
+                        <RuledCell>
+                          <span mix={dirText}>{dir || '·'}</span>
+                        </RuledCell>
+                        <RuledCell mono align="right">
+                          {fmt(f.loc)}
+                        </RuledCell>
+                        <RuledCell mono align="right">
+                          {fmt(f.tokens)}
+                        </RuledCell>
+                        <RuledCell mono align="right">
+                          {f.todos > 0 ? f.todos : '—'}
+                        </RuledCell>
+                        <RuledCell align="right">
+                          <StatusChip kind={f.status} />
+                        </RuledCell>
+                      </RuledRow>
+                    );
+                  })}
+                </RuledTable>
+              </Section>
 
-          {attention.length > 0 && (
-            <Section label="Needs attention" title={`${attention.length} ${attention.length === 1 ? 'file' : 'files'} flagged`}>
-              <RuledTable minWidth="32rem" cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto">
-                <RuledRow header>
-                  <RuledCell header>Name</RuledCell>
-                  <RuledCell header>Folder</RuledCell>
-                  <RuledCell header align="right">TODOs</RuledCell>
-                  <RuledCell header align="right">Tokens</RuledCell>
-                  <RuledCell header align="right">Status</RuledCell>
-                </RuledRow>
-                {attention.map((f) => {
-                  const { dir, name } = splitDirAndName(f.path);
-                  return (
-                    <RuledRow key={f.path}>
-                      <RuledCell>
-                        <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{name}</a>
+              {attention.length > 0 && (
+                <Section
+                  label="Needs attention"
+                  title={`${attention.length} ${attention.length === 1 ? 'file' : 'files'} flagged`}
+                >
+                  <RuledTable
+                    minWidth="32rem"
+                    cols="minmax(0, 2fr) minmax(0, 1.5fr) auto auto auto"
+                  >
+                    <RuledRow header>
+                      <RuledCell header>Name</RuledCell>
+                      <RuledCell header>Folder</RuledCell>
+                      <RuledCell header align="right">
+                        TODOs
                       </RuledCell>
-                      <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-                      <RuledCell mono align="right">{f.todos > 0 ? f.todos : '—'}</RuledCell>
-                      <RuledCell mono align="right">{fmt(f.tokens)}</RuledCell>
-                      <RuledCell align="right">
-                        <StatusChip kind={f.status} />
+                      <RuledCell header align="right">
+                        Tokens
+                      </RuledCell>
+                      <RuledCell header align="right">
+                        Status
                       </RuledCell>
                     </RuledRow>
-                  );
-                })}
-              </RuledTable>
-            </Section>
-          )}
+                    {attention.map((f) => {
+                      const { dir, name } = splitDirAndName(f.path);
+                      return (
+                        <RuledRow key={f.path}>
+                          <RuledCell>
+                            <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                              {name}
+                            </a>
+                          </RuledCell>
+                          <RuledCell>
+                            <span mix={dirText}>{dir || '·'}</span>
+                          </RuledCell>
+                          <RuledCell mono align="right">
+                            {f.todos > 0 ? f.todos : '—'}
+                          </RuledCell>
+                          <RuledCell mono align="right">
+                            {fmt(f.tokens)}
+                          </RuledCell>
+                          <RuledCell align="right">
+                            <StatusChip kind={f.status} />
+                          </RuledCell>
+                        </RuledRow>
+                      );
+                    })}
+                  </RuledTable>
+                </Section>
+              )}
             </>
           )}
         </div>
@@ -644,9 +767,8 @@ export function Files(handle: Handle<FilesProps>) {
             Drills into the file's outline, imports, callers, and TODOs.
           </FootnoteChip>
           <FootnoteChip label="Counts">
-            Every file in the tree — configs, docs, and assets included,
-            not just source. That's why this runs higher than the Overview's
-            source-file headline.
+            Every file in the tree — configs, docs, and assets included, not just source. That's why
+            this runs higher than the Overview's source-file headline.
           </FootnoteChip>
           <FootnoteChip label="Sort">
             Heaviest first by default. Symbol-level outline lands with v0.4.6.

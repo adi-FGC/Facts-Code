@@ -34,7 +34,11 @@ describe('parseSql', () => {
   const { tables, views } = parseSql(SCHEMA);
 
   it('finds all tables', () => {
-    expect(tables.map((t) => t.qualified).sort()).toEqual(['orders', 'public.orgs', 'public.users']);
+    expect(tables.map((t) => t.qualified).sort()).toEqual([
+      'orders',
+      'public.orgs',
+      'public.users',
+    ]);
   });
 
   it('captures columns with types', () => {

@@ -125,14 +125,16 @@ export const FileOutlineSchema = z.object({
   /** v0.3.8 — top-3 git contributors by commit count, with last-touched
    *  timestamps. Empty / absent when no git history is available
    *  (zip-only, fresh clone, etc). */
-  topContributors: z.array(
-    z.object({
-      email: z.string(),
-      name: z.string(),
-      commits: z.number().int().nonnegative(),
-      lastTouchedMs: z.number().nonnegative(),
-    }),
-  ).optional(),
+  topContributors: z
+    .array(
+      z.object({
+        email: z.string(),
+        name: z.string(),
+        commits: z.number().int().nonnegative(),
+        lastTouchedMs: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 export const ContributorSchema = z.object({
   email: z.string(),
@@ -474,13 +476,7 @@ export const DependencyManifestSchema = z.object({
 });
 export type DependencyManifest = z.infer<typeof DependencyManifestSchema>;
 
-export const VulnerabilitySeveritySchema = z.enum([
-  'critical',
-  'high',
-  'medium',
-  'low',
-  'unknown',
-]);
+export const VulnerabilitySeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'unknown']);
 export type VulnerabilitySeverity = z.infer<typeof VulnerabilitySeveritySchema>;
 
 export const VulnerabilitySchema = z.object({
@@ -550,9 +546,9 @@ export const VulnerabilityScanSchema = z.object({
 export type VulnerabilityScan = z.infer<typeof VulnerabilityScanSchema>;
 
 export const AgentArtifactSchema = z.object({
-  $schema: z.literal('https://factstack.dev/schema/agent.v1.json').default(
-    'https://factstack.dev/schema/agent.v1.json',
-  ),
+  $schema: z
+    .literal('https://factstack.dev/schema/agent.v1.json')
+    .default('https://factstack.dev/schema/agent.v1.json'),
   factsVersion: z.literal(FACTS_SCHEMA_VERSION).default(FACTS_SCHEMA_VERSION),
   generatedAt: z.string(),
   project: ProjectMetaSchema,

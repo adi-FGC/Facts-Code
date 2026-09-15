@@ -137,14 +137,23 @@ export function buildSequenceFlow(input: SequenceInputs): SequenceResult {
   if (input.files.has(input.entryPoint)) addLifeline(input.entryPoint);
 
   function dfs(node: string, depth: number, visiting: Set<string>): void {
-    if (messages.length >= maxMessages) { truncated = true; return; }
-    if (depth >= maxDepth) { truncated = true; return; }
+    if (messages.length >= maxMessages) {
+      truncated = true;
+      return;
+    }
+    if (depth >= maxDepth) {
+      truncated = true;
+      return;
+    }
     const succ = adj.get(node) ?? [];
     const visible = succ.slice(0, maxBranches);
     if (succ.length > maxBranches) truncated = true;
 
     for (const to of visible) {
-      if (messages.length >= maxMessages) { truncated = true; return; }
+      if (messages.length >= maxMessages) {
+        truncated = true;
+        return;
+      }
       const isCycle = visiting.has(to);
       step++;
       addLifeline(to);
@@ -218,7 +227,7 @@ function renderDsl(entry: string, lifelines: string[], messages: SequenceMessage
     const fromActor = actorOf.get(m.from) ?? m.from;
     const toActor = actorOf.get(m.to) ?? m.to;
     const arrow = m.isReturn ? '-->' : '->';
-    const label = m.isCycle ? 'imports (cycle)' : (m.isReturn ? 'returns' : 'imports');
+    const label = m.isCycle ? 'imports (cycle)' : m.isReturn ? 'returns' : 'imports';
     lines.push(`${fromActor} ${arrow} ${toActor}: ${label}`);
   }
   return lines.join('\n').trimEnd();
@@ -253,9 +262,8 @@ export function pickDefaultEntryPoint(
     return ranked[0] ?? null;
   }
   /* Failing that, highest out-degree entry-shaped file. */
-  const candidates = Array.from(files).filter((p) =>
-    /^(?:main|index|bin|cli)\.[jt]sx?$/i.test(basename(p)) ||
-    /^bin\//.test(p),
+  const candidates = Array.from(files).filter(
+    (p) => /^(?:main|index|bin|cli)\.[jt]sx?$/i.test(basename(p)) || /^bin\//.test(p),
   );
   if (candidates.length > 0) {
     candidates.sort((a, b) => (outDeg.get(b) ?? 0) - (outDeg.get(a) ?? 0));

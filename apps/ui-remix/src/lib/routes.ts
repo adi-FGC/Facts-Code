@@ -51,7 +51,9 @@ function labelFor(path: string): string {
     // A tab pattern with no catalog entry is a drift bug — fail loud in
     // dev rather than render a blank tab. (All 12 patterns below have an
     // entry; this guards future additions.)
-    throw new Error(`routes.ts: no ROUTE_CATALOG label for "${path}" — add it to packages/spec/src/routes.ts.`);
+    throw new Error(
+      `routes.ts: no ROUTE_CATALOG label for "${path}" — add it to packages/spec/src/routes.ts.`,
+    );
   }
   return label;
 }
@@ -111,10 +113,7 @@ export const TABS: readonly TabMeta[] = [
 ] as const;
 
 /** Right-side icon destinations (Config gear, About ?↔!). */
-export const ICON_TABS: readonly TabMeta[] = [
-  tab('config'),
-  tab('about'),
-] as const;
+export const ICON_TABS: readonly TabMeta[] = [tab('config'), tab('about')] as const;
 
 /**
  * Aliases: retired URLs → the tab that now hosts them. SubViewTabs uses

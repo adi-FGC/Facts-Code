@@ -10,10 +10,8 @@
  * would corrupt an in-flight analyze.
  */
 chrome?.runtime.onInstalled.addListener(() => {
-  chrome?.sidePanel
-    ?.setPanelBehavior({ openPanelOnActionClick: true })
-    .catch(() => {
-      /* older Chrome without sidePanel.setPanelBehavior — the user can still
+  chrome?.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {
+    /* older Chrome without sidePanel.setPanelBehavior — the user can still
          open the panel from the extensions menu. */
-    });
+  });
 });

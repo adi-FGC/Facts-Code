@@ -46,12 +46,27 @@ export interface RawImport {
  * extractors (imports + symbols + future calls). When `parsed` is
  * omitted, falls back to the old self-parsing behavior.
  */
-export function extractImports(source: string, ext: string, parsed?: ParsedFile | null): RawImport[] {
+export function extractImports(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): RawImport[] {
   if (!isParseable(ext)) return [];
   const pf = parsed ?? parseJS(source, ext);
   if (!pf) return [];
   // Babel AST is too dynamic to type fully; treat nodes as permissive any-records.
-  type AnyNode = { type?: string; source?: { value?: unknown }; importKind?: string; exportKind?: string; loc?: { start?: { line?: number } }; callee?: { type?: string }; arguments?: AnyNode[]; value?: unknown; specifiers?: AnyNode[]; local?: { name?: unknown } };
+  type AnyNode = {
+    type?: string;
+    source?: { value?: unknown };
+    importKind?: string;
+    exportKind?: string;
+    loc?: { start?: { line?: number } };
+    callee?: { type?: string };
+    arguments?: AnyNode[];
+    value?: unknown;
+    specifiers?: AnyNode[];
+    local?: { name?: unknown };
+  };
   const ast = pf.ast as { program?: { body?: AnyNode[] } };
 
   /* Local binding names from an ImportDeclaration's specifiers. All three

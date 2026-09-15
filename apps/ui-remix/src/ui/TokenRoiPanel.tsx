@@ -102,7 +102,8 @@ const seg = css({
   cursor: 'pointer',
   font: 'inherit',
   letterSpacing: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
@@ -272,7 +273,9 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         <div mix={row}>
           <span mix={rowLabel}>
             Whole codebase in context
-            <span mix={rowSub}>Every source file, tokenized — the naive way to give an agent full context.</span>
+            <span mix={rowSub}>
+              Every source file, tokenized — the naive way to give an agent full context.
+            </span>
           </span>
           <span mix={num}>{fmtTokens(roi.fullTokens)}</span>
           <span mix={numCost}>{fmtUsd(fullCost)}</span>
@@ -282,7 +285,10 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         <div mix={row}>
           <span mix={rowLabel}>
             FACTS artifact
-            <span mix={rowSub}>The structural map the agent loads instead — then it opens only the files a task touches.</span>
+            <span mix={rowSub}>
+              The structural map the agent loads instead — then it opens only the files a task
+              touches.
+            </span>
           </span>
           <span mix={num}>{fmtTokens(roi.artifactTokens)}</span>
           <span mix={numCost}>{fmtUsd(artifactCost)}</span>
@@ -292,7 +298,9 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         <div mix={saveRow}>
           <span mix={saveLabel}>
             <span mix={saveLead}>You save</span>
-            <span mix={ratioBadge}>{fmtRatio(roi.ratio)} smaller · {fmtPct(roi.savedFraction)} fewer tokens</span>
+            <span mix={ratioBadge}>
+              {fmtRatio(roi.ratio)} smaller · {fmtPct(roi.savedFraction)} fewer tokens
+            </span>
           </span>
           <span mix={saveNum}>{fmtTokens(roi.savedTokens)}</span>
           <span mix={saveNum}>{fmtUsd(savedCost)}</span>
@@ -312,7 +320,12 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
                 { id: 'saved', label: 'Tokens saved', column: 1, color: 'var(--ok)' },
               ]}
               links={[
-                { source: 'full', target: 'artifact', value: roi.artifactTokens, color: 'var(--accent)' },
+                {
+                  source: 'full',
+                  target: 'artifact',
+                  value: roi.artifactTokens,
+                  color: 'var(--accent)',
+                },
                 { source: 'full', target: 'saved', value: roi.savedTokens, color: 'var(--ok)' },
               ]}
             />
@@ -320,10 +333,14 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         )}
 
         <p mix={caption}>
-          Codebase tokens are exact (cl100k, from the analyzer); the artifact is estimated at ~4 chars/token,
-          and the figure shown is this dashboard’s own data block — a superset of the lean <span class="mono">agent.json</span>,
-          so the real saving is larger. The artifact replaces dumping the repo every turn; per-task file reads are
-          the same either way. <span mix={captionRate}>Rates are approximate list prices ({rate.label} ≈ ${rate.inputPerMTok}/M input) — adjust to your model.</span>
+          Codebase tokens are exact (cl100k, from the analyzer); the artifact is estimated at ~4
+          chars/token, and the figure shown is this dashboard’s own data block — a superset of the
+          lean <span class="mono">agent.json</span>, so the real saving is larger. The artifact
+          replaces dumping the repo every turn; per-task file reads are the same either way.{' '}
+          <span mix={captionRate}>
+            Rates are approximate list prices ({rate.label} ≈ ${rate.inputPerMTok}/M input) — adjust
+            to your model.
+          </span>
         </p>
       </div>
     );

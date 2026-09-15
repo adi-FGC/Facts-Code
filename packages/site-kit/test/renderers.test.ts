@@ -54,7 +54,9 @@ describe('llmsTxtRenderer', () => {
     expect(body).toContain('/data/summary.json');
     expect(body).toContain('/data/factstack.json');
     expect(body).toContain('/factstack.pack');
-    expect(body.indexOf('## Fetch the analysis')).toBeLessThan(body.indexOf('## Drive it from a coding agent'));
+    expect(body.indexOf('## Fetch the analysis')).toBeLessThan(
+      body.indexOf('## Drive it from a coding agent'),
+    );
     // Unpublished packages → honest gating, never a bare working-CTA claim.
     expect(body).toContain('not on npm yet');
     expect(body).toContain('npx -y @factstack/cli');
@@ -105,7 +107,7 @@ describe('sitemapRenderer', () => {
   it('emits one <url> per route anchored on the cloudflare host', () => {
     const xml = sitemapRenderer.render(REG)['sitemap.xml']!;
     expect(xml.startsWith('<?xml')).toBe(true);
-    expect((xml.match(/<url>/g) ?? [])).toHaveLength(12);
+    expect(xml.match(/<url>/g) ?? []).toHaveLength(12);
     expect(xml).toContain('<loc>https://factstack.pages.dev/</loc>');
     expect(xml).toContain('<loc>https://factstack.pages.dev/architecture</loc>');
   });
@@ -141,7 +143,9 @@ describe('manifestRenderer', () => {
 describe('securityTxtRenderer', () => {
   it('emits RFC 9116 fields with Expires = generatedAt + 1yr and a GitHub advisories Contact', () => {
     const body = securityTxtRenderer.render(REG)['.well-known/security.txt']!;
-    expect(body).toContain('Contact: https://github.com/adi-FGC/Facts-Code/security/advisories/new');
+    expect(body).toContain(
+      'Contact: https://github.com/adi-FGC/Facts-Code/security/advisories/new',
+    );
     expect(body).not.toMatch(/Contact:\s*mailto:/); // never a personal email
     expect(body).toContain('Expires: 2027-07-04T00:00:00.000Z');
     // Canonical intentionally omitted: the file is served byte-identically from

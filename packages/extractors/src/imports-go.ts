@@ -36,10 +36,19 @@ export function extractGoImports(source: string): RawImport[] {
     const line = (lines[i] ?? '').trim();
     if (!inBlock) {
       const single = line.match(/^import\s+(?:[\w.]+\s+)?"([^"]+)"/);
-      if (single?.[1]) { record(single[1], i + 1); continue; }
-      if (/^import\s*\($/.test(line) || /^import\s*\(/.test(line)) { inBlock = true; continue; }
+      if (single?.[1]) {
+        record(single[1], i + 1);
+        continue;
+      }
+      if (/^import\s*\($/.test(line) || /^import\s*\(/.test(line)) {
+        inBlock = true;
+        continue;
+      }
     } else {
-      if (line.startsWith(')')) { inBlock = false; continue; }
+      if (line.startsWith(')')) {
+        inBlock = false;
+        continue;
+      }
       const entry = line.match(/^(?:[\w.]+\s+|_\s+|\.\s+)?"([^"]+)"/);
       if (entry?.[1]) record(entry[1], i + 1);
     }
@@ -73,7 +82,12 @@ export function extractGoSymbols(source: string): ExtractedSymbol[] {
   // toward brace depth (it would bleed endLine into the next declaration).
   const lines = stripGoComments(source, true).split('\n');
 
-  const push = (name: string, kind: ExtractedSymbol['kind'], startLine: number, endLine: number): void => {
+  const push = (
+    name: string,
+    kind: ExtractedSymbol['kind'],
+    startLine: number,
+    endLine: number,
+  ): void => {
     out.push({ name, kind, startLine, endLine, exported: /^[A-Z]/.test(name) });
   };
 
@@ -83,7 +97,10 @@ export function extractGoSymbols(source: string): ExtractedSymbol[] {
 
     if (group) {
       const t = line.trim();
-      if (t.startsWith(')')) { group = null; continue; }
+      if (t.startsWith(')')) {
+        group = null;
+        continue;
+      }
       const entry = t.match(/^(\w+)/);
       if (entry?.[1] && entry[1] !== '_') {
         const end = braceEnd(lines, i);
@@ -110,15 +127,22 @@ export function extractGoSymbols(source: string): ExtractedSymbol[] {
     // type Name struct/interface/alias (the grouped `type (` opener has no
     // name after `type`, so it falls through to the group matcher below)
     const ty = line.match(/^type\s+(\w+)(?:\[[^\]]*\])?\s+(.*)$/);
-    if (ty?.[1]) { push(ty[1], typeKind(ty[2] ?? ''), i + 1, braceEnd(lines, i)); continue; }
+    if (ty?.[1]) {
+      push(ty[1], typeKind(ty[2] ?? ''), i + 1, braceEnd(lines, i));
+      continue;
+    }
     // var X / const X (single) or grouped block opener (var/const/type)
     const vc = line.match(/^(var|const|type)\s+(.*)$/);
     if (vc?.[1]) {
       const tail = (vc[2] ?? '').trim();
-      if (tail.startsWith('(')) { group = vc[1] as 'var' | 'const' | 'type'; continue; }
+      if (tail.startsWith('(')) {
+        group = vc[1] as 'var' | 'const' | 'type';
+        continue;
+      }
       if (vc[1] === 'type') continue; // a named type already matched above
       const name = tail.match(/^(\w+)/)?.[1];
-      if (name && name !== '_') push(name, vc[1] === 'const' ? 'constant' : 'variable', i + 1, i + 1);
+      if (name && name !== '_')
+        push(name, vc[1] === 'const' ? 'constant' : 'variable', i + 1, i + 1);
     }
   }
   return out;
@@ -132,8 +156,10 @@ function braceEnd(lines: string[], start: number): number {
   let opened = false;
   for (let i = start; i < lines.length; i++) {
     for (const ch of lines[i] ?? '') {
-      if (ch === '{') { depth++; opened = true; }
-      else if (ch === '}') depth--;
+      if (ch === '{') {
+        depth++;
+        opened = true;
+      } else if (ch === '}') depth--;
       else if (ch === '(' || ch === '[') sig++;
       else if (ch === ')' || ch === ']') sig--;
     }
@@ -172,21 +198,39 @@ function stripGoComments(src: string, blankStrings = false): string {
         i = nl;
         continue;
       }
-      if (c === '/' && next === '*') { mode = 'block'; out += '  '; i += 2; continue; }
+      if (c === '/' && next === '*') {
+        mode = 'block';
+        out += '  ';
+        i += 2;
+        continue;
+      }
       if (c === '"') mode = 'dq';
       else if (c === '`') mode = 'raw';
       else if (c === "'") mode = 'rune';
-      out += c; i++;
+      out += c;
+      i++;
       continue;
     }
     if (mode === 'block') {
-      if (c === '*' && next === '/') { mode = 'code'; out += '  '; i += 2; continue; }
-      out += c === '\n' ? '\n' : ' '; i++;
+      if (c === '*' && next === '/') {
+        mode = 'code';
+        out += '  ';
+        i += 2;
+        continue;
+      }
+      out += c === '\n' ? '\n' : ' ';
+      i++;
       continue;
     }
     // String modes — verbatim or blanked; handle escapes (raw strings have none).
-    if ((mode === 'dq' && c === '"') || (mode === 'raw' && c === '`') || (mode === 'rune' && c === "'")) {
-      mode = 'code'; out += c; i++;
+    if (
+      (mode === 'dq' && c === '"') ||
+      (mode === 'raw' && c === '`') ||
+      (mode === 'rune' && c === "'")
+    ) {
+      mode = 'code';
+      out += c;
+      i++;
       continue;
     }
     if (mode !== 'raw' && c === '\\' && next !== undefined) {

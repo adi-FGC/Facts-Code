@@ -96,9 +96,13 @@ function parseSheet(rawCss: string, file: string, scope: string): ParsedSheet {
       buf = '';
       if (prelude.startsWith('@')) {
         const lower = prelude.toLowerCase();
-        if (lower.startsWith('@media')) { medias.push({ raw: prelude, line }); atStack.push('media'); }
-        else if (lower.startsWith('@container')) { containerQueries++; atStack.push('container'); }
-        else atStack.push('at');
+        if (lower.startsWith('@media')) {
+          medias.push({ raw: prelude, line });
+          atStack.push('media');
+        } else if (lower.startsWith('@container')) {
+          containerQueries++;
+          atStack.push('container');
+        } else atStack.push('at');
         i++;
         continue;
       }
@@ -111,14 +115,25 @@ function parseSheet(rawCss: string, file: string, scope: string): ParsedSheet {
         const d = css[i] ?? '';
         if (d === '\n') line++;
         if (d === '{') depth++;
-        else if (d === '}') { depth--; if (depth === 0) break; }
+        else if (d === '}') {
+          depth--;
+          if (depth === 0) break;
+        }
         decls += d;
         i++;
       }
       const imp = (decls.match(/!important/g) ?? []).length;
       importantCount += imp;
       const inMedia = atStack.includes('media') || atStack.includes('container');
-      rules.push({ selector: prelude, decls, line: startLine, file, important: imp, media: inMedia, scope });
+      rules.push({
+        selector: prelude,
+        decls,
+        line: startLine,
+        file,
+        important: imp,
+        media: inMedia,
+        scope,
+      });
       i++; // consume closing }
       continue;
     }
@@ -143,7 +158,9 @@ export function specificity(selector: string): [number, number, number] {
   const sel = selector.replace(/::?[\w-]+\([^)]*\)/g, (m) => m); // keep functional pseudos
   const a = (sel.match(/#[\w-]+/g) ?? []).length;
   const b = (sel.match(/\.[\w-]+|\[[^\]]+\]|:(?!:)[\w-]+/g) ?? []).length;
-  const c = (sel.match(/(?:^|[\s>+~(])[a-zA-Z][\w-]*/g) ?? []).length + (sel.match(/::[\w-]+/g) ?? []).length;
+  const c =
+    (sel.match(/(?:^|[\s>+~(])[a-zA-Z][\w-]*/g) ?? []).length +
+    (sel.match(/::[\w-]+/g) ?? []).length;
   return [a, b, c];
 }
 
@@ -187,7 +204,8 @@ const MODERN_FEATURES: Array<{ re: RegExp; label: string }> = [
   { re: /\binset\s*:/i, label: 'inset shorthand' },
 ];
 
-const NON_SEMANTIC = /^(box|wrap(per)?|cont(ainer)?|div|el|elem|item|thing|block|inner|outer|main|content|temp|test|foo|bar)\d*$/i;
+const NON_SEMANTIC =
+  /^(box|wrap(per)?|cont(ainer)?|div|el|elem|item|thing|block|inner|outer|main|content|temp|test|foo|bar)\d*$/i;
 
 /* ───────────────────────── audit ───────────────────────── */
 
@@ -199,7 +217,8 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
   let importantCount = 0;
 
   for (const src of sources) {
-    const scopeKey = src.origin === 'html-style' || src.origin === 'sfc-style' ? src.path : 'global';
+    const scopeKey =
+      src.origin === 'html-style' || src.origin === 'sfc-style' ? src.path : 'global';
     const parsed = parseSheet(src.css, src.path, scopeKey);
     allRules.push(...parsed.rules);
     allMedias.push(...parsed.medias);
@@ -247,7 +266,8 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
       const key = b.feature + ':' + b.px;
       const ex = bpMap.get(key);
       if (ex) ex.count++;
-      else bpMap.set(key, { px: b.px, feature: b.feature, raw: `${b.feature}: ${b.px}px`, count: 1 });
+      else
+        bpMap.set(key, { px: b.px, feature: b.feature, raw: `${b.feature}: ${b.px}px`, count: 1 });
     }
   }
   const breakpoints = [...bpMap.values()].sort((a, b) => a.px - b.px);
@@ -275,7 +295,10 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
   const findings: StyleFinding[] = [];
   let fid = 0;
   const add = (
-    category: StyleFindingCategory, severity: StyleSeverity, title: string, detail: string,
+    category: StyleFindingCategory,
+    severity: StyleSeverity,
+    title: string,
+    detail: string,
     extra: Partial<StyleFinding> = {},
   ) => findings.push({ id: `css-${fid++}`, category, severity, title, detail, ...extra });
 
@@ -305,96 +328,170 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
       conflictCount++;
       if (conflictCount <= 12) {
         const where = first.scope === 'global' ? 'the shared/linked CSS' : first.file;
-        add('conflict', 'medium', `.${cls} redefined ${defs.length}× with differing rules`,
+        add(
+          'conflict',
+          'medium',
+          `.${cls} redefined ${defs.length}× with differing rules`,
           `\`.${cls}\` is defined ${defs.length} times as a bare class in ${where}, with different declarations and no media-query scoping — only the last wins, so an edit can silently break earlier intent. Consolidate into one rule.`,
-          { selector: `.${cls}`, file: first.file, line: first.line });
+          { selector: `.${cls}`, file: first.file, line: first.line },
+        );
       }
     } else {
       dupCount++;
     }
   }
   if (conflictCount > 12) {
-    add('conflict', 'medium', `+${conflictCount - 12} more redefined classes`,
-      `${conflictCount} bare classes total are redefined with differing rules within one cascade scope. Showing the first 12.`);
+    add(
+      'conflict',
+      'medium',
+      `+${conflictCount - 12} more redefined classes`,
+      `${conflictCount} bare classes total are redefined with differing rules within one cascade scope. Showing the first 12.`,
+    );
   }
   if (dupCount > 0) {
-    add('duplicate', 'low', `${dupCount} class(es) with identical duplicate definitions`,
-      `${dupCount} bare class selectors are defined more than once with the SAME declarations in one scope — harmless but dead weight; remove the repeats.`);
+    add(
+      'duplicate',
+      'low',
+      `${dupCount} class(es) with identical duplicate definitions`,
+      `${dupCount} bare class selectors are defined more than once with the SAME declarations in one scope — harmless but dead weight; remove the repeats.`,
+    );
   }
 
   // overrides: id-bearing selectors raising specificity.
   const idSelectors = allRules.filter((r) => r.selector.includes('#'));
   if (idSelectors.length) {
     const sample = idSelectors[0]!;
-    add('specificity', idSelectors.length > 5 ? 'high' : 'medium',
+    add(
+      'specificity',
+      idSelectors.length > 5 ? 'high' : 'medium',
       `${idSelectors.length} selector(s) use an #id`,
       `ID selectors have very high specificity (1,0,0) and are hard to override — a later class rule can't win without its own ID or \`!important\`. Prefer classes. e.g. \`${truncate(sample.selector, 60)}\`.`,
-      { file: sample.file, line: sample.line, selector: truncate(sample.selector, 80) });
+      { file: sample.file, line: sample.line, selector: truncate(sample.selector, 80) },
+    );
   }
 
   // !important overuse.
   if (importantCount > 0) {
     const sev: StyleSeverity = importantCount > 30 ? 'high' : importantCount > 8 ? 'medium' : 'low';
-    add('important', sev, `${importantCount} \`!important\` declaration(s)`,
-      `\`!important\` short-circuits the cascade and compounds — each one makes the next override need its own \`!important\`. ${importantCount > 8 ? 'This is above a healthy threshold; ' : ''}refactor by lowering competing specificity instead.`);
+    add(
+      'important',
+      sev,
+      `${importantCount} \`!important\` declaration(s)`,
+      `\`!important\` short-circuits the cascade and compounds — each one makes the next override need its own \`!important\`. ${importantCount > 8 ? 'This is above a healthy threshold; ' : ''}refactor by lowering competing specificity instead.`,
+    );
   }
 
   // naming lint.
-  const badNames = [...classDefs.keys()].filter((c) => NON_SEMANTIC.test(c) || /^[a-z]$/i.test(c) || /\d{2,}$/.test(c));
+  const badNames = [...classDefs.keys()].filter(
+    (c) => NON_SEMANTIC.test(c) || /^[a-z]$/i.test(c) || /\d{2,}$/.test(c),
+  );
   if (badNames.length) {
-    add('naming', 'low', `${badNames.length} non-semantic class name(s)`,
-      `Names like ${badNames.slice(0, 5).map((n) => `\`.${n}\``).join(', ')} describe markup, not meaning — they don't survive refactors. Prefer role-based names (\`.card\`, \`.alert\`) or a convention (BEM \`block__el--mod\`).`);
+    add(
+      'naming',
+      'low',
+      `${badNames.length} non-semantic class name(s)`,
+      `Names like ${badNames
+        .slice(0, 5)
+        .map((n) => `\`.${n}\``)
+        .join(
+          ', ',
+        )} describe markup, not meaning — they don't survive refactors. Prefer role-based names (\`.card\`, \`.alert\`) or a convention (BEM \`block__el--mod\`).`,
+    );
   }
   // mixed casing convention.
   const casing = classCasing([...classDefs.keys()]);
   if (casing.kebab && casing.camel && casing.kebab > 2 && casing.camel > 2) {
-    add('naming', 'info', 'Mixed class-naming conventions',
-      `Class names mix kebab-case (${casing.kebab}) and camelCase (${casing.camel}). Pick one — consistency makes the stylesheet greppable and lints cleanly.`);
+    add(
+      'naming',
+      'info',
+      'Mixed class-naming conventions',
+      `Class names mix kebab-case (${casing.kebab}) and camelCase (${casing.camel}). Pick one — consistency makes the stylesheet greppable and lints cleanly.`,
+    );
   }
 
   // responsive / device-band coverage.
-  const uncovered = devices.filter((d) => !d.covered && (d.name === 'mobile' || d.name === 'tablet' || d.name === 'desktop'));
+  const uncovered = devices.filter(
+    (d) => !d.covered && (d.name === 'mobile' || d.name === 'tablet' || d.name === 'desktop'),
+  );
   if (breakpoints.length === 0 && allRules.length > 8) {
-    add('responsive', 'high', 'No responsive breakpoints at all',
+    add(
+      'responsive',
+      'high',
+      'No responsive breakpoints at all',
       `The project has ${allRules.length} rules but zero \`@media\` breakpoints — the layout is fixed across mobile, tablet, and desktop. Add at least the three standard tiers.`,
-      { suggestion: '@media (max-width: 480px) { /* mobile */ }\n@media (min-width: 768px) { /* tablet+ */ }\n@media (min-width: 1024px) { /* desktop */ }' });
+      {
+        suggestion:
+          '@media (max-width: 480px) { /* mobile */ }\n@media (min-width: 768px) { /* tablet+ */ }\n@media (min-width: 1024px) { /* desktop */ }',
+      },
+    );
   } else if (uncovered.length) {
     for (const band of uncovered) {
-      add('responsive', band.name === 'mobile' ? 'medium' : 'low',
+      add(
+        'responsive',
+        band.name === 'mobile' ? 'medium' : 'low',
         `No breakpoint covers ${band.name} (${band.minPx}–${band.maxPx ?? '∞'}px)`,
         `Nothing in the stylesheet adapts around the ${band.name} range (${band.representativeWidths.join(', ')}px-class devices). Add a query so the layout responds there.`,
-        { suggestion: band.maxPx && band.name === 'mobile'
-          ? `@media (max-width: ${band.maxPx}px) {\n  /* ${band.name}: ${band.representativeWidths.join('/')}px */\n}`
-          : `@media (min-width: ${band.minPx}px) {\n  /* ${band.name}: ${band.representativeWidths.join('/')}px */\n}` });
+        {
+          suggestion:
+            band.maxPx && band.name === 'mobile'
+              ? `@media (max-width: ${band.maxPx}px) {\n  /* ${band.name}: ${band.representativeWidths.join('/')}px */\n}`
+              : `@media (min-width: ${band.minPx}px) {\n  /* ${band.name}: ${band.representativeWidths.join('/')}px */\n}`,
+        },
+      );
     }
   }
 
   // container-query opportunity.
   if (containerQueries === 0) {
-    const widthOnClass = allRules.filter((r) => /\bwidth\s*:/.test(r.decls) && r.selector.includes('.')).length;
+    const widthOnClass = allRules.filter(
+      (r) => /\bwidth\s*:/.test(r.decls) && r.selector.includes('.'),
+    ).length;
     if (widthOnClass >= 3 && breakpoints.length > 0) {
-      add('container-query', 'info', 'Components could use container queries',
+      add(
+        'container-query',
+        'info',
+        'Components could use container queries',
         `${widthOnClass} class rules set a fixed \`width\` and the project already uses \`@media\`. For reusable components, \`@container\` adapts to the parent's size instead of the viewport — more robust in varied layouts.`,
-        { suggestion: '.card-wrap { container-type: inline-size; }\n@container (min-width: 360px) {\n  .card { /* wide-parent layout */ }\n}' });
+        {
+          suggestion:
+            '.card-wrap { container-type: inline-size; }\n@container (min-width: 360px) {\n  .card { /* wide-parent layout */ }\n}',
+        },
+      );
     }
   }
 
   // modern-CSS fallback / lightningcss.
   const usedModern = new Set<string>();
-  for (const r of allRules) for (const f of MODERN_FEATURES) if (f.re.test(r.decls)) usedModern.add(f.label);
+  for (const r of allRules)
+    for (const f of MODERN_FEATURES) if (f.re.test(r.decls)) usedModern.add(f.label);
   if (usedModern.size > 0 && !tooling.lightningcss && !tooling.postcss && !tooling.autoprefixer) {
-    add('fallback', 'medium', 'Modern CSS used without a transform/prefix tool',
+    add(
+      'fallback',
+      'medium',
+      'Modern CSS used without a transform/prefix tool',
       `The stylesheet uses ${[...usedModern].slice(0, 4).join(', ')}${usedModern.size > 4 ? '…' : ''} but no lightningcss / postcss / autoprefixer is in the dependencies. Older browsers get no fallback. Add lightningcss (fast, Rust-based) to your bundler to down-level + prefix automatically.`,
-      { suggestion: '// vite.config — lightningcss is built into Vite:\ncss: { transformer: \'lightningcss\', lightningcss: { targets: browserslistToTargets(browserslist(\'>= 0.25%\')) } }' });
+      {
+        suggestion:
+          "// vite.config — lightningcss is built into Vite:\ncss: { transformer: 'lightningcss', lightningcss: { targets: browserslistToTargets(browserslist('>= 0.25%')) } }",
+      },
+    );
   } else if (usedModern.size > 0 && tooling.lightningcss) {
-    add('fallback', 'info', 'lightningcss present — good',
-      `Modern CSS (${[...usedModern].slice(0, 3).join(', ')}) is in use and lightningcss is available to down-level + prefix it. Make sure your bundler is actually configured to use it (\`css.transformer: 'lightningcss'\` in Vite) and that \`targets\` matches your browserslist.`);
+    add(
+      'fallback',
+      'info',
+      'lightningcss present — good',
+      `Modern CSS (${[...usedModern].slice(0, 3).join(', ')}) is in use and lightningcss is available to down-level + prefix it. Make sure your bundler is actually configured to use it (\`css.transformer: 'lightningcss'\` in Vite) and that \`targets\` matches your browserslist.`,
+    );
   }
 
   // paradigm consistency.
   if (paradigms.length >= 3) {
-    add('paradigm', 'low', `Multiple styling paradigms in use (${paradigms.length})`,
-      `Detected: ${paradigms.join(', ')}. Mixing approaches is fine deliberately, but unintentional mixes fragment the styling story and make overrides unpredictable. Consider standardizing on one primary approach.`);
+    add(
+      'paradigm',
+      'low',
+      `Multiple styling paradigms in use (${paradigms.length})`,
+      `Detected: ${paradigms.join(', ')}. Mixing approaches is fine deliberately, but unintentional mixes fragment the styling story and make overrides unpredictable. Consider standardizing on one primary approach.`,
+    );
   }
 
   return {
@@ -414,17 +511,28 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
 /* ───────────────────────── sub-detectors ───────────────────────── */
 
 function detectParadigms(
-  sources: CssSource[], rules: Rule[], ctx: CssAuditContext, tooling: { tailwind: boolean; sass: boolean },
+  sources: CssSource[],
+  rules: Rule[],
+  ctx: CssAuditContext,
+  tooling: { tailwind: boolean; sass: boolean },
 ): string[] {
   const out = new Set<string>();
   if (tooling.tailwind) out.add('Tailwind');
-  if (tooling.sass || sources.some((s) => s.origin === 'scss' || s.origin === 'sass')) out.add('Sass');
+  if (tooling.sass || sources.some((s) => s.origin === 'scss' || s.origin === 'sass'))
+    out.add('Sass');
   if (sources.some((s) => s.origin === 'less')) out.add('Less');
   if (sources.some((s) => /\.module\.css$/i.test(s.path))) out.add('CSS Modules');
   if (sources.some((s) => s.origin === 'sfc-style')) out.add('SFC scoped styles');
-  const cssInJs = ['styled-components', '@emotion/react', '@emotion/styled', '@stitches/react', '@vanilla-extract/css'];
+  const cssInJs = [
+    'styled-components',
+    '@emotion/react',
+    '@emotion/styled',
+    '@stitches/react',
+    '@vanilla-extract/css',
+  ];
   if (cssInJs.some((d) => ctx.deps.has(d))) out.add('CSS-in-JS');
-  if (ctx.deps.has('bootstrap') || rules.some((r) => /\.(col|row|btn)-[a-z0-9]/.test(r.selector))) out.add('Bootstrap');
+  if (ctx.deps.has('bootstrap') || rules.some((r) => /\.(col|row|btn)-[a-z0-9]/.test(r.selector)))
+    out.add('Bootstrap');
   // BEM heuristic: a meaningful share of classes look like block__el--mod.
   const classes = rules.flatMap((r) => classesIn(r.selector));
   const bem = classes.filter((c) => /__|--/.test(c)).length;
@@ -434,11 +542,15 @@ function detectParadigms(
 }
 
 function normalizeDecls(decls: string): string {
-  return decls.replace(/\s+/g, ' ').replace(/\s*([:;{}])\s*/g, '$1').trim();
+  return decls
+    .replace(/\s+/g, ' ')
+    .replace(/\s*([:;{}])\s*/g, '$1')
+    .trim();
 }
 
 function classCasing(classes: string[]): { kebab: number; camel: number } {
-  let kebab = 0, camel = 0;
+  let kebab = 0,
+    camel = 0;
   for (const c of classes) {
     if (c.includes('-') && !/[A-Z]/.test(c)) kebab++;
     else if (/[a-z][A-Z]/.test(c)) camel++;

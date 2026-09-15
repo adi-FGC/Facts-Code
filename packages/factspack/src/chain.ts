@@ -73,7 +73,12 @@ export function computeDiff(
     // addition couldn't propagate through the diff chain. encodeIncremental
     // always emits the table's schema-decl line, so this round-trips cleanly.
     if (n && !p) {
-      out.push({ name, columns: n.columns, addedRows: n.rows.map((r) => r.slice()), deletedIds: [] });
+      out.push({
+        name,
+        columns: n.columns,
+        addedRows: n.rows.map((r) => r.slice()),
+        deletedIds: [],
+      });
       continue;
     }
     // table only in prev → delete every row by key
@@ -87,7 +92,10 @@ export function computeDiff(
     const prevByKey = new Map<string, string>(); // key → serialized row
     for (const r of p.rows) {
       const pk = keyOf(r, ki, `prev.${name}`);
-      if (prevByKey.has(pk)) throw new Error(`computeDiff: duplicate primary key "${pk}" in prev.${name} — the PK column must be unique for a sound diff`);
+      if (prevByKey.has(pk))
+        throw new Error(
+          `computeDiff: duplicate primary key "${pk}" in prev.${name} — the PK column must be unique for a sound diff`,
+        );
       prevByKey.set(pk, serializeRow(r));
     }
 
@@ -96,7 +104,10 @@ export function computeDiff(
     const seen = new Set<string>();
     for (const r of n.rows) {
       const k = keyOf(r, ki, `next.${name}`);
-      if (seen.has(k)) throw new Error(`computeDiff: duplicate primary key "${k}" in next.${name} — the PK column must be unique`);
+      if (seen.has(k))
+        throw new Error(
+          `computeDiff: duplicate primary key "${k}" in next.${name} — the PK column must be unique`,
+        );
       seen.add(k);
       const prevSer = prevByKey.get(k);
       if (prevSer === undefined) {

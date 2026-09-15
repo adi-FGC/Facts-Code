@@ -26,10 +26,10 @@ interface FootnoteChipProps {
 
 const TONE_COLOR: Record<NonNullable<FootnoteChipProps['tone']>, string> = {
   neutral: 'var(--hairline)',
-  accent:  'var(--accent)',
-  warn:    'var(--warn)',
-  danger:  'var(--danger)',
-  ok:      'var(--ok)',
+  accent: 'var(--accent)',
+  warn: 'var(--warn)',
+  danger: 'var(--danger)',
+  ok: 'var(--ok)',
 };
 
 export function FootnoteChip(handle: Handle<FootnoteChipProps>) {
@@ -52,7 +52,10 @@ export function FootnoteChip(handle: Handle<FootnoteChipProps>) {
             fontSize: 'var(--fs-10)',
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
-            color: tone === 'neutral' ? 'var(--fg-subtle)' : `var(--${tone === 'accent' ? 'accent' : tone})`,
+            color:
+              tone === 'neutral'
+                ? 'var(--fg-subtle)'
+                : `var(--${tone === 'accent' ? 'accent' : tone})`,
             marginBottom: 'var(--space-2)',
           })}
         >

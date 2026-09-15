@@ -17,7 +17,13 @@
  * platform. Same module shape as the previous React version.
  */
 
-import type { DependencyManifest, DocFile, GitTopology, StyleAudit, Vulnerability } from '@factstack/spec';
+import type {
+  DependencyManifest,
+  DocFile,
+  GitTopology,
+  StyleAudit,
+  Vulnerability,
+} from '@factstack/spec';
 
 export interface DatasetFile {
   name: string;
@@ -45,7 +51,14 @@ export interface DatasetTreeNode {
   path: string;
   files: DatasetFile[];
   children: DatasetTreeNode[];
-  rollup?: { size: number; gzip: number; tokens: number; files: number; loc: number; todos: number };
+  rollup?: {
+    size: number;
+    gzip: number;
+    tokens: number;
+    files: number;
+    loc: number;
+    todos: number;
+  };
 }
 
 export interface Dataset {
@@ -54,7 +67,15 @@ export interface Dataset {
   project: {
     name: string;
     root: string;
-    languages: Array<{ id: string; label: string; iconColor: string; tag: string; loc: number; tokens: number; files: number }>;
+    languages: Array<{
+      id: string;
+      label: string;
+      iconColor: string;
+      tag: string;
+      loc: number;
+      tokens: number;
+      files: number;
+    }>;
     frameworks: string[];
   };
   summary: {
@@ -113,7 +134,14 @@ export interface Dataset {
     messageTechnical?: string;
     preview?: string;
   }>;
-  history?: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }>;
+  history?: Array<{
+    at: string;
+    loc: number;
+    tokens: number;
+    files: number;
+    risks: number;
+    todos: number;
+  }>;
   /**
    * v0.3.6 — env-var inventory. Optional for backward-compat with
    * pre-v0.3.6 artifacts; the UI's Config tab renders an empty state
@@ -125,7 +153,13 @@ export interface Dataset {
       reads: Array<{
         file: string;
         line: number;
-        access: 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown';
+        access:
+          | 'process.env'
+          | 'import.meta.env'
+          | 'os.getenv'
+          | 'os.environ'
+          | 'destructure'
+          | 'unknown';
         defaultValue: string | null;
       }>;
       defaults: string[];

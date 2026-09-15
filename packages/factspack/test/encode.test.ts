@@ -25,13 +25,7 @@ describe('encode — golden: spec §6 single-table example', () => {
       tables: [
         {
           name: 'symbols',
-          columns: [
-            { name: 'id' },
-            { name: 'k' },
-            { name: 'n' },
-            { name: 'F' },
-            { name: 'l' },
-          ],
+          columns: [{ name: 'id' }, { name: 'k' }, { name: 'n' }, { name: 'F' }, { name: 'l' }],
           rows: [
             ['1', 'fn', 'login', 'src/auth.ts', '42'],
             ['2', 'fn', 'logout', 'src/auth.ts', '58'],
@@ -119,12 +113,18 @@ describe('encode — multi-table (spec §8)', () => {
         {
           name: 'symbols',
           columns: [{ name: 'id' }, { name: 'F' }],
-          rows: [['1', 'src/auth.ts'], ['2', 'src/users.ts']],
+          rows: [
+            ['1', 'src/auth.ts'],
+            ['2', 'src/users.ts'],
+          ],
         },
         {
           name: 'imports',
           columns: [{ name: 'id' }, { name: 'F' }, { name: 'to' }],
-          rows: [['1', 'src/auth.ts', 'react'], ['2', 'src/auth.ts', './jwt']],
+          rows: [
+            ['1', 'src/auth.ts', 'react'],
+            ['2', 'src/auth.ts', './jwt'],
+          ],
         },
       ],
     });
@@ -203,28 +203,36 @@ describe('encode — rejection cases', () => {
   const ok: PackTable = { name: 't', columns: [{ name: 'a' }], rows: [['x']] };
 
   it('rejects header.producer with a tab', () => {
-    expect(() => encode({ header: { ...HEADER, producer: 'a\tb' }, tables: [ok] })).toThrow(PackEncodeError);
+    expect(() => encode({ header: { ...HEADER, producer: 'a\tb' }, tables: [ok] })).toThrow(
+      PackEncodeError,
+    );
   });
 
   it('rejects empty table name', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: '', columns: [{ name: 'a' }], rows: [] }],
-    })).toThrow(PackEncodeError);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: '', columns: [{ name: 'a' }], rows: [] }],
+      }),
+    ).toThrow(PackEncodeError);
   });
 
   it('rejects column name with a tab', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: 't', columns: [{ name: 'a\tb' }], rows: [] }],
-    })).toThrow(PackEncodeError);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'a\tb' }], rows: [] }],
+      }),
+    ).toThrow(PackEncodeError);
   });
 
   it('rejects row with wrong number of cells', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: 't', columns: [{ name: 'a' }, { name: 'b' }], rows: [['x']] }],
-    })).toThrow(/expected 2 cells, got 1/);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'a' }, { name: 'b' }], rows: [['x']] }],
+      }),
+    ).toThrow(/expected 2 cells, got 1/);
   });
 });
 
@@ -233,10 +241,18 @@ describe('encode — v0.2 header extras (S5)', () => {
 
   it('appends seq/parent/kind/generated after rowCount when present', () => {
     const out = encode({
-      header: { ...HEADER, seq: 3, parent: 'abcdef012345', kind: 'master', generated: '2026-06-12T00:00:00.000Z' },
+      header: {
+        ...HEADER,
+        seq: 3,
+        parent: 'abcdef012345',
+        kind: 'master',
+        generated: '2026-06-12T00:00:00.000Z',
+      },
       tables: [table],
     });
-    expect(out).toContain('# facts/0.1\tsymbols-v1\t88e9a1b\t1\t3\tabcdef012345\tmaster\t2026-06-12T00:00:00.000Z\n');
+    expect(out).toContain(
+      '# facts/0.1\tsymbols-v1\t88e9a1b\t1\t3\tabcdef012345\tmaster\t2026-06-12T00:00:00.000Z\n',
+    );
   });
 
   it('emits the plain 4-field header when no extras are set', () => {
@@ -253,11 +269,15 @@ describe('encode — v0.2 header extras (S5)', () => {
   });
 
   it('rejects a non-integer seq', () => {
-    expect(() => encode({ header: { ...HEADER, seq: 1.5 }, tables: [table] })).toThrow(PackEncodeError);
+    expect(() => encode({ header: { ...HEADER, seq: 1.5 }, tables: [table] })).toThrow(
+      PackEncodeError,
+    );
   });
 
   it('rejects generated containing a tab', () => {
-    expect(() => encode({ header: { ...HEADER, generated: 'a\tb' }, tables: [table] })).toThrow(PackEncodeError);
+    expect(() => encode({ header: { ...HEADER, generated: 'a\tb' }, tables: [table] })).toThrow(
+      PackEncodeError,
+    );
   });
 });
 
@@ -301,21 +321,29 @@ describe('encode — v0.2 meta lines (S2/S3)', () => {
   });
 
   it('rejects a legend line containing a newline', () => {
-    expect(() => encode({ header: HEADER, tables: [table], meta: { legend: ['a\nb'] } }))
-      .toThrow(PackEncodeError);
+    expect(() => encode({ header: HEADER, tables: [table], meta: { legend: ['a\nb'] } })).toThrow(
+      PackEncodeError,
+    );
   });
 
   it('rejects a legend line that collides with the reserved `; end` trailer form', () => {
     // Otherwise the decoder re-reads it AS the trailer and rejects the rest of the
     // pack — an encoder that produces output its own decoder rejects.
-    expect(() => encode({
-      header: HEADER, tables: [table],
-      meta: { legend: ['end rows=1 tables=1 sha256=abcdef012345'] },
-    })).toThrow(/reserved `; end` trailer/);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [table],
+        meta: { legend: ['end rows=1 tables=1 sha256=abcdef012345'] },
+      }),
+    ).toThrow(/reserved `; end` trailer/);
     // a near-miss that is NOT the exact trailer grammar is still fine
-    expect(() => encode({
-      header: HEADER, tables: [table], meta: { legend: ['rows=1 tables=1'] },
-    })).not.toThrow();
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [table],
+        meta: { legend: ['rows=1 tables=1'] },
+      }),
+    ).not.toThrow();
   });
 });
 
@@ -336,12 +364,14 @@ describe('encode — v0.2 trailer (S4)', () => {
   it('incremental packs count + and x lines as trailer rows', () => {
     const out = encodeIncremental({
       header: HEADER,
-      tables: [{
-        name: 't',
-        columns: [{ name: 'id' }],
-        addedRows: [['6'], ['7']],
-        deletedIds: ['3'],
-      }],
+      tables: [
+        {
+          name: 't',
+          columns: [{ name: 'id' }],
+          addedRows: [['6'], ['7']],
+          deletedIds: ['3'],
+        },
+      ],
     });
     expect(out).toMatch(/; end rows=3 tables=1 sha256=[0-9a-f]{12}\n$/);
   });
@@ -354,8 +384,14 @@ describe('encode — v0.2 shared intern namespaces (S8)', () => {
       tables: [
         {
           name: 'imports',
-          columns: [{ name: 'F', internGroup: 'F' }, { name: 'T', internGroup: 'F' }],
-          rows: [['src/a.ts', 'src/b.ts'], ['src/b.ts', 'src/a.ts']],
+          columns: [
+            { name: 'F', internGroup: 'F' },
+            { name: 'T', internGroup: 'F' },
+          ],
+          rows: [
+            ['src/a.ts', 'src/b.ts'],
+            ['src/b.ts', 'src/a.ts'],
+          ],
         },
         {
           name: 'risks',
@@ -378,37 +414,45 @@ describe('encode — v0.2 shared intern namespaces (S8)', () => {
   it('keeps per-column pools when internGroup is absent (v1 behavior)', () => {
     const out = encode({
       header: HEADER,
-      tables: [{
-        name: 'imports',
-        columns: [{ name: 'F' }, { name: 'T' }],
-        rows: [['src/a.ts', 'src/a.ts']],
-      }],
+      tables: [
+        {
+          name: 'imports',
+          columns: [{ name: 'F' }, { name: 'T' }],
+          rows: [['src/a.ts', 'src/a.ts']],
+        },
+      ],
     });
     expect(out).toContain('@ F1=src/a.ts');
     expect(out).toContain('@ T1=src/a.ts');
   });
 
   it('rejects internGroup on a literal (lowercase) column', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: 't', columns: [{ name: 'path', internGroup: 'F' }], rows: [] }],
-    })).toThrow(/literal/);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'path', internGroup: 'F' }], rows: [] }],
+      }),
+    ).toThrow(/literal/);
   });
 
   it('rejects internGroup containing "="', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: 't', columns: [{ name: 'F', internGroup: 'a=b' }], rows: [] }],
-    })).toThrow(PackEncodeError);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'F', internGroup: 'a=b' }], rows: [] }],
+      }),
+    ).toThrow(PackEncodeError);
   });
 });
 
 describe('encode — v0.2 literal "-" guard (S12)', () => {
   it('rejects a literal-column cell whose value is exactly "-"', () => {
-    expect(() => encode({
-      header: HEADER,
-      tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['-']] }],
-    })).toThrow(/decode as null/);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'a' }], rows: [['-']] }],
+      }),
+    ).toThrow(/decode as null/);
   });
 
   it('allows "-" as an interned-column value (rides in the dict)', () => {
@@ -452,14 +496,18 @@ describe('encodeIncremental — patch packs', () => {
   });
 
   it('rejects empty deleted id', () => {
-    expect(() => encodeIncremental({
-      header: HEADER,
-      tables: [{
-        name: 't',
-        columns: [{ name: 'a' }],
-        addedRows: [],
-        deletedIds: [''],
-      }],
-    })).toThrow(PackEncodeError);
+    expect(() =>
+      encodeIncremental({
+        header: HEADER,
+        tables: [
+          {
+            name: 't',
+            columns: [{ name: 'a' }],
+            addedRows: [],
+            deletedIds: [''],
+          },
+        ],
+      }),
+    ).toThrow(PackEncodeError);
   });
 });

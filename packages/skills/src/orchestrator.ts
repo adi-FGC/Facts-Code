@@ -37,9 +37,7 @@ export const SKILL_REGISTRY: Record<SkillFormatId, SkillRenderer> = {
 
 /** Convenience accessor for the full set of registered format IDs.
  *  Useful for `--target=all` resolution + sanity checking caller input. */
-export const ALL_FORMATS: readonly SkillFormatId[] = Object.keys(
-  SKILL_REGISTRY,
-) as SkillFormatId[];
+export const ALL_FORMATS: readonly SkillFormatId[] = Object.keys(SKILL_REGISTRY) as SkillFormatId[];
 
 export interface BuildSkillsResult {
   /** Map of every file written by every renderer in this run. */

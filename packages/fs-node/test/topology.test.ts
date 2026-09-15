@@ -420,7 +420,8 @@ describe('mineGitTopology', () => {
       'npm' + '_abcdefghijklmnopqrstuvwxyz0123456789', // npm
       'AKIA' + 'IOSFODNN7EXAMPLE', // AWS key id
       'xoxb' + '-123456789012-abcdefghijkl', // Slack
-      'eyJhbGciOiJIUzI1NiJ9' + '.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk', // JWT
+      'eyJhbGciOiJIUzI1NiJ9' +
+        '.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dBjftJeZ4CVPmB92K27uhbUJU1p1r_wW1gFWFOEjXk', // JWT
       'password: hunter2hunter2', // key=value
     ];
     const secretHome = fs.mkdtempSync(path.join(tmp, 'home-secrets-'));

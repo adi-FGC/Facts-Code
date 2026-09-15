@@ -20,7 +20,17 @@
  */
 
 export interface DetectedRoute {
-  framework: 'nextjs' | 'remix' | 'astro' | 'express' | 'fastapi' | 'flask' | 'django' | 'node-http' | 'react-router' | 'spa-page';
+  framework:
+    | 'nextjs'
+    | 'remix'
+    | 'astro'
+    | 'express'
+    | 'fastapi'
+    | 'flask'
+    | 'django'
+    | 'node-http'
+    | 'react-router'
+    | 'spa-page';
   /** HTTP method, or null for page/screen entries that respond to GET implicitly. */
   method: string | null;
   /** Declared URL path (may include route params: `/users/:id`, `/users/{id}`). */
@@ -69,7 +79,13 @@ export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
   }
   // Next.js App Router root page: app/page.{ts,tsx}
   if (/(?:^|\/)app\/page\.(ts|tsx|js|jsx|mjs)$/.test(filePath)) {
-    out.push({ framework: 'nextjs', method: 'GET', path: '/', handlerFile: filePath, handlerSymbol: 'default' });
+    out.push({
+      framework: 'nextjs',
+      method: 'GET',
+      path: '/',
+      handlerFile: filePath,
+      handlerSymbol: 'default',
+    });
     return out;
   }
   // Astro: src/pages/**/*.{astro,ts,js,md,mdx}. Checked BEFORE the
@@ -174,17 +190,27 @@ function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
   // Pattern: `req.method === 'METHOD' && url.pathname === '/path'`
   //          (or `req.url === '/path'`, with or without the method check).
   // The factstack CLI's own server is the canonical example.
-  const usesNodeHttp = /from\s+['"]node:http['"]|require\(\s*['"]node:http['"]\s*\)|from\s+['"]http['"]/.test(source) && /createServer\s*\(/.test(source);
+  const usesNodeHttp =
+    /from\s+['"]node:http['"]|require\(\s*['"]node:http['"]\s*\)|from\s+['"]http['"]/.test(
+      source,
+    ) && /createServer\s*\(/.test(source);
   if (usesNodeHttp) {
     // Method+path together (most precise)
-    const pairRe = /req\.method\s*===\s*['"]([A-Z]+)['"]\s*&&\s*(?:url\.pathname|req\.url)\s*===\s*['"]([^'"]+)['"]/g;
+    const pairRe =
+      /req\.method\s*===\s*['"]([A-Z]+)['"]\s*&&\s*(?:url\.pathname|req\.url)\s*===\s*['"]([^'"]+)['"]/g;
     let m: RegExpExecArray | null;
     while ((m = pairRe.exec(source))) {
       if (!m[1] || !m[2] || !m[2].startsWith('/')) continue;
       const key = m[1] + '|' + m[2];
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ framework: 'node-http', method: m[1], path: m[2], handlerFile: filePath, handlerSymbol: null });
+      out.push({
+        framework: 'node-http',
+        method: m[1],
+        path: m[2],
+        handlerFile: filePath,
+        handlerSymbol: null,
+      });
     }
     // Path-only (when method check is implicit or absent)
     const pathOnlyRe = /(?:url\.pathname|req\.url)\s*===\s*['"]([^'"]+)['"]/g;
@@ -194,7 +220,13 @@ function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
       // Only add if no method-qualified version was already added for this path
       if ([...seen].some((k) => k.endsWith('|' + m![1]))) continue;
       seen.add(key);
-      out.push({ framework: 'node-http', method: null, path: m[1], handlerFile: filePath, handlerSymbol: null });
+      out.push({
+        framework: 'node-http',
+        method: null,
+        path: m[1],
+        handlerFile: filePath,
+        handlerSymbol: null,
+      });
     }
   }
 
@@ -206,10 +238,14 @@ function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
   // `// app.get('/path', …)` in routes.ts itself becomes 3 phantom
   // routes — and any utility file that uses `Map.prototype.delete` or
   // `Set.prototype.has` shaped patterns generates false positives too.
-  const usesExpressFamily = /from\s+['"](?:express|koa|fastify|hapi|hono|@hono\/[\w-]+|@fastify\/[\w-]+|polka|micro|h3|elysia)['"]|require\(\s*['"](?:express|koa|fastify|hapi|hono|polka)['"]\s*\)/.test(source);
+  const usesExpressFamily =
+    /from\s+['"](?:express|koa|fastify|hapi|hono|@hono\/[\w-]+|@fastify\/[\w-]+|polka|micro|h3|elysia)['"]|require\(\s*['"](?:express|koa|fastify|hapi|hono|polka)['"]\s*\)/.test(
+      source,
+    );
   let m: RegExpExecArray | null;
   if (usesExpressFamily) {
-    const expressRe = /\b([a-zA-Z_$][\w$]*)\s*\.\s*(get|post|put|patch|delete|head|options|all|use)\s*\(\s*['"`]([^'"`]+)['"`]/g;
+    const expressRe =
+      /\b([a-zA-Z_$][\w$]*)\s*\.\s*(get|post|put|patch|delete|head|options|all|use)\s*\(\s*['"`]([^'"`]+)['"`]/g;
     while ((m = expressRe.exec(source))) {
       if (!m[2] || !m[3]) continue;
       const method = m[2].toUpperCase();
@@ -248,7 +284,8 @@ function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
   const astroApiMatch = /(?:^|\/)src\/pages\/(api\/.+)\.(ts|tsx|js|jsx|mjs)$/.exec(filePath);
   if (astroApiMatch && astroApiMatch[1]) {
     const apiBase = astroApiMatch[1];
-    const methodRe = /export\s+(?:async\s+)?(?:const|function|let)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ALL)\b/g;
+    const methodRe =
+      /export\s+(?:async\s+)?(?:const|function|let)\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ALL)\b/g;
     while ((m = methodRe.exec(source))) {
       if (!m[1]) continue;
       const verb = m[1];
@@ -271,8 +308,10 @@ function detectPythonRoutes(filePath: string, source: string): DetectedRoute[] {
 
   // FastAPI: `@app.get("/path")` / `@router.post("/path", ...)`
   // Flask:   `@app.route("/path", methods=["GET", "POST"])`
-  const fastRe = /@([a-zA-Z_][\w]*)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"]([^'"]+)['"]/i;
-  const flaskRe = /@([a-zA-Z_][\w]*)\.route\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?/i;
+  const fastRe =
+    /@([a-zA-Z_][\w]*)\.(get|post|put|patch|delete|head|options)\s*\(\s*['"]([^'"]+)['"]/i;
+  const flaskRe =
+    /@([a-zA-Z_][\w]*)\.route\s*\(\s*['"]([^'"]+)['"](?:\s*,\s*methods\s*=\s*\[([^\]]+)\])?/i;
   // Django:  `path("foo/", view)` / `re_path(r"^foo/$", view)`
   const djangoRe = /\b(path|re_path)\s*\(\s*r?['"]([^'"]+)['"]\s*,\s*([a-zA-Z_][\w.]*)/;
 
@@ -281,21 +320,44 @@ function detectPythonRoutes(filePath: string, source: string): DetectedRoute[] {
     if (line == null) continue;
     let m = fastRe.exec(line);
     if (m && m[2] && m[3]) {
-      out.push({ framework: 'fastapi', method: m[2].toUpperCase(), path: m[3], handlerFile: filePath, handlerSymbol: findFunctionAfter(lines, i) });
+      out.push({
+        framework: 'fastapi',
+        method: m[2].toUpperCase(),
+        path: m[3],
+        handlerFile: filePath,
+        handlerSymbol: findFunctionAfter(lines, i),
+      });
       continue;
     }
     m = flaskRe.exec(line);
     if (m && m[2]) {
       const path = m[2];
-      const methods = m[3] ? m[3].split(',').map((s) => s.replace(/['"\s]/g, '').toUpperCase()).filter(Boolean) : ['GET'];
+      const methods = m[3]
+        ? m[3]
+            .split(',')
+            .map((s) => s.replace(/['"\s]/g, '').toUpperCase())
+            .filter(Boolean)
+        : ['GET'];
       for (const method of methods) {
-        out.push({ framework: 'flask', method, path, handlerFile: filePath, handlerSymbol: findFunctionAfter(lines, i) });
+        out.push({
+          framework: 'flask',
+          method,
+          path,
+          handlerFile: filePath,
+          handlerSymbol: findFunctionAfter(lines, i),
+        });
       }
       continue;
     }
     m = djangoRe.exec(line);
     if (m && m[2] && m[3]) {
-      out.push({ framework: 'django', method: 'GET', path: m[2].replace(/^\^/, '').replace(/\$$/, ''), handlerFile: filePath, handlerSymbol: m[3] });
+      out.push({
+        framework: 'django',
+        method: 'GET',
+        path: m[2].replace(/^\^/, '').replace(/\$$/, ''),
+        handlerFile: filePath,
+        handlerSymbol: m[3],
+      });
     }
   }
   return out;

@@ -59,7 +59,7 @@ export function extractAstroFrontmatter(source: string): AstroFrontmatter | null
   /* Strip a UTF-8 BOM if present (rare but happens with Windows
      editors). Doing it on the original string keeps the line offset
      accurate — BOMs don't introduce a newline. */
-  const trimmed = source.charCodeAt(0) === 0xFEFF ? source.slice(1) : source;
+  const trimmed = source.charCodeAt(0) === 0xfeff ? source.slice(1) : source;
 
   const lines = trimmed.split(/\r\n|\n|\r/);
   if (lines.length === 0) return null;

@@ -23,14 +23,26 @@
 import * as ignoreModule from 'ignore';
 import type { Ignore } from 'ignore';
 import { byCodeUnit } from '@factstack/spec';
-const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default
-  ?? (ignoreModule as unknown as () => Ignore)) as () => Ignore;
+const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default ??
+  (ignoreModule as unknown as () => Ignore)) as () => Ignore;
 import type { Dirent, FactsFS } from '@factstack/spec';
 
 const ALWAYS_EXCLUDE = new Set([
-  'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
-  '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
-  '.pnpm-store', '.vscode', '.idea',
+  'node_modules',
+  'dist',
+  'build',
+  '.next',
+  '.turbo',
+  '.cache',
+  '__pycache__',
+  '.venv',
+  '.git',
+  'vendor',
+  'target',
+  'coverage',
+  '.pnpm-store',
+  '.vscode',
+  '.idea',
   /* FACTS's OWN output dir — never analyze our artifacts. Hard-excluded (not
      just via the .gitignore entry analyze writes) so a re-analyze is correct
      even before that entry exists, and so the F8 cache.db + its sqlite
@@ -42,7 +54,9 @@ const ALWAYS_EXCLUDE = new Set([
      .playwright-mcp/ polluted the "other" tier without contributing
      any signal. Same category as .turbo and .cache: produced by
      tooling, not authored. */
-  '.playwright-mcp', 'playwright-report', 'test-results',
+  '.playwright-mcp',
+  'playwright-report',
+  'test-results',
 ]);
 
 /**
@@ -51,10 +65,7 @@ const ALWAYS_EXCLUDE = new Set([
  * list, framework detection. The walker drops these before any further
  * processing; downstream consumers (UI, MCP, query) never see them.
  */
-const ALWAYS_EXCLUDE_SUFFIXES = [
-  '.tsbuildinfo',
-  '.tsbuildinfo.json',
-];
+const ALWAYS_EXCLUDE_SUFFIXES = ['.tsbuildinfo', '.tsbuildinfo.json'];
 
 function isNoiseArtifact(name: string): boolean {
   const lower = name.toLowerCase();
@@ -126,7 +137,11 @@ export async function* walk(
   const rootNorm = fs.normalize(root);
   const visited = new Set<string>();
 
-  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, { maxFileSize, followSymlinks, skipGit });
+  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, {
+    maxFileSize,
+    followSymlinks,
+    skipGit,
+  });
 }
 
 async function* walkDir(
@@ -217,7 +232,10 @@ async function* walkDir(
       // through to `read_error` so downstream NEVER records the file as
       // read-but-empty.
       text = await new Promise<string | null>((resolve) =>
-        setTimeout(() => fs.readText(entry.path).then(resolve, () => resolve(null)), READ_RETRY_DELAY_MS),
+        setTimeout(
+          () => fs.readText(entry.path).then(resolve, () => resolve(null)),
+          READ_RETRY_DELAY_MS,
+        ),
       );
       if (text == null) {
         yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'read_error');

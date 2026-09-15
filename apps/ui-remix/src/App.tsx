@@ -144,16 +144,21 @@ function ErrorScreen(handle: Handle<{ message: string }>) {
   return () => {
     const { message } = handle.props;
     return (
-    <div mix={css({ padding: '32px', maxWidth: '640px' })}>
-      <h1 class="serif" mix={css({ fontSize: '28px', marginBottom: '12px' })}>Nothing to analyze yet.</h1>
-      <p mix={css({ color: 'var(--fg-muted)' })}>
-        Run <span class="mono">factstack ui</span> from a project directory, or open this file
-        after `factstack export`.
-      </p>
-      <p class="mono" mix={css({ color: 'var(--fg-subtle)', fontSize: '12px', marginTop: '16px' })}>
-        {message}
-      </p>
-    </div>
+      <div mix={css({ padding: '32px', maxWidth: '640px' })}>
+        <h1 class="serif" mix={css({ fontSize: '28px', marginBottom: '12px' })}>
+          Nothing to analyze yet.
+        </h1>
+        <p mix={css({ color: 'var(--fg-muted)' })}>
+          Run <span class="mono">factstack ui</span> from a project directory, or open this file
+          after `factstack export`.
+        </p>
+        <p
+          class="mono"
+          mix={css({ color: 'var(--fg-subtle)', fontSize: '12px', marginTop: '16px' })}
+        >
+          {message}
+        </p>
+      </div>
     );
   };
 }
@@ -181,7 +186,9 @@ function Shell(handle: Handle<{ data: Dataset }>) {
     const { data } = handle.props;
     return (
       <>
-        <a href="#main" class="skip-link">Skip to content</a>
+        <a href="#main" class="skip-link">
+          Skip to content
+        </a>
         <div class="app-shell">
           <Header data={data} />
           <TreePanel data={data} />
@@ -256,17 +263,29 @@ function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
   // Hand-rolled switch — small + obvious, no router needed beyond the
   // pathname → tab mapping in lib/routes.ts.
   switch (tab) {
-    case 'overview':     return <Overview data={data} />;
-    case 'architecture': return <Architecture data={data} />;
-    case 'modules':      return <Modules data={data} />;
-    case 'files':        return <FilesTab data={data} />;
-    case 'docs':         return <Docs data={data} />;
-    case 'review':       return <Review data={data} />;
-    case 'security':     return <Security data={data} />;
-    case 'tests':        return <Tests data={data} />;
-    case 'history':      return <History data={data} />;
-    case 'worktrees':    return <Worktrees data={data} />;
-    case 'config':       return <Config data={data} />;
-    case 'about':        return <About data={data} />;
+    case 'overview':
+      return <Overview data={data} />;
+    case 'architecture':
+      return <Architecture data={data} />;
+    case 'modules':
+      return <Modules data={data} />;
+    case 'files':
+      return <FilesTab data={data} />;
+    case 'docs':
+      return <Docs data={data} />;
+    case 'review':
+      return <Review data={data} />;
+    case 'security':
+      return <Security data={data} />;
+    case 'tests':
+      return <Tests data={data} />;
+    case 'history':
+      return <History data={data} />;
+    case 'worktrees':
+      return <Worktrees data={data} />;
+    case 'config':
+      return <Config data={data} />;
+    case 'about':
+      return <About data={data} />;
   }
 }

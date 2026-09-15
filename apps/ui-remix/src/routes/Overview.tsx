@@ -84,7 +84,8 @@ const healthBadge = css({
   fontSize: 'var(--fs-12)',
   letterSpacing: '0.04em',
   color: 'var(--fg-muted)',
-  transition: 'border-color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'border-color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': {
     borderColor: 'var(--border)',
     background: 'var(--highlight-faint)',
@@ -157,15 +158,16 @@ const stackRow = css({
   },
 });
 
-const langSwatch = (color: string) => css({
-  display: 'inline-block',
-  width: '10px',
-  height: '10px',
-  background: color,
-  marginRight: 'var(--space-3)',
-  verticalAlign: 'baseline',
-  transform: 'translateY(1px)',
-});
+const langSwatch = (color: string) =>
+  css({
+    display: 'inline-block',
+    width: '10px',
+    height: '10px',
+    background: color,
+    marginRight: 'var(--space-3)',
+    verticalAlign: 'baseline',
+    transform: 'translateY(1px)',
+  });
 
 const stackName = css({
   fontFamily: 'var(--font-display)',
@@ -273,17 +275,16 @@ export function Overview(handle: Handle<OverviewProps>) {
             <span mix={css({ flex: '1' })} />
             <span mix={css({ color: 'var(--fg-faint)' })}>·</span>
             <span mix={css({ color: 'var(--fg-subtle)' })}>
-              FACTS analyzing <span mix={css({ color: 'var(--fg-muted)', fontWeight: '500' })}>{project.name}</span>
+              FACTS analyzing{' '}
+              <span mix={css({ color: 'var(--fg-muted)', fontWeight: '500' })}>{project.name}</span>
             </span>
           </div>
           <h1 mix={headline}>{summary.oneLiner}</h1>
           <p mix={ledeText}>
-            {project.name} spans <strong mix={ledeStrong}>{fmt(stats.files)} files</strong>
-            {' '}and{' '}
-            <strong mix={ledeStrong}>{fmt(stats.loc)} lines</strong>
-            , a roughly{' '}
-            <strong mix={ledeStrong}>{fmt(stats.tokens)}-token</strong>
-            {' '}context window. Every metric below links to its source.
+            {project.name} spans <strong mix={ledeStrong}>{fmt(stats.files)} files</strong> and{' '}
+            <strong mix={ledeStrong}>{fmt(stats.loc)} lines</strong>, a roughly{' '}
+            <strong mix={ledeStrong}>{fmt(stats.tokens)}-token</strong> context window. Every metric
+            below links to its source.
           </p>
 
           {/* v0.3 — health badge. Click → /risks. Leads with the composite
@@ -295,8 +296,13 @@ export function Overview(handle: Handle<OverviewProps>) {
             const h = summary.health;
             const tone = healthTone(h);
             const toneStyle =
-              tone === 'danger' ? healthBadgeDanger : tone === 'warn' ? healthBadgeWarn : healthBadgeOk;
-            const verb = tone === 'danger' ? 'Act on Risks' : tone === 'warn' ? 'Open Risks' : 'View Risks';
+              tone === 'danger'
+                ? healthBadgeDanger
+                : tone === 'warn'
+                  ? healthBadgeWarn
+                  : healthBadgeOk;
+            const verb =
+              tone === 'danger' ? 'Act on Risks' : tone === 'warn' ? 'Open Risks' : 'View Risks';
 
             if (h.grade && typeof h.score === 'number') {
               // Reuse core's headline prose (single grammar source — memory
@@ -314,7 +320,9 @@ export function Overview(handle: Handle<OverviewProps>) {
                 >
                   <span aria-hidden="true" mix={healthBadgeBar} />
                   <span mix={healthBadgeText}>
-                    <span mix={healthBadgeStrong}>{h.grade} · {h.score}</span>
+                    <span mix={healthBadgeStrong}>
+                      {h.grade} · {h.score}
+                    </span>
                     <span mix={css({ color: 'var(--fg-faint)' })}> — {tail}</span>
                   </span>
                   <span mix={healthBadgeArrow}>{verb} →</span>
@@ -333,14 +341,17 @@ export function Overview(handle: Handle<OverviewProps>) {
               tone === 'danger'
                 ? `${critical + h.secrets + h.broken} critical · review now`
                 : tone === 'warn'
-                ? `${risks.length} ${risks.length === 1 ? 'finding' : 'findings'} · ${h.stale} stale · ${h.todos} TODOs · review when convenient`
-                : `0 findings · scanned clean`;
+                  ? `${risks.length} ${risks.length === 1 ? 'finding' : 'findings'} · ${h.stale} stale · ${h.todos} TODOs · review when convenient`
+                  : `0 findings · scanned clean`;
             return (
               <a href="/risks" mix={[healthBadge, toneStyle]} aria-label={`Health: ${label}`}>
                 <span aria-hidden="true" mix={healthBadgeBar} />
                 <span mix={healthBadgeText}>
                   <span mix={healthBadgeStrong}>{label.split('·')[0]?.trim()}</span>
-                  <span mix={css({ color: 'var(--fg-faint)' })}> · {label.split('·').slice(1).join('·').trim()}</span>
+                  <span mix={css({ color: 'var(--fg-faint)' })}>
+                    {' '}
+                    · {label.split('·').slice(1).join('·').trim()}
+                  </span>
                 </span>
                 <span mix={healthBadgeArrow}>{verb} →</span>
               </a>
@@ -349,8 +360,8 @@ export function Overview(handle: Handle<OverviewProps>) {
 
           {/* Headline figures — LabelNumberRow */}
           <LabelNumberRow>
-            <LabelNumber label="Files"  value={fmt(stats.files)} />
-            <LabelNumber label="Lines"  value={fmt(stats.loc)} />
+            <LabelNumber label="Files" value={fmt(stats.files)} />
+            <LabelNumber label="Lines" value={fmt(stats.loc)} />
             <LabelNumber label="Tokens" value={fmt(stats.tokens)} unit="cl100k" />
             <LabelNumber
               label="Risks"
@@ -376,7 +387,8 @@ export function Overview(handle: Handle<OverviewProps>) {
                     {l.label}
                   </span>
                   <span mix={stackMeta}>
-                    {l.files}{l.files === 1 ? ' file' : ' files'}
+                    {l.files}
+                    {l.files === 1 ? ' file' : ' files'}
                     <span mix={css({ color: 'var(--fg-faint)', marginInline: '6px' })}>·</span>
                     {fmt(l.tokens)}
                   </span>
@@ -413,7 +425,16 @@ export function Overview(handle: Handle<OverviewProps>) {
               {/* Audit fix #6: vertical list, one framework per line.
                   Comma-separated wraps awkwardly + "+N more" hangs
                   detached in tight margin widths. */}
-              <ul mix={css({ listStyle: 'none', margin: '0', padding: '0', display: 'flex', flexDirection: 'column', gap: '2px' })}>
+              <ul
+                mix={css({
+                  listStyle: 'none',
+                  margin: '0',
+                  padding: '0',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                })}
+              >
                 {showFrameworks.map((f) => (
                   <li key={f}>{f}</li>
                 ))}
@@ -421,9 +442,7 @@ export function Overview(handle: Handle<OverviewProps>) {
             </FootnoteChip>
           )}
           <HealthGrade health={summary.health} />
-          {summary.description && (
-            <FootnoteChip label="Intent">{summary.description}</FootnoteChip>
-          )}
+          {summary.description && <FootnoteChip label="Intent">{summary.description}</FootnoteChip>}
         </MarginColumn>
       </ContentWithMargin>
     );

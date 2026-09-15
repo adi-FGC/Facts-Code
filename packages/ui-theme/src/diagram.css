@@ -38,15 +38,15 @@
    * Mapped to the app's status hues (blue / green / yellow) rather than
    * the accent, so the orange accent stays reserved for INTERACTION
    * (hover, selection) and never competes with the data. */
-  --dg-edge-primary: var(--info);   /* request · call · forward (sequence) */
-  --dg-edge-return:  var(--ok);     /* response · return       (sequence)  */
-  --dg-edge-async:   var(--warn);   /* dynamic-import · cycle · async       */
-  --dg-edge-label:   var(--fg-muted);
-  --dg-edge-width:   2px;
+  --dg-edge-primary: var(--info); /* request · call · forward (sequence) */
+  --dg-edge-return: var(--ok); /* response · return       (sequence)  */
+  --dg-edge-async: var(--warn); /* dynamic-import · cycle · async       */
+  --dg-edge-label: var(--fg-muted);
+  --dg-edge-width: 2px;
   /* return/async edges are dashed; primary edges are solid. Patterns as
      tokens so every renderer dashes identically. */
   --dg-edge-dash-return: 6 5;
-  --dg-edge-dash-async:  2 4;
+  --dg-edge-dash-async: 2 4;
 
   /* ─── Graph edge classification (Sugiyama DAG) ────────────────────
    * A dependency graph distinguishes edges by KIND, not call direction,
@@ -56,39 +56,39 @@
    * Aliased to the same two base hues as the sequence grammar above
    * (--ok / --info) so the whole app speaks two colors, named for
    * whichever domain the author is in. */
-  --dg-edge-import: var(--ok);    /* a depends-on / import edge — green */
-  --dg-edge-export: var(--info);  /* a provides / export edge  — blue  */
+  --dg-edge-import: var(--ok); /* a depends-on / import edge — green */
+  --dg-edge-export: var(--info); /* a provides / export edge  — blue  */
 
   /* ─── Nodes / actor headers / lifelines ───────────────────────────
    * A DAG node and a swimlane actor box are the same primitive: a
    * recessed panel with a hairline border and primary-weight text. */
-  --dg-node-bg:     var(--surface-2);
+  --dg-node-bg: var(--surface-2);
   --dg-node-border: var(--border-strong);
-  --dg-node-fg:     var(--fg);
+  --dg-node-fg: var(--fg);
   --dg-node-radius: var(--r-lg);
   /* the dashed vertical a message hangs off of */
-  --dg-lifeline:    var(--hairline);
+  --dg-lifeline: var(--hairline);
   /* dotted-grid canvas wash behind a diagram (subtle, theme-aware) */
-  --dg-canvas-dot:  color-mix(in oklab, var(--fg-faint) 22%, transparent);
+  --dg-canvas-dot: color-mix(in oklab, var(--fg-faint) 22%, transparent);
 
   /* ─── Notes — emphasis annotation ─────────────────────────────────
    * The amber note box from the prototype. --warn is yellow in dark,
    * orange-ish in light; both read as "pay attention" against the
    * neutral diagram body. */
-  --dg-note-bg:     color-mix(in oklab, var(--warn) 12%, transparent);
+  --dg-note-bg: color-mix(in oklab, var(--warn) 12%, transparent);
   --dg-note-border: var(--warn);
-  --dg-note-fg:     var(--fg);
+  --dg-note-fg: var(--fg);
   --dg-note-radius: var(--r-md);
 
   /* ─── Section dividers — the labelled pill spanning the lanes ─────── */
-  --dg-divider-line:    var(--hairline);
+  --dg-divider-line: var(--hairline);
   --dg-divider-pill-bg: var(--surface-2);
-  --dg-divider-fg:      var(--fg-muted);
+  --dg-divider-fg: var(--fg-muted);
 
   /* ─── Interaction — orange accent lives HERE, nowhere else in a
    *     diagram. Hover a node/edge → focus; everything else dims. ───── */
-  --dg-focus:       var(--accent);
-  --dg-focus-soft:  var(--accent-soft);
+  --dg-focus: var(--accent);
+  --dg-focus-soft: var(--accent-soft);
   --dg-dim-opacity: 0.32;
 
   /* ─── Title text above a sequence ─────────────────────────────────── */
@@ -103,27 +103,90 @@
  * whole vocabulary. Kept minimal: one class per primitive.
  * ───────────────────────────────────────────────────────────────────── */
 
-.dg-lifeline   { stroke: var(--dg-lifeline); stroke-width: 1.5; stroke-dasharray: 3 5; }
-.dg-node       { fill: var(--dg-node-bg); stroke: var(--dg-node-border); stroke-width: 1.5; }
-.dg-node-text  { fill: var(--dg-node-fg); font-family: var(--font-body); font-weight: 600; text-anchor: middle; dominant-baseline: middle; }
+.dg-lifeline {
+  stroke: var(--dg-lifeline);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 5;
+}
+.dg-node {
+  fill: var(--dg-node-bg);
+  stroke: var(--dg-node-border);
+  stroke-width: 1.5;
+}
+.dg-node-text {
+  fill: var(--dg-node-fg);
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
 
-.dg-edge        { stroke: var(--dg-edge-primary); stroke-width: var(--dg-edge-width); fill: none; }
-.dg-edge--return { stroke: var(--dg-edge-return); stroke-dasharray: var(--dg-edge-dash-return); }
-.dg-edge--async  { stroke: var(--dg-edge-async);  stroke-dasharray: var(--dg-edge-dash-async); }
-.dg-edge-label  { fill: var(--dg-edge-label); font-family: var(--font-mono); text-anchor: middle; }
+.dg-edge {
+  stroke: var(--dg-edge-primary);
+  stroke-width: var(--dg-edge-width);
+  fill: none;
+}
+.dg-edge--return {
+  stroke: var(--dg-edge-return);
+  stroke-dasharray: var(--dg-edge-dash-return);
+}
+.dg-edge--async {
+  stroke: var(--dg-edge-async);
+  stroke-dasharray: var(--dg-edge-dash-async);
+}
+.dg-edge-label {
+  fill: var(--dg-edge-label);
+  font-family: var(--font-mono);
+  text-anchor: middle;
+}
 
-.dg-note       { fill: var(--dg-note-bg); stroke: var(--dg-note-border); stroke-width: 1.25; }
-.dg-note-text  { fill: var(--dg-note-fg); font-family: var(--font-body); text-anchor: middle; dominant-baseline: middle; }
+.dg-note {
+  fill: var(--dg-note-bg);
+  stroke: var(--dg-note-border);
+  stroke-width: 1.25;
+}
+.dg-note-text {
+  fill: var(--dg-note-fg);
+  font-family: var(--font-body);
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
 
-.dg-divider-line { stroke: var(--dg-divider-line); stroke-width: 1; stroke-dasharray: 2 4; }
-.dg-divider-pill { fill: var(--dg-divider-pill-bg); stroke: var(--dg-divider-line); stroke-width: 1; }
-.dg-divider-text { fill: var(--dg-divider-fg); font-family: var(--font-mono); letter-spacing: 0.08em; text-anchor: middle; dominant-baseline: middle; text-transform: uppercase; }
+.dg-divider-line {
+  stroke: var(--dg-divider-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.dg-divider-pill {
+  fill: var(--dg-divider-pill-bg);
+  stroke: var(--dg-divider-line);
+  stroke-width: 1;
+}
+.dg-divider-text {
+  fill: var(--dg-divider-fg);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  text-transform: uppercase;
+}
 
-.dg-title-text { fill: var(--dg-title-fg); font-family: var(--font-display); text-anchor: middle; font-weight: 500; }
+.dg-title-text {
+  fill: var(--dg-title-fg);
+  font-family: var(--font-display);
+  text-anchor: middle;
+  font-weight: 500;
+}
 
 /* Hover-to-focus: add .dg-interactive to the <svg>, .dg-edge / .dg-node
    groups get the dim/focus behavior for free. Mirrors the SugiyamaDag +
    prototype idiom. */
-.dg-interactive .dg-msg { transition: opacity var(--dur-quick, 180ms) var(--ease-out-quart, ease); }
-.dg-interactive.has-hover .dg-msg { opacity: var(--dg-dim-opacity); }
-.dg-interactive.has-hover .dg-msg:hover { opacity: 1; }
+.dg-interactive .dg-msg {
+  transition: opacity var(--dur-quick, 180ms) var(--ease-out-quart, ease);
+}
+.dg-interactive.has-hover .dg-msg {
+  opacity: var(--dg-dim-opacity);
+}
+.dg-interactive.has-hover .dg-msg:hover {
+  opacity: 1;
+}

@@ -66,7 +66,8 @@ export function workflowContract(
     '**Orient from the pack, not a scan.** Before any broad search, read' +
       ' `.facts/agent.pack` (token-lean: every file, top-level symbol, import' +
       ' edge, route, and risk) and `.facts/MEMORY.md` (the cold-start brief) — the' +
-      ' source of truth for *where things are*.' + mcpClause,
+      ' source of truth for *where things are*.' +
+      mcpClause,
     '**Navigate by the graph.** "Where is `X`?" → the pack\'s declarations' +
       ' (symbol → file:line). "What breaks if I change `Y`?" → the imports table' +
       " (a resolved graph; grep can't do transitive). Open only the files the" +

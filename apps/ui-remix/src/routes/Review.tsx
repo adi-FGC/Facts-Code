@@ -132,7 +132,10 @@ export function Review(handle: Handle<ReviewProps>) {
                 marginBottom: 'var(--space-3)',
               })}
             >
-              {SEVERITY_WORD[v.severity]} risk{v.findings.length ? ` · ${v.findings.length} finding${v.findings.length === 1 ? '' : 's'}` : ''}
+              {SEVERITY_WORD[v.severity]} risk
+              {v.findings.length
+                ? ` · ${v.findings.length} finding${v.findings.length === 1 ? '' : 's'}`
+                : ''}
             </div>
             <h1
               mix={css({
@@ -160,8 +163,16 @@ export function Review(handle: Handle<ReviewProps>) {
                 fontSize: 'var(--fs-11)',
               })}
             >
-              <PostureChip label="secrets" value={v.posture.secrets} danger={v.posture.secrets > 0} />
-              <PostureChip label="CVEs" value={v.posture.vulnerabilities} danger={v.posture.vulnerabilities > 0} />
+              <PostureChip
+                label="secrets"
+                value={v.posture.secrets}
+                danger={v.posture.secrets > 0}
+              />
+              <PostureChip
+                label="CVEs"
+                value={v.posture.vulnerabilities}
+                danger={v.posture.vulnerabilities > 0}
+              />
               <PostureChip label="cycles" value={v.posture.cycles} danger={v.posture.cycles > 0} />
               <PostureChip
                 label="max blast"
@@ -184,7 +195,13 @@ export function Review(handle: Handle<ReviewProps>) {
               flexWrap: 'wrap',
             })}
           >
-            <span mix={css({ letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--fg-faint)' })}>
+            <span
+              mix={css({
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: 'var(--fg-faint)',
+              })}
+            >
               Baseline
             </span>
             <select
@@ -200,7 +217,9 @@ export function Review(handle: Handle<ReviewProps>) {
                   fontSize: 'var(--fs-11)',
                   cursor: 'pointer',
                 }),
-                on<HTMLSelectElement>('change', (e) => setBaseline((e.target as HTMLSelectElement).value)),
+                on<HTMLSelectElement>('change', (e) =>
+                  setBaseline((e.target as HTMLSelectElement).value),
+                ),
               ]}
             >
               <option value="@auto">Auto · newest prior snapshot</option>
@@ -258,7 +277,13 @@ export function Review(handle: Handle<ReviewProps>) {
                           flexWrap: 'wrap',
                         })}
                       >
-                        <span mix={css({ fontWeight: '600', color: 'var(--fg)', fontSize: 'var(--fs-14)' })}>
+                        <span
+                          mix={css({
+                            fontWeight: '600',
+                            color: 'var(--fg)',
+                            fontSize: 'var(--fs-14)',
+                          })}
+                        >
                           {f.title}
                         </span>
                         <span
@@ -315,9 +340,11 @@ export function Review(handle: Handle<ReviewProps>) {
             </Section>
           ) : (
             <Section label="Findings" title="Clean">
-              <p mix={css({ color: 'var(--fg-muted)', fontSize: 'var(--fs-14)', maxWidth: '60ch' })}>
-                No secrets, known vulnerabilities, dependency cycles, or oversized
-                hubs in the current analysis. The structural posture is clean.
+              <p
+                mix={css({ color: 'var(--fg-muted)', fontSize: 'var(--fs-14)', maxWidth: '60ch' })}
+              >
+                No secrets, known vulnerabilities, dependency cycles, or oversized hubs in the
+                current analysis. The structural posture is clean.
               </p>
             </Section>
           )}
@@ -328,9 +355,15 @@ export function Review(handle: Handle<ReviewProps>) {
               <RuledTable minWidth="24rem" cols="1fr auto auto auto">
                 <RuledRow header>
                   <RuledCell header>Metric</RuledCell>
-                  <RuledCell header align="right">Baseline</RuledCell>
-                  <RuledCell header align="right">Current</RuledCell>
-                  <RuledCell header align="right">Δ</RuledCell>
+                  <RuledCell header align="right">
+                    Baseline
+                  </RuledCell>
+                  <RuledCell header align="right">
+                    Current
+                  </RuledCell>
+                  <RuledCell header align="right">
+                    Δ
+                  </RuledCell>
                 </RuledRow>
                 <TrendRow label="Risk findings" d={v.trend.risks} worseWhenUp />
                 <TrendRow label="TODOs" d={v.trend.todos} worseWhenUp />
@@ -341,7 +374,9 @@ export function Review(handle: Handle<ReviewProps>) {
             </Section>
           ) : (
             <Section label="Trend" title="No baseline selected">
-              <p mix={css({ color: 'var(--fg-muted)', fontSize: 'var(--fs-14)', maxWidth: '60ch' })}>
+              <p
+                mix={css({ color: 'var(--fg-muted)', fontSize: 'var(--fs-14)', maxWidth: '60ch' })}
+              >
                 {priors.length === 0
                   ? 'Only one analysis so far. Re-run factstack analyze over time (a CI step or watch loop) to populate snapshot history, then a trend appears here.'
                   : 'Pick a baseline snapshot above to see how risks, TODOs, and size changed since then.'}
@@ -354,7 +389,11 @@ export function Review(handle: Handle<ReviewProps>) {
             <LabelNumber label="Secrets" value={v.posture.secrets} />
             <LabelNumber label="CVEs" value={v.posture.vulnerabilities} />
             <LabelNumber label="Cycles" value={v.posture.cycles} />
-            <LabelNumber label="Max blast" value={v.posture.topHub ? v.posture.topHub.reach : 0} last />
+            <LabelNumber
+              label="Max blast"
+              value={v.posture.topHub ? v.posture.topHub.reach : 0}
+              last
+            />
           </LabelNumberRow>
         </div>
 
@@ -381,12 +420,22 @@ function PostureChip(handle: Handle<{ label: string; value: number; danger: bool
           padding: '4px 10px',
           borderRadius: '999px',
           border: '1px solid var(--hairline)',
-          background: danger ? 'color-mix(in oklab, var(--danger) 12%, transparent)' : 'transparent',
+          background: danger
+            ? 'color-mix(in oklab, var(--danger) 12%, transparent)'
+            : 'transparent',
           color: danger ? 'var(--danger)' : 'var(--fg-muted)',
         })}
       >
-        <b mix={css({ color: danger ? 'var(--danger)' : 'var(--fg)', fontWeight: '600' })}>{value}</b>
-        <span mix={css({ letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: 'var(--fs-10)' })}>
+        <b mix={css({ color: danger ? 'var(--danger)' : 'var(--fg)', fontWeight: '600' })}>
+          {value}
+        </b>
+        <span
+          mix={css({
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            fontSize: 'var(--fs-10)',
+          })}
+        >
           {label}
         </span>
       </span>
@@ -401,16 +450,17 @@ function TrendRow(handle: Handle<{ label: string; d: Delta; worseWhenUp?: boolea
     const down = d.delta < 0;
     const arrow = d.delta === 0 ? '→' : up ? '↑' : '↓';
     // Colour only the metrics where direction means good/bad (risks, todos).
-    const color = !worseWhenUp || d.delta === 0
-      ? 'var(--fg-muted)'
-      : up
-        ? 'var(--danger)'
-        : 'var(--ok)';
+    const color =
+      !worseWhenUp || d.delta === 0 ? 'var(--fg-muted)' : up ? 'var(--danger)' : 'var(--ok)';
     return (
       <RuledRow>
         <RuledCell>{label}</RuledCell>
-        <RuledCell mono align="right">{fmt(d.before)}</RuledCell>
-        <RuledCell mono align="right">{fmt(d.after)}</RuledCell>
+        <RuledCell mono align="right">
+          {fmt(d.before)}
+        </RuledCell>
+        <RuledCell mono align="right">
+          {fmt(d.after)}
+        </RuledCell>
         <RuledCell mono align="right">
           {/* Arrow conveys direction; magnitude is unsigned (mirrors the
               CLI diff convention). Colour flags good/bad only where it means

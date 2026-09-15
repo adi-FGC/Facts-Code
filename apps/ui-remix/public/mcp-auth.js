@@ -38,12 +38,16 @@ try {
   if (!res.ok) throw new Error('config ' + res.status);
   auth = getAuth(initializeApp(await res.json()));
 } catch (e) {
-  setStatus('Could not load the sign-in configuration: ' + (e && e.message ? e.message : String(e)));
+  setStatus(
+    'Could not load the sign-in configuration: ' + (e && e.message ? e.message : String(e)),
+  );
   btn.disabled = true;
 }
 
 if (!port || !state) {
-  setStatus('This page must be opened by `factstack-mcp login` in your terminal (missing the one-time link parameters).');
+  setStatus(
+    'This page must be opened by `factstack-mcp login` in your terminal (missing the one-time link parameters).',
+  );
   btn.disabled = true;
 }
 
@@ -69,9 +73,15 @@ btn.addEventListener('click', async () => {
       }),
     });
     if (res.ok) {
-      setStatus('✓ Signed in as ' + (user.email || user.uid) + '. Return to your terminal — you can close this tab.');
+      setStatus(
+        '✓ Signed in as ' +
+          (user.email || user.uid) +
+          '. Return to your terminal — you can close this tab.',
+      );
     } else {
-      setStatus('Signed in, but couldn’t reach the local FACTS process. Is `factstack-mcp login` still running?');
+      setStatus(
+        'Signed in, but couldn’t reach the local FACTS process. Is `factstack-mcp login` still running?',
+      );
       btn.disabled = false;
     }
   } catch (e) {

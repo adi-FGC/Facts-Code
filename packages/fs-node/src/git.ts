@@ -30,7 +30,7 @@ export interface Contributor {
 
 export interface GitStats {
   lastModifiedMs: number;
-  churnScore: number;    // commits-in-window
+  churnScore: number; // commits-in-window
   authorCount: number;
   /** v0.3.8 — top-3 contributors by commits-in-window, with names +
    *  last-touched timestamps. Empty array when no in-window commits
@@ -54,7 +54,9 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
   const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
 
   // Short-circuit if not a git repo.
-  const check = spawnSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], { encoding: 'utf8' });
+  const check = spawnSync('git', ['-C', root, 'rev-parse', '--is-inside-work-tree'], {
+    encoding: 'utf8',
+  });
   if (check.status !== 0) return out;
 
   // Get the full log in a compact format: author + unix-ts + touched files.
@@ -70,14 +72,25 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
        v0.3.8 added %an so we can attribute top contributors per file
        with a display name. The ASCII US (\x1f) separator is still
        safe — it cannot legally appear in a git config user.name. */
-    ['-C', root, 'log', '--no-merges', '--pretty=format:__C__%ae\x1f%an\x1f%ct', '--name-only', '-z', `--since=${windowDays * 2} days ago`],
+    [
+      '-C',
+      root,
+      'log',
+      '--no-merges',
+      '--pretty=format:__C__%ae\x1f%an\x1f%ct',
+      '--name-only',
+      '-z',
+      `--since=${windowDays * 2} days ago`,
+    ],
     { encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 },
   );
   if (log.status !== 0 || !log.stdout) {
     if (log.error && (log.error as NodeJS.ErrnoException & { code?: string }).code === 'ENOBUFS') {
       // Budget exceeded — surface a warning instead of silently losing
       // all churn data. Caller (CLI) prints it; we still return empty.
-      process.stderr.write('factstack: git log exceeded 1GiB — churn/authors unavailable for this repo.\n');
+      process.stderr.write(
+        'factstack: git log exceeded 1GiB — churn/authors unavailable for this repo.\n',
+      );
     }
     return fallbackMostRecent(root);
   }
@@ -112,7 +125,9 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
         // the first three pieces. A missing name is fine (empty string).
         const fields = body.split('\x1f');
         if (fields.length < 3) {
-          currentEmail = ''; currentName = ''; currentTs = 0;
+          currentEmail = '';
+          currentName = '';
+          currentTs = 0;
           continue;
         }
         currentEmail = fields[0] ?? '';
@@ -120,7 +135,7 @@ export function mineGitStats(root: string, opts: MineOptions = {}): Map<string, 
         const ts = Number(fields[2]);
         currentTs = Number.isFinite(ts) ? ts * 1000 : 0;
       } else {
-        if (currentTs === 0) continue;     // no valid commit context
+        if (currentTs === 0) continue; // no valid commit context
         const posix = line.replace(/\\/g, '/');
         const b = buckets.get(posix) ?? {
           last: 0,

@@ -56,7 +56,10 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   if (!filesIncomplete) {
     for (const [path, bStats] of mapB) {
       const aStats = mapA.get(path);
-      if (!aStats) { added.push(path); continue; }
+      if (!aStats) {
+        added.push(path);
+        continue;
+      }
       const locDelta = bStats.loc - aStats.loc;
       const tokenDelta = bStats.tokens - aStats.tokens;
       if (locDelta !== 0 || tokenDelta !== 0) {
@@ -73,7 +76,11 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   removed.sort();
   // DET-3: tiebreak by path so equal-magnitude deltas sort deterministically
   // (matches the codebase-wide deterministic-sort convention).
-  changed.sort((x, y) => Math.abs(y.tokenDelta) - Math.abs(x.tokenDelta) || (x.path < y.path ? -1 : x.path > y.path ? 1 : 0));
+  changed.sort(
+    (x, y) =>
+      Math.abs(y.tokenDelta) - Math.abs(x.tokenDelta) ||
+      (x.path < y.path ? -1 : x.path > y.path ? 1 : 0),
+  );
 
   const delta = (aVal: number, bVal: number) => ({ before: aVal, after: bVal, delta: bVal - aVal });
 
@@ -100,7 +107,11 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
    * path in cli.ts.
    */
   const SEVERITY_SCORE: Record<string, number> = {
-    critical: 4, high: 3, medium: 2, low: 1, unknown: 0,
+    critical: 4,
+    high: 3,
+    medium: 2,
+    low: 1,
+    unknown: 0,
   };
   /* Defensive `?? []`: pre-v0.6 artifacts (and test fixtures that
      bypass Zod via `as AgentArtifact`) won't have `vulnerabilities`
@@ -110,7 +121,7 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   const bVulns = b.vulnerabilities ?? [];
   const aVulnIds = new Set(aVulns.map((v) => v.id));
   const bVulnIds = new Set(bVulns.map((v) => v.id));
-  const newVulnIds   = [...bVulnIds].filter((id) => !aVulnIds.has(id)).sort();
+  const newVulnIds = [...bVulnIds].filter((id) => !aVulnIds.has(id)).sort();
   const fixedVulnIds = [...aVulnIds].filter((id) => !bVulnIds.has(id)).sort();
   const aScore = aVulns.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
   const bScore = bVulns.reduce((s, v) => s + (SEVERITY_SCORE[v.severity] ?? 0), 0);
@@ -123,18 +134,18 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
     // produce byte-identical output.
     generatedAt: b.generatedAt,
     from: { at: a.generatedAt, ...(from.snapshotFile ? { snapshotFile: from.snapshotFile } : {}) },
-    to:   { at: b.generatedAt, ...(to.snapshotFile   ? { snapshotFile: to.snapshotFile   } : {}) },
+    to: { at: b.generatedAt, ...(to.snapshotFile ? { snapshotFile: to.snapshotFile } : {}) },
     stats: {
-      loc:     delta(a.stats.loc, b.stats.loc),
-      tokens:  delta(a.stats.totalTokenCost, b.stats.totalTokenCost),
-      files:   delta(a.stats.fileCount, b.stats.fileCount),
-      risks:   delta(aRisks, bRisks),
-      todos:   delta(aTodos, bTodos),
+      loc: delta(a.stats.loc, b.stats.loc),
+      tokens: delta(a.stats.totalTokenCost, b.stats.totalTokenCost),
+      files: delta(a.stats.fileCount, b.stats.fileCount),
+      risks: delta(aRisks, bRisks),
+      todos: delta(aTodos, bTodos),
       secrets: delta(aSecrets, bSecrets),
       /* v0.7 — count delta. The signed-severity-shift lives on
        *  `vulns` below; this is just the raw count change for parity
        *  with the other stats fields. */
-      vulns:   delta(aVulnIds.size, bVulnIds.size),
+      vulns: delta(aVulnIds.size, bVulnIds.size),
     },
     files: {
       added,

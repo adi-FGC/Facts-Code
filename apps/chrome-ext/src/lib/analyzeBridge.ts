@@ -33,7 +33,10 @@ let nextId = 1;
 /* In-flight runs keyed by request id. A worker crash / message error must
  * reject every pending run — otherwise the caller hangs on "Analyzing…"
  * forever waiting for a message that will never arrive. */
-const pending = new Map<string, { reject: (e: Error) => void; off: () => void; timer: ReturnType<typeof setTimeout> }>();
+const pending = new Map<
+  string,
+  { reject: (e: Error) => void; off: () => void; timer: ReturnType<typeof setTimeout> }
+>();
 
 /** Per-run safety timeout: a worker that silently wedges (pathological input)
  *  would otherwise hang the caller forever. 10 min is generous for any real
@@ -72,12 +75,17 @@ function getWorker(): Worker {
     name: 'factstack-analyze',
   });
   w.addEventListener('error', () => killWorker('The analyzer crashed. Please try again.'));
-  w.addEventListener('messageerror', () => killWorker('The analyzer sent a malformed message. Please try again.'));
+  w.addEventListener('messageerror', () =>
+    killWorker('The analyzer sent a malformed message. Please try again.'),
+  );
   worker = w;
   return worker;
 }
 
-function run(req: AnalyzeRequest, onProgress?: (p: AnalyzeProgress) => void): Promise<AnalyzeResult> {
+function run(
+  req: AnalyzeRequest,
+  onProgress?: (p: AnalyzeProgress) => void,
+): Promise<AnalyzeResult> {
   const w = getWorker();
   return new Promise<AnalyzeResult>((resolve, reject) => {
     const onMessage = (ev: MessageEvent<AnalyzeResponse>): void => {
@@ -120,7 +128,10 @@ function run(req: AnalyzeRequest, onProgress?: (p: AnalyzeProgress) => void): Pr
   });
 }
 
-export function analyzeGitHub(spec: GitHubFetchSpec, onProgress?: (p: AnalyzeProgress) => void): Promise<AnalyzeResult> {
+export function analyzeGitHub(
+  spec: GitHubFetchSpec,
+  onProgress?: (p: AnalyzeProgress) => void,
+): Promise<AnalyzeResult> {
   return run({ id: String(nextId++), kind: 'github', spec }, onProgress);
 }
 
@@ -129,7 +140,10 @@ export function analyzeLocal(
   onProgress?: (p: AnalyzeProgress) => void,
   projectName?: string,
 ): Promise<AnalyzeResult> {
-  return run({ id: String(nextId++), kind: 'local', root, ...(projectName ? { projectName } : {}) }, onProgress);
+  return run(
+    { id: String(nextId++), kind: 'local', root, ...(projectName ? { projectName } : {}) },
+    onProgress,
+  );
 }
 
 export function analyzeFiles(
@@ -137,5 +151,8 @@ export function analyzeFiles(
   onProgress?: (p: AnalyzeProgress) => void,
   projectName?: string,
 ): Promise<AnalyzeResult> {
-  return run({ id: String(nextId++), kind: 'files', files, ...(projectName ? { projectName } : {}) }, onProgress);
+  return run(
+    { id: String(nextId++), kind: 'files', files, ...(projectName ? { projectName } : {}) },
+    onProgress,
+  );
 }

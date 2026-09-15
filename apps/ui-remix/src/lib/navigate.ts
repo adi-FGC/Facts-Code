@@ -67,7 +67,10 @@ export function linkClick(event: Event): void {
   // Neutralize script/inline-payload schemes (e.g. a javascript: href planted
   // via untrusted doc markdown): swallow the click entirely — never navigate,
   // never let the browser follow it.
-  if (isDangerousScheme(href)) { event.preventDefault(); return; }
+  if (isDangerousScheme(href)) {
+    event.preventDefault();
+    return;
+  }
   // In-page anchors (`#main`, `#section`) are native browser behavior: the
   // browser scrolls the target into view and moves focus to it. Intercepting
   // them would preventDefault() and pushState the hash WITHOUT scrolling or

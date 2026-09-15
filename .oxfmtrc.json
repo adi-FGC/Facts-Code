@@ -16,6 +16,8 @@
     "**/data/*.json",
     "**/*.min.*",
     ".claude/**",
-    "prototype/**"
+    "prototype/**",
+    "**/*.md",
+    "**/*.html"
   ]
 }

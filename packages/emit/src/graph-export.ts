@@ -89,7 +89,9 @@ export function toGraphML(agent: AgentArtifact): string {
     out.push('    </node>');
   }
   edges.forEach((e, i) => {
-    out.push(`    <edge id="e${i}" source="${xmlEscape(e.source)}" target="${xmlEscape(e.target)}">`);
+    out.push(
+      `    <edge id="e${i}" source="${xmlEscape(e.source)}" target="${xmlEscape(e.target)}">`,
+    );
     out.push(`      <data key="ekind">${xmlEscape(e.kind)}</data>`);
     if (e.confidence) out.push(`      <data key="conf">${xmlEscape(e.confidence)}</data>`);
     out.push('    </edge>');

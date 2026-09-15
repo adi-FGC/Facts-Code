@@ -61,9 +61,7 @@ export async function buildSiteArtifactsTo(
   reg: SiteRegistry,
   ids?: string[],
 ): Promise<BuildSiteArtifactsResult> {
-  const selected = ids
-    ? SITE_RENDERERS.filter((r) => ids.includes(r.id))
-    : SITE_RENDERERS;
+  const selected = ids ? SITE_RENDERERS.filter((r) => ids.includes(r.id)) : SITE_RENDERERS;
 
   const allFiles: Record<string, string> = {};
   let bytes = 0;

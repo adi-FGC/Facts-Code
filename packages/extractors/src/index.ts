@@ -12,12 +12,7 @@ export { extractPythonImports, isPython } from './imports-python.js';
 export { extractGoImports, extractGoSymbols, isGo } from './imports-go.js';
 export { detectFileBasedRoutes, detectSourceRoutes, type DetectedRoute } from './routes.js';
 export { parseJS, isParseable, walkAst, djb2, type ParsedFile } from './parse.js';
-export {
-  extractAstroFrontmatter,
-  parseAstro,
-  isAstro,
-  type AstroFrontmatter,
-} from './astro.js';
+export { extractAstroFrontmatter, parseAstro, isAstro, type AstroFrontmatter } from './astro.js';
 export { extractSymbols, type ExtractedSymbol, type SymbolKind } from './symbols.js';
 export { extractOutline, type OutlineNode, type OutlineKind } from './outline.js';
 export {
@@ -27,9 +22,4 @@ export {
   type EnvVarRead,
   type EnvVarAccess,
 } from './config-schema.js';
-export {
-  extractSymbolRefs,
-  countRefsByName,
-  type RawRef,
-  type RefKind,
-} from './symbols-refs.js';
+export { extractSymbolRefs, countRefsByName, type RawRef, type RefKind } from './symbols-refs.js';

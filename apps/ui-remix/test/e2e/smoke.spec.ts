@@ -54,7 +54,9 @@ for (const route of ROUTES) {
        * content mounts after dataset parsing (Flow's SVG, Library's
        * grid, etc.) or whose H1 is wholly dataset-driven. */
       if (route.interactiveSelector) {
-        await expect(page.locator(route.interactiveSelector).first()).toBeVisible({ timeout: 5_000 });
+        await expect(page.locator(route.interactiveSelector).first()).toBeVisible({
+          timeout: 5_000,
+        });
       }
     });
   });

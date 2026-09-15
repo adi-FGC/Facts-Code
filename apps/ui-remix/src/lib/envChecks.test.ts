@@ -164,7 +164,9 @@ describe('computeEnvChecks — persistent storage row', () => {
        we couldn't measure. */
     vi.stubGlobal('navigator', {
       storage: {
-        persisted: async () => { throw new Error('quota probe denied'); },
+        persisted: async () => {
+          throw new Error('quota probe denied');
+        },
       },
     });
     const checks = await computeEnvChecks(null);

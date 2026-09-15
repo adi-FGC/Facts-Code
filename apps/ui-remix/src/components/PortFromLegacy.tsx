@@ -90,7 +90,9 @@ export function PortFromLegacy(handle: Handle<PortFromLegacyProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>{tab} · {status}</div>
+          <div mix={kicker}>
+            {tab} · {status}
+          </div>
           <h1 mix={headline}>Coming over from the legacy prototype.</h1>
           <p mix={lede}>{summary}</p>
 
@@ -112,13 +114,19 @@ export function PortFromLegacy(handle: Handle<PortFromLegacyProps>) {
               href={legacyHref}
               target="_blank"
               rel="noopener noreferrer"
-              mix={css({ color: 'var(--accent)', textDecoration: 'underline', textDecorationThickness: '1px' })}
+              mix={css({
+                color: 'var(--accent)',
+                textDecoration: 'underline',
+                textDecorationThickness: '1px',
+              })}
             >
               Legacy prototype, this tab ↗
             </a>
           </FootnoteChip>
           <FootnoteChip label="Tracked in">
-            <code class="mono" mix={trackedCode}>apps/ui-remix/TASKS.md</code>
+            <code class="mono" mix={trackedCode}>
+              apps/ui-remix/TASKS.md
+            </code>
           </FootnoteChip>
         </MarginColumn>
       </ContentWithMargin>

@@ -33,7 +33,9 @@ describe('MCP_TOOL_CATALOG', () => {
     const onboarding = MCP_TOOL_CATALOG.filter((t) => t.onboardingOrder !== undefined);
     expect(onboarding).toHaveLength(6);
     // orders form the set {1,2,3,4,5,6}
-    expect(onboarding.map((t) => t.onboardingOrder).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(onboarding.map((t) => t.onboardingOrder).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+      1, 2, 3, 4, 5, 6,
+    ]);
     // the curated sequence, sorted by order, matches the skills ONBOARDING_SEQUENCE
     const seq = onboarding
       .slice()

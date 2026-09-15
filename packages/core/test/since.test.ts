@@ -98,13 +98,13 @@ describe('sinceFromMtime — mtime-only mode', () => {
     const current = {
       ...baseAgent,
       files: [
-        file('a.ts', Date.parse('2026-04-01T00:00:00Z')),  // before
-        file('b.ts', Date.parse('2026-05-02T00:00:00Z')),  // after
-        file('c.ts', Date.parse('2026-05-03T00:00:00Z')),  // after
+        file('a.ts', Date.parse('2026-04-01T00:00:00Z')), // before
+        file('b.ts', Date.parse('2026-05-02T00:00:00Z')), // after
+        file('c.ts', Date.parse('2026-05-03T00:00:00Z')), // after
       ],
     };
     const r = sinceFromMtime(current, '2026-05-01T00:00:00Z');
-    expect(r.files.map((f) => f.path)).toEqual(['c.ts', 'b.ts']);  // most recent first
+    expect(r.files.map((f) => f.path)).toEqual(['c.ts', 'b.ts']); // most recent first
     expect(r.files.every((f) => f.kind === 'modified')).toBe(true);
   });
 
@@ -166,7 +166,10 @@ describe('sinceFromBaseline — diff mode', () => {
   });
 
   it('classifies modified files', () => {
-    const prior = { ...baseAgent, files: [file('a.ts', Date.parse('2026-04-01T00:00:00Z'), { loc: 50, bytes: 1000 })] };
+    const prior = {
+      ...baseAgent,
+      files: [file('a.ts', Date.parse('2026-04-01T00:00:00Z'), { loc: 50, bytes: 1000 })],
+    };
     const current = {
       ...baseAgent,
       files: [file('a.ts', Date.parse('2026-05-02T00:00:00Z'), { loc: 75, bytes: 1500 })],
@@ -176,10 +179,16 @@ describe('sinceFromBaseline — diff mode', () => {
   });
 
   it('skips modified files whose mtime is before the cutoff', () => {
-    const prior = { ...baseAgent, files: [file('a.ts', Date.parse('2026-04-01T00:00:00Z'), { loc: 50 })] };
+    const prior = {
+      ...baseAgent,
+      files: [file('a.ts', Date.parse('2026-04-01T00:00:00Z'), { loc: 50 })],
+    };
     // Same file, different content, but mtime BEFORE cutoff (e.g.,
     // edited last month and unchanged since).
-    const current = { ...baseAgent, files: [file('a.ts', Date.parse('2026-04-15T00:00:00Z'), { loc: 75, bytes: 1500 })] };
+    const current = {
+      ...baseAgent,
+      files: [file('a.ts', Date.parse('2026-04-15T00:00:00Z'), { loc: 75, bytes: 1500 })],
+    };
     const r = sinceFromBaseline(current, prior, '2026-05-01T00:00:00Z');
     expect(r.files.find((f) => f.kind === 'modified')).toBeUndefined();
   });

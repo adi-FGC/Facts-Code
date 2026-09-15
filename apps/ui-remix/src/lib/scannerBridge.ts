@@ -264,9 +264,13 @@ async function ensureWritePermission(handle: FileSystemDirectoryHandle): Promise
  * when the user cancels (caller treats this as "go back to idle").
  */
 export async function pickWriteDirectory(): Promise<FileSystemDirectoryHandle | null> {
-  const picker = (window as unknown as {
-    showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
-  }).showDirectoryPicker;
+  const picker = (
+    window as unknown as {
+      showDirectoryPicker?: (opts?: {
+        mode?: 'read' | 'readwrite';
+      }) => Promise<FileSystemDirectoryHandle>;
+    }
+  ).showDirectoryPicker;
   if (!picker) {
     throw new Error('File System Access API not supported in this browser. Try Chrome or Edge.');
   }

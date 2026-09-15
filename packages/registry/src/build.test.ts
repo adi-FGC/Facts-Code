@@ -63,7 +63,10 @@ describe('buildSiteRegistry', () => {
     expect(reg.cli.command).toBe('npx -y @factstack/cli');
     expect(reg.mcp.publishedPackage).toBe('@factstack/mcp-server');
     expect(reg.mcp.binName).toBe('factstack-mcp');
-    expect(reg.mcp.launchCommand).toEqual({ command: 'npx', args: ['-y', '@factstack/mcp-server'] });
+    expect(reg.mcp.launchCommand).toEqual({
+      command: 'npx',
+      args: ['-y', '@factstack/mcp-server'],
+    });
   });
 
   it('exposes both static hosts', () => {

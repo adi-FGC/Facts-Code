@@ -52,7 +52,10 @@ export { bucketSeverity, pickFixedVersion, pickAdvisoryUrl };
 
 /* ─────────── localStorage cache adapter ─────────── */
 
-interface CacheEntry { ts: number; results: OsvResult[]; }
+interface CacheEntry {
+  ts: number;
+  results: OsvResult[];
+}
 
 export const localStorageCache: CacheStore = {
   get(key: string): OsvResult[] | null {

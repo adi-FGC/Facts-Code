@@ -61,7 +61,9 @@ export class SqliteExtractionCache implements ExtractionCache {
     // WAL + NORMAL: durable enough for a rebuildable cache, fast on warm runs.
     this.#db.exec('PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL;');
     this.#db.exec('CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL);');
-    this.#db.exec('CREATE TABLE IF NOT EXISTS extraction (key TEXT PRIMARY KEY, val TEXT NOT NULL);');
+    this.#db.exec(
+      'CREATE TABLE IF NOT EXISTS extraction (key TEXT PRIMARY KEY, val TEXT NOT NULL);',
+    );
 
     // Version guard — nuke-and-rebuild on a table-shape mismatch so an old
     // binary's cache.db can never feed malformed rows to a newer one.

@@ -78,7 +78,7 @@ describe('walk — other checkouts inside the tree', () => {
     expect(paths).toEqual(['examples/plain/index.ts', 'src/a.ts']);
   });
 
-  it('still walks the root itself, whose .git is the project\'s own', async () => {
+  it("still walks the root itself, whose .git is the project's own", async () => {
     const fs = memoryFS({ '.git/HEAD': 'ref', 'src/a.ts': 'x' });
     expect(await collect(walk(fs))).toEqual(['src/a.ts']);
   });
@@ -202,9 +202,11 @@ describe('walk — file size cap + binary detection', () => {
   it('does NOT flag a normal source file containing a single embedded NUL (facts+ engine.ts regression)', async () => {
     // Real-world case: a 338-line TS file used a literal `\0` as a cache-key
     // separator inside a template string and got packed as loc 0 / "ok".
-    const source = 'export function cacheKey(files: string[]): string {\n' +
+    const source =
+      'export function cacheKey(files: string[]): string {\n' +
       '  return files.map((f) => `${f}\0suffix`).join("|");\n' +
-      '}\n' + '// padding line\n'.repeat(300);
+      '}\n' +
+      '// padding line\n'.repeat(300);
     const fs = memoryFS({ 'src/engine.ts': source });
     const out: Array<{ path: string; skippedReason: string | null; loc: number }> = [];
     for await (const f of walk(fs)) out.push(f);
@@ -225,7 +227,12 @@ describe('walk — file size cap + binary detection', () => {
 describe('walk — read errors', () => {
   it('retries a transient read failure and yields the file with content', async () => {
     const fs = flakyReadFS({ 'src/engine.ts': 'export const x = 1;\n' }, 'src/engine.ts', 1);
-    const out: Array<{ path: string; text: string | null; loc: number; skippedReason: string | null }> = [];
+    const out: Array<{
+      path: string;
+      text: string | null;
+      loc: number;
+      skippedReason: string | null;
+    }> = [];
     for await (const f of walk(fs)) out.push(f);
     const file = out.find((f) => f.path === 'src/engine.ts');
     expect(file?.skippedReason).toBeNull();
@@ -235,7 +242,12 @@ describe('walk — read errors', () => {
 
   it('yields skippedReason="read_error" with null text when the read keeps failing', async () => {
     const fs = flakyReadFS({ 'src/engine.ts': 'export const x = 1;\n' }, 'src/engine.ts', Infinity);
-    const out: Array<{ path: string; text: string | null; loc: number; skippedReason: string | null }> = [];
+    const out: Array<{
+      path: string;
+      text: string | null;
+      loc: number;
+      skippedReason: string | null;
+    }> = [];
     for await (const f of walk(fs)) out.push(f);
     const file = out.find((f) => f.path === 'src/engine.ts');
     expect(file?.skippedReason).toBe('read_error');

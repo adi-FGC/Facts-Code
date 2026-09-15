@@ -8,7 +8,10 @@ import type { DependencyManifest, Vulnerability } from '@factstack/spec';
  * its exact (ecosystem, package, installedVersion) is still installed.
  */
 
-function manifest(deps: Record<string, string>, devDeps: Record<string, string> = {}): DependencyManifest {
+function manifest(
+  deps: Record<string, string>,
+  devDeps: Record<string, string> = {},
+): DependencyManifest {
   return {
     path: 'package.json',
     ecosystem: 'npm',
@@ -67,6 +70,8 @@ describe('reconcileVulnerabilities (v0.11)', () => {
     // so a (bogus) finding claiming that version must not survive.
     expect(normalizeNpmVersion('workspace:*')).toBeNull();
     const prev = [vuln('internal-pkg', '1.0.0')];
-    expect(reconcileVulnerabilities(prev, [manifest({ 'internal-pkg': 'workspace:*' })])).toEqual([]);
+    expect(reconcileVulnerabilities(prev, [manifest({ 'internal-pkg': 'workspace:*' })])).toEqual(
+      [],
+    );
   });
 });

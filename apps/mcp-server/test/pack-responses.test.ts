@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { decode, type DecodedTable } from '@factstack/factspack';
-import { getOutlineToPack, subgraphToPack, contextToPack, verbResultNodes, type SubgraphLike, type ContextLike } from '../src/pack-responses.js';
+import {
+  getOutlineToPack,
+  subgraphToPack,
+  contextToPack,
+  verbResultNodes,
+  type SubgraphLike,
+  type ContextLike,
+} from '../src/pack-responses.js';
 import type { AgentArtifact, SymbolNode, SymbolEdge } from '@factstack/spec';
 import type { QueryResult } from '@factstack/core';
 import type { ExtractedSymbol } from '@factstack/extractors';
@@ -59,7 +66,14 @@ function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: SNAP,
-    project: { name: 't', root: '/t', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 't',
+      root: '/t',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], ...graph },
     routes: [],
@@ -74,7 +88,8 @@ function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
 function table(pack: string, name: string): DecodedTable {
   const decoded = decode(pack);
   const t = decoded.tables.get(name);
-  if (!t) throw new Error(`expected table '${name}', got [${[...decoded.tables.keys()].join(', ')}]`);
+  if (!t)
+    throw new Error(`expected table '${name}', got [${[...decoded.tables.keys()].join(', ')}]`);
   return t;
 }
 
@@ -132,8 +147,20 @@ describe('getOutlineToPack → outline-v2', () => {
     const rows = table(pack, 'refs').rows;
     // cols: id, S(from), T(to), kind, conf
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toEqual(['0', 'src/widget.ts#render@5', 'src/widget.ts#helper@22', 'call', 'inferred']);
-    expect(rows[1]).toEqual(['1', 'src/widget.ts#Widget@1', 'src/base.ts#Base@1', 'extends', 'extracted']);
+    expect(rows[0]).toEqual([
+      '0',
+      'src/widget.ts#render@5',
+      'src/widget.ts#helper@22',
+      'call',
+      'inferred',
+    ]);
+    expect(rows[1]).toEqual([
+      '1',
+      'src/widget.ts#Widget@1',
+      'src/base.ts#Base@1',
+      'extends',
+      'extracted',
+    ]);
   });
 
   it('still emits an EMPTY refs table when no symbol edges were resolved', () => {
@@ -159,7 +186,14 @@ describe('subgraphToPack → subgraph-v1', () => {
 
   const baseResult: SubgraphLike = {
     nodes: ['src/a.ts#helper@3', 'src/a.ts'],
-    edges: [{ from: 'src/a.ts#useHelper@1', to: 'src/a.ts#helper@3', kind: 'call', confidence: 'inferred' }],
+    edges: [
+      {
+        from: 'src/a.ts#useHelper@1',
+        to: 'src/a.ts#helper@3',
+        kind: 'call',
+        confidence: 'inferred',
+      },
+    ],
     truncated: false,
   };
 
@@ -237,7 +271,14 @@ function citationAnchor(row: (string | null)[]): string {
  */
 describe('verbResultNodes', () => {
   it('flattens + dedups + sorts cycles (string[][])', () => {
-    const r = { verb: 'cycles', count: 2, results: [['b.ts', 'a.ts'], ['a.ts', 'c.ts']] } as unknown as QueryResult;
+    const r = {
+      verb: 'cycles',
+      count: 2,
+      results: [
+        ['b.ts', 'a.ts'],
+        ['a.ts', 'c.ts'],
+      ],
+    } as unknown as QueryResult;
     expect(verbResultNodes(r)).toEqual(['a.ts', 'b.ts', 'c.ts']);
   });
 
@@ -261,10 +302,32 @@ describe('verbResultNodes', () => {
 describe('contextToPack → context-v1', () => {
   const ctx: ContextLike = {
     items: [
-      { id: 'src/user.ts', path: 'src/user.ts', name: 'user.ts', kind: 'file', line: null, score: 0.73, tokenCost: 200, hops: 0, isSeed: true },
-      { id: 'src/auth.ts#login@5', path: 'src/auth.ts', name: 'login', kind: 'function', line: 5, score: 0.5, tokenCost: 40, hops: 1, isSeed: false },
+      {
+        id: 'src/user.ts',
+        path: 'src/user.ts',
+        name: 'user.ts',
+        kind: 'file',
+        line: null,
+        score: 0.73,
+        tokenCost: 200,
+        hops: 0,
+        isSeed: true,
+      },
+      {
+        id: 'src/auth.ts#login@5',
+        path: 'src/auth.ts',
+        name: 'login',
+        kind: 'function',
+        line: 5,
+        score: 0.5,
+        tokenCost: 40,
+        hops: 1,
+        isSeed: false,
+      },
     ],
-    edges: [{ from: 'src/auth.ts#login@5', to: 'src/user.ts', kind: 'call', confidence: 'inferred' }],
+    edges: [
+      { from: 'src/auth.ts#login@5', to: 'src/user.ts', kind: 'call', confidence: 'inferred' },
+    ],
     totalTokens: 240,
     budgetTokens: 8000,
     truncated: false,
@@ -283,13 +346,24 @@ describe('contextToPack → context-v1', () => {
     const rows = table(pack, 'ranked').rows;
     // cols: id, node, F(path), kind, name, line, score, tok, hops, seed
     const seed = rows.find((r) => r[1] === 'src/user.ts')!;
-    expect(seed.slice(2)).toEqual(['src/user.ts', 'file', 'user.ts', null, '0.73', '200', '0', '1']);
+    expect(seed.slice(2)).toEqual([
+      'src/user.ts',
+      'file',
+      'user.ts',
+      null,
+      '0.73',
+      '200',
+      '0',
+      '1',
+    ]);
     const sym = rows.find((r) => r[1] === 'src/auth.ts#login@5')!;
     expect(sym.slice(2)).toEqual(['src/auth.ts', 'function', 'login', '5', '0.5', '40', '1', '0']);
   });
 
   it('edges resolve S/T to ids; meta is a single budget row', () => {
-    expect(table(pack, 'edges').rows).toEqual([['0', 'src/auth.ts#login@5', 'src/user.ts', 'call', 'inferred']]);
+    expect(table(pack, 'edges').rows).toEqual([
+      ['0', 'src/auth.ts#login@5', 'src/user.ts', 'call', 'inferred'],
+    ]);
     // cols: totalTokens, budget, truncated, coldStart, items, edges
     expect(table(pack, 'meta').rows).toEqual([['240', '8000', '0', '0', '2', '1']]);
   });

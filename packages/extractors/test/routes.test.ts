@@ -76,7 +76,8 @@ describe('detectFileBasedRoutes', () => {
 
 describe('detectSourceRoutes', () => {
   it('catches Express-style declarations', () => {
-    const src = "import express from 'express';\nconst app = express();\napp.get('/health', (req, res) => res.sendStatus(200));\nrouter.post('/items', create);";
+    const src =
+      "import express from 'express';\nconst app = express();\napp.get('/health', (req, res) => res.sendStatus(200));\nrouter.post('/items', create);";
     const r = detectSourceRoutes('server.ts', src);
     expect(r.map((x) => x.method + ' ' + x.path).sort()).toEqual(['GET /health', 'POST /items']);
   });

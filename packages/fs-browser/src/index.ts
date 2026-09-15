@@ -41,7 +41,9 @@ export class FsaBrowserFS implements FactsFS {
    * return either a directory or file handle. Throws if the path
    * doesn't exist. Caches as it goes.
    */
-  private async resolve(rawPath: string): Promise<{ kind: 'dir' | 'file'; handle: FileSystemHandle }> {
+  private async resolve(
+    rawPath: string,
+  ): Promise<{ kind: 'dir' | 'file'; handle: FileSystemHandle }> {
     const p = this.normalize(rawPath);
     if (p === '.') return { kind: 'dir', handle: this.root };
 
@@ -61,7 +63,11 @@ export class FsaBrowserFS implements FactsFS {
     for (let i = parts.length - 1; i > 0; i--) {
       const candidate = parts.slice(0, i).join('/');
       const cached = this.dirCache.get(candidate);
-      if (cached) { cursor = cached; prefix = candidate; break; }
+      if (cached) {
+        cursor = cached;
+        prefix = candidate;
+        break;
+      }
     }
     const remaining = prefix ? parts.slice(prefix.split('/').length) : parts;
 
@@ -124,7 +130,9 @@ export class FsaBrowserFS implements FactsFS {
     /* `entries()` is the asynchronous iterator that walks immediate
        children. Each yields `[name, FileSystemHandle]`. Cache as we
        go so subsequent resolve() calls have less work. */
-    for await (const [name, child] of (dir as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }).entries()) {
+    for await (const [name, child] of (
+      dir as unknown as { entries: () => AsyncIterableIterator<[string, FileSystemHandle]> }
+    ).entries()) {
       const childPath = normP === '.' ? name : `${normP}/${name}`;
       if (child.kind === 'directory') {
         this.dirCache.set(childPath, child as FileSystemDirectoryHandle);

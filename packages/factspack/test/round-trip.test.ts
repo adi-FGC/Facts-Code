@@ -57,7 +57,10 @@ describe('round-trip — fixed cases', () => {
       {
         name: 't',
         columns: [{ name: 'a' }, { name: 'b' }],
-        rows: [['1', '2'], ['3', '4']],
+        rows: [
+          ['1', '2'],
+          ['3', '4'],
+        ],
       },
     ];
     expectTablesEqual(roundTrip(tables), tables);
@@ -98,12 +101,7 @@ describe('round-trip — fixed cases', () => {
       {
         name: 't',
         columns: [{ name: 'msg' }],
-        rows: [
-          ['has\ttab'],
-          ['has\nnewline'],
-          ['has\\backslash'],
-          ['all\t\n\\at\tonce'],
-        ],
+        rows: [['has\ttab'], ['has\nnewline'], ['has\\backslash'], ['all\t\n\\at\tonce']],
       },
     ];
     expectTablesEqual(roundTrip(tables), tables);
@@ -114,12 +112,18 @@ describe('round-trip — fixed cases', () => {
       {
         name: 'symbols',
         columns: [{ name: 'id' }, { name: 'F' }],
-        rows: [['1', 'src/a.ts'], ['2', 'src/b.ts']],
+        rows: [
+          ['1', 'src/a.ts'],
+          ['2', 'src/b.ts'],
+        ],
       },
       {
         name: 'imports',
         columns: [{ name: 'id' }, { name: 'F' }, { name: 'to' }],
-        rows: [['1', 'src/a.ts', 'react'], ['2', 'src/a.ts', 'lodash']],
+        rows: [
+          ['1', 'src/a.ts', 'react'],
+          ['2', 'src/a.ts', 'lodash'],
+        ],
       },
     ];
     expectTablesEqual(roundTrip(tables), tables);
@@ -157,11 +161,13 @@ describe('round-trip — fixed cases', () => {
   it('v0.2: legend + hot meta lines round-trip into DecodedPack.meta', () => {
     const text = encode({
       header: HEADER,
-      tables: [{
-        name: 't',
-        columns: [{ name: 'F', internGroup: 'F' }],
-        rows: [['src/a.ts'], ['src/a.ts'], ['src/b.ts']],
-      }],
+      tables: [
+        {
+          name: 't',
+          columns: [{ name: 'F', internGroup: 'F' }],
+          rows: [['src/a.ts'], ['src/a.ts'], ['src/b.ts']],
+        },
+      ],
       meta: { legend: ['line one', 'line two'], hot: { group: 'F' } },
     });
     const decoded = decode(text);
@@ -174,12 +180,18 @@ describe('round-trip — fixed cases', () => {
       {
         name: 'imports',
         columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }, { name: 'T', internGroup: 'F' }],
-        rows: [['0', 'src/a.ts', 'src/b.ts'], ['1', 'src/b.ts', 'src/c.ts']],
+        rows: [
+          ['0', 'src/a.ts', 'src/b.ts'],
+          ['1', 'src/b.ts', 'src/c.ts'],
+        ],
       },
       {
         name: 'risks',
         columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }],
-        rows: [['0', 'src/c.ts'], ['1', 'src/a.ts']],
+        rows: [
+          ['0', 'src/c.ts'],
+          ['1', 'src/a.ts'],
+        ],
       },
     ];
     expectTablesEqual(roundTrip(tables), tables);
@@ -216,12 +228,14 @@ describe('round-trip — incremental packs', () => {
   it('v0.2: incremental packs carry meta lines and survive the trailer check', () => {
     const text = encodeIncremental({
       header: { ...HEADER, kind: 'diff', seq: 2, parent: 'abcdefabcdef' },
-      tables: [{
-        name: 'symbols',
-        columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }],
-        addedRows: [['9', 'src/new.ts']],
-        deletedIds: ['1'],
-      }],
+      tables: [
+        {
+          name: 'symbols',
+          columns: [{ name: 'id' }, { name: 'F', internGroup: 'F' }],
+          addedRows: [['9', 'src/new.ts']],
+          deletedIds: ['1'],
+        },
+      ],
       meta: { legend: ['diff pack'] },
     });
     const decoded = decode(text);
@@ -241,9 +255,9 @@ describe('round-trip — incremental packs', () => {
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
   return () => {
-    t = (t + 0x6D2B79F5) | 0;
+    t = (t + 0x6d2b79f5) | 0;
     let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r = r + Math.imul(r ^ (r >>> 7), 61 | r) ^ r;
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
     return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
   };
 }
@@ -271,8 +285,8 @@ function makeRandomTable(rng: () => number, idx: number): PackTable {
     const row: (string | null)[] = columns.map((col, c) => {
       const roll = rng();
       if (roll < 0.05) return null;
-      if (roll < 0.10) return '';
-      if (col.name.charCodeAt(0) >= 0x41 && col.name.charCodeAt(0) <= 0x5A) {
+      if (roll < 0.1) return '';
+      if (col.name.charCodeAt(0) >= 0x41 && col.name.charCodeAt(0) <= 0x5a) {
         // interned — pick from the small repeating pool
         return internPool[Math.floor(rng() * internPool.length)]!;
       }
@@ -295,7 +309,7 @@ function makeRandomTable(rng: () => number, idx: number): PackTable {
 describe('round-trip — fuzz (30 deterministic cases)', () => {
   // Fixed seed so failures are reproducible. Bump if you change the
   // generator and want to re-cover the input space.
-  const SEED = 0xFAC75AC4;
+  const SEED = 0xfac75ac4;
 
   for (let i = 0; i < 30; i++) {
     it(`case ${i}: random table shape`, () => {
@@ -340,9 +354,15 @@ describe('round-trip — token cost rough check', () => {
     ];
 
     const pack = encode({ header: HEADER, tables });
-    const json = JSON.stringify(rows.map((r) => ({
-      id: r[0], kind: r[1], name: r[2], file: r[3], line: r[4],
-    })));
+    const json = JSON.stringify(
+      rows.map((r) => ({
+        id: r[0],
+        kind: r[1],
+        name: r[2],
+        file: r[3],
+        line: r[4],
+      })),
+    );
 
     expect(pack.length).toBeLessThan(json.length * 0.5);
   });

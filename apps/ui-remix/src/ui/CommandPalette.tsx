@@ -40,7 +40,7 @@ interface PaletteProps {
 interface Result {
   type: 'tab' | 'file';
   label: string;
-  detail: string;       // path or kicker line
+  detail: string; // path or kicker line
   href: string;
   /** Sort weight (higher = better match). */
   score: number;
@@ -88,7 +88,14 @@ function rank(query: string, data: Dataset): Result[] {
   // Tabs
   for (const t of NAV_TARGETS) {
     const s = score(query, t.label, t.label);
-    if (s >= 0) out.push({ type: 'tab', label: t.label, detail: t.href, href: t.href, score: s + 25 /* slight tab boost */ });
+    if (s >= 0)
+      out.push({
+        type: 'tab',
+        label: t.label,
+        detail: t.href,
+        href: t.href,
+        score: s + 25 /* slight tab boost */,
+      });
   }
   // Files
   for (const f of flattenFiles(data.tree)) {
@@ -355,7 +362,9 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
   }
 
   document.addEventListener('keydown', onGlobalKey);
-  handle.signal.addEventListener('abort', () => document.removeEventListener('keydown', onGlobalKey));
+  handle.signal.addEventListener('abort', () =>
+    document.removeEventListener('keydown', onGlobalKey),
+  );
 
   // Close when route changes (so the palette doesn't linger after Enter).
   const onNav = () => hide();
@@ -379,7 +388,9 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
       >
         <div mix={panel}>
           <div mix={inputWrap}>
-            <span aria-hidden="true" mix={inputPrompt}>{'>'}</span>
+            <span aria-hidden="true" mix={inputPrompt}>
+              {'>'}
+            </span>
             <input
               type="text"
               role="combobox"
@@ -397,7 +408,9 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
                 /* `ref()` mixin captures the node + an AbortSignal so
                    the binding clears automatically when the input
                    unmounts (every palette close). */
-                ref<HTMLInputElement>((node) => { inputRef = node; }),
+                ref<HTMLInputElement>((node) => {
+                  inputRef = node;
+                }),
                 on<HTMLInputElement>('input', (e) => {
                   const t = e.currentTarget;
                   query = t?.value ?? '';
@@ -407,15 +420,17 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
               ]}
             />
             <span mix={hintRow}>
-              <span>{cachedResults.length} {cachedResults.length === 1 ? 'match' : 'matches'}</span>
+              <span>
+                {cachedResults.length} {cachedResults.length === 1 ? 'match' : 'matches'}
+              </span>
             </span>
           </div>
 
           {cachedResults.length === 0 ? (
             <div mix={empty}>
               No tabs or files match{' '}
-              <span mix={css({ fontFamily: 'var(--font-mono)' })}>"{query}"</span>.
-              Try a partial filename, a folder name, or one of the tab names.
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>"{query}"</span>. Try a partial
+              filename, a folder name, or one of the tab names.
             </div>
           ) : (
             <ul id={LISTBOX_ID} role="listbox" aria-label="Results" mix={list}>
@@ -425,11 +440,7 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
                   id={optionId(i)}
                   role="option"
                   aria-selected={i === selectedIdx ? 'true' : 'false'}
-                  mix={[
-                    row,
-                    i === selectedIdx ? rowActive : null,
-                    on('click', () => commit(i)),
-                  ]}
+                  mix={[row, i === selectedIdx ? rowActive : null, on('click', () => commit(i))]}
                 >
                   <span mix={[typeTag, r.type === 'tab' ? tagTab : tagFile]}>
                     {r.type === 'tab' ? 'TAB' : 'FILE'}
@@ -445,9 +456,16 @@ export function CommandPalette(handle: Handle<PaletteProps>) {
           )}
 
           <div mix={footRow}>
-            <span><span mix={kbd}>↑</span><span mix={kbd}>↓</span> navigate</span>
-            <span><span mix={kbd}>↵</span> open</span>
-            <span><span mix={kbd}>Esc</span> close</span>
+            <span>
+              <span mix={kbd}>↑</span>
+              <span mix={kbd}>↓</span> navigate
+            </span>
+            <span>
+              <span mix={kbd}>↵</span> open
+            </span>
+            <span>
+              <span mix={kbd}>Esc</span> close
+            </span>
           </div>
         </div>
       </div>

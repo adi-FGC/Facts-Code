@@ -79,7 +79,11 @@ describe('computeTreemap', () => {
   });
 
   it('preserves the gap inset with padding', () => {
-    const out = computeTreemap([{ id: 'a', label: 'A', value: 1 }], { width: 100, height: 100, padding: 2 });
+    const out = computeTreemap([{ id: 'a', label: 'A', value: 1 }], {
+      width: 100,
+      height: 100,
+      padding: 2,
+    });
     const r = out.rects[0]!;
     expect(r.x).toBeCloseTo(2, 5);
     expect(r.w).toBeCloseTo(96, 5);

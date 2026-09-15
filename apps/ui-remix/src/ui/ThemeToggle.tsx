@@ -36,7 +36,8 @@ const wrap = css({
   /* Editorial detail: a tiny inset hairline on hover hints "this is
      a button" without box-shadow noise. Color shift signals the
      active interaction state. */
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart), border-color var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart), border-color var(--dur-quick) var(--ease-out-quart)',
   '&:hover': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -57,7 +58,15 @@ const wrap = css({
 
 function renderSun() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    >
       <circle cx="8" cy="8" r="3" />
       <line x1="8" y1="1.5" x2="8" y2="3" />
       <line x1="8" y1="13" x2="8" y2="14.5" />
@@ -73,7 +82,16 @@ function renderSun() {
 
 function renderMoon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M13 9.5A6 6 0 0 1 6.5 3a0.5 0.5 0 0 0-0.7-0.5A6.5 6.5 0 1 0 13.5 10.2 0.5 0.5 0 0 0 13 9.5z" />
     </svg>
   );
@@ -83,7 +101,14 @@ function renderSystem() {
   /* Split disc — left half outlined, right half filled. Communicates
      "auto / two modes" without resembling a hard light/dark choice. */
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+    >
       <circle cx="8" cy="8" r="5.5" />
       <path d="M8 2.5 a5.5 5.5 0 0 1 0 11 z" fill="currentColor" stroke="none" />
     </svg>
@@ -126,7 +151,9 @@ export function ThemeToggle(handle: Handle) {
     }
   };
   window.addEventListener('factstack:theme', onThemeShortcut);
-  handle.signal.addEventListener('abort', () => window.removeEventListener('factstack:theme', onThemeShortcut));
+  handle.signal.addEventListener('abort', () =>
+    window.removeEventListener('factstack:theme', onThemeShortcut),
+  );
 
   function advance() {
     current = nextTheme(current);
@@ -137,9 +164,7 @@ export function ThemeToggle(handle: Handle) {
 
   return () => {
     const icon =
-      current === 'light' ? renderSun() :
-      current === 'dark'  ? renderMoon() :
-                            renderSystem();
+      current === 'light' ? renderSun() : current === 'dark' ? renderMoon() : renderSystem();
     const title = `${CURRENT_LABEL[current]} · click for ${NEXT_LABEL[current]}`;
     return (
       <button

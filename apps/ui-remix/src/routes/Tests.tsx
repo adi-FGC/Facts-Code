@@ -34,8 +34,8 @@ interface TestsProps {
 
 function fmt(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 10_000)    return (n / 1_000).toFixed(1) + 'K';
-  if (n >= 1_000)     return (n / 1_000).toFixed(2) + 'K';
+  if (n >= 10_000) return (n / 1_000).toFixed(1) + 'K';
+  if (n >= 1_000) return (n / 1_000).toFixed(2) + 'K';
   return n.toLocaleString('en-US');
 }
 
@@ -87,7 +87,11 @@ function isProductionCode(f: DatasetFile): boolean {
  * spec), prefer one that shares the test's basename minus the test
  * suffix (`foo.test.ts` → `foo.ts`), then fall back to first-import.
  */
-function inferTarget(test: DatasetFile, edges: Dataset['edges'], byPath: Map<string, DatasetFile>): DatasetFile | null {
+function inferTarget(
+  test: DatasetFile,
+  edges: Dataset['edges'],
+  byPath: Map<string, DatasetFile>,
+): DatasetFile | null {
   const stem = test.name
     .replace(/\.(test|spec)\.(t|j)sx?$/i, '')
     .replace(/_test\.py$/i, '')
@@ -182,9 +186,10 @@ export function Tests(handle: Handle<TestsProps>) {
       if (target) exercised.add(target.path);
     }
     const untested = production.filter((f) => !exercised.has(f.path));
-    const coveragePct = production.length === 0
-      ? 0
-      : Math.round((production.length - untested.length) / production.length * 100);
+    const coveragePct =
+      production.length === 0
+        ? 0
+        : Math.round(((production.length - untested.length) / production.length) * 100);
 
     const staleTests = testWithTargets.filter((r) => !r.target);
     const stale = staleTests.length;
@@ -200,16 +205,15 @@ export function Tests(handle: Handle<TestsProps>) {
               <span mix={css({ fontFamily: 'var(--font-mono)' })}>*.test.ts</span>,{' '}
               <span mix={css({ fontFamily: 'var(--font-mono)' })}>*.spec.ts</span>,{' '}
               <span mix={css({ fontFamily: 'var(--font-mono)' })}>__tests__/</span>,{' '}
-              <span mix={css({ fontFamily: 'var(--font-mono)' })}>tests/</span> directories,{' '}
-              or <span mix={css({ fontFamily: 'var(--font-mono)' })}>*_test.py</span> for
-              Python. Add a test, re-run analyze, and this page populates
-              with coverage data and stale-test detection.
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>tests/</span> directories, or{' '}
+              <span mix={css({ fontFamily: 'var(--font-mono)' })}>*_test.py</span> for Python. Add a
+              test, re-run analyze, and this page populates with coverage data and stale-test
+              detection.
             </p>
           </div>
           <MarginColumn>
             <FootnoteChip label="Heuristic" aside="symbol-level coverage in v0.4.5">
-              File-level only. Targets inferred from import edges, not
-              line-by-line execution.
+              File-level only. Targets inferred from import edges, not line-by-line execution.
             </FootnoteChip>
           </MarginColumn>
         </ContentWithMargin>
@@ -219,19 +223,29 @@ export function Tests(handle: Handle<TestsProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Tests · {tests.length} {tests.length === 1 ? 'file' : 'files'}</div>
+          <div mix={kicker}>
+            Tests · {tests.length} {tests.length === 1 ? 'file' : 'files'}
+          </div>
           <h1 mix={headline}>What's actually tested.</h1>
           <p mix={lede}>
-            File-level coverage proxy. Targets are guessed from import
-            edges — the same logic the agent uses to spot stale tests.
-            Symbol-level coverage lands with v0.4.5.
+            File-level coverage proxy. Targets are guessed from import edges — the same logic the
+            agent uses to spot stale tests. Symbol-level coverage lands with v0.4.5.
           </p>
 
           <LabelNumberRow>
-            <LabelNumber label="Tests"   value={fmt(tests.length)} />
-            <LabelNumber label="Covered" value={fmt(exercised.size)} hint={`of ${fmt(production.length)} eligible`} />
+            <LabelNumber label="Tests" value={fmt(tests.length)} />
+            <LabelNumber
+              label="Covered"
+              value={fmt(exercised.size)}
+              hint={`of ${fmt(production.length)} eligible`}
+            />
             <LabelNumber label="Coverage" value={`${coveragePct}%`} unit="proxy" />
-            <LabelNumber label="Stale"   value={stale} hint={stale === 0 ? 'all tests have a target' : 'no inferable target'} last />
+            <LabelNumber
+              label="Stale"
+              value={stale}
+              hint={stale === 0 ? 'all tests have a target' : 'no inferable target'}
+              last
+            />
           </LabelNumberRow>
 
           <Section label="Test suite" title="Each test file with its inferred subject">
@@ -239,30 +253,44 @@ export function Tests(handle: Handle<TestsProps>) {
               <RuledRow header>
                 <RuledCell header>Test</RuledCell>
                 <RuledCell header>Subject (inferred)</RuledCell>
-                <RuledCell header align="right">Lines</RuledCell>
-                <RuledCell header align="right">TODOs</RuledCell>
-                <RuledCell header align="right">Status</RuledCell>
+                <RuledCell header align="right">
+                  Lines
+                </RuledCell>
+                <RuledCell header align="right">
+                  TODOs
+                </RuledCell>
+                <RuledCell header align="right">
+                  Status
+                </RuledCell>
               </RuledRow>
               {testWithTargets.map(({ test, target }) => {
                 const { dir: tDir, name: tName } = splitDirAndName(test.path);
                 return (
                   <RuledRow key={test.path}>
                     <RuledCell>
-                      <a href={`/files?p=${encodeURIComponent(test.path)}`} mix={fileLink}>{tName}</a>
+                      <a href={`/files?p=${encodeURIComponent(test.path)}`} mix={fileLink}>
+                        {tName}
+                      </a>
                       <div mix={dirText}>{tDir || '·'}</div>
                     </RuledCell>
                     <RuledCell>
                       {target ? (
                         <>
-                          <a href={`/files?p=${encodeURIComponent(target.path)}`} mix={fileLink}>{target.name}</a>
+                          <a href={`/files?p=${encodeURIComponent(target.path)}`} mix={fileLink}>
+                            {target.name}
+                          </a>
                           <div mix={dirText}>{splitDirAndName(target.path).dir || '·'}</div>
                         </>
                       ) : (
                         <span mix={dim}>no target inferable</span>
                       )}
                     </RuledCell>
-                    <RuledCell mono align="right">{fmt(test.loc)}</RuledCell>
-                    <RuledCell mono align="right">{test.todos > 0 ? test.todos : '—'}</RuledCell>
+                    <RuledCell mono align="right">
+                      {fmt(test.loc)}
+                    </RuledCell>
+                    <RuledCell mono align="right">
+                      {test.todos > 0 ? test.todos : '—'}
+                    </RuledCell>
                     <RuledCell align="right">
                       <StatusChip kind={test.status} />
                     </RuledCell>
@@ -277,33 +305,44 @@ export function Tests(handle: Handle<TestsProps>) {
               label="Stale tests"
               title={`${staleTests.length} ${staleTests.length === 1 ? 'test has' : 'tests have'} no inferable subject`}
             >
-              <p mix={css({
-                color: 'var(--fg-muted)',
-                maxWidth: '60ch',
-                marginBottom: 'var(--space-5)',
-                lineHeight: '1.6',
-              })}>
-                These test files don't import any in-project file. Either
-                the subject was deleted (stale test ⇒ delete or relocate),
-                the test is fixture-only (read-only data setup), or the
-                analyzer missed the edge. Open the file to confirm.
+              <p
+                mix={css({
+                  color: 'var(--fg-muted)',
+                  maxWidth: '60ch',
+                  marginBottom: 'var(--space-5)',
+                  lineHeight: '1.6',
+                })}
+              >
+                These test files don't import any in-project file. Either the subject was deleted
+                (stale test ⇒ delete or relocate), the test is fixture-only (read-only data setup),
+                or the analyzer missed the edge. Open the file to confirm.
               </p>
               <RuledTable minWidth="28rem" cols="minmax(0, 1.6fr) minmax(0, 1.4fr) auto auto">
                 <RuledRow header>
                   <RuledCell header>Test</RuledCell>
                   <RuledCell header>Folder</RuledCell>
-                  <RuledCell header align="right">Lines</RuledCell>
-                  <RuledCell header align="right">Status</RuledCell>
+                  <RuledCell header align="right">
+                    Lines
+                  </RuledCell>
+                  <RuledCell header align="right">
+                    Status
+                  </RuledCell>
                 </RuledRow>
                 {staleTests.map(({ test }) => {
                   const { dir, name } = splitDirAndName(test.path);
                   return (
                     <RuledRow key={test.path}>
                       <RuledCell>
-                        <a href={`/files?p=${encodeURIComponent(test.path)}`} mix={fileLink}>{name}</a>
+                        <a href={`/files?p=${encodeURIComponent(test.path)}`} mix={fileLink}>
+                          {name}
+                        </a>
                       </RuledCell>
-                      <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-                      <RuledCell mono align="right">{fmt(test.loc)}</RuledCell>
+                      <RuledCell>
+                        <span mix={dirText}>{dir || '·'}</span>
+                      </RuledCell>
+                      <RuledCell mono align="right">
+                        {fmt(test.loc)}
+                      </RuledCell>
                       <RuledCell align="right">
                         <StatusChip kind={test.status} />
                       </RuledCell>
@@ -323,9 +362,15 @@ export function Tests(handle: Handle<TestsProps>) {
                 <RuledRow header>
                   <RuledCell header>File</RuledCell>
                   <RuledCell header>Folder</RuledCell>
-                  <RuledCell header align="right">Lines</RuledCell>
-                  <RuledCell header align="right">Tokens</RuledCell>
-                  <RuledCell header align="right">Status</RuledCell>
+                  <RuledCell header align="right">
+                    Lines
+                  </RuledCell>
+                  <RuledCell header align="right">
+                    Tokens
+                  </RuledCell>
+                  <RuledCell header align="right">
+                    Status
+                  </RuledCell>
                 </RuledRow>
                 {untested
                   .slice()
@@ -336,11 +381,19 @@ export function Tests(handle: Handle<TestsProps>) {
                     return (
                       <RuledRow key={f.path}>
                         <RuledCell>
-                          <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{name}</a>
+                          <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                            {name}
+                          </a>
                         </RuledCell>
-                        <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-                        <RuledCell mono align="right">{fmt(f.loc)}</RuledCell>
-                        <RuledCell mono align="right">{fmt(f.tokens)}</RuledCell>
+                        <RuledCell>
+                          <span mix={dirText}>{dir || '·'}</span>
+                        </RuledCell>
+                        <RuledCell mono align="right">
+                          {fmt(f.loc)}
+                        </RuledCell>
+                        <RuledCell mono align="right">
+                          {fmt(f.tokens)}
+                        </RuledCell>
                         <RuledCell align="right">
                           <StatusChip kind={f.status} />
                         </RuledCell>
@@ -349,15 +402,16 @@ export function Tests(handle: Handle<TestsProps>) {
                   })}
               </RuledTable>
               {untested.length > 30 && (
-                <p mix={css({
-                  marginTop: 'var(--space-4)',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: 'var(--fs-11)',
-                  color: 'var(--fg-subtle)',
-                  letterSpacing: '0.04em',
-                })}>
-                  + {untested.length - 30} more · sorted by token weight,
-                  heaviest first
+                <p
+                  mix={css({
+                    marginTop: 'var(--space-4)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: 'var(--fs-11)',
+                    color: 'var(--fg-subtle)',
+                    letterSpacing: '0.04em',
+                  })}
+                >
+                  + {untested.length - 30} more · sorted by token weight, heaviest first
                 </p>
               )}
             </Section>
@@ -366,16 +420,15 @@ export function Tests(handle: Handle<TestsProps>) {
 
         <MarginColumn>
           <FootnoteChip label="Coverage" tone="accent">
-            File-level proxy only. A "covered" file has at least one
-            inbound import edge from a test file.
+            File-level proxy only. A "covered" file has at least one inbound import edge from a test
+            file.
           </FootnoteChip>
           <FootnoteChip label="Stale tests" aside="if any">
-            Tests where no in-project file is imported. Either deleted
-            subject or test-only fixture.
+            Tests where no in-project file is imported. Either deleted subject or test-only fixture.
           </FootnoteChip>
           <FootnoteChip label="Coming with v0.4.5">
-            Symbol-level drift detection: which exported functions
-            changed without their tests changing.
+            Symbol-level drift detection: which exported functions changed without their tests
+            changing.
           </FootnoteChip>
           <FootnoteChip label="Snapshot">
             {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}

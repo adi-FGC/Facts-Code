@@ -342,9 +342,12 @@ try {
 }
 
 const totals = {
-  mainJsRaw: 0, mainJsGz: 0,
-  workerJsRaw: 0, workerJsGz: 0,
-  cssRaw: 0, cssGz: 0,
+  mainJsRaw: 0,
+  mainJsGz: 0,
+  workerJsRaw: 0,
+  workerJsGz: 0,
+  cssRaw: 0,
+  cssGz: 0,
 };
 let entryFound = false;
 const rows = [];
@@ -363,16 +366,29 @@ for (const name of entries) {
    * The "worker" tier name is historical; it's really "lazy JS." */
   let tier;
   if (name.endsWith('.css')) tier = 'css';
-  else if (isEntryChunk(name)) { tier = 'main'; entryFound = true; }
-  else tier = 'worker';
+  else if (isEntryChunk(name)) {
+    tier = 'main';
+    entryFound = true;
+  } else tier = 'worker';
   rows.push({ name, raw, gz, tier });
-  if (tier === 'main')   { totals.mainJsRaw   += raw; totals.mainJsGz   += gz; }
-  if (tier === 'worker') { totals.workerJsRaw += raw; totals.workerJsGz += gz; }
-  if (tier === 'css')    { totals.cssRaw      += raw; totals.cssGz      += gz; }
+  if (tier === 'main') {
+    totals.mainJsRaw += raw;
+    totals.mainJsGz += gz;
+  }
+  if (tier === 'worker') {
+    totals.workerJsRaw += raw;
+    totals.workerJsGz += gz;
+  }
+  if (tier === 'css') {
+    totals.cssRaw += raw;
+    totals.cssGz += gz;
+  }
 }
 
 if (!entryFound) {
-  console.error('[check-bundle-size] FAIL: no entry chunk matched index-*.js — did Vite rename the entry? Update isEntryChunk().');
+  console.error(
+    '[check-bundle-size] FAIL: no entry chunk matched index-*.js — did Vite rename the entry? Update isEntryChunk().',
+  );
   process.exit(1);
 }
 
@@ -387,23 +403,42 @@ for (const r of rows) {
   /* "worker" tier prints as "lazy" — covers the analyzer worker AND
      dynamic-imported chunks like the scanner bridge. The internal name
      stayed "worker" for diff stability with the original split. */
-  const tagDisplay = r.tier === 'worker'
-    ? (isWorkerChunk(r.name) ? '  [worker]' : '    [lazy]')
-    : r.tier === 'css' ? '     [css]' : '    [main]';
-  console.log(`  ${r.name.padEnd(38)}${tagDisplay}  ${fmt(r.raw).padStart(10)}  ${fmt(r.gz).padStart(10)} (gz)`);
+  const tagDisplay =
+    r.tier === 'worker'
+      ? isWorkerChunk(r.name)
+        ? '  [worker]'
+        : '    [lazy]'
+      : r.tier === 'css'
+        ? '     [css]'
+        : '    [main]';
+  console.log(
+    `  ${r.name.padEnd(38)}${tagDisplay}  ${fmt(r.raw).padStart(10)}  ${fmt(r.gz).padStart(10)} (gz)`,
+  );
 }
 console.log('  ' + '─'.repeat(82));
-console.log(`  ${'Main JS  (first paint)'.padEnd(48)}  ${fmt(totals.mainJsRaw).padStart(10)}  ${fmt(totals.mainJsGz).padStart(10)} (gz)`);
-console.log(`  ${'Lazy JS  (worker + dynamic imports)'.padEnd(48)}  ${fmt(totals.workerJsRaw).padStart(10)}  ${fmt(totals.workerJsGz).padStart(10)} (gz)`);
-console.log(`  ${'CSS'.padEnd(48)}  ${fmt(totals.cssRaw).padStart(10)}  ${fmt(totals.cssGz).padStart(10)} (gz)`);
+console.log(
+  `  ${'Main JS  (first paint)'.padEnd(48)}  ${fmt(totals.mainJsRaw).padStart(10)}  ${fmt(totals.mainJsGz).padStart(10)} (gz)`,
+);
+console.log(
+  `  ${'Lazy JS  (worker + dynamic imports)'.padEnd(48)}  ${fmt(totals.workerJsRaw).padStart(10)}  ${fmt(totals.workerJsGz).padStart(10)} (gz)`,
+);
+console.log(
+  `  ${'CSS'.padEnd(48)}  ${fmt(totals.cssRaw).padStart(10)}  ${fmt(totals.cssGz).padStart(10)} (gz)`,
+);
 
 const failures = [];
-if (totals.mainJsRaw   > CAP_MAIN_JS_RAW)   failures.push(`Main JS raw ${fmt(totals.mainJsRaw)} > cap ${fmt(CAP_MAIN_JS_RAW)}`);
-if (totals.mainJsGz    > CAP_MAIN_JS_GZ)    failures.push(`Main JS gzip ${fmt(totals.mainJsGz)} > cap ${fmt(CAP_MAIN_JS_GZ)}`);
-if (totals.workerJsRaw > CAP_WORKER_JS_RAW) failures.push(`Lazy JS raw ${fmt(totals.workerJsRaw)} > cap ${fmt(CAP_WORKER_JS_RAW)}`);
-if (totals.workerJsGz  > CAP_WORKER_JS_GZ)  failures.push(`Lazy JS gzip ${fmt(totals.workerJsGz)} > cap ${fmt(CAP_WORKER_JS_GZ)}`);
-if (totals.cssRaw      > CAP_CSS_RAW)       failures.push(`CSS raw ${fmt(totals.cssRaw)} > cap ${fmt(CAP_CSS_RAW)}`);
-if (totals.cssGz       > CAP_CSS_GZ)        failures.push(`CSS gzip ${fmt(totals.cssGz)} > cap ${fmt(CAP_CSS_GZ)}`);
+if (totals.mainJsRaw > CAP_MAIN_JS_RAW)
+  failures.push(`Main JS raw ${fmt(totals.mainJsRaw)} > cap ${fmt(CAP_MAIN_JS_RAW)}`);
+if (totals.mainJsGz > CAP_MAIN_JS_GZ)
+  failures.push(`Main JS gzip ${fmt(totals.mainJsGz)} > cap ${fmt(CAP_MAIN_JS_GZ)}`);
+if (totals.workerJsRaw > CAP_WORKER_JS_RAW)
+  failures.push(`Lazy JS raw ${fmt(totals.workerJsRaw)} > cap ${fmt(CAP_WORKER_JS_RAW)}`);
+if (totals.workerJsGz > CAP_WORKER_JS_GZ)
+  failures.push(`Lazy JS gzip ${fmt(totals.workerJsGz)} > cap ${fmt(CAP_WORKER_JS_GZ)}`);
+if (totals.cssRaw > CAP_CSS_RAW)
+  failures.push(`CSS raw ${fmt(totals.cssRaw)} > cap ${fmt(CAP_CSS_RAW)}`);
+if (totals.cssGz > CAP_CSS_GZ)
+  failures.push(`CSS gzip ${fmt(totals.cssGz)} > cap ${fmt(CAP_CSS_GZ)}`);
 
 /* ── CSP inline-script hash guard ──────────────────────────────────────────
  * The CSP in public/_headers (and netlify.toml) pins the ONE inline boot
@@ -417,7 +452,9 @@ try {
   const html = readFileSync(join(DIST, 'index.html'), 'utf8');
   const m = html.match(/<script>([\s\S]*?)<\/script>/); // first bare inline script = the theme boot IIFE
   if (!m) {
-    failures.push('CSP guard: no inline boot <script> found in dist/index.html — cannot verify the script-src hash.');
+    failures.push(
+      'CSP guard: no inline boot <script> found in dist/index.html — cannot verify the script-src hash.',
+    );
   } else {
     const token = `sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}`;
     const headers = readFileSync(join(DIST, '_headers'), 'utf8');
@@ -539,7 +576,10 @@ try {
         const map = {};
         let curPath = null;
         for (const line of txt.split(/\r?\n/)) {
-          if (/^\/\S/.test(line)) { curPath = line.trim(); continue; } // e.g. "/mcp-auth.html"
+          if (/^\/\S/.test(line)) {
+            curPath = line.trim();
+            continue;
+          } // e.g. "/mcp-auth.html"
           const mm = line.match(/^\s+Content-Security-Policy:\s*(.+)$/);
           if (mm && curPath) map[curPath] = mm[1].trim();
         }
@@ -557,25 +597,41 @@ try {
       const hMap = headerCsps(headers);
       const nMap = netlifyCsps(netlifyToml);
       // (1) The login flow's /mcp-auth.html scoped CSP must exist on BOTH hosts and match.
-      if (!hMap['/mcp-auth.html']) failures.push('CSP guard: _headers is missing the /mcp-auth.html scoped CSP block.');
-      if (!nMap['/mcp-auth.html']) failures.push('CSP guard: netlify.toml is missing the /mcp-auth.html scoped CSP block.');
-      if (hMap['/mcp-auth.html'] && nMap['/mcp-auth.html'] && hMap['/mcp-auth.html'] !== nMap['/mcp-auth.html']) {
-        failures.push('CSP guard: /mcp-auth.html scoped CSP drift between _headers and netlify.toml — keep them byte-equal.');
+      if (!hMap['/mcp-auth.html'])
+        failures.push('CSP guard: _headers is missing the /mcp-auth.html scoped CSP block.');
+      if (!nMap['/mcp-auth.html'])
+        failures.push('CSP guard: netlify.toml is missing the /mcp-auth.html scoped CSP block.');
+      if (
+        hMap['/mcp-auth.html'] &&
+        nMap['/mcp-auth.html'] &&
+        hMap['/mcp-auth.html'] !== nMap['/mcp-auth.html']
+      ) {
+        failures.push(
+          'CSP guard: /mcp-auth.html scoped CSP drift between _headers and netlify.toml — keep them byte-equal.',
+        );
       }
       // (2) Cloudflare serves the page at the clean URL /mcp-auth (it 308s .html →
       //     there), so _headers MUST key it too or the page falls back to the strict
       //     main CSP and Firebase sign-in breaks. Netlify serves .html verbatim, so
       //     netlify.toml deliberately omits /mcp-auth — not an error.
       if (!hMap['/mcp-auth']) {
-        failures.push('CSP guard: _headers is missing the /mcp-auth clean-URL block — Cloudflare 308s /mcp-auth.html there and would fall back to the strict main CSP, breaking Firebase sign-in.');
+        failures.push(
+          'CSP guard: _headers is missing the /mcp-auth clean-URL block — Cloudflare 308s /mcp-auth.html there and would fall back to the strict main CSP, breaking Firebase sign-in.',
+        );
       }
       // (3) Every scoped block, wherever it appears, must equal the one canonical
       //     scoped policy — no per-key drift, no re-introduced 'unsafe-inline' in script-src.
-      const canonicalAuthCsp = hMap['/mcp-auth.html'] || nMap['/mcp-auth.html'] || hMap['/mcp-auth'];
-      for (const [label, map] of [['_headers', hMap], ['netlify.toml', nMap]]) {
+      const canonicalAuthCsp =
+        hMap['/mcp-auth.html'] || nMap['/mcp-auth.html'] || hMap['/mcp-auth'];
+      for (const [label, map] of [
+        ['_headers', hMap],
+        ['netlify.toml', nMap],
+      ]) {
         for (const [p, v] of Object.entries(map)) {
           if (p.startsWith('/mcp-auth') && canonicalAuthCsp && v !== canonicalAuthCsp) {
-            failures.push(`CSP guard: ${label} ${p} scoped CSP differs from the canonical mcp-auth policy — all /mcp-auth* blocks must be byte-equal.`);
+            failures.push(
+              `CSP guard: ${label} ${p} scoped CSP differs from the canonical mcp-auth policy — all /mcp-auth* blocks must be byte-equal.`,
+            );
           }
         }
       }
@@ -591,15 +647,25 @@ try {
    silently lost its llms.txt / mcp.json. Also assert the MCP manifest is internally
    consistent (toolCount === toolNames.length). node-safe: readFileSync + JSON only. */
 const discoveryArtifacts = [
-  'llms.txt', 'llms-full.txt', 'robots.txt', 'sitemap.xml', 'site.webmanifest',
-  '.well-known/mcp.json', '.well-known/security.txt',
+  'llms.txt',
+  'llms-full.txt',
+  'robots.txt',
+  'sitemap.xml',
+  'site.webmanifest',
+  '.well-known/mcp.json',
+  '.well-known/security.txt',
 ];
 for (const rel of discoveryArtifacts) {
   try {
     const body = readFileSync(join(DIST, ...rel.split('/')), 'utf8');
-    if (body.trim().length === 0) failures.push(`discovery-kit: dist/${rel} is empty — generate-discovery.mjs produced no output.`);
+    if (body.trim().length === 0)
+      failures.push(
+        `discovery-kit: dist/${rel} is empty — generate-discovery.mjs produced no output.`,
+      );
   } catch {
-    failures.push(`discovery-kit: dist/${rel} is missing — run scripts/generate-discovery.mjs before this guard.`);
+    failures.push(
+      `discovery-kit: dist/${rel} is missing — run scripts/generate-discovery.mjs before this guard.`,
+    );
   }
 }
 try {
@@ -609,7 +675,9 @@ try {
   if (!Array.isArray(names) || names.length === 0) {
     failures.push('discovery-kit: .well-known/mcp.json has no toolNames array.');
   } else if (count !== names.length) {
-    failures.push(`discovery-kit: mcp.json toolCount (${count}) != toolNames.length (${names.length}) — regenerate.`);
+    failures.push(
+      `discovery-kit: mcp.json toolCount (${count}) != toolNames.length (${names.length}) — regenerate.`,
+    );
   }
 } catch (e) {
   failures.push(`discovery-kit: .well-known/mcp.json unreadable/invalid (${e?.message || e}).`);
