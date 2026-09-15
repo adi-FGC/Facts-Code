@@ -34,14 +34,19 @@ These are inviolable unless a feature explicitly renegotiates one.
   `packages/emit/` (Node side), `packages/emit-browser/`, or `apps/*`. When a
   feature needs both, split it: pure core + thin Node/browser adapter (the
   `FactsFS`/`FileWriter` pattern in `CONTEXT.md`).
-- **INV2 — Determinism.** Same input ⇒ byte-identical output. Enforced by tests
+- **INV2 — Determinism.** Same input ⇒ byte-identical output. "Input" includes
+  the ignore rules git applies from outside the tree (`core.excludesFile`,
+  `.git/info/exclude` — see CONTEXT.md, Host ignore tier): two machines with
+  different global excludes legitimately produce different file sets, and
+  `factstack analyze` prints how many such rules were in force. Within one
+  machine the guarantee is unchanged. Enforced by tests
   (`packages/core/test/memory.test.ts`, the `intent` suite, etc.). Every new
   artifact field, ranking, or clustering MUST sort deterministically, use
   iteration-bounded numeric algorithms (no convergence-dependent loop counts),
   and break ties on a stable key (path, then id). No `Math.random`, no wall
   clock inside pure code — pass timestamps in from the adapter.
-- **INV3 — No model in the core.** FACTS produces *deterministic retrieval
-  primitives*; it never calls an LLM. "Natural language" understanding is the
+- **INV3 — No model in the core.** FACTS produces _deterministic retrieval
+  primitives_; it never calls an LLM. "Natural language" understanding is the
   calling agent's job. Where we accept a free-text query, we resolve it with
   deterministic entity-matching against the graph, not inference.
 - **INV4 — Additive schema evolution.** New `agent.json` fields are `.optional()`
@@ -78,29 +83,29 @@ These are inviolable unless a feature explicitly renegotiates one.
 > FACTS stays differentiated rather than copying. "Validated by" = someone has
 > proven demand/feasibility; "FACTS edge" = why our version is not a me-too.
 
-| # | Feature | Validated by (market evidence) | FACTS edge |
-|---|---|---|---|
-| **F1** | Provenance & confidence | Knowledge-graph tools ship `extracted/inferred/ambiguous` confidence labels | Embeddings-RAG engines can't label provenance; determinism makes it ~free here |
-| **F2** | Symbol-level graph | A ~25k-star LSP-over-MCP server, LSP/SCIP→graph libs, AST→graph-DB tools, and scope-graph name-binding frameworks all prove demand for precise symbol graphs | Built deterministically and emitted as a **compact wire format** — not a heavy graph DB or ephemeral live-LSP |
-| **F3** | Declarative query + NL→subgraph | MCP symbol-query tools, NL→graph-query research projects, IDE symbol-index querying, and agentic NL code search with citations | NL resolved **deterministically (no model in core)**, returns a minimal FactsPack subgraph + `file:line` citations |
-| **F4** | Graph-aware pre-injection | A leading CLI agent already does repo-map → personalized-PageRank → signature skeleton within a token budget (direct validation); cross-repo curate-and-compress engines | An **agent-agnostic, FactsPack-encoded** context payload — the gap nobody fills (every engine couples to one agent's prompt) |
-| **F5** | Importance / communities / impact | PageRank ranking in the repo-map approach; behavioral analysis (git-churn × complexity hotspots, change coupling, knowledge maps); impact-based test selection | Reuses FACTS's existing churn + graph; deterministic algorithms; one computation feeds **both** the agent and the exec dashboard |
-| **F6** | Multi-language extraction | tree-sitter/`web-tree-sitter` (305 grammars, WASM) is the de-facto substrate across the agent + infra categories; standard symbol-index formats give compiler-grade refs | Stays **isomorphic (browser + Node)** via wasm; optional index-format ingest for precision without a type-checker |
-| **F7** | Live token accounting | Per-file token counts are table-stakes across the packer category; AI-ROI is now an exec line item in eng-intelligence platforms | Proves FactsPack's savings **in-session** — quantifies the cost narrative that is the whole pitch |
-| **F8** | Incremental refresh + cache + hooks | Merkle-tree incremental invalidation (scaled IDE index), incremental graph updates (graph tools), SHA-256 caches across packers | Delta **`+`/`x` FactsPack** packs + committable artifact + git merge driver — git-native, not a re-index |
-| **F9** | Session / cross-session memory | Local long-term-memory tools (via MCP), session + context stores in context engines, emerging knowledge-graph memory | **Extends the existing learnings JSONL** (no new storage); local + diffable |
-| **F10** | Rationale ("the why") | Review agents invest in capturing *why* (recursive per-node descriptors, git-history tracing); knowledge maps | Nearly free — `NOTE/HACK` todos + docstrings are already extracted; just link them to symbol ids |
-| **F11** | Whole-stack (SQL/IaC/docs) | A flagship multimodal graph tool's headline is "app code + DB schema + infra in one graph"; cross-language fact DBs | Extends FACTS's existing routes/secrets extractors into one **deterministic** connected graph |
-| **F12** | Distribution: skill + installer + hooks | A 60k-star tool installs a skill into ~20 assistants with always-on query-first hooks; MCP servers spread the same way; wrapper CLIs self-update | The adoption engine FACTS lacks — and the `skills` package already renders the instruction files |
-| **F13** | Reproducible benchmark | Every serious entrant ships numbers (runnable worked-examples, $/turns/quality reports, named code-scale benchmarks, an open test-gen eval) | Reproducible **session-level** proof of FactsPack — credibility table-stakes |
-| **F14** | Graph export | Graph tools export to property-graph DBs; an open multimodal tool offers a graph-DB export extra; standard interchange formats exist | Optional export keeps the **zero-infra default** intact; mirrors the opt-in export-extra pattern |
+| #       | Feature                                 | Validated by (market evidence)                                                                                                                                           | FACTS edge                                                                                                                       |
+| ------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **F1**  | Provenance & confidence                 | Knowledge-graph tools ship `extracted/inferred/ambiguous` confidence labels                                                                                              | Embeddings-RAG engines can't label provenance; determinism makes it ~free here                                                   |
+| **F2**  | Symbol-level graph                      | A ~25k-star LSP-over-MCP server, LSP/SCIP→graph libs, AST→graph-DB tools, and scope-graph name-binding frameworks all prove demand for precise symbol graphs             | Built deterministically and emitted as a **compact wire format** — not a heavy graph DB or ephemeral live-LSP                    |
+| **F3**  | Declarative query + NL→subgraph         | MCP symbol-query tools, NL→graph-query research projects, IDE symbol-index querying, and agentic NL code search with citations                                           | NL resolved **deterministically (no model in core)**, returns a minimal FactsPack subgraph + `file:line` citations               |
+| **F4**  | Graph-aware pre-injection               | A leading CLI agent already does repo-map → personalized-PageRank → signature skeleton within a token budget (direct validation); cross-repo curate-and-compress engines | An **agent-agnostic, FactsPack-encoded** context payload — the gap nobody fills (every engine couples to one agent's prompt)     |
+| **F5**  | Importance / communities / impact       | PageRank ranking in the repo-map approach; behavioral analysis (git-churn × complexity hotspots, change coupling, knowledge maps); impact-based test selection           | Reuses FACTS's existing churn + graph; deterministic algorithms; one computation feeds **both** the agent and the exec dashboard |
+| **F6**  | Multi-language extraction               | tree-sitter/`web-tree-sitter` (305 grammars, WASM) is the de-facto substrate across the agent + infra categories; standard symbol-index formats give compiler-grade refs | Stays **isomorphic (browser + Node)** via wasm; optional index-format ingest for precision without a type-checker                |
+| **F7**  | Live token accounting                   | Per-file token counts are table-stakes across the packer category; AI-ROI is now an exec line item in eng-intelligence platforms                                         | Proves FactsPack's savings **in-session** — quantifies the cost narrative that is the whole pitch                                |
+| **F8**  | Incremental refresh + cache + hooks     | Merkle-tree incremental invalidation (scaled IDE index), incremental graph updates (graph tools), SHA-256 caches across packers                                          | Delta **`+`/`x` FactsPack** packs + committable artifact + git merge driver — git-native, not a re-index                         |
+| **F9**  | Session / cross-session memory          | Local long-term-memory tools (via MCP), session + context stores in context engines, emerging knowledge-graph memory                                                     | **Extends the existing learnings JSONL** (no new storage); local + diffable                                                      |
+| **F10** | Rationale ("the why")                   | Review agents invest in capturing _why_ (recursive per-node descriptors, git-history tracing); knowledge maps                                                            | Nearly free — `NOTE/HACK` todos + docstrings are already extracted; just link them to symbol ids                                 |
+| **F11** | Whole-stack (SQL/IaC/docs)              | A flagship multimodal graph tool's headline is "app code + DB schema + infra in one graph"; cross-language fact DBs                                                      | Extends FACTS's existing routes/secrets extractors into one **deterministic** connected graph                                    |
+| **F12** | Distribution: skill + installer + hooks | A 60k-star tool installs a skill into ~20 assistants with always-on query-first hooks; MCP servers spread the same way; wrapper CLIs self-update                         | The adoption engine FACTS lacks — and the `skills` package already renders the instruction files                                 |
+| **F13** | Reproducible benchmark                  | Every serious entrant ships numbers (runnable worked-examples, $/turns/quality reports, named code-scale benchmarks, an open test-gen eval)                              | Reproducible **session-level** proof of FactsPack — credibility table-stakes                                                     |
+| **F14** | Graph export                            | Graph tools export to property-graph DBs; an open multimodal tool offers a graph-DB export extra; standard interchange formats exist                                     | Optional export keeps the **zero-infra default** intact; mirrors the opt-in export-extra pattern                                 |
 
 **Net positioning (from the landscape synthesis):** the market splits into
-*embeddings/probabilistic* (owns scale) and *structural/deterministic* (owns
+_embeddings/probabilistic_ (owns scale) and _structural/deterministic_ (owns
 precision). FACTS lives in the structural camp — already validated by the
 repo-map agent and the LSP/MCP tools — and the **uncontested center** is the
 combination no vendor sells: deterministic + local + a compact tabular wire
-format + dual (agent *and* exec) audience. Build that center (F2–F5, F4); adopt
+format + dual (agent _and_ exec) audience. Build that center (F2–F5, F4); adopt
 open plumbing for the rest (tree-sitter, index formats, MCP conventions).
 
 ---
@@ -118,6 +123,7 @@ open plumbing for the rest (tree-sitter, index formats, MCP conventions).
 `MEMORY.md`; a dashboard legend; a `--min-confidence` filter on queries.
 
 **Spec changes** (`packages/spec/src/agent.ts`):
+
 - Add `export const ConfidenceSchema = z.enum(['extracted','inferred','ambiguous'])`.
 - Extend `GraphEdgeSchema`: `confidence: ConfidenceSchema.default('extracted')`,
   `confidenceScore: z.number().min(0).max(1).optional()`. Default keeps old
@@ -165,11 +171,12 @@ real queries, impact analysis, and context retrieval.
 them; `get_outline` enriched with refs.
 
 **Spec changes** (`packages/spec/src/agent.ts`):
+
 - Stable symbol id scheme: `\`${path}#${name}@${startLine}\`` (path + name +
   line disambiguates overloads/duplicates). Document it once; reuse everywhere.
 - Add `SymbolNodeSchema { id, path, name, kind, startLine, endLine, exported }`
   and `SymbolEdgeSchema { from, to, kind: z.enum(['call','read','jsx','type-ref',
-  'implements','extends']), confidence, confidenceScore? }`.
+'implements','extends']), confidence, confidenceScore? }`.
 - Extend `GraphSchema` additively: `symbolNodes: z.array(SymbolNodeSchema).default([])`,
   `symbolEdges: z.array(SymbolEdgeSchema).default([])`. File-level
   `nodes`/`edges` stay.
@@ -177,6 +184,7 @@ them; `get_outline` enriched with refs.
 **Analyzer changes.** Implement **symbols-refs phase 2** (the file already
 reserves it): a cross-file resolver in `packages/graph/` (new
 `symbol-resolver.ts`) that, per `RawRef`:
+
 1. resolve same-file → the file's own `declarations` (exact name) ⇒ `extracted`.
 2. else resolve via imports: match the ref name against `FileOutline.imports[]`
    specifiers, follow `import.resolved` to the target file, match its
@@ -184,7 +192,7 @@ reserves it): a cross-file resolver in `packages/graph/` (new
 3. else, name exists as a top-level decl in exactly one other file ⇒ `inferred`
    (0.7); in many files ⇒ `ambiguous` (emit lowest-id deterministically, mark
    `ambiguous`).
-Build a `Map<name, SymbolNode[]>` index once per analyze for O(1) lookups.
+   Build a `Map<name, SymbolNode[]>` index once per analyze for O(1) lookups.
 
 **FactsPack changes.** Two new tables in `encodeAgentPack`: `symbols`
 (`id`(PK,literal), `F`(interned path), `name`, `kind`, `start`, `end`, `exp`) and
@@ -225,13 +233,15 @@ working; new structured verbs: `neighbors`, `path-between`, `references`,
 `implementers`, `impact` (F5).
 
 **Spec changes** (`packages/spec/src/mcp.ts`):
+
 - Define a `GraphQuery` type: `{ start: NodeSelector, traverse?: { edgeKinds?,
-  direction: 'out'|'in'|'both', maxDepth }, where?: Filter, select: 'nodes'|
-  'edges'|'subgraph', limit }` where `NodeSelector` = by path / symbol id / glob
+direction: 'out'|'in'|'both', maxDepth }, where?: Filter, select: 'nodes'|
+'edges'|'subgraph', limit }` where `NodeSelector` = by path / symbol id / glob
   / kind / name.
 - Extend `QUERY_VERBS` (INV5) with the new verbs; `tsc` will flag every site.
 
 **Analyzer/core changes** (`packages/core/src/query.ts`):
+
 - Add `runGraphQuery(agent, q: GraphQuery): QueryResult`. Build adjacency maps
   once (the `importsOf` BFS already demonstrates the pattern — generalize it:
   direction-aware, edge-kind-filtered, depth-bounded, var-length). Operate over
@@ -285,13 +295,14 @@ number (default 8000), maxHops: number (default 2) }`; `ContextResult` (nodes,
 edges, citations, totalTokens, truncated). Add `get_context` to `MCP_TOOL_NAMES`.
 
 **Core changes** (`packages/core/src/context.ts`, pure):
+
 1. **Seed** = entities resolved from `query` (reuse F3 `query-nl`) ∪ explicit
    `seeds`.
 2. **Expand** along edges up to `maxHops` (reuse F3 engine), collecting a
    candidate node set with the path that connected each (for citations).
 3. **Rank** each candidate deterministically:
    `score = wI·importance(F5) + wP·proximityToSeed(1/hops) + wR·recency(churn/mtime,
-   already on FileOutline) + wM·nameMatch`. Fixed weights; document them.
+already on FileOutline) + wM·nameMatch`. Fixed weights; document them.
 4. **Budget** greedily by descending score, summing `tokenCost` (already on
    `FileOutline`; per-symbol estimate from line span) until `budgetTokens`.
    Always include direct seeds even if over budget; mark `truncated:true` when
@@ -333,6 +344,7 @@ section; `impact` query verb / `impact_of` semantics; dashboard module map.
 z.number().int().optional()` on `GraphNodeSchema` (default absent → INV4).
 
 **Core/graph changes** (`packages/graph/src/metrics.ts`, pure):
+
 - **Importance = PageRank** over the file-import graph (and symbol-call graph
   when present). Power iteration with **fixed iteration count** (e.g. 30) and
   damping 0.85 for determinism (INV2) — do not loop-until-converge (iteration
@@ -346,6 +358,7 @@ z.number().int().optional()` on `GraphNodeSchema` (default absent → INV4).
   Implement as a `GraphQuery` (F3) so it's one engine.
 
 **MEMORY.md changes** (`packages/core/src/memory.ts`):
+
 - Replace `topImportedFiles` ranking in "Key files" with importance order
   (fallback to in-degree when importance absent). Add a capped "Modules" section
   (top N communities by size, each named by its highest-importance member).
@@ -450,6 +463,7 @@ clean, committable, merge-safe artifact; auto-refresh on commit.
 a git merge driver for `agent.pack`.
 
 **Core/emit changes.**
+
 - **Content-hash cache (Node-only, `packages/emit/`, honors INV1/INV7).** The
   per-file `contentHash` (djb2) already exists in `extractors/src/parse.ts`. Add
   a `node:sqlite`-backed store (the workspace already moved to `node:sqlite`;
@@ -465,6 +479,7 @@ a git merge driver for `agent.pack`.
   naturally (merge by id at build time).
 
 **Git integration (`apps/cli`).**
+
 - `factstack hook install` writes a `post-commit` hook running
   `factstack analyze --incremental` (no network ⇒ C1-safe), embedding the
   resolved interpreter path so it fires under GUI/CI gits.
@@ -500,11 +515,12 @@ context — reusing the existing append-only learnings store, not a new system.
 (decisions/tasks/open-questions) surfaced in `MEMORY.md` and `get_context`.
 
 **Core changes** (`packages/core/src/learnings.ts`).
+
 - The log already models `{agent, action, outcome, confidence, filesAffected,
-  meta, …}` with pure `formatLearningEvent`/`parseLearningsJsonl`/`queryLearnings`.
+meta, …}` with pure `formatLearningEvent`/`parseLearningsJsonl`/`queryLearnings`.
   Add two `action`/`outcome` conventions (no schema break — `meta` is free-form):
   - **session-action** events: `served`/`read`/`edited`/`queried` with entity ids
-    + token counts (feeds F4 re-ranking and F7 `session_stats`).
+    - token counts (feeds F4 re-ranking and F7 `session_stats`).
   - **decision/fact/task** events: durable context an agent or human records;
     `outcome:'pending'` for open tasks.
 - Add a pure `buildContextStore(events): { decisions, tasks, openQuestions }`
@@ -568,6 +584,7 @@ cap length.
 **Surface.** Tables/views/resources appear as graph nodes; docs link to code.
 
 **Analyzer changes** (new `packages/scanners/` or `extractors/` modules, pure):
+
 - **SQL**: parse `.sql` for tables/views/foreign-keys/joins → entity nodes +
   relationship edges.
 - **IaC**: parse Terraform/HCL (`.tf`) resources + references → resource nodes +
@@ -602,6 +619,7 @@ config + (where supported) a pre-tool hook nudging graph-first lookups.
 set; a one-line bootstrap.
 
 **Changes** (`packages/skills/` + `apps/cli/`).
+
 - The renderer pipeline already exists: `agentToSkillSpec` + `buildSkillsTo` with
   `claude`/`cursor`/`copilot`/`agents` renderers, typed against
   `ShippedMcpToolName`. Add renderers for more targets; add a Node-side installer

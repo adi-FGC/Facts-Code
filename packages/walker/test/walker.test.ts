@@ -255,3 +255,107 @@ describe('walk — read errors', () => {
     expect(file?.loc).toBe(0);
   });
 });
+
+/* ───────── v0.3.12 — files git ignores from OUTSIDE the repo ───────── */
+
+describe('personal, untracked agent files and injected ignore rules', () => {
+  const paths = async (fsx: FactsFS, opts?: Parameters<typeof walk>[2]) => {
+    const out: string[] = [];
+    for await (const f of walk(fsx, '.', opts)) out.push(f.path);
+    return out;
+  };
+
+  it("never analyzes an agent's per-developer settings or memory", async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json':
+        '{"hooks":{"PostToolUse":[{"command":"C:/Users/someone/x.mjs"}]}}\n',
+      '.claude/settings.json': '{"shared":true}\n',
+      'CLAUDE.local.md': 'my private notes\n',
+      'CLAUDE.md': 'shared instructions\n',
+    });
+    const out = await paths(fsx);
+    expect(out).toContain('src/a.ts');
+    // Shared, tracked siblings stay: only the personal variants are dropped.
+    expect(out).toContain('.claude/settings.json');
+    expect(out).toContain('CLAUDE.md');
+    expect(out).not.toContain('.claude/settings.local.json');
+    expect(out).not.toContain('CLAUDE.local.md');
+  });
+
+  it('applies injected rules (git global excludes) relative to the root', async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      'notes.private.md': 'personal\n',
+      'src/scratch/tmp.ts': 'export const t = 1;\n',
+      'keep.md': 'shared\n',
+    });
+    const out = await paths(fsx, {
+      extraIgnore: [
+        '# a user global excludes file, comments and blanks included',
+        '',
+        '*.private.md',
+        'scratch/',
+      ],
+    });
+    expect(out).toContain('src/a.ts');
+    expect(out).toContain('keep.md');
+    expect(out).not.toContain('notes.private.md');
+    expect(out).not.toContain('src/scratch/tmp.ts');
+  });
+
+  it('is unchanged when no rules are injected', async () => {
+    const files = { 'src/a.ts': 'export const a = 1;\n', 'notes.private.md': 'personal\n' };
+    expect(await paths(memoryFS(files), {})).toEqual(await paths(memoryFS(files)));
+    expect(await paths(memoryFS(files), { extraIgnore: [] })).toContain('notes.private.md');
+  });
+
+  it('drops a personal file at any depth, not just at the root', async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+      'packages/foo/.claude/settings.local.json': '{"hooks":{}}\n',
+      'packages/foo/CLAUDE.local.md': 'private\n',
+      'packages/foo/.cursor/rules/mine.local.mdc': 'private\n',
+    });
+    expect(await paths(fsx)).toEqual(['src/a.ts']);
+  });
+
+  it('cannot be re-admitted by an injected negation: host rules never un-hide a personal file', async () => {
+    // A stray `!` line in someone's global excludes must not put an agent's
+    // per-developer settings back into an artifact that gets published.
+    const files = {
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+      'CLAUDE.local.md': 'private\n',
+    };
+    for (const rule of ['!', '!*', '!.claude/settings.local.json', '!CLAUDE.local.md']) {
+      const out = await paths(memoryFS(files), { extraIgnore: [rule] });
+      expect(out, rule).not.toContain('.claude/settings.local.json');
+      expect(out, rule).not.toContain('CLAUDE.local.md');
+      expect(out, rule).toContain('src/a.ts');
+    }
+  });
+
+  it('lets the REPOSITORY re-include a personal path it deliberately tracks', async () => {
+    // The escape hatch stays with the repo's own ignore files, which are
+    // applied after both the injected rules and the built-in list.
+    const fsx = memoryFS({
+      '.gitignore': '!.claude/settings.local.json\n',
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+    });
+    expect(await paths(fsx)).toContain('.claude/settings.local.json');
+  });
+
+  it('keeps a repo .gitignore working alongside injected rules', async () => {
+    const fsx = memoryFS({
+      '.gitignore': 'build/\n',
+      'src/a.ts': 'export const a = 1;\n',
+      'build/out.js': 'x\n',
+      'local.env.md': 'secret\n',
+    });
+    const out = await paths(fsx, { extraIgnore: ['local.env.md'] });
+    expect(out).toEqual(['src/a.ts']);
+  });
+});

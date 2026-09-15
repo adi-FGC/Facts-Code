@@ -4,6 +4,9 @@
  *
  * Rules:
  *   - Respects .gitignore + .dockerignore + .cursorignore + .aiignore + .factsignore
+ *   - Respects rules the host injects via `extraIgnore` (the CLI passes git's
+ *     global excludes + .git/info/exclude), plus a small built-in list of
+ *     per-developer agent files that git hides from outside the repo
  *     (stacked hierarchically; deeper files can override with `!` patterns).
  *   - Always excludes: node_modules, dist, build, .next, .turbo, .cache,
  *     __pycache__, .venv, .git, vendor, target, coverage, .pnpm-store,
@@ -74,6 +77,22 @@ function isNoiseArtifact(name: string): boolean {
 
 const IGNORE_FILES = ['.gitignore', '.dockerignore', '.cursorignore', '.aiignore', '.factsignore'];
 
+/**
+ * Ignore rules applied at the root of every walk (v0.3.12).
+ *
+ * These are files a coding agent writes for ONE developer and that git does
+ * not track — conventionally through the user's GLOBAL excludes file, which
+ * lives outside the repository and which this package cannot read (it must
+ * stay isomorphic). Analyzing them put a machine-specific path into the file
+ * list of a public artifact, so they are excluded by name here and the host
+ * can inject the real global excludes via `extraIgnore`.
+ */
+const PERSONAL_IGNORE = [
+  '**/.claude/settings.local.json', // Claude Code per-developer settings (hooks, permissions)
+  'CLAUDE.local.md', // Claude Code per-developer memory (unanchored: any depth)
+  '**/.cursor/rules/*.local.mdc',
+];
+
 /** Pause before the single read retry — long enough for an editor save or
  *  AV scan to release the file, short enough to be invisible on the rare
  *  failing file. Only paid on the failure path. */
@@ -92,6 +111,13 @@ export interface WalkOptions {
   skipGit?: boolean;
   /** Follow symlinks. Default false; loops are never followed regardless. */
   followSymlinks?: boolean;
+  /** Extra .gitignore-syntax rules applied at the root, in addition to the
+   *  ignore files found in the tree. The Node host passes git's global
+   *  excludes file (`core.excludesFile`) here: it usually holds the personal
+   *  agent/editor files a repository deliberately does not track, and this
+   *  package cannot read outside the FactsFS root. Rules are relative to the
+   *  walk root, exactly like a root `.gitignore`. */
+  extraIgnore?: string[];
 }
 
 export interface WalkedFile {
@@ -134,10 +160,22 @@ export async function* walk(
   const maxFileSize = opts.maxFileSize ?? 1024 * 1024;
   const followSymlinks = opts.followSymlinks ?? false;
   const skipGit = opts.skipGit ?? true;
+  const extraIgnore = opts.extraIgnore ?? [];
   const rootNorm = fs.normalize(root);
   const visited = new Set<string>();
 
-  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, {
+  /* Root-level rules, in precedence order (gitignore is last-match-wins):
+     1. the host's injected rules — git's global excludes, which may legitimately
+        re-include something with `!`;
+     2. PERSONAL_IGNORE — after them, so a stray `!` in a machine's global
+        excludes can never re-admit an agent's per-developer file into an
+        artifact that gets published;
+     3. the repository's own ignore files, added per directory in walkDir —
+        last, so a project that deliberately TRACKS one of these paths can still
+        re-include it with `!` in .gitignore / .factsignore. */
+  const rootIgnore = ignore().add(parseIgnore([...extraIgnore, ...PERSONAL_IGNORE].join('\n')));
+
+  yield* walkDir(fs, rootNorm, rootNorm, rootIgnore, visited, {
     maxFileSize,
     followSymlinks,
     skipGit,
@@ -150,7 +188,9 @@ async function* walkDir(
   current: string,
   parentIgnore: ReturnType<typeof ignore>,
   visited: Set<string>,
-  opts: Required<WalkOptions>,
+  /* Rules travel in `parentIgnore`, never in opts: walkDir must not be able
+     to re-seed them per directory (it would change their anchoring). */
+  opts: Required<Omit<WalkOptions, 'extraIgnore'>>,
 ): AsyncIterable<WalkedFile> {
   // Compose ignore patterns at this level by appending any local ignore files.
   const localIgnore = ignore().add(parentIgnore as unknown as string[]);

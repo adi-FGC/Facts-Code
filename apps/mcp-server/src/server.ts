@@ -80,7 +80,13 @@ import {
   packSnapshotId,
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
-import { mineGitStats, mineGitTopology, nodeFS, repoDisplayName } from '@factstack/fs-node';
+import {
+  gitGlobalExcludes,
+  mineGitStats,
+  mineGitTopology,
+  nodeFS,
+  repoDisplayName,
+} from '@factstack/fs-node';
 import { resolveSyncPack } from './sync-pack.js';
 import {
   approximateTokens,
@@ -135,6 +141,7 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     gzip: gzippedBytes,
     gitStats: mineGitStats(root),
     git: mineGitTopology(root),
+    extraIgnore: gitGlobalExcludes(root),
   });
   // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
   // network-free per INV6 and returns an empty list). Mirrors the CLI.

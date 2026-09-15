@@ -81,7 +81,13 @@ import {
   writeArtifacts,
   type SqliteExtractionCache,
 } from '@factstack/emit';
-import { mineGitStats, mineGitTopology, nodeFS, repoDisplayName } from '@factstack/fs-node';
+import {
+  gitGlobalExcludes,
+  mineGitStats,
+  mineGitTopology,
+  nodeFS,
+  repoDisplayName,
+} from '@factstack/fs-node';
 import {
   approximateTokens,
   flattenManifests,
@@ -366,11 +372,24 @@ program
         }
       }
 
+      /* Rules git applies from outside the tracked tree (global excludes +
+         .git/info/exclude). Computed here so the summary can report how many
+         were in force: unlike everything else in the artifact, they are
+         machine state, and a surprising file count must be explainable. */
+      const hostIgnoreRules = gitGlobalExcludes(root);
+
       const result = await analyze(fs, {
         root: '.',
         projectName,
         gzip: gzippedBytes,
         gitStats,
+        /* v0.3.12 — git's global excludes (core.excludesFile) + .git/info/exclude
+           usually hold the per-developer files a repo deliberately does not
+           track, e.g. an agent's .claude/settings.local.json. Without them the
+           walker would analyze one developer's machine state into a shared
+           artifact. They are machine state, so the count is reported below:
+           two developers can legitimately get different file sets. */
+        extraIgnore: hostIgnoreRules,
         /* v0.3.11 — worktree/branch topology. Transcript reading (request
          records) is skipped on --minimal so the per-edit hook stays cheap. */
         /* Pass the option ONLY when the user actually opted out, so an
@@ -519,6 +538,15 @@ program
             ]
           : []),
         `  frameworks   ${kleur.white(result.agent.project.frameworks.join(', ') || '—')}`,
+        /* v0.3.12 — the only input that is NOT the repository. Silence here
+           made a shrinking file count unexplainable. */
+        ...(hostIgnoreRules.some((r) => r.trim() && !r.trim().startsWith('#'))
+          ? [
+              `  host ignore  ${kleur.white(
+                String(hostIgnoreRules.filter((r) => r.trim() && !r.trim().startsWith('#')).length),
+              )}` + kleur.dim(' rule(s) from git global excludes / .git/info/exclude also applied'),
+            ]
+          : []),
         /* v0.3.11 — one line about the worktree topology, when there is one.
          Without it the whole Worktrees surface is invisible from the CLI. */
         ...(result.agent.git
@@ -614,6 +642,7 @@ program
           gzip: gzippedBytes,
           gitStats: mineGitStats(root),
           git: mineGitTopology(root),
+          extraIgnore: gitGlobalExcludes(root),
         });
         restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
         await writeArtifacts({
@@ -704,6 +733,7 @@ program
           gzip: gzippedBytes,
           gitStats: mineGitStats(root),
           git: mineGitTopology(root),
+          extraIgnore: gitGlobalExcludes(root),
         });
         restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
         await writeArtifacts({
@@ -1422,6 +1452,7 @@ program
           gzip: gzippedBytes,
           gitStats: mineGitStats(root),
           git: mineGitTopology(root),
+          extraIgnore: gitGlobalExcludes(root),
         });
         restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
         await writeArtifacts({
@@ -1588,6 +1619,7 @@ program
         gzip: gzippedBytes,
         gitStats: mineGitStats(root),
         git: mineGitTopology(root),
+        extraIgnore: gitGlobalExcludes(root),
       });
       restoreVulnScan(root, result.agent, result.human); // v0.11 carry CVEs + v0.3 re-grade health
       await writeArtifacts({

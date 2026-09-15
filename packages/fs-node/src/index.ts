@@ -92,3 +92,4 @@ export { pathToFileURL };
 export { mineGitStats, type GitStats } from './git.js';
 export { mineGitTopology, type TopologyOptions } from './topology.js';
 export { repoDisplayName } from './repo-name.js';
+export { gitGlobalExcludes } from './global-excludes.js';

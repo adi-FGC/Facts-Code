@@ -165,6 +165,11 @@ export interface AnalyzeOptions {
   root?: string;
   /** Override the project name (default: last path segment of root). */
   projectName?: string;
+  /** Extra .gitignore-syntax rules for the walk, relative to the root. The
+   *  CLI passes git's global excludes file so an agent's personal, untracked
+   *  files (e.g. `.claude/settings.local.json`) never enter the artifact.
+   *  See @factstack/fs-node's `gitGlobalExcludes()`. */
+  extraIgnore?: string[];
   /** Compute gzip bundle size per file. Callback is injected so this package
    *  stays isomorphic; the CLI passes a node:zlib-based impl. */
   gzip?: (text: string) => number;
@@ -288,7 +293,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
   // We don't know the total ahead of time, so progress is unknown-duration.
   const files: WalkedFile[] = [];
-  for await (const f of walk(fs, rootPath)) files.push(f);
+  for await (const f of walk(fs, rootPath, { extraIgnore: opts.extraIgnore ?? [] })) files.push(f);
 
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
