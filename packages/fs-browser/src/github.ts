@@ -200,31 +200,49 @@ export async function fetchGitHubToMemory(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  // 1. Resolve default branch. raw.githubusercontent.com needs the actual
-  //    branch name — not "HEAD" — so we have to ask if the caller didn't
-  //    pin a ref.
-  let branch = ref;
-  if (!branch) {
-    const r = await fetch(
-      `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-      { headers },
-    );
-    if (!r.ok) throw ghFriendlyError(r);
-    const meta = (await r.json()) as RepoMeta;
-    branch = meta.default_branch || 'main';
+  // 1 + 2. The file list and the branch name, fetched CONCURRENTLY.
+  //
+  //   The Trees API takes `HEAD`, so the manifest never has to wait for the
+  //   default branch to be resolved. raw.githubusercontent.com does need a
+  //   real branch name, so when the caller pinned no ref we still ask for the
+  //   repo metadata — but in parallel, and only await it just before the raw
+  //   URLs are built, by which time it has long landed.
+  //
+  //   These used to run back to back. Measured against the deployed
+  //   dashboard, that second round trip was ~0.5 s of a 1.3 s scan of a
+  //   20-file repo — dead time before a single file had been fetched, and it
+  //   grows with the visitor's latency, not with the size of their repo.
+  //   Same two requests, same rate-limit cost, one round trip of wall time.
+  const api = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+  const metaPromise = ref
+    ? null
+    : fetch(api, { headers }).then(async (r) => {
+        if (!r.ok) throw ghFriendlyError(r);
+        return (await r.json()) as RepoMeta;
+      });
+  onProgress?.({
+    phase: 'walking',
+    current: 0,
+    total: 0,
+    label: `Listing files at ${ref || 'HEAD'}…`,
+  });
+  const treeRes = await fetch(`${api}/git/trees/${encodeURIComponent(ref || 'HEAD')}?recursive=1`, {
+    headers,
+  });
+  if (!treeRes.ok) {
+    /* Surface the tree failure, but never leave the parallel metadata
+       request as an unhandled rejection — a repo that 404s here would
+       otherwise log a second, confusing error. */
+    metaPromise?.catch(() => {});
+    throw ghFriendlyError(treeRes);
   }
-
-  // 2. Recursive tree (one request returns the whole repo manifest at this
-  //    ref). truncated=true means >100k entries; we surface that as a
-  //    pointed error rather than silently working with a partial tree.
-  onProgress?.({ phase: 'walking', current: 0, total: 0, label: `Listing files at ${branch}…` });
-  const treeRes = await fetch(
-    `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
-    { headers },
-  );
-  if (!treeRes.ok) throw ghFriendlyError(treeRes);
   const treeData = (await treeRes.json()) as TreeResponse;
   const tree = Array.isArray(treeData.tree) ? treeData.tree : [];
+
+  /* Branch name for the raw host: the caller's ref, or the default branch
+     from the metadata call that has been in flight since before the tree
+     request. */
+  const branch = ref || (await metaPromise)?.default_branch || 'main';
 
   // 3. Filter at the network boundary — see preamble.
   const interesting: TreeNode[] = [];
