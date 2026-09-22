@@ -16,26 +16,29 @@
          harmless comment. -->
 
     <!-- Editorial typography: Fraunces (display, optical-sized), Mona Sans
-         (body), JetBrains Mono (data). Loaded from Google Fonts with
-         preconnect → preload to keep first paint un-FOUC'd. The Mona Sans
-         "Fallback" face referenced in tokens.css is generated at runtime
-         by the browser to size-match while waiting for the variable file. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+         (body), JetBrains Mono (data). SELF-HOSTED from /fonts — the faces
+         and their unicode ranges live in src/styles/fonts.css. They came
+         from Google Fonts until a throttled first-visit measurement charged
+         that ~1.0 s and 137 KB for two extra handshakes plus a
+         render-blocking third-party stylesheet. Only the two faces that
+         draw the first screen are preloaded; the mono face and the
+         latin-ext subsets load when a glyph actually needs them. -->
     <link
       rel="preload"
-      as="style"
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=JetBrains+Mono:wght@400..600&family=Mona+Sans:wght@400..700&display=swap"
+      href="/fonts/mona-sans-latin.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
     />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500..800&family=JetBrains+Mono:wght@400..600&family=Mona+Sans:wght@400..700&display=swap"
-    />
+    <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <!-- No-flash theme + font-scale init. Reads localStorage BEFORE the
          CSS bundle paints so dark mode + the user's chosen font scale
          apply on first frame. ~600 bytes minified. Wrapped in try/catch
-         because file:// + private-mode browsers throw on localStorage. -->
+         because file:// + private-mode browsers throw on localStorage.
+         The CSP pins this block by SHA-256 (public/_headers + netlify.toml);
+         editing it changes the hash and check-bundle-size.mjs fails the
+         build until both header files match again. -->
     <script>
       (function () {
         try {
@@ -52,16 +55,42 @@
         } catch (_) { /* file:// or sandboxed — defaults are fine */ }
       })();
     </script>
-
-    <!-- Inline dataset placeholder. `scripts/inject-data.mjs` swaps this
-         for the real JSON at build time so static deploys (Netlify,
-         `factstack export`, VS Code webview) work without a server.
-         When still placeholder (dev), loadArtifacts() falls back to
-         /data/factstack.json. -->
-    <script id="factstack-data" type="application/json">__INLINE_FACTSTACK_JSON__</script>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- The shell that paints before the app boots. It mirrors the real
+         grid — nav row, tree column, status row — so the mount swaps
+         content in without moving anything, and main.tsx removes it once
+         the app has rendered. Styled from app.css; never an inline style
+         block, which this CSP refuses. -->
+    <div id="root">
+      <div class="boot" data-app-skeleton>
+        <header class="boot__bar"><span class="boot__mark">FACTS</span></header>
+        <div class="boot__tree" aria-hidden="true"></div>
+        <main class="boot__main">
+          <p class="boot__note">Reading the project map…</p>
+        </main>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
+
+    <!-- Inline dataset. `scripts/inject-data.mjs` swaps the placeholder for
+         real JSON at build time so static deploys (Cloudflare, Netlify,
+         `factstack export`, the VS Code webview, file://) need no server.
+         While it is still the placeholder (dev), loadArtifacts() falls back
+         to /data/factstack.json.
+
+         It sits LAST on purpose. In <head> its ~1.4 MB stood between the
+         browser and every other tag: the stylesheet and the app bundle were
+         discovered only after the whole dataset had streamed in, which put
+         first paint at 3.4 s on a throttled connection. Last in <body>, the
+         shell paints and the CSS + JS download while the dataset is still
+         arriving. The module script above is deferred, so it still runs
+         after this element is parsed and the data is there.
+
+         Kept on ONE line, and this comment deliberately does NOT spell the
+         placeholder between its delimiters: inject-data.mjs replaces the
+         FIRST match of that exact string, so an earlier copy in prose would
+         swallow the dataset and leave the real element un-baked. -->
+    <script id="factstack-data" type="application/json">__INLINE_FACTSTACK_JSON__</script>
   </body>
 </html>

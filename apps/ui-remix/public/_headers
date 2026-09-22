@@ -5,9 +5,17 @@
 # load so a fresh `factstack analyze` + redeploy ships instantly. Hashed assets
 # under /assets/ are content-addressed (index-<hash>.js) so they're immutable.
 /*.html
-  Cache-Control: public, max-age=0, must-revalidate
+  # must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
+  # returning visitor paint from cache in the same second while the browser
+  # checks for a newer bake in the background.
+  Cache-Control: public, max-age=0, must-revalidate, stale-while-revalidate=604800
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+# Self-hosted woff2 (src/styles/fonts.css). Content never changes under a
+# given name — replacing a face means a new filename, not new bytes.
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
 # Agent-discovery + data endpoints (see netlify.toml for rationale).
 /factstack.pack
   Content-Type: text/plain; charset=utf-8
@@ -30,14 +38,14 @@
   # connect-src allows the OSV CVE API + GitHub (the in-browser GitHub-repo
   # scanner fetches the tree/blobs from api.github.com + raw.githubusercontent.com;
   # the scan runs in a Web Worker whose fetches are governed by THIS page CSP, so
-  # worker-src alone does not cover them). font-src allows Google Fonts; the
-  # Google Fonts stylesheet is a <link> (style-src-elem 'self' + the fonts origin).
+  # worker-src alone does not cover them). Fonts are self-hosted from /fonts
+  # (v0.3.13), so no third-party font or style origin appears here.
   # SEC-3: style-src carries NO 'unsafe-inline'. The css() runtime injects rules
   # via constructable adoptedStyleSheets (CSSOM — CSP-exempt), static CSS ships as
   # <link> assets, and every inline style= attribute was converted to a css()
   # class or SVG presentation attribute. check-bundle-size.mjs fails the build if
   # 'unsafe-inline' ever creeps back into style-src.
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' https://fonts.googleapis.com; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'
 
 # Scoped CSP for the MCP Google sign-in page ONLY — it loads the Firebase SDK
 # from gstatic + runs the Google popup + POSTs the token to the local loopback.

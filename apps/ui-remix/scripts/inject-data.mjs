@@ -223,6 +223,24 @@ if (!html.includes(NEEDLE)) {
   process.exit(0);
 }
 
+/* Exactly one anchor, or stop. `replace()` takes the FIRST match, so a second
+   copy of the needle earlier in the document — an HTML comment that spells the
+   placeholder between its delimiters, say — silently swallows the dataset and
+   ships a page whose real script tag is still the bare token. That failure
+   looks like a successful build: the "baked N KB" line prints, the file grows
+   by the right amount, and the app quietly falls back to fetching
+   /data/factstack.json (which a static host may not even serve). Caught here
+   because it shipped once. */
+const anchors = html.split(NEEDLE).length - 1;
+if (anchors !== 1) {
+  console.error(
+    `[inject-data] found ${anchors} copies of the dataset placeholder in dist/index.html; expected exactly 1.\n` +
+      `  The dataset is injected at the FIRST one, so the real <script id="factstack-data"> would be left un-baked.\n` +
+      `  Fix: keep one placeholder, and never write it between '>' and '<' anywhere else in index.html (comments included).`,
+  );
+  process.exit(1);
+}
+
 /* Escape `<` so a literal `</script>` inside any baked string value (a doc
    body, source snippet, TODO text, …) cannot terminate the inline
    `<script type="application/json">` element early and spill the rest of the
