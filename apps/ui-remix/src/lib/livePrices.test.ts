@@ -44,6 +44,14 @@ describe('perMFromPerToken — the unit conversion', () => {
     expect(perMFromPerToken(Number.NaN)).toBeNull();
   });
 
+  it('never turns a blank string into a free model', () => {
+    // Number('') and Number('   ') are both 0, and 0 means "free" here, so a
+    // missing upstream price would otherwise price a paid model at zero.
+    expect(perMFromPerToken('')).toBeNull();
+    expect(perMFromPerToken('   ')).toBeNull();
+    expect(perMFromPerToken('\n\t')).toBeNull();
+  });
+
   it('rejects a value implying the upstream unit changed', () => {
     // 0.02 per token would be $20,000/M — no real model. Better no number.
     expect(perMFromPerToken(0.02)).toBeNull();

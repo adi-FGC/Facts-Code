@@ -165,4 +165,14 @@ describe('fmtLadderUsd keeps sub-cent costs meaningful', () => {
     expect(fmtLadderUsd(14)).toBe('$14.00');
     expect(fmtLadderUsd(0)).toBe('$0');
   });
+
+  it('reserves "$0" for genuinely free — a tiny paid cost stays visible', () => {
+    // The old 4-decimal floor rendered every one of these as "$0", which on a
+    // cost panel reads as free. A cheap model on a small artifact lands here.
+    for (const tiny of [0.00004, 0.000004, 0.0000005]) {
+      expect(fmtLadderUsd(tiny), String(tiny)).not.toBe('$0');
+      expect(fmtLadderUsd(tiny), String(tiny)).toMatch(/^\$0\.0+[1-9]/);
+    }
+    expect(fmtLadderUsd(0)).toBe('$0');
+  });
 });

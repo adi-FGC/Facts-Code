@@ -115,9 +115,22 @@ function costOf(tokens: number, perMTok: number): number {
   return (Math.max(0, tokens) / 1_000_000) * Math.max(0, perMTok);
 }
 
-/** Compact USD, tuned for the $0.001-$50 band these costs live in. */
+/**
+ * Compact USD, tuned for the $0.001-$50 band these costs live in.
+ *
+ * "$0" is reserved for a genuinely free model. A tiny positive cost must never
+ * render as "$0": toFixed(4) on 0.00004 gives "0.0000", which the trailing-zero
+ * strip collapses to "0", making a paid model indistinguishable from a free one
+ * on a panel whose whole subject is cost. Below the 4-decimal floor, switch to
+ * significant figures rather than truncating to nothing.
+ */
 export function fmtLadderUsd(n: number): string {
   if (n <= 0) return '$0';
+  if (n < 0.0001) {
+    const sig = Number(n.toPrecision(2));
+    const decimals = Math.min(20, Math.max(0, -Math.floor(Math.log10(sig)) + 1));
+    return '$' + sig.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
+  }
   if (n < 0.01) return '$' + n.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
   if (n < 1) return '$' + n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
   if (n < 100) return '$' + n.toFixed(2);

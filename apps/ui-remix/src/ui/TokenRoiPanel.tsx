@@ -284,6 +284,17 @@ const rateKey = css({
   fontSize: 'var(--fs-10)',
 });
 const rateVal = css({ color: 'var(--fg)' });
+/* Caveats wrap onto their own full-width line under the rate figures, so a
+   long one cannot squeeze the numbers. */
+const rateNote = css({
+  flexBasis: '100%',
+  fontFamily: 'var(--font-body)',
+  fontSize: 'var(--fs-11)',
+  lineHeight: '1.5',
+  color: 'var(--fg-faint)',
+  maxWidth: '72ch',
+});
+
 const rateLink = css({
   color: 'var(--fg-muted)',
   textDecoration: 'underline',
@@ -407,6 +418,12 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
     });
 
     const stamp = live ? new Date(live.fetchedAt).toLocaleString() : oldestVerifiedOn();
+
+    /* How many rows the caption may describe as read off the vendor's own
+       page. Counted, not asserted: the caption used to claim it of all of
+       them while two rows ship as `aggregator` precisely because the vendor
+       page could not be confirmed. */
+    const primaryCount = MODEL_CATALOG.filter((m) => m.confidence === 'primary').length;
 
     return (
       <div mix={wrap}>
@@ -548,11 +565,26 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
             <span mix={rateVal}>{typeof rate.output === 'number' ? `$${rate.output}` : '—'}</span>
           </span>
           <span>
-            <span mix={rateKey}>{rate.isLive ? 'fetched ' : 'verified '}</span>
+            {/* "verified" is reserved for a rate confirmed on the vendor's own
+                page. A row resting on corroborating sources says "checked" and
+                carries the same † the chart uses, so the stronger word is never
+                applied to the two rows that did not earn it. */}
+            <span mix={rateKey}>
+              {rate.isLive ? 'fetched ' : model.confidence === 'primary' ? 'verified ' : 'checked '}
+            </span>
             <span mix={rate.isLive ? liveTag : rateVal}>
               {rate.isLive ? stamp : model.verifiedOn}
             </span>
+            {!rate.isLive && model.confidence !== 'primary' && (
+              <span mix={rateKey}> † not vendor-confirmed</span>
+            )}
           </span>
+          {/* The selected model's own caveat, shown rather than buried in the
+              data file. Several rows carry one that changes what the number
+              means — a limited-time discount, a price the vendor is currently
+              waiving, a disputed reading — and a rate card without it presents
+              every row as equally settled. */}
+          {model.notes && <span mix={rateNote}>{model.notes}</span>}
           <a mix={rateLink} href={model.sourceUrl} target="_blank" rel="noreferrer noopener">
             source ↗
           </a>
@@ -595,12 +627,25 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         </div>
 
         <p mix={caption}>
-          Codebase tokens are exact (cl100k, from the analyzer); the artifact is estimated at ~4
-          chars/token, and the figure shown is this dashboard’s own data block — a superset of the
+          Both token counts are estimates, measured the same way: the analyzer counts characters and
+          divides by 3.5, a rule of thumb it documents as tracking cl100k within about 8%. Neither
+          side is a real tokenizer count, so treat the ratio as an order of magnitude, not a
+          measurement. The artifact figure is this dashboard’s own data block — a superset of the
           lean <span class="mono">agent.json</span>, so the real saving is larger. The artifact
-          replaces dumping the repo every turn; per-task file reads are the same either way. Prices
-          are standard list rates for input tokens (not batch, not cached), each verified against
-          the vendor’s own page on the date shown.
+          replaces dumping the repo every turn; per-task file reads are the same either way.{' '}
+          {primaryCount === MODEL_CATALOG.length ? (
+            <>
+              Prices are standard list rates for input tokens (not batch, not cached), each read off
+              the vendor’s own pricing page on the date shown.
+            </>
+          ) : (
+            <>
+              Prices are standard list rates for input tokens (not batch, not cached).{' '}
+              {primaryCount} of {MODEL_CATALOG.length} were read off the vendor’s own pricing page
+              on the date shown; the rest are marked † and rest on corroborating sources because the
+              vendor’s own page could not be confirmed — see each model’s source link.
+            </>
+          )}
         </p>
       </div>
     );

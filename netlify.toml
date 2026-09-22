@@ -39,7 +39,11 @@ NODE_VERSION = "24"
 [[headers]]
 for = "/*.html"
 [headers.values]
-Cache-Control = "public, max-age=0, must-revalidate"
+# must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
+# returning visitor paint from cache in the same second while the browser
+# checks for a newer bake in the background. MUST match apps/ui-remix/public/_headers —
+# the build guard enforces CSP parity but NOT cache parity, so this drifts silently.
+Cache-Control = "public, max-age=0, must-revalidate, stale-while-revalidate=604800"
 
 [[headers]]
 for = "/fonts/*"
