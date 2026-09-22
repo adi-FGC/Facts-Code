@@ -5,11 +5,11 @@ import {
   dollars,
   fmtPct,
   fmtRatio,
+  fmtPerToken,
   fmtTokens,
   fmtUsd,
-  MODEL_RATES,
-  rateById,
 } from './tokenEconomics.ts';
+import { MODEL_CATALOG, modelById, oldestVerifiedOn, pricedModels } from './modelCatalog.ts';
 
 /**
  * The ROI numbers are a value claim FACTS makes on its own landing page,
@@ -50,15 +50,68 @@ describe('computeTokenRoi', () => {
 
 describe('dollars', () => {
   it('prices tokens against the per-MTok rate', () => {
-    const sonnet = rateById('sonnet');
-    expect(sonnet.inputPerMTok).toBe(3);
     // 1.5M tokens at $3 / 1M = $4.50
-    expect(dollars(1_500_000, sonnet)).toBeCloseTo(4.5, 6);
+    expect(dollars(1_500_000, { inputPerMTok: 3 })).toBeCloseTo(4.5, 6);
   });
 
-  it('rateById falls back to the middle preset for unknown ids', () => {
-    expect(rateById('nope').id).toBe('sonnet');
-    expect(MODEL_RATES).toHaveLength(3);
+  it('prices a real catalog row', () => {
+    const opus = modelById('claude-opus-5-5');
+    expect(opus.inputPerMTok).toBe(4);
+    expect(dollars(1_400_000, { inputPerMTok: opus.inputPerMTok! })).toBeCloseTo(5.6, 6);
+  });
+
+  it('modelById falls back to the first entry for an unknown id', () => {
+    expect(modelById('nope').id).toBe(MODEL_CATALOG[0]!.id);
+  });
+});
+
+/**
+ * The catalog is data the panel presents as fact, so these guard the
+ * promises made in its header comment rather than the numbers themselves.
+ */
+describe('the baked catalog keeps its own rules', () => {
+  it('gives every model an ISO verification date and a source to check', () => {
+    for (const m of MODEL_CATALOG) {
+      expect(m.verifiedOn, m.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(m.sourceUrl, m.id).toMatch(/^https:\/\//);
+    }
+  });
+
+  it('uses null, never 0, for "no published price" — free and unknown differ', () => {
+    const anti = modelById('gemini-antigravity');
+    expect(anti.inputPerMTok).toBeNull();
+    expect(pricedModels().every((m) => typeof m.inputPerMTok === 'number')).toBe(true);
+    expect(pricedModels()).not.toContain(anti);
+  });
+
+  it('never claims to be fresher than its stalest row', () => {
+    const oldest = oldestVerifiedOn();
+    for (const m of MODEL_CATALOG) expect(m.verifiedOn >= oldest).toBe(true);
+  });
+
+  it('keeps model ids unique, since they key UI state', () => {
+    expect(new Set(MODEL_CATALOG.map((m) => m.id)).size).toBe(MODEL_CATALOG.length);
+  });
+
+  it('marks a row whose sources disagreed as less than primary', () => {
+    // Inkling: five hosted providers vs a conflicting vendor-page reading.
+    expect(modelById('inkling').confidence).not.toBe('primary');
+    expect(modelById('inkling').notes).toMatch(/disagree/i);
+  });
+});
+
+describe('fmtPerToken — the per-token column', () => {
+  it('does not collapse a real per-token price to $0.00', () => {
+    expect(fmtPerToken(0.75)).toBe('$0.00000075'); // Gemini 3.8 Flash
+    expect(fmtPerToken(4)).toBe('$0.000004'); // Opus 5.5
+    expect(fmtPerToken(50)).toBe('$0.00005'); // Fable 5.1 output
+    expect(fmtPerToken(0.15)).toBe('$0.00000015'); // GLM-5.3 Flash
+  });
+
+  it('returns $0 for zero and for anything unusable', () => {
+    expect(fmtPerToken(0)).toBe('$0');
+    expect(fmtPerToken(Number.NaN)).toBe('$0');
+    expect(fmtPerToken(-1)).toBe('$0');
   });
 });
 

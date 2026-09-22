@@ -28,30 +28,20 @@
 /** cl100k rule-of-thumb: ~4 characters per token for code + JSON. */
 export const CHARS_PER_TOKEN = 4;
 
-export interface ModelRate {
-  id: string;
-  /** Short display label (model class). */
-  label: string;
-  /** USD per 1,000,000 input tokens. Approximate public list price — an
-   *  editable assumption, not a live quote. */
-  inputPerMTok: number;
-}
-
 /**
- * Rate presets for the "what does this cost" column. Labelled by model
- * class with ballpark list prices so the dollar figure is concrete;
- * the panel states plainly that these are approximate and adjustable.
+ * Anything carrying an input rate can price a run. Structural on purpose, so
+ * `CatalogModel` (lib/modelCatalog.ts) satisfies it without a conversion —
+ * and so a live-refreshed rate can be substituted for a baked one with no
+ * change here.
+ *
+ * The three hardcoded Haiku/Sonnet/Opus presets that used to live in this
+ * file were replaced on 2026-09-23 by the researched, per-model-dated
+ * catalog in lib/modelCatalog.ts. They were a single vendor's ballpark; the
+ * catalog carries a source URL and a verification date per row.
  */
-export const MODEL_RATES: readonly ModelRate[] = [
-  { id: 'haiku', label: 'Haiku', inputPerMTok: 0.8 },
-  { id: 'sonnet', label: 'Sonnet', inputPerMTok: 3 },
-  { id: 'opus', label: 'Opus', inputPerMTok: 15 },
-] as const;
-
-export const DEFAULT_RATE_ID = 'sonnet';
-
-export function rateById(id: string): ModelRate {
-  return MODEL_RATES.find((r) => r.id === id) ?? MODEL_RATES[1]!;
+export interface ModelRate {
+  /** USD per 1,000,000 input tokens. */
+  inputPerMTok: number;
 }
 
 export interface TokenRoi {
@@ -110,6 +100,27 @@ export function fmtUsd(n: number): string {
   if (n < 1) return '$' + n.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
   if (n < 100) return '$' + n.toFixed(2);
   return '$' + Math.round(n).toLocaleString('en-US');
+}
+
+/**
+ * Price of ONE token, which is the unit people are actually billed in and
+ * the one vendors never print.
+ *
+ * At $0.75/M a token costs $0.00000075, and every general-purpose formatter
+ * renders that as "$0.00". So: significant figures, not fixed decimals, and
+ * an explicit `$0` only for a genuine zero. The trailing unit is the
+ * caller's job — this returns the number alone so it can sit in a table
+ * column without repeating "/token" on every row.
+ */
+export function fmtPerToken(perMTok: number): string {
+  if (!Number.isFinite(perMTok) || perMTok <= 0) return '$0';
+  const perToken = perMTok / 1_000_000;
+  /* Two significant figures at any magnitude. toPrecision returns the
+     exponential spelling down here ("7.5e-7"), which is correct but unreadable
+     in a price column, so expand it with toFixed and trim the padding. */
+  const sig = Number(perToken.toPrecision(2));
+  const decimals = Math.max(0, Math.min(12, -Math.floor(Math.log10(sig)) + 1));
+  return '$' + sig.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
 }
 
 /** "26×" — the multiplier framing. Rounds to a clean integer above 10. */
