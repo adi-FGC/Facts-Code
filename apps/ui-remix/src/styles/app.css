@@ -61,6 +61,61 @@ body {
   height: 100%;
 }
 
+/* ── Boot shell ───────────────────────────────────────────────────
+   The markup index.html paints before the bundle executes. It carries
+   the real grid metrics (--nav-h / --tree-w / --status-h) so the app
+   mounts into the same geometry and nothing jumps, and main.tsx removes
+   it after the first render. No pulse, no shimmer: animation would draw
+   the eye to the one part of the page that is about to disappear. */
+.boot {
+  display: grid;
+  grid-template-rows: var(--nav-h) 1fr;
+  grid-template-columns: var(--tree-w) 1fr;
+  grid-template-areas:
+    'bar  bar'
+    'tree main';
+  height: 100dvh;
+}
+.boot__bar {
+  grid-area: bar;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-4);
+  border-bottom: 1px solid var(--hairline);
+}
+.boot__mark {
+  font-family: var(--font-display);
+  font-size: var(--fs-20);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  font-variation-settings: 'opsz' 20;
+  color: var(--fg);
+}
+.boot__tree {
+  grid-area: tree;
+  border-right: 1px solid var(--hairline);
+}
+.boot__main {
+  grid-area: main;
+  padding: var(--space-6) var(--space-5);
+}
+.boot__note {
+  margin: 0;
+  color: var(--fg-muted);
+  font-size: var(--fs-13);
+}
+@media (max-width: 899px) {
+  .boot {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'bar'
+      'main';
+  }
+  .boot__tree {
+    display: none;
+  }
+}
+
 /* ── Shell grid ──────────────────────────────────────────────────── */
 .app-shell {
   display: grid;

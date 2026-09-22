@@ -15,6 +15,10 @@ import { createRoot } from 'remix/ui';
 import { App } from './App.tsx';
 
 // Design system — must load before app render so first paint is styled.
+// fonts.css leads: the @font-face rules belong in the sheet ahead of the
+// tokens that name the families, so the woff2 fetches start the moment the
+// stylesheet lands rather than after the first glyph needs them.
+import './styles/fonts.css';
 import '@factstack/ui-theme/tokens.css';
 import '@factstack/ui-theme/glass.css';
 import '@factstack/ui-theme/diagram.css';
@@ -22,6 +26,12 @@ import './styles/app.css';
 
 const container = document.getElementById('root');
 if (!container) throw new Error('#root element missing from index.html');
+
+/* The pre-render shell from index.html. Held by reference now, removed
+   after the first render below: the app paints into the same grid, so the
+   swap is invisible. Removing it BEFORE render would blank the screen for
+   however long the first render takes. */
+const bootShell = container.querySelector('[data-app-skeleton]');
 
 // Mount the app ONCE. All navigation reactivity lives inside <AppRouter/>
 // (App.tsx), which re-renders via its own `handle.update()` on popstate +
@@ -31,6 +41,10 @@ if (!container) throw new Error('#root element missing from index.html');
 // "blank on client navigation, fine on refresh" bug).
 const root = createRoot(container);
 root.render(<App />);
+
+/* Drop the boot shell now that real UI occupies the same grid. No-op when
+   the renderer already cleared the container. */
+bootShell?.remove();
 
 // Global click-delegation for internal <a href="..."> links. We do it at
 // the document level instead of via a per-element `on('click', ...)` mixin
