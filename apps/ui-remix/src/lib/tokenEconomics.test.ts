@@ -19,14 +19,31 @@ import { MODEL_CATALOG, modelById, oldestVerifiedOn, pricedModels } from './mode
  */
 
 describe('computeTokenRoi', () => {
-  it('estimates artifact tokens at ~chars/4 and computes savings', () => {
+  it('estimates artifact tokens with the analyzer’s own divisor and computes savings', () => {
     // 228 KB artifact, 1.5M-token codebase — the FACTS-on-FACTS ballpark.
     const roi = computeTokenRoi(1_500_000, 228_000);
-    expect(roi.artifactTokens).toBe(Math.round(228_000 / CHARS_PER_TOKEN)); // 57_000
+    expect(roi.artifactTokens).toBe(Math.round(228_000 / CHARS_PER_TOKEN)); // 65_143
     expect(roi.fullTokens).toBe(1_500_000);
-    expect(roi.savedTokens).toBe(1_500_000 - 57_000);
-    expect(roi.savedFraction).toBeCloseTo(0.962, 3);
-    expect(Math.round(roi.ratio)).toBe(26);
+    expect(roi.savedTokens).toBe(1_500_000 - 65_143);
+    expect(roi.savedFraction).toBeCloseTo(0.957, 3);
+    expect(Math.round(roi.ratio)).toBe(23);
+  });
+
+  /**
+   * Guards the reason the divisor moved from 4 to 3.5. A ratio whose two
+   * sides are measured by different rules is not a ratio, and the asymmetry
+   * ran in the product's favour: dividing the artifact by 4 while the
+   * analyzer divides the codebase by 3.5 made the artifact look ~14% smaller
+   * and inflated both the multiplier and the percentage saved.
+   */
+  it('measures both sides of the ratio with the analyzer’s divisor', () => {
+    // packages/scanners/src/tokencost.ts: Math.round(text.length / 3.5)
+    expect(CHARS_PER_TOKEN).toBe(3.5);
+    const chars = 100_000;
+    const roi = computeTokenRoi(Math.round(chars / CHARS_PER_TOKEN), chars);
+    // The same content measured the same way must cancel to no saving at all.
+    expect(roi.savedTokens).toBe(0);
+    expect(roi.ratio).toBeCloseTo(1, 6);
   });
 
   it('never reports negative savings when the artifact is bigger than the repo', () => {

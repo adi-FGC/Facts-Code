@@ -39,7 +39,12 @@
 [[headers]]
   for = "/*.html"
   [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
+    # must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
+    # returning visitor paint from cache in the same second while the browser
+    # checks for a newer bake in the background. MUST match
+    # apps/ui-remix/public/_headers — the build guard enforces CSP parity but
+    # NOT cache parity, so this one drifts silently.
+    Cache-Control = "public, max-age=0, must-revalidate, stale-while-revalidate=604800"
 
 # Self-hosted woff2 (apps/ui-remix/src/styles/fonts.css). Content never changes
 # under a given name — replacing a face means a new filename, not new bytes.

@@ -14,19 +14,33 @@
  * isolation.
  *
  * Honesty notes (surfaced in the panel caption, not hidden):
- *   - `fullTokens` is exact — the analyzer tokenizes every source file
- *     with the cl100k encoding.
- *   - `artifactTokens` is an estimate: serialized-bytes ÷ CHARS_PER_TOKEN.
- *     JSON tokenizes a little denser than prose, so this slightly
- *     under-counts artifact tokens, which is the conservative direction
- *     (it makes FACTS look worse, not better).
+ *   - NEITHER side is an exact token count. `fullTokens` comes from the
+ *     analyzer's `approximateTokens` (packages/scanners/src/tokencost.ts),
+ *     which is `Math.round(text.length / 3.5)` — a char-based estimate that
+ *     the scanner documents as tracking cl100k "within ~8%". It is NOT
+ *     cl100k tokenization, and the panel must not claim it is.
+ *   - `artifactTokens` is the same kind of estimate over the artifact's
+ *     serialized length.
+ *   - Both sides therefore use the SAME divisor. They used to differ (3.5
+ *     for the codebase, 4 for the artifact), which made the artifact look
+ *     ~14% smaller than the same rule would make the codebase and inflated
+ *     both `ratio` and `savedFraction` by that much. The old comment here
+ *     claimed dividing by 4 was "the conservative direction (it makes FACTS
+ *     look worse, not better)" — that was backwards: a smaller artifact is
+ *     a BIGGER saving. A ratio is only meaningful when its two sides are
+ *     measured the same way, so if the analyzer ever adopts real tiktoken,
+ *     this must follow it rather than keep a rule-of-thumb.
  *   - The artifact we measure is the dashboard's own data block, a
  *     superset of the lean agent.json. Real agent-facing artifacts are
- *     smaller still, so again: conservative.
+ *     smaller still — that one IS conservative.
  */
 
-/** cl100k rule-of-thumb: ~4 characters per token for code + JSON. */
-export const CHARS_PER_TOKEN = 4;
+/**
+ * Chars per token. Must stay equal to the divisor in the analyzer's
+ * `approximateTokens` (packages/scanners/src/tokencost.ts), or the two
+ * halves of every ratio on this panel stop being comparable.
+ */
+export const CHARS_PER_TOKEN = 3.5;
 
 /**
  * Anything carrying an input rate can price a run. Structural on purpose, so

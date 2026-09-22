@@ -80,6 +80,12 @@ interface CatalogLike {
  * IS meaningful (genuinely free models exist) and is preserved.
  */
 export function perMFromPerToken(raw: unknown): number | null {
+  /* An empty or blank string must NOT become 0. `Number('')` and
+     `Number('   ')` are both 0, and 0 is meaningful here (genuinely free
+     models exist), so without this guard a missing upstream price renders a
+     PAID model as free — a wrong number shown confidently, which is the one
+     failure this panel cannot afford. */
+  if (typeof raw === 'string' && raw.trim() === '') return null;
   const n = typeof raw === 'string' ? Number(raw) : raw;
   if (typeof n !== 'number' || !Number.isFinite(n) || n < 0) return null;
   const perM = n * 1_000_000;
