@@ -345,6 +345,71 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
   let results: OsvResult[] | null = null;
   let bypassCache = false;
   let pasteEl: HTMLTextAreaElement | null = null;
+  /* Where `results` came from, and when. The weekly self-refresh below fills
+     the same field as the paste flow so every renderer downstream is shared;
+     only the provenance copy differs. */
+  let resultsSource: 'paste' | 'weekly' | null = null;
+  let resultsAt = 0;
+  let autoRefreshing = false;
+  let autoNote = '';
+
+  /**
+   * Keep the advisory list honest on a deployed snapshot.
+   *
+   * The baked scan ages the moment the site is built, and OSV publishes
+   * daily. Once that scan is more than a week old, re-query OSV in the
+   * visitor's browser for the manifests the analyzer already parsed, and show
+   * that instead. One request set per browser per week (cached in
+   * localStorage, keyed by the dependency set, so a redeploy that changes
+   * dependencies re-asks immediately).
+   *
+   * Never blocks the page: it runs after first render, and any failure leaves
+   * the baked result showing with a quiet note rather than an error.
+   */
+  async function weeklyRefresh(data: Dataset): Promise<void> {
+    if (typeof window === 'undefined' || autoRefreshing || results) return;
+    const manifests = data.dependencyManifests ?? [];
+    if (manifests.length === 0) return;
+    const bakedAt = data.vulnerabilityScan?.scannedAt
+      ? Date.parse(data.vulnerabilityScan.scannedAt) || 0
+      : 0;
+
+    autoRefreshing = true;
+    try {
+      const osv = await import('../lib/osvScanner.ts');
+      const queries = osv.queriesFromManifests(manifests);
+      if (queries.length === 0) return;
+      const fingerprint = osv.manifestFingerprint(queries);
+      const cached = osv.readAutoRefresh(fingerprint);
+      const decision = osv.weeklyRefreshDecision({
+        bakedAt,
+        cachedAt: cached?.at,
+        now: Date.now(),
+        online: navigator.onLine !== false,
+        queryCount: queries.length,
+      });
+
+      if (decision === 'skip') return;
+      if (decision === 'use-cache' && cached) {
+        results = cached.results;
+        resultsSource = 'weekly';
+        resultsAt = cached.at;
+        return;
+      }
+
+      const fresh = await osv.queryOsvBatch(queries, { bypassCache: true });
+      results = fresh;
+      resultsSource = 'weekly';
+      resultsAt = Date.now();
+      osv.writeAutoRefresh({ at: resultsAt, fingerprint, results: fresh });
+    } catch (err) {
+      /* The baked scan stays on screen; say why it was not topped up. */
+      autoNote = `Could not reach OSV.dev to re-check (${err instanceof Error ? err.message : String(err)}).`;
+    } finally {
+      autoRefreshing = false;
+      void handle.update();
+    }
+  }
 
   async function runScan() {
     if (scanning) return;
@@ -364,6 +429,8 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
          scan. Subsequent scans in the same session reuse the already-
          downloaded chunk. */
       const osv = await import('../lib/osvScanner.ts');
+      resultsSource = 'paste';
+      resultsAt = Date.now();
       const queries: OsvQuery[] = osv.parseNpmManifestForOsv(pasteText, 'pasted-manifest');
       if (queries.length === 0) {
         throw new Error(
@@ -378,6 +445,16 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
       bypassCache = false;
       void handle.update();
     }
+  }
+
+  /* Kick the weekly re-check off after the first paint. Idle time if the
+     browser offers it, the next tick otherwise — the advisory list on screen
+     is already correct as of the build; this only decides whether it stays
+     that way. */
+  if (typeof window !== 'undefined') {
+    const start = (): void => void weeklyRefresh(handle.props.data);
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(start, { timeout: 3000 });
+    else setTimeout(start, 0);
   }
 
   return () => {
@@ -396,7 +473,13 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
        nothing is a RESULT. Without it this page showed "ready to scan" after
        a clean `factstack scan-vulns`, indistinguishable from never scanning. */
     const scan = data.vulnerabilityScan ?? null;
-    const scannedClean = !hasArtifactVulns && scan !== null;
+    /* A re-check this browser ran is newer than anything baked at build time,
+       so it wins the page: the artifact's own sections stand down and the
+       result rendered below is the live one. */
+    const weekly = resultsSource === 'weekly' && results ? results : null;
+    const weeklyClean = weekly !== null && weekly.every((r) => r.vulns.length === 0);
+    const showArtifact = hasArtifactVulns && weekly === null;
+    const scannedClean = !hasArtifactVulns && scan !== null && weekly === null;
     const scanAge = scan
       ? fmtAge(Math.max(0, Date.now() - (Date.parse(scan.scannedAt) || Date.now())))
       : null;
@@ -455,25 +538,42 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>
             Vulnerabilities{' '}
-            {hasArtifactVulns
-              ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
-              : scannedClean
-                ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
-                : results
-                  ? `· ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
-                  : '· ready to scan'}
+            {weekly
+              ? `· ${weeklyClean ? 'clean' : `${vulnerablePackages} vulnerable`} · re-checked in your browser`
+              : hasArtifactVulns
+                ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
+                : scannedClean
+                  ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
+                  : results
+                    ? `· ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
+                    : '· ready to scan'}
           </div>
           <h1 mix={headline}>
-            {hasArtifactVulns
-              ? renderHeadline(artifactCounts.critical, artifactCounts.high, artifactVulns.length)
-              : scannedClean
+            {weekly
+              ? weeklyClean
                 ? 'No known vulnerabilities at the queried versions.'
-                : results
-                  ? renderHeadline(critical, high, totalVulns)
-                  : 'Check your dependencies against the OSV database.'}
+                : renderHeadline(critical, high, totalVulns)
+              : hasArtifactVulns
+                ? renderHeadline(artifactCounts.critical, artifactCounts.high, artifactVulns.length)
+                : scannedClean
+                  ? 'No known vulnerabilities at the queried versions.'
+                  : results
+                    ? renderHeadline(critical, high, totalVulns)
+                    : 'Check your dependencies against the OSV database.'}
           </h1>
           <p mix={lede}>
-            {hasArtifactVulns ? (
+            {weekly ? (
+              <>
+                The build's scan had passed a week, so this page re-checked {weekly.length} package
+                {weekly.length === 1 ? '' : 's'} against{' '}
+                <a href="https://osv.dev" mix={vulnLink}>
+                  OSV.dev
+                </a>{' '}
+                from your browser · {fmtAge(Math.max(0, Date.now() - resultsAt))}. Only package
+                names and versions left the page. It re-checks at most once a week per browser;{' '}
+                <code class="mono">factstack scan-vulns</code> refreshes the artifact itself.
+              </>
+            ) : hasArtifactVulns ? (
               <>
                 From the last <code class="mono">factstack scan-vulns</code> run{' '}
                 {freshness ? `· ${freshness}` : ''}. Re-run that command to refresh the artifact, or
@@ -508,7 +608,14 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             )}
           </p>
 
-          {hasArtifactVulns && (
+          {autoNote !== '' && (
+            <p mix={lede}>
+              {autoNote} Showing the scan baked at build time; re-run{' '}
+              <code class="mono">factstack scan-vulns</code> for a fresh one.
+            </p>
+          )}
+
+          {showArtifact && (
             <>
               <LabelNumberRow>
                 <LabelNumber label="Critical" value={artifactCounts.critical} />

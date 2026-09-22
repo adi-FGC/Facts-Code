@@ -129,6 +129,135 @@ export function parseNpmManifestForOsv(text: string, sourcePath = 'pasted-manife
   return out;
 }
 
+/* ─────────── weekly self-refresh ───────────
+ *
+ * A deployed dashboard is a snapshot: its advisories are as old as the last
+ * `factstack scan-vulns` that ran before the build. OSV publishes daily, so a
+ * site that is not redeployed for a month is quietly telling every visitor
+ * that a month-old answer is current.
+ *
+ * So the page re-checks itself. When the baked scan is older than a week, the
+ * Security tab re-queries OSV for the dependency manifests the analyzer
+ * already extracted (no paste, no server) and shows that result instead,
+ * labelled with where it came from. The answer is cached per visitor for a
+ * week, so a returning reader costs nothing and OSV sees one request set per
+ * browser per week.
+ *
+ * The baked scan stays in the artifact as the offline answer — this only
+ * supersedes it in a live browser that could reach OSV.
+ */
+
+/** Default staleness threshold. Matches the CLI's own `scan-vulns` cadence. */
+export const AUTO_REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+const AUTO_KEY = 'factstack:osv:auto';
+
+export interface AutoRefreshRecord {
+  /** When this browser last completed a refresh. */
+  at: number;
+  /** Fingerprint of the manifest set, so a redeploy with changed deps re-queries. */
+  fingerprint: string;
+  results: OsvResult[];
+}
+
+/**
+ * Should this page re-check OSV right now?
+ *
+ * Pure on purpose: the decision is the whole feature — "re-check weekly,
+ * never more often, never when the build is already current" — and it is
+ * worth more as something a test can pin than as three conditions inside a
+ * component.
+ *
+ *   - `use-cache`  a refresh from this browser is still inside the week.
+ *   - `refresh`    the baked scan has aged past the window; ask OSV.
+ *   - `skip`       the build's scan is current, or nothing to ask about,
+ *                  or this browser says it is offline.
+ */
+export function weeklyRefreshDecision(input: {
+  /** Epoch ms of the scan baked at build time; 0 or undefined when none ran. */
+  bakedAt?: number | undefined;
+  /** Epoch ms of this browser's last refresh for the same dependency set. */
+  cachedAt?: number | undefined;
+  now: number;
+  online: boolean;
+  queryCount: number;
+  windowMs?: number;
+}): 'refresh' | 'use-cache' | 'skip' {
+  const windowMs = input.windowMs ?? AUTO_REFRESH_AFTER_MS;
+  if (input.queryCount === 0) return 'skip';
+  if (input.cachedAt && input.now - input.cachedAt < windowMs) {
+    /* Only worth showing if it is actually newer than what was baked. */
+    return input.cachedAt > (input.bakedAt ?? 0) ? 'use-cache' : 'skip';
+  }
+  if (!input.online) return 'skip';
+  const bakedAge = input.bakedAt ? input.now - input.bakedAt : Infinity;
+  return bakedAge >= windowMs ? 'refresh' : 'skip';
+}
+
+/** Stable fingerprint of what we are about to ask about. */
+export function manifestFingerprint(queries: OsvQuery[]): string {
+  return queries
+    .map((q) => `${q.ecosystem}:${q.name}@${q.version}`)
+    .sort()
+    .join('|');
+}
+
+export function readAutoRefresh(fingerprint: string): AutoRefreshRecord | null {
+  if (typeof localStorage === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(AUTO_KEY);
+    if (!raw) return null;
+    const rec = JSON.parse(raw) as AutoRefreshRecord;
+    if (rec.fingerprint !== fingerprint) return null;
+    if (!Array.isArray(rec.results) || typeof rec.at !== 'number') return null;
+    return rec;
+  } catch {
+    return null;
+  }
+}
+
+export function writeAutoRefresh(rec: AutoRefreshRecord): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.setItem(AUTO_KEY, JSON.stringify(rec));
+  } catch {
+    /* Quota / private mode: the refresh still applies to this page view. */
+  }
+}
+
+/**
+ * OSV queries for the manifests the analyzer already parsed. Mirrors
+ * `parseNpmManifestForOsv`, but reads the structured `dependencyManifests[]`
+ * from the dataset instead of pasted text, so the auto-refresh asks about
+ * exactly what the artifact reports.
+ *
+ * Workspace / file / git protocol versions are unqueryable and are skipped —
+ * the same ones `factstack scan-vulns` reports as "not queryable".
+ */
+export function queriesFromManifests(
+  manifests: ReadonlyArray<{
+    path: string;
+    ecosystem: string;
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  }>,
+): OsvQuery[] {
+  const out: OsvQuery[] = [];
+  const seen = new Set<string>();
+  for (const m of manifests) {
+    if (m.ecosystem !== 'npm') continue; // the only ecosystem the parser covers today
+    const merged = { ...(m.dependencies ?? {}), ...(m.devDependencies ?? {}) };
+    for (const [name, raw] of Object.entries(merged)) {
+      const version = normalizeNpmVersion(raw);
+      if (!version) continue;
+      const key = `${name}@${version}`;
+      if (seen.has(key)) continue; // a monorepo pins the same dep in many manifests
+      seen.add(key);
+      out.push({ ecosystem: 'npm', name, version, manifestPath: m.path });
+    }
+  }
+  return out;
+}
+
 /* ─────────── re-exports for cache-key helpers ─────────── */
 
 export { makeCacheKey };
