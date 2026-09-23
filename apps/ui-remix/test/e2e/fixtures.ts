@@ -62,7 +62,7 @@ export const ROUTES: readonly RouteSpec[] = [
   {
     path: '/credentials',
     name: 'Credentials',
-    headlines: ['Nothing leaked.', 'Rotate these now.'],
+    headlines: ['Nothing leaked.', 'Rotate these now.', 'Only test and fixture matches.'],
   },
   {
     path: '/files',

@@ -70,6 +70,11 @@ export const HealthHeadlineSchema = z.object({
   broken: z.number().int().nonnegative(),
   todos: z.number().int().nonnegative(),
   secrets: z.number().int().nonnegative(),
+  /** Secret matches in test/fixture paths. Listed with file + line like any
+   *  other secret but kept out of the grade (and out of `secrets`); counted
+   *  here and on the headline so they are never silent. Absent when 0 and on
+   *  pre-2026-09 artifacts (INV4). */
+  fixtureSecrets: z.number().int().nonnegative().optional(),
   stale: z.number().int().nonnegative(),
   headline: z.string(),
   /** v0.3 — composite project-health grade. `score` is 0–100 (100 = pristine),

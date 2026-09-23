@@ -81,9 +81,43 @@ const RULES: SecretRule[] = [
   {
     id: 'private-key-header',
     label: 'Private key block',
-    pattern: /(-----BEGIN (RSA |OPENSSH |DSA |EC |PGP )?PRIVATE KEY-----)/,
+    // PEM (RSA/EC/DSA/OpenSSH), PKCS#8 incl. ENCRYPTED, and armored PGP
+    // (`… PRIVATE KEY BLOCK-----`). The header alone is the signal.
+    pattern: /(-----BEGIN (?:RSA |OPENSSH |DSA |EC |PGP |ENCRYPTED )?PRIVATE KEY(?: BLOCK)?-----)/,
   },
 ];
+
+/** Global twins of RULES, built once — a line can hold more than one key
+ *  (a minified bundle, a one-line JSON export), and each is a finding. */
+const GLOBAL_RULES = RULES.map((r) => ({
+  rule: r,
+  re: new RegExp(
+    r.pattern.source,
+    r.pattern.flags.includes('g') ? r.pattern.flags : r.pattern.flags + 'g',
+  ),
+}));
+
+/**
+ * Template values are documentation, not credentials: `.env.example` files
+ * and READMEs are full of `sk-your-openai-api-key-here` and `ghp_xxxxxxxx…`.
+ * Without this, widening the scan to every text file graded those as exposed
+ * secrets. A delimited placeholder word, or a long run of one character,
+ * marks them — a random key essentially never contains `-your-` or eight
+ * repeats of one character. (`test` is deliberately NOT a placeholder word:
+ * Stripe's real `sk_test_…` keys carry it.)
+ */
+const PLACEHOLDER_WORD =
+  /(?:^|[-_.])(?:your|example|sample|placeholder|changeme|change[-_]?me|dummy|fake|here|insert|replace|redacted|xxxx+)(?=[-_.]|$)/i;
+export function isPlaceholderSecret(body: string): boolean {
+  return PLACEHOLDER_WORD.test(body) || /(.)\1{7,}/.test(body) || /x{6,}/i.test(body);
+}
+
+/** True when a matched body is a real finding under `rule`'s gates. */
+function passes(rule: SecretRule, body: string): { ok: boolean; entropy: number } {
+  const entropy = shannonEntropy(body);
+  if (rule.minEntropy == null) return { ok: true, entropy }; // header rules: no body to judge
+  return { ok: entropy >= rule.minEntropy && !isPlaceholderSecret(body), entropy };
+}
 
 export function scanSecrets(file: string, text: string): SecretFinding[] {
   const out: SecretFinding[] = [];
@@ -91,21 +125,45 @@ export function scanSecrets(file: string, text: string): SecretFinding[] {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
-    for (const rule of RULES) {
-      const m = line.match(rule.pattern);
-      if (!m) continue;
-      const body = m[m.length - 1] ?? m[0];
-      const ent = shannonEntropy(body);
-      if (rule.minEntropy != null && ent < rule.minEntropy) continue;
-      out.push({
-        ruleId: rule.id,
-        ruleLabel: rule.label,
-        file,
-        line: i + 1,
-        preview: redact(body),
-        entropy: Math.round(ent * 100) / 100,
-      });
+    for (const { rule, re } of GLOBAL_RULES) {
+      for (const m of line.matchAll(re)) {
+        const body = m[m.length - 1] ?? m[0];
+        const { ok, entropy } = passes(rule, body);
+        if (!ok) continue;
+        out.push({
+          ruleId: rule.id,
+          ruleLabel: rule.label,
+          file,
+          line: i + 1,
+          preview: redact(body),
+          entropy: Math.round(entropy * 100) / 100,
+        });
+      }
     }
+  }
+  return out;
+}
+
+/**
+ * The same text with every finding `scanSecrets` would report replaced by its
+ * redacted preview, and every private-key block collapsed to a marker. For
+ * surfaces that keep file text — doc bodies, TODO lines — so a flagged key is
+ * never shipped verbatim next to the finding that hides it.
+ */
+export function redactSecrets(text: string): string {
+  let out = text.replace(
+    /-----BEGIN ((?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g,
+    '[private key redacted]',
+  );
+  for (const { rule, re } of GLOBAL_RULES) {
+    if (rule.minEntropy == null) continue;
+    out = out.replace(re, (match: string, ...groups: unknown[]) => {
+      const caps = groups.slice(0, -2).filter((g): g is string => typeof g === 'string');
+      const body = caps[caps.length - 1] ?? match;
+      if (!passes(rule, body).ok) return match;
+      const at = match.lastIndexOf(body);
+      return match.slice(0, at) + redact(body) + match.slice(at + body.length);
+    });
   }
   return out;
 }

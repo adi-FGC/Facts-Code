@@ -63,6 +63,36 @@ export const GH_TEXT_EXTS: ReadonlySet<string> = new Set([
   '.css',
   '.scss',
   '.txt',
+  /* 2026-09-23 — the analyzer secret-scans EVERY text file, so a GitHub
+     scan must fetch the formats keys actually get committed in, or the
+     same repo gets a different security verdict in the browser than from
+     the CLI (INV7). Components, config, infra and scripts: */
+  '.vue',
+  '.svelte',
+  '.astro',
+  '.mdx',
+  '.xml',
+  '.ini',
+  '.cfg',
+  '.conf',
+  '.properties',
+  '.env',
+  '.tf',
+  '.hcl',
+  '.sql',
+  '.ps1',
+  '.bash',
+  '.zsh',
+  '.pem',
+  '.key',
+  '.cs',
+  '.c',
+  '.h',
+  '.cpp',
+  '.dart',
+  '.scala',
+  '.gradle',
+  '.kts',
 ]);
 
 /** Mirrors the in-memory ALWAYS_EXCLUDE set the local-folder scanner uses,
@@ -111,6 +141,9 @@ export interface FetchProgress {
 }
 
 function ghIsTextish(path: string): boolean {
+  // dotenv variants (.env.local, .env.production) end in their suffix, not
+  // `.env`, and are the most common place a real key is committed.
+  if (/(^|\/)\.env(\.[^/]*)?$/i.test(path)) return true;
   const i = path.lastIndexOf('.');
   if (i < 0) return false;
   return GH_TEXT_EXTS.has(path.slice(i).toLowerCase());

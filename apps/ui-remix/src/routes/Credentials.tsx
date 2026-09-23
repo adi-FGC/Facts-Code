@@ -115,7 +115,7 @@ const SECRET_RULES: readonly RuleRef[] = [
     id: 'private-key-header',
     label: 'Private key block',
     pattern: '-----BEGIN ... PRIVATE KEY-----',
-    notes: 'RSA, OpenSSH, DSA, EC, PGP — header alone is the signal.',
+    notes: 'RSA, OpenSSH, DSA, EC, PKCS#8 (incl. encrypted), PGP — header alone is the signal.',
     rotateUrl: null,
   },
 ];
@@ -220,22 +220,40 @@ export function Credentials(handle: Handle<CredentialsProps>) {
        NOT also include category === 'leak' or other adjacent labels
        to keep the page focused on what the secrets scanner produced. */
     const findings = data.risks.filter((r) => r.category === 'secret');
+    /* analyze() emits a match in a test/fixture path at `low` and keeps it
+       out of the grade. It is still a finding with an exact path, so it is
+       listed — in its own section, so the "rotate these now" framing only
+       covers the matches that actually count as exposed. */
+    const exposed = findings.filter((r) => r.severity !== 'low');
+    const fixtures = findings.filter((r) => r.severity === 'low');
     const counts: Record<string, number> = {};
-    for (const f of findings) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
+    for (const f of exposed) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
 
-    const SEV_ORDER = ['critical', 'high', 'medium', 'low', 'info'] as const;
+    const SEV_ORDER = ['critical', 'high', 'medium', 'info'] as const;
     const bySev = new Map<string, typeof findings>();
-    for (const f of findings) {
+    for (const f of exposed) {
       const arr = bySev.get(f.severity) ?? [];
       arr.push(f);
       bySev.set(f.severity, arr);
     }
+    const row = (r: (typeof findings)[number], i: number) => (
+      <RiskRow
+        key={i}
+        severity={r.severity as 'critical' | 'high' | 'medium' | 'low' | 'info'}
+        rule={r.rule}
+        category={r.category}
+        message={r.message}
+        source={r.file ? `${r.file}${r.line != null ? ':' + r.line : ''}` : undefined}
+        preview={r.preview}
+        messageTechnical={r.messageTechnical}
+      />
+    );
     /* The empty-state body holds the rule reference too — the user
        still needs to know what we checked, even when nothing fired.
        Reusing the reference renderer below keeps it consistent. */
     const ruleRef = (
       <>
-        <div mix={sectionLabel}>Rule reference · 8 patterns</div>
+        <div mix={sectionLabel}>Rule reference · {SECRET_RULES.length} patterns</div>
         <div mix={ruleTable}>
           {SECRET_RULES.map((r) => (
             <>
@@ -272,9 +290,12 @@ export function Credentials(handle: Handle<CredentialsProps>) {
             <div mix={kicker}>Credentials · 0 leaked</div>
             <h1 mix={headline}>Nothing leaked.</h1>
             <p mix={lede}>
-              The secrets scanner ran the patterns below across every file walked in this analysis.
-              Zero matches met the entropy threshold. The next analysis will re-check; if a real
-              secret lands in a commit, this page will be the first place it surfaces.
+              The secrets scanner ran the patterns below across every text file in this analysis —
+              any file type, including files too large to parse (up to 16 MB). Obvious placeholders
+              such as sk-your-key-here are ignored. Not covered: binary files, and folders the
+              analyzer never walks (node_modules, dist, build, vendor, .vscode, .idea). The next
+              analysis will re-check; if a real secret lands in a commit, this page will be the
+              first place it surfaces.
             </p>
             {ruleRef}
           </div>
@@ -300,37 +321,35 @@ export function Credentials(handle: Handle<CredentialsProps>) {
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>
-            Credentials · {findings.length} {findings.length === 1 ? 'leak' : 'leaks'}
+            Credentials · {exposed.length} exposed
+            {fixtures.length > 0 ? ` · ${fixtures.length} in test/fixture files` : ''}
           </div>
-          <h1 mix={headline}>Rotate these now.</h1>
+          <h1 mix={headline}>
+            {exposed.length > 0 ? 'Rotate these now.' : 'Only test and fixture matches.'}
+          </h1>
           <p mix={lede}>
-            Every match below is a high-confidence secret pattern that cleared the entropy
-            threshold. Treat each one as exposed: rotate the credential at its source, then remove
-            or invalidate the leaked copy.
+            {exposed.length > 0
+              ? 'Every exposed match fits a provider’s key format (key-shaped values must also pass an entropy check; obvious placeholders are ignored). Treat each one as leaked: rotate the credential at its source, then remove or invalidate the copy.'
+              : 'Nothing counts as exposed.'}
+            {fixtures.length > 0
+              ? ` ${fixtures.length} ${fixtures.length === 1 ? 'match sits' : 'matches sit'} in test or fixture files, so ${fixtures.length === 1 ? 'it is' : 'they are'} listed with the exact path but kept out of the health grade — confirm each is a fixture, not a real key that happens to live under test/.`
+              : ''}
           </p>
           <LabelNumberRow>
             <LabelNumber label="Critical" value={counts.critical ?? 0} />
             <LabelNumber label="High" value={counts.high ?? 0} />
             <LabelNumber label="Medium" value={counts.medium ?? 0} />
-            <LabelNumber label="Low" value={counts.low ?? 0} last />
+            <LabelNumber label="Test/fixture" value={fixtures.length} last />
           </LabelNumberRow>
 
           {SEV_ORDER.filter((s) => bySev.has(s)).map((sev) => (
             <Section key={sev} label={sev}>
-              {bySev.get(sev)!.map((r, i) => (
-                <RiskRow
-                  key={i}
-                  severity={r.severity as 'critical' | 'high' | 'medium' | 'low' | 'info'}
-                  rule={r.rule}
-                  category={r.category}
-                  message={r.message}
-                  source={r.file ? `${r.file}${r.line != null ? ':' + r.line : ''}` : undefined}
-                  preview={r.preview}
-                  messageTechnical={r.messageTechnical}
-                />
-              ))}
+              {bySev.get(sev)!.map(row)}
             </Section>
           ))}
+          {fixtures.length > 0 && (
+            <Section label="test / fixture files · not graded">{fixtures.map(row)}</Section>
+          )}
 
           {ruleRef}
         </div>
@@ -338,9 +357,14 @@ export function Credentials(handle: Handle<CredentialsProps>) {
           <FootnoteChip label="Last scanned">
             {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}
           </FootnoteChip>
-          <FootnoteChip label="Action" tone="danger">
-            {findings.length} item{findings.length === 1 ? '' : 's'} need rotation. Click each row
-            for file + line.
+          <FootnoteChip label="Action" tone={exposed.length > 0 ? 'danger' : undefined}>
+            {exposed.length > 0
+              ? `${exposed.length} ${exposed.length === 1 ? 'item needs' : 'items need'} rotation.`
+              : 'Nothing needs rotation.'}
+            {fixtures.length > 0
+              ? ` ${fixtures.length} test/fixture match${fixtures.length === 1 ? '' : 'es'} to confirm.`
+              : ''}{' '}
+            Each row shows file + line.
           </FootnoteChip>
           <FootnoteChip label="Safety" aside="enforced in @factstack/scanners">
             Findings never include the raw secret — only redacted previews.

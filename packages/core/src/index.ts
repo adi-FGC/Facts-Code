@@ -33,6 +33,7 @@ import {
   scanFrameworksFromPackageJson,
   scanFrameworksFromRequirements,
   scanManifestLicense,
+  redactSecrets,
   scanSecrets,
   scanTodos,
   scanDependencyManifest,
@@ -228,6 +229,18 @@ export interface AnalysisResult {
  *  `__mocks__`, `fixtures` or `testdata` directory segment, or a
  *  `*.test.*` / `*.spec.*` file name. Heuristic by design — a real credential
  *  committed under test/ is still listed, just not scored as exposed. */
+/** Secret-only pass ceiling for files over the walker's parse cap. */
+const SECRET_SCAN_MAX_BYTES = 16 * 1024 * 1024;
+/** Formats that are never text: reading a 10 MB video to grep it for keys
+ *  would only burn time. Everything else over the cap still gets scanned. */
+const NEVER_TEXT_EXT = new Set(
+  (
+    '.png .jpg .jpeg .gif .webp .avif .ico .bmp .tif .tiff .psd .mp4 .mov .webm .mkv .avi ' +
+    '.mp3 .wav .ogg .flac .zip .gz .tgz .bz2 .xz .7z .rar .jar .war .pdf .woff .woff2 .ttf ' +
+    '.otf .eot .wasm .exe .dll .so .dylib .bin .db .sqlite .sqlite3 .parquet'
+  ).split(' '),
+);
+
 export function isTestFixturePath(p: string): boolean {
   const u = p.replace(/\\/g, '/');
   return (
@@ -295,6 +308,37 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const files: WalkedFile[] = [];
   for await (const f of walk(fs, rootPath, { extraIgnore: opts.extraIgnore ?? [] })) files.push(f);
 
+  /* Secrets are reported for EVERY text file the walk read, not only files
+     with a recognised language: a committed .env, shell script, .vue, .xml,
+     .ini or Terraform file leaks a key just as well (2026-09-23 — this was
+     gated on `lang`, so none of those were ever checked). The rules are
+     provider-prefix patterns with no generic high-entropy rule, and obvious
+     placeholders (`sk-your-key-here`) are dropped by the scanner.
+
+     v0.3.11 — a token-shaped string inside a test or fixture file is a
+     fixture until proven otherwise: scanner tests, redaction tests and
+     sample data all carry them on purpose. Still REPORTED with its exact
+     file + line (category 'secret', so the Credentials view and the CLI list
+     it and a human can check), but at `low` severity; health.ts keeps it out
+     of the grade and counts it on the headline instead, so it is never
+     silent. */
+  const pushSecrets = (path: string, hits: ReturnType<typeof scanSecrets>): void => {
+    const fixture = isTestFixturePath(path);
+    for (const s of hits) {
+      secrets.push({
+        severity: fixture ? 'low' : 'high',
+        category: 'secret',
+        rule: s.ruleId,
+        file: s.file,
+        line: s.line,
+        message: fixture
+          ? `${s.ruleLabel}-shaped value in a test/fixture file (entropy ${s.entropy}). Verify it is a fixture, not a real credential.`
+          : `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
+        preview: s.preview,
+      });
+    }
+  };
+
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
     if (!f) continue;
@@ -303,12 +347,26 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (f.skippedReason) {
       filesSkipped++;
       if (f.skippedReason === 'too_large') {
+        /* Too big to parse is not too big to leak a key: a minified bundle or
+           a data dump is exactly where one gets committed. Secret-only pass,
+           up to a sane ceiling, skipping formats that are never text. */
+        let secretScanned = false;
+        if (f.size <= SECRET_SCAN_MAX_BYTES && !NEVER_TEXT_EXT.has(f.ext.toLowerCase())) {
+          try {
+            pushSecrets(f.path, scanSecrets(f.path, await fs.readText(f.path)));
+            secretScanned = true;
+          } catch {
+            /* unreadable — the message below says it was not scanned */
+          }
+        }
         secrets.push({
           severity: 'low',
           category: 'large-file',
           rule: 'file-size-cap',
           file: f.path,
-          message: `File exceeds size cap (${f.size} bytes) — skipped.`,
+          message: `File exceeds size cap (${f.size} bytes) — skipped${
+            secretScanned ? ', but still scanned for secrets' : ', and not scanned for secrets'
+          }.`,
         });
       }
       // A source-language extension that sniffed as binary (UTF-16 save,
@@ -342,6 +400,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     const text = f.text ?? '';
     const tokens = approximateTokens(text);
     const gzip = opts.gzip && isCompressibleExt(f.ext) ? opts.gzip(text) : null;
+    /* Scan once, up front: surfaces that KEEP file text (doc bodies, TODO
+       lines) get a redacted copy, so a flagged key is never shipped verbatim
+       in the same artifact whose finding shows only its preview. */
+    const secretHits = scanSecrets(f.path, text);
+    const shareText = secretHits.length > 0 ? redactSecrets(text) : text;
 
     // v0.8 — flag documentation/spec files + parse their structure once.
     if (isDocFile(f.path, f.ext, f.name)) {
@@ -350,7 +413,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         path: f.path,
         name: f.name,
         ext: f.ext,
-        text,
+        text: shareText,
         bytes: f.size,
         loc: f.loc,
         lastModifiedMs: opts.gitStats?.get(f.path)?.lastModifiedMs ?? f.mtimeMs ?? null,
@@ -374,7 +437,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     else if (f.ext === '.tf' || f.ext === '.hcl') tfSources.push({ path: f.path, text });
 
     // Scanners
-    const todoEntries = scanTodos(text);
+    const todoEntries = scanTodos(shareText);
     if (todoEntries.length) allTodos.push({ file: f.path, entries: todoEntries });
 
     /* v0.6 — try to parse the file as a dependency manifest. Cheap:
@@ -386,29 +449,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     const manifest = scanDependencyManifest(f.path, text);
     if (manifest) dependencyManifests.push(manifest);
 
-    if (lang) {
-      /* v0.3.11 — a token-shaped string inside a test or fixture file is a
-         fixture until proven otherwise: scanner tests, redaction tests and
-         sample data all carry them on purpose. Still REPORTED (category
-         'secret', so the Credentials view lists it and a human can check),
-         but at `low` severity, and health.ts counts only high/critical
-         secrets as "exposed" — otherwise this repo's own test suite dragged
-         the public demo to an F. */
-      const fixture = isTestFixturePath(f.path);
-      for (const s of scanSecrets(f.path, text)) {
-        secrets.push({
-          severity: fixture ? 'low' : 'high',
-          category: 'secret',
-          rule: s.ruleId,
-          file: s.file,
-          line: s.line,
-          message: fixture
-            ? `${s.ruleLabel}-shaped value in a test/fixture file (entropy ${s.entropy}). Verify it is a fixture, not a real credential.`
-            : `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
-          preview: s.preview,
-        });
-      }
-    }
+    pushSecrets(f.path, secretHits);
 
     // F6 — capture Go module names so module-absolute Go imports resolve to
     // project packages (the resolver's goModules context). Standalone check:
@@ -420,8 +461,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
     // Manifest scans (frameworks, scripts, license, description)
     if (f.name === 'package.json') {
-      packageJsons.push({ path: f.path, text });
-      const d = scanFrameworksFromPackageJson(text);
+      // shareText: script commands and the description reach the artifact.
+      packageJsons.push({ path: f.path, text: shareText });
+      const d = scanFrameworksFromPackageJson(shareText);
       frameworksFromManifests.push(d.frameworks);
       for (const [k, v] of Object.entries(d.scripts)) {
         // Only pick up root-level scripts. Workspace packages' scripts would
@@ -436,7 +478,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // descriptions describe individual packages, not the project.
       if (f.dir === '' && pkgDescription == null) {
         try {
-          const j = JSON.parse(text) as { description?: unknown };
+          const j = JSON.parse(shareText) as { description?: unknown };
           if (typeof j.description === 'string' && j.description.trim()) {
             pkgDescription = j.description.trim();
           }
@@ -458,7 +500,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // paragraph that isn't a heading, badge line, or HTML — usually the
       // project's tagline. Capped to 240 chars to avoid pulling in giant
       // intro sections.
-      readmeOneLiner = extractReadmeFirstSentence(text);
+      readmeOneLiner = extractReadmeFirstSentence(shareText);
     }
 
     // File-header SPDX detection — cheap, per source file.

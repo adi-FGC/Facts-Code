@@ -732,5 +732,76 @@ describe('secrets in test fixtures (v0.3.11)', () => {
     // Still listed (both present), but only the real one is scored as exposed.
     expect(secrets).toHaveLength(2);
     expect(r.human.summary.health.secrets).toBe(1);
+    // …and the fixture one is counted on the headline, never silent.
+    expect(r.human.summary.health.fixtureSecrets).toBe(1);
+    expect(r.human.summary.health.headline).toContain('1 secret in test/fixture files');
+  });
+
+  /* 2026-09-23 — the scan was gated on a recognised language, so a key in a
+     .env, shell script, .vue or .xml file was never checked at all. */
+  it('scans every text file, not just recognised languages, with exact file + line', async () => {
+    const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      '.env.production': `API=1\nGITHUB_TOKEN=${TOKEN}\n`,
+      'scripts/deploy.sh': `#!/bin/sh\n\ncurl -H "Authorization: token ${TOKEN}"\n`,
+      'src/App.vue': `<script>\nconst t = '${TOKEN}';\n</script>\n`,
+      'config/app.xml': `<cfg>\n  <token>${TOKEN}</token>\n</cfg>\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const found = r.agent.risks
+      .filter((rk) => rk.category === 'secret')
+      .map((s) => `${s.file}:${s.line}`)
+      .sort();
+    expect(found).toEqual([
+      '.env.production:2',
+      'config/app.xml:2',
+      'scripts/deploy.sh:3',
+      'src/App.vue:2',
+    ]);
+    // Never the raw value — only the redacted preview.
+    expect(JSON.stringify(r.agent.risks)).not.toContain(TOKEN);
+  });
+
+  it('does not grade .env.example placeholders as exposed secrets', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      '.env.example': [
+        'OPENAI_API_KEY=sk-' + 'your-openai-api-key-here',
+        'ANTHROPIC_API_KEY=sk-ant-' + 'your-anthropic-key-here',
+      ].join('\n'),
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    expect(r.agent.risks.filter((rk) => rk.category === 'secret')).toEqual([]);
+    expect(r.human.summary.health.grade).toBe('A');
+  });
+
+  it('never ships a flagged key verbatim in a doc body or a TODO', async () => {
+    const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      'README.md': `# App\n\nexport GITHUB_TOKEN=${TOKEN}\n`,
+      'src/a.ts': `// TODO rotate ${TOKEN}\nexport const a = 1;\n`,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    expect(r.agent.risks.filter((rk) => rk.category === 'secret')).toHaveLength(2);
+    expect(JSON.stringify(r.agent)).not.toContain(TOKEN);
+    expect(JSON.stringify(r.human)).not.toContain(TOKEN);
+    expect(r.agent.docs?.find((d) => d.path === 'README.md')?.content).toContain('ghp_***t0');
+  });
+
+  it('still scans a file too large to parse for secrets', async () => {
+    const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+    const big = 'var x=1;\n'.repeat(130_000) + `var t="${TOKEN}";\n`; // ~1.2 MB > 1 MB cap
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      'public/vendor.js': big,
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const hit = r.agent.risks.find((rk) => rk.category === 'secret');
+    expect(hit?.file).toBe('public/vendor.js');
+    expect(hit?.line).toBe(130_001);
+    const cap = r.agent.risks.find((rk) => rk.rule === 'file-size-cap');
+    expect(cap?.messageTechnical ?? cap?.message).toContain('still scanned for secrets');
   });
 });

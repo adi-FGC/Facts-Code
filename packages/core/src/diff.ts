@@ -88,8 +88,14 @@ export function diffArtifacts(from: Endpoint, to: Endpoint): DiffArtifact {
   const bRisks = b.risks.length;
   const aTodos = from.overrides?.todos ?? countTodos(a);
   const bTodos = to.overrides?.todos ?? countTodos(b);
-  const aSecrets = from.overrides?.secrets ?? a.risks.filter((r) => r.category === 'secret').length;
-  const bSecrets = to.overrides?.secrets ?? b.risks.filter((r) => r.category === 'secret').length;
+  /* Exposed secrets only — the same count as health.secrets (and the
+     snapshots that feed `overrides`). Test/fixture matches are `low` and
+     kept out of it; counting them here made phantom deltas between an
+     artifact and its own snapshot. */
+  const exposed = (x: AgentArtifact): number =>
+    x.risks.filter((r) => r.category === 'secret' && r.severity !== 'low').length;
+  const aSecrets = from.overrides?.secrets ?? exposed(a);
+  const bSecrets = to.overrides?.secrets ?? exposed(b);
 
   /* v0.7 — vulnerability ID-set diff + severity-shift score.
    *

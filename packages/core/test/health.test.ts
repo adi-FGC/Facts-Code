@@ -241,6 +241,43 @@ describe('computeHealth — headline prose', () => {
   });
 });
 
+/* Fixture-path secrets are downgraded to `low` by analyze(). They must stay
+   out of the grade but never go silent: the owner's rule (2026-09-23) is that
+   every secret anywhere is flagged, so the headline carries their count. */
+describe('computeHealth — secrets in test/fixture files', () => {
+  const fixtureSecret = (file: string) =>
+    risk('secret', { severity: 'low', file, rule: 'github-token' });
+
+  it('counts them on the headline without costing the grade', () => {
+    const h = computeHealth(
+      agentWith({ risks: [fixtureSecret('test/a.ts'), fixtureSecret('fixtures/b.env')] }),
+    );
+    expect(h.score).toBe(100);
+    expect(h.secrets).toBe(0);
+    expect(h.fixtureSecrets).toBe(2);
+    expect(h.headline).toBe(
+      'A · 100 — clean — no blockers detected · 2 secrets in test/fixture files, not graded',
+    );
+  });
+
+  it('reports exposed and fixture secrets separately, singular at 1', () => {
+    const h = computeHealth(
+      agentWith({ risks: [secretRisk('src/a.ts'), fixtureSecret('t/x.ts')] }),
+    );
+    expect(h.secrets).toBe(1);
+    expect(h.fixtureSecrets).toBe(1);
+    expect(h.headline).toBe(
+      'C · 75 — 1 secret exposed · 1 secret in test/fixture files, not graded',
+    );
+  });
+
+  it('adds nothing when there are none (older consumers see the old shape)', () => {
+    const h = computeHealth(agentWith({ risks: [secretRisk('src/a.ts')] }));
+    expect(h).not.toHaveProperty('fixtureSecrets');
+    expect(h.headline).not.toMatch(/fixture/);
+  });
+});
+
 describe('computeHealth — purity & determinism (INV1/INV2)', () => {
   it('derives stale from file.status, not the clock', () => {
     const fresh = computeHealth(agentWith({ files: [okFile(), okFile()] }));

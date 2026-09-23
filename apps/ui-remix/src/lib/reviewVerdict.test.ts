@@ -46,6 +46,17 @@ describe('buildReviewVerdict — posture', () => {
     expect(v.findings.find((f) => f.kind === 'secret')?.severity).toBe('high');
   });
 
+  it('lists a test/fixture secret as its own low finding, never as exposed', () => {
+    const fixture = { ...secretRisk, severity: 'low', file: 'test/keys.ts' };
+    const v = buildReviewVerdict(ds({ risks: [fixture] as Dataset['risks'] }), null);
+    expect(v.posture.secrets).toBe(0);
+    const f = v.findings.filter((x) => x.kind === 'secret');
+    expect(f).toHaveLength(1);
+    expect(f[0]!.severity).toBe('low');
+    expect(f[0]!.title).toBe('1 secret in test/fixture files');
+    expect(v.severity).toBe('low');
+  });
+
   it('detects a dependency cycle (a↔b) and scores it medium', () => {
     const edges: Dataset['edges'] = [
       { from: 'a.ts', to: 'b.ts', kind: 'import' },

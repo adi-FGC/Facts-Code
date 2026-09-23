@@ -125,6 +125,7 @@ import { renderCiReport } from './emitters/ci-report.js';
 import { installFreshnessHook, FRESHNESS_HOOK_COMMAND } from './agentHook.js';
 import { installGitHook, uninstallGitHook, GIT_HOOK_COMMAND } from './gitHook.js';
 import { createTelemetry } from './telemetry.js';
+import { secretFindings, secretSummaryLines } from './secretReport.js';
 
 /**
  * Cheap staleness check (ft-10): is `.facts/agent.json` older than the
@@ -508,6 +509,10 @@ program
               ...written,
               stats: result.agent.stats,
               risks: result.agent.risks.length,
+              /* Every secret match, with its exact path + line and a
+                 redacted preview (never the value). `graded: false` marks a
+                 test/fixture match that is listed but kept out of the grade. */
+              secrets: secretFindings(result.agent.risks),
               ...(cacheStats ? { cache: cacheStats } : {}),
             },
             null,
@@ -590,6 +595,7 @@ program
                 })(),
             ]
           : []),
+        ...secretSummaryLines(secretFindings(result.agent.risks)),
         '',
         kleur.bold('  Artifacts'),
         kleur.dim('  ─────────'),

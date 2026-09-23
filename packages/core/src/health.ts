@@ -77,9 +77,13 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     }
   }
   const broken = brokenFiles.size;
-  /* v0.3.11 — fixture-path secrets are emitted at `low` (see analyze());
-     they stay visible in the Credentials view but do not cost the grade. */
+  /* v0.3.11 — fixture-path secrets are emitted at `low` (see analyze()) and
+     do not cost the grade. They are never silent, though: each is listed with
+     its file + line, and the count rides the headline so a real key committed
+     under test/ cannot hide behind the downgrade. */
+  const allSecrets = risks.filter((r) => r.category === 'secret').length;
   const secrets = risks.filter((r) => r.category === 'secret' && r.severity !== 'low').length;
+  const fixtureSecrets = allSecrets - secrets;
   const oversized = risks.filter((r) => r.category === 'large-file').length;
   const stale = files.filter((f) => f.status === 'stale').length;
   const todos = files.reduce((sum, f) => sum + (f.todos?.length ?? 0), 0);
@@ -111,15 +115,20 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     factors.length === 0
       ? 'clean — no blockers detected'
       : factors.map((f) => phrase(f.count, f.label)).join(', ');
+  const fixtureNote =
+    fixtureSecrets > 0
+      ? ` · ${fixtureSecrets} ${fixtureSecrets === 1 ? 'secret' : 'secrets'} in test/fixture files, not graded`
+      : '';
 
   return {
     broken,
     stale,
     todos,
     secrets,
+    ...(fixtureSecrets > 0 ? { fixtureSecrets } : {}),
     score,
     grade,
     factors,
-    headline: `${grade} · ${score} — ${tail}`,
+    headline: `${grade} · ${score} — ${tail}${fixtureNote}`,
   };
 }

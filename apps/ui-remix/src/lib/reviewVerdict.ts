@@ -137,7 +137,12 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
   const cycles = findCycles(sccs, forward);
   const hub = topHub(reverse);
 
-  const secrets = data.risks.filter((r) => r.category === 'secret').length;
+  /* analyze() emits secrets in test/fixture paths at `low` and keeps them out
+     of the grade; mirror that here so a fixture never reads as "exposed —
+     rotate before shipping", while still surfacing it as its own finding. */
+  const secretRisks = data.risks.filter((r) => r.category === 'secret');
+  const secrets = secretRisks.filter((r) => r.severity !== 'low').length;
+  const fixtureSecrets = secretRisks.length - secrets;
   const vulns = data.vulnerabilities ?? [];
   const risksNow = data.risks.length;
   const todosNow = data.summary.health.todos;
@@ -151,6 +156,15 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
       title: `${secrets} exposed secret${secrets === 1 ? '' : 's'}`,
       detail: `The secret scanner flagged ${secrets} leaked-credential finding(s) in the current analysis. Rotate before shipping.`,
       evidence: { count: secrets },
+    });
+  }
+  if (fixtureSecrets > 0) {
+    findings.push({
+      kind: 'secret',
+      severity: 'low',
+      title: `${fixtureSecrets} secret${fixtureSecrets === 1 ? '' : 's'} in test/fixture files`,
+      detail: `${fixtureSecrets} token-shaped value(s) sit in test or fixture paths — listed with exact paths under Security → Secrets, not counted as exposed. Confirm each is a fixture.`,
+      evidence: { count: fixtureSecrets },
     });
   }
 
