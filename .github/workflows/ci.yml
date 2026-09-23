@@ -29,6 +29,17 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Lint, tier boundaries and formatting are OS-independent — run once.
+      # Without this, format:check / lint:boundaries were promised in package.json
+      # but never enforced, and a formatter pass could land unchecked.
+      - name: Lint + boundaries + format
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          pnpm lint
+          pnpm lint:boundaries
+          pnpm format:check
+          pnpm format:md:check
+
       - name: Typecheck
         run: pnpm turbo typecheck
 

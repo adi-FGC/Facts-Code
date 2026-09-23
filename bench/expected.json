@@ -12,7 +12,10 @@
         "tokens": 587,
         "turns": 1,
         "recall": 1,
-        "anchors": ["src/db/client.ts", "src/models/user.ts"]
+        "anchors": [
+          "src/db/client.ts",
+          "src/models/user.ts"
+        ]
       },
       "naive": {
         "tokens": 1324,
@@ -34,13 +37,21 @@
         "tokens": 599,
         "turns": 1,
         "recall": 1,
-        "anchors": ["src/auth/login.ts", "src/auth/session.ts", "src/db/client.ts"]
+        "anchors": [
+          "src/auth/login.ts",
+          "src/auth/session.ts",
+          "src/db/client.ts"
+        ]
       },
       "naive": {
         "tokens": 852,
         "turns": 3,
         "recall": 1,
-        "files": ["docs/session-handling.md", "src/auth/login.ts", "src/auth/session.ts"]
+        "files": [
+          "docs/session-handling.md",
+          "src/auth/login.ts",
+          "src/auth/session.ts"
+        ]
       },
       "savingsPct": 29.7
     },
@@ -51,13 +62,18 @@
         "tokens": 582,
         "turns": 1,
         "recall": 1,
-        "anchors": ["src/api/routes.ts", "src/db/client.ts"]
+        "anchors": [
+          "src/api/routes.ts",
+          "src/db/client.ts"
+        ]
       },
       "naive": {
         "tokens": 305,
         "turns": 1,
         "recall": 1,
-        "files": ["src/api/routes.ts"]
+        "files": [
+          "src/api/routes.ts"
+        ]
       },
       "savingsPct": -90.8
     },
@@ -68,13 +84,19 @@
         "tokens": 583,
         "turns": 1,
         "recall": 1,
-        "anchors": ["src/auth/login.ts", "src/models/user.ts", "src/util/format.ts"]
+        "anchors": [
+          "src/auth/login.ts",
+          "src/models/user.ts",
+          "src/util/format.ts"
+        ]
       },
       "naive": {
         "tokens": 161,
         "turns": 1,
         "recall": 1,
-        "files": ["src/util/format.ts"]
+        "files": [
+          "src/util/format.ts"
+        ]
       },
       "savingsPct": -262.1
     },
@@ -85,13 +107,19 @@
         "tokens": 597,
         "turns": 1,
         "recall": 1,
-        "anchors": ["src/db/client.ts", "src/models/order.ts"]
+        "anchors": [
+          "src/db/client.ts",
+          "src/models/order.ts"
+        ]
       },
       "naive": {
         "tokens": 678,
         "turns": 2,
         "recall": 1,
-        "files": ["src/models/order.ts", "tests/order-flow.e2e.ts"]
+        "files": [
+          "src/models/order.ts",
+          "tests/order-flow.e2e.ts"
+        ]
       },
       "savingsPct": 11.9
     }

@@ -10,7 +10,7 @@
   "ignorePatterns": [
     "legacy/**",
     "docs/**",
-    "bench/corpus/**",
+    "bench/**",
     "**/.facts/**",
     "**/dist/**",
     "**/data/*.json",
