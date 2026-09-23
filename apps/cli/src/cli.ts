@@ -115,7 +115,12 @@ import {
   type McpServerCommand,
 } from '@factstack/skills';
 import type { AgentArtifact, DiffArtifact, HumanArtifact, Vulnerability } from '@factstack/spec';
-import { AgentArtifactSchema, HumanArtifactSchema, QUERY_VERBS } from '@factstack/spec';
+import {
+  AgentArtifactSchema,
+  HumanArtifactSchema,
+  QUERY_VERBS,
+  shareableDataset,
+} from '@factstack/spec';
 import { renderCiReport } from './emitters/ci-report.js';
 import { installFreshnessHook, FRESHNESS_HOOK_COMMAND } from './agentHook.js';
 import { installGitHook, uninstallGitHook, GIT_HOOK_COMMAND } from './gitHook.js';
@@ -1442,8 +1447,15 @@ program
   .option('-o, --out <dir>', 'Output directory (default ./dist)', './dist')
   .option('--name <name>', 'Output filename (default facts-report.html)', 'facts-report.html')
   .option('--graph <format>', 'F14 — export the graph instead of HTML: graphml | json-graph')
+  .option(
+    '--include-private',
+    'Keep agent session prompts, contributor emails and absolute local paths in the report (your own archive — not for sharing)',
+  )
   .action(
-    async (target: string | undefined, opts: { out: string; name: string; graph?: string }) => {
+    async (
+      target: string | undefined,
+      opts: { out: string; name: string; graph?: string; includePrivate?: boolean },
+    ) => {
       const root = path.resolve(target ?? '.');
       const factsDir = path.join(root, '.facts');
       const agentPath = path.join(factsDir, 'agent.json');
@@ -1516,9 +1528,16 @@ program
         return;
       }
 
-      const viz = humanToViz(agent, human);
-      viz.project.root = root;
+      let viz = humanToViz(agent, human);
       viz.history = await readSnapshots(root);
+      viz.project.root = root;
+      /* The report is a sharing artifact ("share a report with no server"),
+         so by default it gets the published site's scrub — the same shared
+         implementation: no agent session prompts, no contributor emails, and
+         the root, its parent and every checkout path rewritten, so the header
+         shows '.' exactly as the static site does. */
+      const shareSafe = !opts.includePrivate;
+      if (shareSafe) viz = shareableDataset(viz, root).data;
 
       const template = readUiTemplate();
       // Strip CDN-loaded deps so the exported HTML opens cleanly via
@@ -1540,6 +1559,13 @@ program
           kleur.dim(` (${formatBytes(size)})`) +
           '\n',
       );
+      if (shareSafe) {
+        process.stderr.write(
+          kleur.dim(
+            '  agent session prompts, contributor emails and local paths removed for sharing (--include-private keeps them).\n',
+          ),
+        );
+      }
       process.stderr.write(
         kleur.dim(
           '  open the file directly in a browser — no server required (CDN deps stripped).\n',

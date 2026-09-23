@@ -9,8 +9,9 @@
  *      the number is visible on every build. Nothing fails on size.
  *   2. ENFORCE the guards that catch silent breakage: the CSP inline-script
  *      hash, full CSP directive parity between the Cloudflare (`public/_headers`)
- *      and Netlify (`netlify.toml`) policies, the scoped /mcp-auth policy, and
- *      discovery-kit freshness. These exit non-zero.
+ *      and Netlify (`netlify.toml`) policies, the scoped /mcp-auth policy,
+ *      discovery-kit freshness, and a privacy scan of every public sink (no
+ *      home-directory paths, no agent prompts). These exit non-zero.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -20,6 +21,8 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(here, '..');
+/** The repo root the build baked from (inject-data's default --root). */
+const APP_DIR_ROOT = resolve(APP_DIR, '..', '..');
 const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
 
 /* Size is REPORTED here, never capped.
@@ -166,7 +169,7 @@ console.log(
 
 /* No size entries are ever pushed here — see the note at the top of the file.
    `failures` collects only correctness problems (CSP drift, a blocked boot
-   script, a stale discovery manifest) from the guards below. */
+   script, a stale discovery manifest, a privacy leak) from the guards below. */
 const failures = [];
 
 /* ── CSP inline-script hash guard ──────────────────────────────────────────
@@ -412,13 +415,73 @@ try {
   failures.push(`discovery-kit: .well-known/mcp.json unreadable/invalid (${e?.message || e}).`);
 }
 
+/* Privacy leak guard. inject-data.mjs scrubs every public sink; this proves it
+   on the built bytes, so a new field or a new sink that bypasses the scrub
+   fails the build instead of publishing a home directory or agent prompts. */
+const LEAKS = [
+  [/[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}[^\\/"<\s]+/i, 'a Windows home-directory path'],
+  // Case-SENSITIVE on purpose: macOS homes are `/Users/`, and a lowercase
+  // `/users/<name>/` is usually a URL (api.github.com/users/octocat/…).
+  [/\/(?:home|Users)\/[A-Za-z0-9._-]+\//, 'a POSIX home-directory path'],
+  [/"requests":\[\{/, 'agent session prompts (git.worktrees[].requests)'],
+  [/"source":"request"/, 'a request-derived feature (an agent prompt)'],
+];
+/* The checkout this build ran in, and its parent, in every spelling a sink
+   could carry (forward/back slashes, JSON-escaped). The home-directory
+   patterns above cannot see a repo that lives outside a home dir (D:/dev/…
+   on the maintainer's machine), so match the actual paths too. */
+const localRoots = [APP_DIR_ROOT, dirname(APP_DIR_ROOT)]
+  .flatMap((p) => {
+    const fwd = p.replace(/\\/g, '/');
+    const back = fwd.replace(/\//g, '\\');
+    return [fwd, back, back.replace(/\\/g, '\\\\')];
+  })
+  .filter((p) => p.length > 3 && /[\\/]/.test(p.slice(1)))
+  .map((p) => p.toLowerCase());
+const publicSinks = ['index.html', 'factstack.pack'];
+try {
+  for (const f of readdirSync(join(DIST, 'data'))) {
+    if (f.endsWith('.json')) publicSinks.push(`data/${f}`);
+  }
+} catch {
+  /* no dist/data — nothing extra to scan */
+}
+for (const rel of publicSinks) {
+  let body;
+  try {
+    body = readFileSync(join(DIST, ...rel.split('/')), 'utf8');
+  } catch {
+    continue; // optional sink (the pack only ships when .facts/agent.pack exists)
+  }
+  for (const [re, what] of LEAKS) {
+    const m = body.match(re);
+    if (m)
+      failures.push(`privacy guard: dist/${rel} contains ${what} near "${m[0].slice(0, 32)}".`);
+  }
+  const lower = body.toLowerCase();
+  const root = localRoots.find((p) => lower.includes(p));
+  if (root) failures.push(`privacy guard: dist/${rel} contains this checkout's absolute path.`);
+  if (rel.endsWith('.pack')) {
+    let table = null;
+    for (const line of body.split('\n')) {
+      if (line.startsWith('& ')) table = line.slice(2).split('\t')[0];
+      else if (table === 'features' && /^[-+] /.test(line)) {
+        if (line.slice(2).split('\t')[2] === 'request') {
+          failures.push(`privacy guard: dist/${rel} still has an agent-prompt features row.`);
+          break;
+        }
+      }
+    }
+  }
+}
+
 if (failures.length) {
   console.error('\n[check-bundle-size] FAIL:');
   for (const f of failures) console.error('  ' + f);
   console.error(
     '\nThese are correctness failures (CSP drift / blocked boot script / stale discovery\n' +
-      'manifest), not size budgets — there are no size budgets. Fix the cause; do not\n' +
-      'silence the guard.',
+      'manifest / privacy leak), not size budgets — there are no size budgets. Fix the\n' +
+      'cause; do not silence the guard.',
   );
   process.exit(1);
 }

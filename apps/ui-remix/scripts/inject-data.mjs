@@ -40,18 +40,13 @@ import {
 import { createHash } from 'node:crypto';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { scrubSharedText, shareableDataset } from '@factstack/spec';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(__dirname, '..');
 const DEFAULT_REPO_ROOT = resolve(APP_DIR, '..', '..');
 
 const PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
-
-/* Email pattern for the privacy scrub (findings #8/#31). Declared at module
-   top-level (not beside the scrub helpers below) so it's initialized before
-   the top-level `scrubDataset(...)` call runs — a `const` lower in the file
-   would be in the temporal dead zone when the hoisted helper executes. */
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -107,15 +102,15 @@ if (explicitSrc) {
 }
 
 /* Privacy scrub — adversarial-review findings #8 (contributor PII) and
-   #31 (absolute local paths / sibling-repo leak). Applied to the in-memory
-   dataset so EVERY public sink (the inline bake AND dist/data/factstack.json)
-   ships redacted, not just one of them. */
-scrubDataset(dataset, REPO_ROOT);
-/* v0.3.11 — the git topology needs its own pass: `pathSubs` only knows the
-   current repo root and its parent, while worktrees carry the absolute path of
-   EVERY checkout on this machine, and request records carry the first prompt of
-   every local agent session. Neither belongs on a public site. */
-const gitPathSubs = scrubGitTopology(dataset);
+   #31 (absolute local paths / sibling-repo leak), plus v0.3.11's git topology
+   (every checkout's absolute path, every local agent prompt). One shared
+   implementation (@factstack/spec shareableDataset), also used by
+   `factstack export`, applied to the in-memory dataset so EVERY public sink
+   (the inline bake AND dist/data/factstack.json) ships redacted. `textSubs`
+   carries the same substitutions to the pack, which is scrubbed as text. */
+const shared = shareableDataset(dataset, REPO_ROOT);
+dataset = shared.data;
+const textSubs = shared.textSubs;
 
 /* Lean the inline dataset for the static bake. HTML docs are full
    generated pages (their own <svg>, <style>, <script>); baking their raw
@@ -215,7 +210,7 @@ try {
     /* The pack is a separate file (not derived from `dataset`), so it needs
        its own text-level scrub — otherwise /factstack.pack would re-leak the
        same email + paths the JSON scrub just removed. */
-    const packText = scrubPack(readFileSync(packSrc, 'utf8'), REPO_ROOT, gitPathSubs);
+    const packText = scrubPack(readFileSync(packSrc, 'utf8'), textSubs);
     writeFileSync(resolve(APP_DIR, 'dist', 'factstack.pack'), packText, 'utf8');
     console.log(`[inject-data] wrote scrubbed .facts/agent.pack → dist/factstack.pack`);
   } else {
@@ -285,133 +280,18 @@ console.log(`  source : ${sourceLabel}`);
 console.log(`  project: ${dataset?.project?.name ?? '(unknown)'}`);
 console.log(`  files  : ${dataset?.stats?.files ?? '?'}`);
 
-/* ─────────────────────────────────────────────────────────────────
- * Privacy scrub — findings #8 (git-mined contributor email) + #31
- * (absolute local paths + sibling-repo names in doc bodies). Both ship
- * publicly and neither is needed to render the demo. Redact:
- *   - any `email` field (topContributors) → '' (contributor name kept)
- *   - any email anywhere in string values → ‹email›
- *   - absolute repo/workspace paths → relative markers (both slash styles)
- * ─────────────────────────────────────────────────────────────── */
-function pathSubs(repoRoot) {
-  const parent = dirname(repoRoot);
-  return [
-    [repoRoot, '.'],
-    [repoRoot.replace(/\\/g, '/'), '.'],
-    [parent, '..'],
-    [parent.replace(/\\/g, '/'), '..'],
-  ].filter(([from]) => from);
-}
-
-/** Redact emails + absolute paths from a raw text blob (the agent.pack). */
-function scrubText(s, repoRoot) {
-  let out = String(s);
-  for (const [from, to] of pathSubs(repoRoot)) {
-    if (out.includes(from)) out = out.split(from).join(to);
-  }
-  return out.replace(EMAIL_RE, '‹email›');
-}
-
-/** Deep-scrub the parsed dataset in place (drives both inline + JSON sinks). */
-function scrubDataset(root, repoRoot) {
-  const subs = pathSubs(repoRoot);
-  const scrubStr = (s) => {
-    let out = s;
-    for (const [from, to] of subs) if (out.includes(from)) out = out.split(from).join(to);
-    return out.replace(EMAIL_RE, '‹email›');
-  };
-  const walk = (node) => {
-    if (node == null || typeof node !== 'object') return;
-    if (Array.isArray(node)) {
-      for (const v of node) walk(v);
-      return;
-    }
-    for (const k of Object.keys(node)) {
-      const v = node[k];
-      if (k === 'email' && typeof v === 'string' && v) {
-        node[k] = ''; // #8: drop the personal email; the UI shows name only
-      } else if (typeof v === 'string') {
-        node[k] = scrubStr(v);
-      } else {
-        walk(v);
-      }
-    }
-  };
-  walk(root);
-}
-
-/**
- * v0.3.11 — scrub `dataset.git` (the Worktrees tab's data) for public sinks.
- *
- * Two things in it are local-only:
- *   - absolute paths of every checkout (`pathSubs` only rewrites the current
- *     repo root + its parent, so a sibling worktree elsewhere on the disk
- *     survived as a full `C:/Users/<name>/...` string), and
- *   - `requests[]`: the first prompt of every Claude Code / Codex session that
- *     ran there. Redacted for secrets, but still private text.
- *
- * The tab still works: counts, verdicts, gaps, commit features and dates all
- * survive; request-derived features are dropped and `sessions` is kept so the
- * page can still say how many sessions were matched.
- */
-function scrubGitTopology(root) {
-  const git = root?.git;
-  if (!git || typeof git !== 'object') return new Map();
-  const label = (w, i) => {
-    if (w.relPath === '.') return '.';
-    if (w.relPath) return w.relPath;
-    return `«checkout ${i + 1}»`;
-  };
-  const byPath = new Map();
-  (git.worktrees ?? []).forEach((w, i) => {
-    if (typeof w.path === 'string') byPath.set(w.path, label(w, i));
-  });
-  const relabel = (p) => (typeof p === 'string' ? (byPath.get(p) ?? '«path»') : p);
-
-  git.repoRoot = '.';
-  git.currentPath = '.';
-  for (const w of git.worktrees ?? []) {
-    w.path = relabel(w.path);
-    if (w.target) w.target = '«path»';
-    w.requests = [];
-    w.features = (w.features ?? []).filter((f) => f.source !== 'request');
-    if (Array.isArray(w.readiness?.deployReasons)) {
-      w.readiness.deployReasons = w.readiness.deployReasons.map((r) => scrubStrings(r, byPath));
-    }
-    if (Array.isArray(w.readiness?.commitReasons)) {
-      w.readiness.commitReasons = w.readiness.commitReasons.map((r) => scrubStrings(r, byPath));
-    }
-  }
-  for (const b of git.branches ?? []) {
-    if (b.worktree) b.worktree = relabel(b.worktree);
-    b.deleteBlockers = (b.deleteBlockers ?? []).map((r) => scrubStrings(r, byPath));
-  }
-  for (const r of git.remotes ?? []) r.url = null; // host + org are not needed to render
-  /* Handed to scrubPack: the pack is scrubbed as TEXT and would otherwise keep
-     the absolute path of every OTHER checkout (pathSubs only knows this one). */
-  return byPath;
-}
-
-/** Replace any absolute checkout path embedded in a free-text reason. */
-function scrubStrings(s, byPath) {
-  if (typeof s !== 'string') return s;
-  let out = s;
-  for (const [from, to] of byPath) if (out.includes(from)) out = out.split(from).join(to);
-  return out;
-}
-
 /**
  * Text-level scrub for `dist/factstack.pack`, which is a separate file the
- * JSON scrub never sees. Drops the `features` rows carrying agent prompts and
+ * JSON scrub never sees. Applies the dataset scrub's own substitutions
+ * (checkout paths, root, parent, emails), drops the `features` rows carrying
+ * agent prompts and
  * the interned worktree paths, then RE-MINTS the `; end` trailer — the pack's
  * sha256 covers every preceding byte, so any scrub (including the pre-existing
  * email/path substitution) left the published pack failing its own integrity
  * check, which tells a reader to discard it.
  */
-function scrubPack(raw, repoRoot, extraSubs) {
-  let text = scrubText(raw, repoRoot);
-  for (const [from, to] of extraSubs ?? [])
-    if (text.includes(from)) text = text.split(from).join(to);
+function scrubPack(raw, subs) {
+  let text = scrubSharedText(raw, subs);
   const kept = [];
   let table = null;
   for (const line of text.split('\n')) {
