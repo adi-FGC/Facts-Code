@@ -4,13 +4,18 @@
  * branch, and synthetic Claude Code / Codex transcripts in a fake home
  * dir. Everything is created under os.tmpdir() and removed afterwards.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { mineGitTopology } from '../src/topology.js';
 import { repoDisplayName } from '../src/repo-name.js';
+
+/* Every scan here spawns dozens of real `git` processes, and process spawns
+   are slow on the Windows CI runner: one scan took 8.6 s there against ~1.2 s
+   locally. vitest's 5 s / 10 s defaults measure the runner, not the code. */
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const ENV = {
   ...process.env,
@@ -508,9 +513,7 @@ describe('mineGitTopology', () => {
       restore('FACTSTACK_AGENT_REQUESTS', saved.on);
       restore('FACTSTACK_NO_AGENT_REQUESTS', saved.off);
     }
-    // Four full topology scans (~1.2 s each on Windows) — well past vitest's
-    // 5 s default on a loaded CI runner.
-  }, 30_000);
+  });
 
   it('reports a nested repo as external and never judges it against this repo', () => {
     const host = path.join(tmp, 'nested-host');
