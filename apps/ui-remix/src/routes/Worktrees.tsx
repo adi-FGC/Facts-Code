@@ -373,6 +373,18 @@ const GAP_HELP: Record<TopologyGap, { what: string; cmd: string }> = {
   },
 };
 
+/** A pack from a newer factstack can carry a gap code this build has never
+ *  heard of; an undefined lookup would blank the whole page (the same guard
+ *  COMMIT_WORD / DEPLOY_WORD get below). */
+function gapHelp(g: string): { what: string; cmd: string } {
+  return (
+    (GAP_HELP as Record<string, { what: string; cmd: string } | undefined>)[g] ?? {
+      what: 'A check this dashboard does not recognise — it came from a newer factstack.',
+      cmd: '',
+    }
+  );
+}
+
 /* ───────────── helpers ───────────── */
 
 function fmtDate(iso: string | null | undefined): string {
@@ -580,7 +592,7 @@ function WorktreeBlock(handle: Handle<{ w: Worktree; git: GitTopology; now: numb
                 <li key={g} mix={gapRow}>
                   <span mix={gapCode}>{g}</span>
                   <span>
-                    {GAP_HELP[g].what} <span mix={gapHow}>{fill(GAP_HELP[g].cmd, w, git)}</span>
+                    {gapHelp(g).what} <span mix={gapHow}>{fill(gapHelp(g).cmd, w, git)}</span>
                   </span>
                 </li>
               ))}
@@ -799,9 +811,9 @@ export function Worktrees(handle: Handle<WorktreesProps>) {
                       {n > 1 ? ` ×${n}` : ''}
                     </span>
                     <span>
-                      {GAP_HELP[g].what}{' '}
+                      {gapHelp(g).what}{' '}
                       <span mix={gapHow}>
-                        {GAP_HELP[g].cmd.replace('<default>', git.defaultBranch ?? 'main')}
+                        {gapHelp(g).cmd.replace('<default>', git.defaultBranch ?? 'main')}
                       </span>
                     </span>
                   </li>

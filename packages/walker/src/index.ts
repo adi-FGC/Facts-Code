@@ -107,7 +107,9 @@ declare function setTimeout(cb: () => void, ms: number): unknown;
 export interface WalkOptions {
   /** Maximum bytes to read per file. Larger files are flagged but not parsed. */
   maxFileSize?: number;
-  /** Skip .git directory even if ignored. Default true. */
+  /** Skip the root's .git directory, and skip any sub-directory that is its
+   *  own checkout (it holds a `.git` entry — nested worktrees, submodules,
+   *  vendored repos), since each is a separate project. Default true. */
   skipGit?: boolean;
   /** Follow symlinks. Default false; loops are never followed regardless. */
   followSymlinks?: boolean;

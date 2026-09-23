@@ -1310,6 +1310,9 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
       const hit = byCwd ?? (slotUsable ? targets.find((t) => t.slot === s.slot) : undefined);
       if (!hit) continue;
       const via: AgentRequest['via'] = byCwd ? 'cwd' : 'slot';
+      /* Count before the dedupe: `sessions` is every matched session, and two
+         runs of the same slash command are two sessions sharing one request. */
+      hit.d.wt.sessions++;
       const dup = hit.d.wt.requests.find((r) => r.prompt === s.prompt);
       if (dup) {
         dup.startedAt = minIso(dup.startedAt, s.startedAt);
@@ -1317,7 +1320,6 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
         dup.title = dup.title ?? s.title;
         continue;
       }
-      hit.d.wt.sessions++;
       hit.d.wt.requests.push({
         agent: s.agent,
         sessionId: s.sessionId,
