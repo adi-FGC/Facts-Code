@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffArtifacts, type Endpoint } from '../src/diff.js';
+import { diffArtifacts } from '../src/diff.js';
 import type { AgentArtifact } from '@factstack/spec';
 
 /**

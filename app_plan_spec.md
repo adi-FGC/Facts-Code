@@ -87,7 +87,7 @@ Primary constraints:
 - All I/O is injected via `FactsFS`. Same for gzip (core takes a `gzip?: (text: string) => number` callback; CLI passes `node:zlib`).
 - `packages/fs-node` + `packages/fs-memory` ship today; `packages/fs-browser` (File System Access API + GitHub REST) is reserved for v0.4 with zero changes to core.
 - Parsers will use `web-tree-sitter` (WASM) exclusively — no native bindings even on Node, so the same code runs in a browser.
-- Enforced via `eslint.config.mjs` with `eslint-plugin-boundaries` + a `no-restricted-imports` rule banning `node:*` from core's dependency closure. CI fails on violation.
+- Enforced via `eslint.config.mjs` with per-package `no-restricted-imports` rules: C1 bans `node:*` from core's dependency closure, C2 allows only each package's declared `@factstack/*` deps. CI fails on violation. (Replaced `eslint-plugin-boundaries` on 2026-09-24: its element-types rule did not fire on real cross-package violations.)
 
 **C2 — Web app + MCP server + cloud sync ⇒ artifact discipline.** ✅ Upheld.
 
@@ -533,7 +533,7 @@ Stacked on gitignore. Supported by the walker today.
 | Task runner       | Turborepo                                                     | ✅ Incremental, cacheable                               |
 | Linter            | **oxlint**                                                    | ✅ 50–100× faster than ESLint                           |
 | Formatter         | **oxfmt**                                                     | ✅ Same codebase as oxlint                              |
-| Boundaries        | `eslint-plugin-boundaries` (thin ESLint layer)                | ✅ Enforces C1 + package layers                         |
+| Boundaries        | ESLint `no-restricted-imports` per package (C1 + C2)          | ✅ Enforces C1 + package layers                         |
 | Parser (analyzer) | web-tree-sitter (WASM)                                        | 📍 v0.2 — isomorphic, cross-platform, no native compile |
 | SQLite            | `node:sqlite` (Node 22+ built-in)                             | 📍 v0.2 — zero native compile, no node-gyp              |
 | Bundler (UI)      | Vite 8                                                        | 📍 React 19 + plugin-react 6 + Lightning CSS            |

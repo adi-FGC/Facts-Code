@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
-    "node": ">=20.10.0",
+    "node": ">=24.3.0",
     "pnpm": ">=9.0.0"
   },
   "packageManager": "pnpm@11.3.0",
@@ -34,7 +34,6 @@
     "@changesets/cli": "^2.31.0",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.10.0",
-    "eslint-plugin-boundaries": "^7.2.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.67.0",
     "prettier": "^3.8.3",

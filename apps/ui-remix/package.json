@@ -1,6 +1,7 @@
 {
   "name": "@factstack/ui-remix",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Primary WebUI for FACTS. Built on Remix v3 (beta) — its own VDOM runtime, no React. Vite + JSX via the `remix/ui` subpath of the umbrella `remix` package (canonical entry; `@remix-run/ui` is the legacy standalone re-exported by `remix/ui` and on the way out). Two build targets: dev server (live re-analyze) and static (Netlify deploy, `factstack export`, VS Code webview).",
   "type": "module",

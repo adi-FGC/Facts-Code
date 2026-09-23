@@ -1,6 +1,7 @@
 {
   "name": "@factstack/spec",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Zod schemas + TS types for FACTS artifacts (agent.json, human.json), FactsFS interface, and MCP resource/tool sketch. Single source of truth — imported by every surface.",
   "type": "module",

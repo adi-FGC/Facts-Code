@@ -29,14 +29,7 @@
  *   node scripts/inject-data.mjs --src path.json # explicit override
  *   node scripts/inject-data.mjs --root ../..    # custom repo root
  */
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  readdirSync,
-  mkdirSync,
-  copyFileSync,
-} from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

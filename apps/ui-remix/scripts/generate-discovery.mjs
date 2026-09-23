@@ -30,7 +30,7 @@
  *   node scripts/generate-discovery.mjs          # auto (root package.json version)
  *   node scripts/generate-discovery.mjs --root ../..
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 

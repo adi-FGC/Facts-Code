@@ -269,7 +269,7 @@ Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`,
 
 ## Package dependency rules
 
-Enforced via `eslint-plugin-boundaries`:
+`pnpm lint:boundaries` (`eslint.config.mjs`) enforces two rules per package: no Node built-ins below `emit` (C1), and only the `@factstack/*` dependencies each package declares in its manifest (C2). The allow-lists in `eslint.config.mjs` are authoritative; the table below is the intended layering, not the enforced list:
 
 | Layer               | May import from                                        |
 | ------------------- | ------------------------------------------------------ |
@@ -307,10 +307,10 @@ pnpm --filter @factstack/cli exec tsx src/cli.ts analyze .
 pnpm --filter @factstack/cli exec tsx src/cli.ts query callers packages/spec/src/index.ts
 ```
 
-CI runs typecheck + tests + a smoke `analyze .` on Ubuntu/macOS/Windows × Node 22.
+CI runs typecheck + tests + a smoke `analyze .` on Ubuntu/macOS/Windows × Node 24 (the workspace needs Node ≥ 24.3, Remix 3's floor; see `.nvmrc`).
 
 ---
 
 ## License
 
-UNLICENSED — pre-release. License decision lands before v0.3 ships. (See `app_plan_spec.md` §10 risk #3 for the trade-off discussion.)
+**Proprietary — All Rights Reserved.** See [`LICENSE`](./LICENSE). No license, express or implied, is granted; copying, distribution, or derivative works require prior written permission. Every package under `apps/` and `packages/` declares `"license": "UNLICENSED"` and is `private`.

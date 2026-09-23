@@ -109,13 +109,17 @@ function extractJson(text) {
     .replace(/\s*```$/, '');
   try {
     return JSON.parse(t);
-  } catch {}
+  } catch {
+    /* not raw JSON — fall through to the brace-slice attempt */
+  }
   const i = t.indexOf('{'),
     j = t.lastIndexOf('}');
   if (i >= 0 && j > i) {
     try {
       return JSON.parse(t.slice(i, j + 1));
-    } catch {}
+    } catch {
+      /* slice still not JSON — caller gets null */
+    }
   }
   return null;
 }

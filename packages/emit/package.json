@@ -1,6 +1,7 @@
 {
   "name": "@factstack/emit",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Serializers: agent.json, agent.jsonl, human.json, index.db via node:sqlite (Node 22+ built-in, zero native compile), static HTML export bundle. This is the only package allowed to use Node built-ins alongside core analysis.",
   "type": "module",

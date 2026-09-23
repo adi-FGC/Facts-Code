@@ -36,12 +36,10 @@ import {
   isInternedColumn,
   type EncodeOptions,
   type IncrementalEncodeOptions,
-  type IncrementalTable,
   type PackColumn,
   type PackHeader,
   type PackMeta,
   type PackRow,
-  type PackTable,
 } from './types.js';
 
 export class PackEncodeError extends Error {

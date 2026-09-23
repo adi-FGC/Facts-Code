@@ -1,6 +1,7 @@
 {
   "name": "@factstack/core",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Analyzer orchestration. Composes walker + parsers + extractors + graph + scanners into a single analysis run. **ISOMORPHIC — must not import Node built-ins.** Consumed by every surface.",
   "type": "module",

@@ -93,3 +93,10 @@ apps/ui-remix/scripts/_scrub-test*.mjs
 # Generated adversarial-review reports in HTML (same category as the .md
 # reports and the ELI5 audits above — a per-pass review aid, not source).
 docs/*adversarial-review*.html
+
+# The archived prototype carries a duplicate Netlify state.json pointing at the
+# LIVE site id (byte-identical to the root .netlify/state.json) — a
+# `netlify deploy` from that directory would publish the old prototype over the
+# real app. It was removed from the index on 2026-09-24 (`git rm --cached`);
+# this rule keeps it, and any other legacy .netlify/ state, untracked.
+legacy/**/.netlify/

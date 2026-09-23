@@ -1,6 +1,7 @@
 {
   "name": "@factstack/fs-node",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Node fs implementation of the FactsFS interface. Only layer allowed to import node:fs.",
   "type": "module",

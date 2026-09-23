@@ -21,9 +21,11 @@ jobs:
       # Do NOT also set `version:` here — action-setup@v4 errors on a dual spec.
       - uses: pnpm/action-setup@v4
 
+      # Node 24 = the root engines floor (>=24.3.0), which Remix 3 (ui-remix)
+      # requires; netlify.toml and cve-refresh.yml build on the same major.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
 
       - name: Install
@@ -32,6 +34,9 @@ jobs:
       # Lint, tier boundaries and formatting are OS-independent — run once.
       # Without this, format:check / lint:boundaries were promised in package.json
       # but never enforced, and a formatter pass could land unchecked.
+      # `lint:boundaries` (eslint) fails on C1/C2 violations and on the
+      # error-level rules of js/typescript-eslint recommended; the style rules
+      # listed in eslint.config.mjs are downgraded to warnings.
       - name: Lint + boundaries + format
         if: matrix.os == 'ubuntu-latest'
         run: |

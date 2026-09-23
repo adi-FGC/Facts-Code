@@ -1,6 +1,7 @@
 {
   "name": "@factstack/graph",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Dependency graph + outline graph builders. Isomorphic. Builds from extractor output into the canonical graph shape in @factstack/spec.",
   "type": "module",

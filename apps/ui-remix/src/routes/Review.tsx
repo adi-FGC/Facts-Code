@@ -447,7 +447,6 @@ function TrendRow(handle: Handle<{ label: string; d: Delta; worseWhenUp?: boolea
   return () => {
     const { label, d, worseWhenUp } = handle.props;
     const up = d.delta > 0;
-    const down = d.delta < 0;
     const arrow = d.delta === 0 ? '→' : up ? '↑' : '↓';
     // Colour only the metrics where direction means good/bad (risks, todos).
     const color =

@@ -1,6 +1,7 @@
 {
   "name": "@factstack/registry",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Site registry — the aggregator IR for FACTS discoverability. A pure `buildSiteRegistry()` that folds the MCP tool catalog, resource catalog, and route catalog from @factstack/spec into one `SiteRegistry` object. That IR feeds @factstack/site-kit's renderers (llms.txt, .well-known/mcp.json, sitemap.xml, robots.txt, …). Isomorphic, deterministic — `generatedAt` is passed in, never read from the clock.",
   "type": "module",

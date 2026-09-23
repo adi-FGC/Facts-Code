@@ -141,6 +141,7 @@ export class FsaFileWriter implements FileWriter {
         `Write verification could not re-read "${p}": ${err instanceof Error ? err.message : String(err)}. ` +
           `The write may have silently failed. If the destination folder is inside iCloud Drive, ` +
           `try saving to a local folder (e.g., your home directory) instead.`,
+        { cause: err },
       );
     }
     if (verifiedSize !== byteLength) {

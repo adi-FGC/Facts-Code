@@ -846,3 +846,46 @@ describe('secrets in test fixtures (v0.3.11)', () => {
     expect(cap?.messageTechnical ?? cap?.message).toContain('still scanned for secrets');
   });
 });
+
+describe('analyze — INV1 injectable clock (generatedAt)', () => {
+  const files = {
+    'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+    'src/a.ts': 'export const a = 1;\n',
+  };
+
+  it('stamps the injected timestamp instead of reading the clock', async () => {
+    const fixed = '2020-01-02T03:04:05.000Z';
+    const r = await analyze(memoryFS(files), { root: '.', projectName: 'p', generatedAt: fixed });
+    expect(r.agent.generatedAt).toBe(fixed);
+    // human.json mirrors the artifact's stamp, so it must follow too.
+    expect(r.human.generatedAt).toBe(fixed);
+  });
+
+  it('makes two runs byte-identical when BOTH clocks are injected (INV2 end-to-end)', async () => {
+    /* Two clocks feed the artifact, and both must be pinned:
+         1. `generatedAt`  — the artifact stamp (this option), and
+         2. the filesystem — memoryFS defaults `now` to Date.now(), so each
+            fixture stamps its own mtimes, which reach files[].lastModifiedMs.
+       Pinning only #1 still leaves mtime drift between two fixtures built
+       milliseconds apart — which is exactly what an earlier version of this
+       test tripped over. With both injected the whole artifact is reproducible
+       with no field-deleting, which is the point of the option.
+
+       NOTE: pinning `generatedAt` ALONE is not sufficient for a byte-identical
+       artifact — mtime still reaches files[].lastModifiedMs. That residual gap
+       is documented here deliberately rather than asserted as a test: locking
+       "the output must differ" into a contract would break the day someone
+       legitimately closes the gap. */
+    const fixed = '2020-01-02T03:04:05.000Z';
+    const MTIME = 1_600_000_000_000;
+    const opts = { root: '.', projectName: 'p', generatedAt: fixed };
+    const a = await analyze(memoryFS(files, MTIME), opts);
+    const b = await analyze(memoryFS(files, MTIME), opts);
+    expect(JSON.stringify(a.agent)).toBe(JSON.stringify(b.agent));
+  });
+
+  it('falls back to the wall clock when no timestamp is supplied', async () => {
+    const r = await analyze(memoryFS(files), { root: '.', projectName: 'p' });
+    expect(r.agent.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});

@@ -1,6 +1,7 @@
 {
   "name": "@factstack/intent",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Deterministic intent generator. Composes signals from agent + human artifacts (frameworks, monorepo shape, sub-apps, routes, capabilities) into a single CXO-readable sentence describing what a project IS. No LLM; no Date; no I/O — pure isomorphic function.",
   "type": "module",

@@ -1,6 +1,7 @@
 {
   "name": "@factstack/extractors",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Per-language symbol / route / component / import extractors. Pure — take AST nodes in, emit FileOutline out. Isomorphic.",
   "type": "module",

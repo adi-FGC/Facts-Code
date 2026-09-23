@@ -312,7 +312,7 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
     if (r.media) continue;
     const sel = r.selector.trim();
     if (!/^\.[-\w]+$/.test(sel)) continue;
-    const key = r.scope + ' ' + sel.slice(1);
+    const key = r.scope + '\u0000' + sel.slice(1);
     const arr = bareDefs.get(key) ?? [];
     arr.push(r);
     bareDefs.set(key, arr);

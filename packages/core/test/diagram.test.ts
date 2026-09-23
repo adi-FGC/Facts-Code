@@ -499,7 +499,7 @@ describe('buildFocalDiagram', () => {
     const agent = makeAgent({ graph: { nodes: [], edges, cycles: [] } });
     const out = buildFocalDiagram(agent, { focus: 'focus.ts', depth: 1, maxNodes: 5 });
     /* Focus + 4 callers = 5 node definitions in the output. */
-    const nodeDefinitions = (out.match(/\n  n_[A-Za-z0-9_]+\[/g) || []).length;
+    const nodeDefinitions = (out.match(/\n {2}n_[A-Za-z0-9_]+\[/g) || []).length;
     expect(nodeDefinitions).toBeLessThanOrEqual(5);
   });
 

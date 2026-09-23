@@ -19,7 +19,6 @@ import {
   proposalEvent,
   LEARNINGS_SCHEMA_VERSION,
   LearningEventSchema,
-  type LearningEvent,
 } from '../src/learnings.js';
 
 const T = (iso: string): string => new Date(iso).toISOString();

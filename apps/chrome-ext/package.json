@@ -1,6 +1,7 @@
 {
   "name": "@factstack/chrome-ext",
   "version": "0.1.0",
+  "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "description": "FactStack Chrome MV3 side-panel surface. A narrow, persistent companion that analyzes the GitHub repo open in your active tab — or a local folder — fully client-side, reusing the isomorphic @factstack/core analyzer. Renders a sidebar-specific, list-first UI over the same VizArtifact the dashboard consumes.",

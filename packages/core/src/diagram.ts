@@ -26,7 +26,6 @@
  * an opt-in `--with-diagram` flag.
  */
 
-import type { AgentArtifact } from '@factstack/spec';
 import { byCodeUnit } from '@factstack/spec';
 
 /* ─────────── public API ─────────── */

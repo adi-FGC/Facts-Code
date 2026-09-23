@@ -1,6 +1,7 @@
 {
   "name": "@factstack/parsers",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "web-tree-sitter WASM grammar registry. Isomorphic — runs in Node and the browser (constraint C1). No native bindings.",
   "type": "module",

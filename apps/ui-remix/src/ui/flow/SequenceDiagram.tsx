@@ -32,7 +32,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on, ref } from 'remix/ui';
-import type { SequenceMessage, SequenceResult } from '../../lib/sequenceFlow.ts';
+import type { SequenceResult } from '../../lib/sequenceFlow.ts';
 
 interface SequenceDiagramProps {
   result: SequenceResult;

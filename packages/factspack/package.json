@@ -1,6 +1,7 @@
 {
   "name": "@factstack/factspack",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "FactsPack (.pack) wire format encoder + decoder. Pure isomorphic TypeScript implementation of the spec at docs/FACTSPACK.md — vendored pure-JS SHA-256 for the v0.2 integrity trailer (no node:* at runtime; tests parity-check against node:crypto). ~80% token-cost reduction vs JSON on tabular MCP responses (symbols, imports, callers, findings).",
   "type": "module",

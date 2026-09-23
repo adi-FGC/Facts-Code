@@ -60,7 +60,8 @@ export async function acquireLocalFolder(
   try {
     handle = await picker({ mode: 'read' });
   } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') throw new Error(CANCELLED);
+    if (err instanceof Error && err.name === 'AbortError')
+      throw new Error(CANCELLED, { cause: err });
     throw err;
   }
   const { analyzeLocal } = await import('./analyzeBridge.ts');

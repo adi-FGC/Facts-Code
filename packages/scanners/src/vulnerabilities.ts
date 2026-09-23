@@ -446,7 +446,7 @@ export function normalizeNpmVersion(raw: string): string | null {
   ) {
     return null;
   }
-  const cleaned = raw.replace(/^[\s\^~><=]+/u, '').trim();
+  const cleaned = raw.replace(/^[\s^~><=]+/u, '').trim();
   const match = cleaned.match(/^[0-9][0-9A-Za-z.\-+]*/u);
   return match ? match[0] : null;
 }

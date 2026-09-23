@@ -109,7 +109,7 @@ export function parseLearningsJsonl(text: string): {
     let parsed: unknown;
     try {
       parsed = JSON.parse(raw);
-    } catch (err) {
+    } catch {
       errors.push({ line: i + 1, reason: 'invalid JSON' });
       continue;
     }
@@ -318,7 +318,7 @@ export function buildContextStore(events: LearningEvent[]): ContextStore {
     if (!CONTEXT_KIND_SET.has(e.action)) continue;
     const key = contextKey(e);
     if (!key) continue; // a record with no key AND no text carries no content
-    const mapKey = `${e.action} ${key}`;
+    const mapKey = `${e.action}\u0000${key}`;
     const prev = latest.get(mapKey);
     if (!prev || e.timestamp > prev.timestamp) latest.set(mapKey, e);
   }

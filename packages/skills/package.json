@@ -1,6 +1,7 @@
 {
   "name": "@factstack/skills",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Skill-bundle emitters for AI coding agents. Reads an AgentArtifact + HumanArtifact, produces format-specific files (Claude SKILL.md, Cursor .cursorrules, GitHub Copilot copilot-instructions.md) via per-format renderers fed from one canonical SkillSpec IR. Isomorphic — composes with @factstack/spec's FileWriter so the same orchestrator runs in the CLI (NodeFileWriter), the browser (FsaFileWriter), or in-memory tests (MemoryFileWriter).",
   "type": "module",

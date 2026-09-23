@@ -20,7 +20,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
-import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
+import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 
 interface TreePanelProps {
   data: Dataset;

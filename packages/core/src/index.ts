@@ -17,7 +17,6 @@ import type {
   FactsFS,
   FileOutline,
   HumanArtifact,
-  ProjectMetaSchema,
 } from '@factstack/spec';
 import { FACTS_SCHEMA_VERSION, NEVER_TEXT_EXTENSIONS, byCodeUnit } from '@factstack/spec';
 import { computeHealth } from './health.js';
@@ -212,6 +211,16 @@ export interface AnalyzeOptions {
    *  artifact simply lacks agent.git and the Worktrees tab shows its
    *  empty state. */
   git?: GitTopology | null | undefined;
+  /** INV1 — lets the adapter own the clock. Core should be a pure function of
+   *  its inputs, so the ISO timestamp stamped on the artifact can be injected
+   *  instead of read from `Date`. Omitted, core still falls back to
+   *  `new Date()` — every existing caller keeps working unchanged — so this
+   *  narrows the INV1 gap rather than closing it: pass a value and the run is
+   *  reproducible; pass nothing and it isn't. Mirrors the injectable-clock
+   *  pattern already used by `recordLearning` (`input.timestamp ?? …`) and the
+   *  vulnerability scan (`now: number = Date.now()`).
+   *  FOLLOW-UP: thread this from the CLI/MCP adapters to retire the fallback. */
+  generatedAt?: string | undefined;
 }
 
 export interface AnalysisResult {
@@ -782,7 +791,6 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // Tokens total
   const totalTokens = outlines.reduce((s, o) => s + o.tokenCost, 0);
   const totalLOC = outlines.reduce((s, o) => s + o.loc, 0);
-  const totalGzip = outlines.reduce((s, o) => s + (o.bundleSize?.gzipped ?? 0), 0);
 
   /* v0.3.6 — aggregate per-file env-var reads into a single name-keyed
      table. Each EnvVar entry holds every read site + the union of seen
@@ -805,7 +813,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const agent: AgentArtifact = {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: FACTS_SCHEMA_VERSION,
-    generatedAt: new Date().toISOString(),
+    generatedAt: opts.generatedAt ?? new Date().toISOString(),
     project: projectMeta,
     files: outlines,
     graph: {

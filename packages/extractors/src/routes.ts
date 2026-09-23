@@ -47,8 +47,6 @@ export interface DetectedRoute {
 export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
   if (isTestOrFixturePath(filePath)) return [];
   const out: DetectedRoute[] = [];
-  const name = basename(filePath);
-  const ext = extOf(filePath);
 
   // Next.js App Router: app/**/route.{ts,js}
   const appRoute = /(?:^|\/)app\/(.*?)\/(?:route)\.(ts|tsx|js|jsx|mjs)$/.exec(filePath);
@@ -472,9 +470,4 @@ function extOf(p: string): string {
   const dot = p.lastIndexOf('.');
   const slash = p.lastIndexOf('/');
   return dot > slash ? p.slice(dot).toLowerCase() : '';
-}
-
-function basename(p: string): string {
-  const slash = p.lastIndexOf('/');
-  return slash < 0 ? p : p.slice(slash + 1);
 }

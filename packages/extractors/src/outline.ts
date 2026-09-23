@@ -255,7 +255,7 @@ function paramName(p: any): string {
   return '_';
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function returnTypeString(n: any): string {
+function returnTypeString(_n: any): string {
   // Keep signatures compact — omit return types in the outline; they're
   // visible in the code preview if the user wants them.
   return '';

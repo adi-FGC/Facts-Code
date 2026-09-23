@@ -24,16 +24,14 @@
 
 import { parseJS, type ParsedFile } from './parse.js';
 
-/**
- * Astro frontmatter delimiter. Spec says exactly three hyphens on a
- * line by themselves; in practice authors sometimes have trailing
- * whitespace. We match `^---\s*$` (anchored, optional trailing space).
- *
- * The opening fence must be on the very first content line. Astro
- * doesn't allow a shebang or BOM before frontmatter (unlike Markdown);
- * we still strip a UTF-8 BOM if present, since editors sometimes add it.
- */
-const FRONTMATTER_FENCE = /^---[ \t]*$/m;
+/* Astro frontmatter delimiter. Spec says exactly three hyphens on a
+   line by themselves; in practice authors sometimes have trailing
+   whitespace. extractAstroFrontmatter matches each fence line with
+   `^---[ \t]*$` (anchored, optional trailing space/tab).
+
+   The opening fence must be on the very first content line. Astro
+   doesn't allow a shebang or BOM before frontmatter (unlike Markdown);
+   we still strip a UTF-8 BOM if present, since editors sometimes add it. */
 
 export interface AstroFrontmatter {
   /** The frontmatter source as a TS string, ready for parseJS('.ts'). */

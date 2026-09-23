@@ -282,7 +282,7 @@ function makeRandomTable(rng: () => number, idx: number): PackTable {
   const literalChars = 'abcdefghij \t\n\\日';
   const rows: PackRow[] = [];
   for (let r = 0; r < rowCount; r++) {
-    const row: (string | null)[] = columns.map((col, c) => {
+    const row: (string | null)[] = columns.map((col, _c) => {
       const roll = rng();
       if (roll < 0.05) return null;
       if (roll < 0.1) return '';

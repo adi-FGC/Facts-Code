@@ -1,6 +1,7 @@
 {
   "name": "@factstack/ui-theme",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Shared design tokens (light + dark), typography, motion presets, liquid-glass primitives, language-icon mapper, responsive breakpoints 340px-8K. Consumed by every UI surface.",
   "type": "module",

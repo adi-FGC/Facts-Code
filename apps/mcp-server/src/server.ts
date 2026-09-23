@@ -606,6 +606,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     } catch (err) {
       throw new Error(
         `Failed to extract outline for ${relPath}: ${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
       );
     }
   }

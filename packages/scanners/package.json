@@ -1,6 +1,7 @@
 {
   "name": "@factstack/scanners",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Cross-cutting scanners: secrets, licenses, frameworks, TODOs, git history, bundle-size estimator, tiktoken token-cost estimator. Isomorphic; secrets always redacted before emission.",
   "type": "module",

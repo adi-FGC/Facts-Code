@@ -638,12 +638,6 @@ const viewFilesNote = css({
   lineHeight: '1.55',
 });
 
-const viewFilesActions = css({
-  display: 'flex',
-  gap: 'var(--space-2)',
-  marginTop: 'var(--space-2)',
-});
-
 /* ─────────── recents list ─────────── */
 
 const recentsWrap = css({

@@ -1,6 +1,7 @@
 {
   "name": "@factstack/fs-memory",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "In-memory FactsFS for tests and fixture-driven CI.",
   "type": "module",

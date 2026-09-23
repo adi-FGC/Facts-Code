@@ -256,14 +256,6 @@ const scanNote = css({
   color: 'var(--fg-faint)',
 });
 
-const scanError = css({
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-12)',
-  color: 'var(--danger)',
-  paddingTop: 'var(--space-3)',
-  borderTop: '1px solid var(--hairline)',
-});
-
 const vulnRow = css({
   display: 'grid',
   gridTemplateColumns: '76px minmax(0, 2fr) minmax(0, 1fr)',

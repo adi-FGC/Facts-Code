@@ -1,6 +1,7 @@
 {
   "name": "@factstack/fs-browser",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Browser-side FactsFS implementations: FsaBrowserFS over the File System Access API for local-directory scans, and fetchGitHubToMemory() for fetching public GitHub repos via the Trees API + raw.githubusercontent.com into a MemoryFS the analyzer can consume.",
   "type": "module",

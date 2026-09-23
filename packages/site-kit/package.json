@@ -1,6 +1,7 @@
 {
   "name": "@factstack/site-kit",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Pure renderers for FACTS discoverability artifacts. Given a SiteRegistry from @factstack/registry, emits llms.txt / llms-full.txt, .well-known/mcp.json, sitemap.xml, robots.txt, site.webmanifest, .well-known/security.txt, and an HTML <meta> fragment. Isomorphic (no node builtins) — the orchestrator writes through @factstack/spec's FileWriter so it runs in the CLI, the browser, or in-memory tests.",
   "type": "module",

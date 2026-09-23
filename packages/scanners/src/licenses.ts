@@ -100,7 +100,7 @@ const PERMISSIVE = new Set([
 /** Extract the SPDX id from a file header (first 60 lines). */
 export function scanFileLicense(source: string): string | null {
   const head = source.split('\n').slice(0, 60).join('\n');
-  const m = /SPDX-License-Identifier:\s*([A-Za-z0-9.+\-]+)/i.exec(head);
+  const m = /SPDX-License-Identifier:\s*([A-Za-z0-9.+-]+)/i.exec(head);
   if (!m || !m[1]) return null;
   const id = m[1];
   return SPDX_IDS.find((s) => s.toLowerCase() === id.toLowerCase()) ?? id;

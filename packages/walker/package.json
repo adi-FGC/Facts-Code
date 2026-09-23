@@ -1,6 +1,7 @@
 {
   "name": "@factstack/walker",
   "version": "0.0.0",
+  "license": "UNLICENSED",
   "private": true,
   "description": "Gitignore-aware filesystem walker. Takes a FactsFS interface (constraint C1) — no direct Node fs imports.",
   "type": "module",

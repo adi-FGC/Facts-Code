@@ -50,7 +50,7 @@ export class MemoryFS implements FactsFS {
     const normP = this.normalize(p);
     const prefix = normP === '.' ? '' : normP + '/';
     const yielded = new Set<string>();
-    for (const [entryPath, entry] of this.entries) {
+    for (const [entryPath] of this.entries) {
       if (!entryPath.startsWith(prefix) || entryPath === normP) continue;
       const rest = entryPath.slice(prefix.length);
       const next = rest.split('/')[0];
@@ -104,6 +104,11 @@ export class MemoryFS implements FactsFS {
   }
 }
 
-export function memoryFS(files: Record<string, string>): FactsFS {
-  return new MemoryFS(files);
+export function memoryFS(files: Record<string, string>, now?: number): FactsFS {
+  /* `now` pins every entry's mtime. MemoryFS has always accepted it, but this
+     factory used to drop the argument, so fixtures silently took `Date.now()`
+     and any test comparing two artifacts byte-for-byte was inherently flaky
+     (files[].lastModifiedMs drifted by the milliseconds between constructions).
+     Forwarding it makes deterministic fixtures actually reachable. */
+  return now === undefined ? new MemoryFS(files) : new MemoryFS(files, now);
 }

@@ -2207,7 +2207,6 @@ program
       const line = (label: string, d: { before: number; after: number; delta: number }) => {
         const arrow =
           d.delta === 0 ? kleur.dim('→') : d.delta > 0 ? kleur.yellow('↑') : kleur.green('↓');
-        const deltaStr = (d.delta >= 0 ? '+' : '') + d.delta;
         return `  ${label.padEnd(10)} ${arrow} ${formatCount(Math.abs(d.delta)).padStart(6)}${kleur.dim(' (was ' + formatCount(d.before) + ', now ' + formatCount(d.after) + ')')}`;
       };
       const lines = [
@@ -4374,8 +4373,9 @@ const VULN_SCAN_STALE_DAYS = 7;
  * the sync-ui script has copied the HTML to apps/cli/dist/ui/index.html.
  */
 function readUiTemplate(): string {
-  // NB: deliberately NOT `import.meta.dirname` — that's Node ≥20.11, but this
-  // package's engines floor is `>=20.10.0`. fileURLToPath works on the floor.
+  // NB: deliberately NOT `import.meta.dirname` — that's Node ≥20.11, but the
+  // CLI still runs on any Node ≥20 (see `doctor`), even though the monorepo's
+  // dev floor is now `>=24.3.0`. fileURLToPath works everywhere the CLI runs.
   // oxlint-disable-next-line unicorn/prefer-import-meta-properties -- see above
   const here = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [

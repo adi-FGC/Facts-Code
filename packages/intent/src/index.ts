@@ -24,18 +24,6 @@
 
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
-/** The set of frameworks that imply "this serves an HTTP API". */
-const SERVER_FRAMEWORKS = new Set([
-  'Express',
-  'Hono',
-  'Koa',
-  'Fastify',
-  'NestJS',
-  'FastAPI',
-  'Django',
-  'Flask',
-]);
-
 /** Frameworks that imply "this renders a React-shaped UI." */
 const REACT_FRAMEWORKS = new Set(['React', 'Next.js', 'Remix', 'Gatsby']);
 
@@ -171,7 +159,7 @@ function labelForAppDir(dir: string, agent: AgentArtifact): string | null {
  * and capability hints.
  * ─────────────────────────────────────────────────────────────── */
 
-function singleAppIntent(agent: AgentArtifact, human: HumanArtifact): string | null {
+function singleAppIntent(agent: AgentArtifact, _human: HumanArtifact): string | null {
   const fwks = agent.project.frameworks;
 
   /* Strongest signals first. The test suite pins each branch so any
