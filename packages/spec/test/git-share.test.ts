@@ -119,3 +119,36 @@ describe('shareableDataset — the one scrub for the site and `factstack export`
     expect(JSON.stringify(input)).toBe(before);
   });
 });
+
+describe('shareableDataset — every spelling of a local path', () => {
+  const ROOT = 'D:\\dev\\app\\wt';
+  const scrub = (content: string) =>
+    shareableDataset({ docs: [{ content }] }, ROOT).data.docs[0]!.content;
+
+  it('catches JSON-escaped and pack-escaped backslashes, and forward slashes', () => {
+    expect(scrub('"cwd": "D:\\\\dev\\\\app\\\\wt\\\\src"')).toBe('"cwd": ".\\\\src"');
+    expect(scrub('D:\\\\\\\\dev\\\\\\\\app\\\\\\\\wt')).toBe('.');
+    expect(scrub('see D:/dev/app/wt/README')).toBe('see ./README');
+  });
+
+  it('matches Windows drive paths case-insensitively', () => {
+    expect(scrub('built in d:\\DEV\\App\\WT\\apps')).toBe('built in .\\apps');
+  });
+
+  it('stops at a name boundary — /repo never eats the front of /repo-2', () => {
+    const { data } = shareableDataset({ note: '/srv/repo-2/x and /srv/repo/y' }, '/srv/repo');
+    expect(data.note).toBe('/srv/repo-2/x and ./y');
+  });
+
+  it('redacts addresses but leaves file names alone', () => {
+    const { data } = shareableDataset(
+      { a: 'mail sam@acme.example', b: 'patches/@remix-run__ui@0.5.0.patch', c: 'logo@2x.png' },
+      '/srv/repo',
+    );
+    expect(data).toEqual({
+      a: 'mail ‹email›',
+      b: 'patches/@remix-run__ui@0.5.0.patch',
+      c: 'logo@2x.png',
+    });
+  });
+});

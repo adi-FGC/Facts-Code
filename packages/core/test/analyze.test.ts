@@ -790,6 +790,47 @@ describe('secrets in test fixtures (v0.3.11)', () => {
     expect(r.agent.docs?.find((d) => d.path === 'README.md')?.content).toContain('ghp_***t0');
   });
 
+  it('extracts from redacted text: no raw key in deps, imports, routes; TODO lines exact', async () => {
+    const GH = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
+    const XO = 'xoxb-' + '1234567890-abcdefghijKLMN';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({
+        name: 'app',
+        dependencies: { lib: `git+https://${GH}:x-oauth-basic@github.com/o/lib.git` },
+      }),
+      'src/server.ts': [
+        `import lib from 'https://cdn.example.com/lib.js?t=${GH}';`,
+        `app.get('/hook/${XO}', handler);`,
+        '-----BEGIN ' + 'RSA PRIVATE KEY-----',
+        'MIIEowIBAAKCAQEA' + 'q1w2e3r4t5y6u7i8o9p0',
+        '-----END RSA PRIVATE KEY-----',
+        '// TODO rotate the hook secret',
+      ].join('\n'),
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const blob = JSON.stringify(r.agent);
+    expect(blob).not.toContain(GH);
+    expect(blob).not.toContain(XO);
+    expect(blob).not.toContain('MIIEowIBAAKCAQEA');
+    const todo = r.agent.files.find((x) => x.path === 'src/server.ts')?.todos?.[0];
+    expect(todo?.line).toBe(6); // the key block was blanked, not collapsed
+  });
+
+  it('keeps every TODO after a lone private-key header (no END line)', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'app' }),
+      'src/pem.ts': [
+        "export const HEADER = '-----BEGIN " + "RSA PRIVATE KEY-----';",
+        '// TODO one',
+        'export const x = 1;',
+        '// FIXME two',
+      ].join('\n'),
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'app' });
+    const todos = r.agent.files.find((x) => x.path === 'src/pem.ts')?.todos ?? [];
+    expect(todos.map((t) => t.line)).toEqual([2, 4]);
+  });
+
   it('still scans a file too large to parse for secrets', async () => {
     const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
     const big = 'var x=1;\n'.repeat(130_000) + `var t="${TOKEN}";\n`; // ~1.2 MB > 1 MB cap

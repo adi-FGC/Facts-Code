@@ -419,7 +419,7 @@ try {
    on the built bytes, so a new field or a new sink that bypasses the scrub
    fails the build instead of publishing a home directory or agent prompts. */
 const LEAKS = [
-  [/[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}[^\\/"<\s]+/i, 'a Windows home-directory path'],
+  [/[A-Za-z]:[\\/]+Users[\\/]+[^\\/"<\s]+/i, 'a Windows home-directory path'],
   // Case-SENSITIVE on purpose: macOS homes are `/Users/`, and a lowercase
   // `/users/<name>/` is usually a URL (api.github.com/users/octocat/…).
   [/\/(?:home|Users)\/[A-Za-z0-9._-]+\//, 'a POSIX home-directory path'],
@@ -427,17 +427,21 @@ const LEAKS = [
   [/"source":"request"/, 'a request-derived feature (an agent prompt)'],
 ];
 /* The checkout this build ran in, and its parent, in every spelling a sink
-   could carry (forward/back slashes, JSON-escaped). The home-directory
-   patterns above cannot see a repo that lives outside a home dir (D:/dev/…
-   on the maintainer's machine), so match the actual paths too. */
+   could carry — any separator run (`/`, `\\`, JSON- or pack-escaped
+   `\\\\`), any case. The home-directory patterns above cannot see a repo that
+   lives outside a home dir (D:/dev/… on the maintainer's machine), so match the
+   actual paths too, the same way @factstack/spec's scrub does. */
 const localRoots = [APP_DIR_ROOT, dirname(APP_DIR_ROOT)]
-  .flatMap((p) => {
-    const fwd = p.replace(/\\/g, '/');
-    const back = fwd.replace(/\//g, '\\');
-    return [fwd, back, back.replace(/\\/g, '\\\\')];
-  })
-  .filter((p) => p.length > 3 && /[\\/]/.test(p.slice(1)))
-  .map((p) => p.toLowerCase());
+  .map((p) => p.split(/[\\/]+/).filter(Boolean))
+  .filter((segs) => segs.length >= 2)
+  .map(
+    (segs) =>
+      new RegExp(
+        segs.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]+') +
+          '(?![A-Za-z0-9_-])',
+        'i',
+      ),
+  );
 const publicSinks = ['index.html', 'factstack.pack'];
 try {
   for (const f of readdirSync(join(DIST, 'data'))) {
@@ -458,8 +462,7 @@ for (const rel of publicSinks) {
     if (m)
       failures.push(`privacy guard: dist/${rel} contains ${what} near "${m[0].slice(0, 32)}".`);
   }
-  const lower = body.toLowerCase();
-  const root = localRoots.find((p) => lower.includes(p));
+  const root = localRoots.find((re) => re.test(body));
   if (root) failures.push(`privacy guard: dist/${rel} contains this checkout's absolute path.`);
   if (rel.endsWith('.pack')) {
     let table = null;

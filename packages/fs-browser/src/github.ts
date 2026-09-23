@@ -32,9 +32,12 @@
  */
 
 import { MemoryFS } from '@factstack/fs-memory';
+import { NEVER_TEXT_EXTENSIONS } from '@factstack/spec';
 
-/** Files we'll actually analyze. Filtering at the network layer keeps small
- *  repos under the 60-req unauth rate limit. */
+/** Common source/text extensions. Informational only since 2026-09-23 — the
+ *  fetch filter is now a binary DENYlist (see ghIsTextish), because the
+ *  analyzer secret-scans every text file and an allowlist made a GitHub scan
+ *  miss keys the CLI finds (id_rsa, .npmrc, .tfvars, Jenkinsfile…). */
 export const GH_TEXT_EXTS: ReadonlySet<string> = new Set([
   '.ts',
   '.tsx',
@@ -140,13 +143,15 @@ export interface FetchProgress {
   label: string;
 }
 
+/** Fetch everything that could be text — the same files a CLI walk reads —
+ *  and skip only formats that never are. Extensionless files (id_rsa,
+ *  Dockerfile, Jenkinsfile) and dotfiles (.npmrc, .env.local) are text; a
+ *  binary that slips through is still dropped by the NUL sniff below. */
 function ghIsTextish(path: string): boolean {
-  // dotenv variants (.env.local, .env.production) end in their suffix, not
-  // `.env`, and are the most common place a real key is committed.
-  if (/(^|\/)\.env(\.[^/]*)?$/i.test(path)) return true;
-  const i = path.lastIndexOf('.');
-  if (i < 0) return false;
-  return GH_TEXT_EXTS.has(path.slice(i).toLowerCase());
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0) return true;
+  return !NEVER_TEXT_EXTENSIONS.has(name.slice(dot).toLowerCase());
 }
 
 function ghIsExcluded(path: string): boolean {

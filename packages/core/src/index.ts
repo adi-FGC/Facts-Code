@@ -19,7 +19,7 @@ import type {
   HumanArtifact,
   ProjectMetaSchema,
 } from '@factstack/spec';
-import { FACTS_SCHEMA_VERSION, byCodeUnit } from '@factstack/spec';
+import { FACTS_SCHEMA_VERSION, NEVER_TEXT_EXTENSIONS, byCodeUnit } from '@factstack/spec';
 import { computeHealth } from './health.js';
 export { computeHealth } from './health.js';
 import { walk, type WalkedFile } from '@factstack/walker';
@@ -225,22 +225,15 @@ export interface AnalysisResult {
   };
 }
 
+/** Secret-only pass ceiling for files over the walker's parse cap. Formats
+ *  that are never text (NEVER_TEXT_EXTENSIONS) are skipped whatever their
+ *  size: grepping a 10 MB video for keys would only burn time. */
+const SECRET_SCAN_MAX_BYTES = 16 * 1024 * 1024;
+
 /** Test / fixture locations by convention: a `test`, `tests`, `__tests__`,
  *  `__mocks__`, `fixtures` or `testdata` directory segment, or a
  *  `*.test.*` / `*.spec.*` file name. Heuristic by design — a real credential
  *  committed under test/ is still listed, just not scored as exposed. */
-/** Secret-only pass ceiling for files over the walker's parse cap. */
-const SECRET_SCAN_MAX_BYTES = 16 * 1024 * 1024;
-/** Formats that are never text: reading a 10 MB video to grep it for keys
- *  would only burn time. Everything else over the cap still gets scanned. */
-const NEVER_TEXT_EXT = new Set(
-  (
-    '.png .jpg .jpeg .gif .webp .avif .ico .bmp .tif .tiff .psd .mp4 .mov .webm .mkv .avi ' +
-    '.mp3 .wav .ogg .flac .zip .gz .tgz .bz2 .xz .7z .rar .jar .war .pdf .woff .woff2 .ttf ' +
-    '.otf .eot .wasm .exe .dll .so .dylib .bin .db .sqlite .sqlite3 .parquet'
-  ).split(' '),
-);
-
 export function isTestFixturePath(p: string): boolean {
   const u = p.replace(/\\/g, '/');
   return (
@@ -351,7 +344,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
            a data dump is exactly where one gets committed. Secret-only pass,
            up to a sane ceiling, skipping formats that are never text. */
         let secretScanned = false;
-        if (f.size <= SECRET_SCAN_MAX_BYTES && !NEVER_TEXT_EXT.has(f.ext.toLowerCase())) {
+        if (f.size <= SECRET_SCAN_MAX_BYTES && !NEVER_TEXT_EXTENSIONS.has(f.ext.toLowerCase())) {
           try {
             pushSecrets(f.path, scanSecrets(f.path, await fs.readText(f.path)));
             secretScanned = true;
@@ -397,14 +390,18 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     }
 
     const lang = detectLanguage(f.ext);
-    const text = f.text ?? '';
-    const tokens = approximateTokens(text);
-    const gzip = opts.gzip && isCompressibleExt(f.ext) ? opts.gzip(text) : null;
-    /* Scan once, up front: surfaces that KEEP file text (doc bodies, TODO
-       lines) get a redacted copy, so a flagged key is never shipped verbatim
-       in the same artifact whose finding shows only its preview. */
-    const secretHits = scanSecrets(f.path, text);
-    const shareText = secretHits.length > 0 ? redactSecrets(text) : text;
+    const rawText = f.text ?? '';
+    // Size metrics describe the file as it is on disk.
+    const tokens = approximateTokens(rawText);
+    const gzip = opts.gzip && isCompressibleExt(f.ext) ? opts.gzip(rawText) : null;
+    /* Scan once, up front, then EVERYTHING below extracts from `text`: the
+       file with each flagged key replaced by its preview. Doc bodies, TODOs,
+       docstrings, rationale, dependency specs, import sources, route paths,
+       scripts and the README one-liner all end up in the artifact, and a
+       flagged key must never ship verbatim next to the finding that hides it.
+       redactSecrets preserves every line break, so line numbers are exact. */
+    const secretHits = scanSecrets(f.path, rawText);
+    const text = secretHits.length > 0 ? redactSecrets(rawText) : rawText;
 
     // v0.8 — flag documentation/spec files + parse their structure once.
     if (isDocFile(f.path, f.ext, f.name)) {
@@ -413,7 +410,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         path: f.path,
         name: f.name,
         ext: f.ext,
-        text: shareText,
+        text: text,
         bytes: f.size,
         loc: f.loc,
         lastModifiedMs: opts.gitStats?.get(f.path)?.lastModifiedMs ?? f.mtimeMs ?? null,
@@ -437,7 +434,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     else if (f.ext === '.tf' || f.ext === '.hcl') tfSources.push({ path: f.path, text });
 
     // Scanners
-    const todoEntries = scanTodos(shareText);
+    const todoEntries = scanTodos(text);
     if (todoEntries.length) allTodos.push({ file: f.path, entries: todoEntries });
 
     /* v0.6 — try to parse the file as a dependency manifest. Cheap:
@@ -461,9 +458,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
     // Manifest scans (frameworks, scripts, license, description)
     if (f.name === 'package.json') {
-      // shareText: script commands and the description reach the artifact.
-      packageJsons.push({ path: f.path, text: shareText });
-      const d = scanFrameworksFromPackageJson(shareText);
+      packageJsons.push({ path: f.path, text: text });
+      const d = scanFrameworksFromPackageJson(text);
       frameworksFromManifests.push(d.frameworks);
       for (const [k, v] of Object.entries(d.scripts)) {
         // Only pick up root-level scripts. Workspace packages' scripts would
@@ -478,7 +474,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // descriptions describe individual packages, not the project.
       if (f.dir === '' && pkgDescription == null) {
         try {
-          const j = JSON.parse(shareText) as { description?: unknown };
+          const j = JSON.parse(text) as { description?: unknown };
           if (typeof j.description === 'string' && j.description.trim()) {
             pkgDescription = j.description.trim();
           }
@@ -500,7 +496,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // paragraph that isn't a heading, badge line, or HTML — usually the
       // project's tagline. Capped to 240 chars to avoid pulling in giant
       // intro sections.
-      readmeOneLiner = extractReadmeFirstSentence(shareText);
+      readmeOneLiner = extractReadmeFirstSentence(text);
     }
 
     // File-header SPDX detection — cheap, per source file.
@@ -537,7 +533,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       language: lang?.id ?? 'other',
       loc: f.loc,
       bytes: f.size,
-      bundleSize: gzip != null ? { raw: f.size, minified: text.length, gzipped: gzip } : null,
+      bundleSize: gzip != null ? { raw: f.size, minified: rawText.length, gzipped: gzip } : null,
       tokenCost: tokens,
       imports: (importsByFile.get(f.path) ?? []).map((r) => ({
         source: r.specifier,

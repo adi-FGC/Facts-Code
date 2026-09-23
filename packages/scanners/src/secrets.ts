@@ -42,7 +42,9 @@ const RULES: SecretRule[] = [
   {
     id: 'google-api-key',
     label: 'Google API key',
-    pattern: /\b(AIza[0-9A-Za-z_-]{35})\b/,
+    // Explicit boundaries, not \b: a key can END in '-' or '_', and \b never
+    // matches between '-' and a closing quote (~1 in 64 real keys missed).
+    pattern: /(?<![0-9A-Za-z_-])(AIza[0-9A-Za-z_-]{35})(?![0-9A-Za-z_-])/,
     minEntropy: 3.5,
   },
   {
@@ -107,9 +109,19 @@ const GLOBAL_RULES = RULES.map((r) => ({
  * Stripe's real `sk_test_…` keys carry it.)
  */
 const PLACEHOLDER_WORD =
-  /(?:^|[-_.])(?:your|example|sample|placeholder|changeme|change[-_]?me|dummy|fake|here|insert|replace|redacted|xxxx+)(?=[-_.]|$)/i;
+  /(?:^|[-_.])(?:your|sample|fake|here|insert|replace|redacted|xxxx+)(?=[-_.]|$)/i;
+/* Long enough that a random key contains one essentially never, so they need
+   no delimiter — which also catches AWS's own documentation keys
+   (AKIAIOSFODNN7EXAMPLE, wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY), pasted
+   verbatim into countless .env.example files. */
+const PLACEHOLDER_ANYWHERE = /example|placeholder|changeme|dummy/i;
 export function isPlaceholderSecret(body: string): boolean {
-  return PLACEHOLDER_WORD.test(body) || /(.)\1{7,}/.test(body) || /x{6,}/i.test(body);
+  return (
+    PLACEHOLDER_ANYWHERE.test(body) ||
+    PLACEHOLDER_WORD.test(body) ||
+    /(.)\1{7,}/.test(body) ||
+    /x{6,}/i.test(body)
+  );
 }
 
 /** True when a matched body is a real finding under `rule`'s gates. */
@@ -126,7 +138,16 @@ export function scanSecrets(file: string, text: string): SecretFinding[] {
     const line = lines[i];
     if (!line) continue;
     for (const { rule, re } of GLOBAL_RULES) {
-      for (const m of line.matchAll(re)) {
+      /* A pathological multi-megabyte line can overflow the regex engine.
+         Losing that one line's matches beats losing every finding already
+         collected from the rest of the file. */
+      let matches: RegExpMatchArray[];
+      try {
+        matches = [...line.matchAll(re)];
+      } catch {
+        continue;
+      }
+      for (const m of matches) {
         const body = m[m.length - 1] ?? m[0];
         const { ok, entropy } = passes(rule, body);
         if (!ok) continue;
@@ -146,26 +167,59 @@ export function scanSecrets(file: string, text: string): SecretFinding[] {
 
 /**
  * The same text with every finding `scanSecrets` would report replaced by its
- * redacted preview, and every private-key block collapsed to a marker. For
- * surfaces that keep file text — doc bodies, TODO lines — so a flagged key is
- * never shipped verbatim next to the finding that hides it.
+ * redacted preview, and private-key material blanked. For the analyzer to
+ * extract from when a file holds a flagged key, so the key never reaches doc
+ * bodies, TODOs, docstrings, dependency specs, imports or routes.
+ *
+ * LINE-PRESERVING: every `\n` survives, so line numbers of everything
+ * extracted afterwards (symbols, TODOs, findings) are unchanged.
  */
 export function redactSecrets(text: string): string {
-  let out = text.replace(
-    /-----BEGIN ((?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?)-----[\s\S]*?(?:-----END \1-----|$)/g,
-    '[private key redacted]',
-  );
-  for (const { rule, re } of GLOBAL_RULES) {
-    if (rule.minEntropy == null) continue;
-    out = out.replace(re, (match: string, ...groups: unknown[]) => {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const head = /-----BEGIN ((?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?)-----/.exec(line);
+    if (!head) continue;
+    /* Blank the key body that follows: up to the matching END line when
+       there is one, otherwise just the run of base64-looking lines (a
+       truncated paste, or a doc that only quotes the header line). */
+    const end = `-----END ${head[1]}-----`;
+    const endAt = lines.findIndex((l, j) => j > i && l.includes(end));
+    const stop =
+      endAt >= 0
+        ? endAt
+        : (() => {
+            let j = i;
+            while (j + 1 < lines.length && /^\s*[A-Za-z0-9+/=]{16,}\s*$/.test(lines[j + 1]!)) j++;
+            return j;
+          })();
+    for (let j = i + 1; j <= stop; j++) lines[j] = endAt >= 0 && j === endAt ? lines[j]! : '';
+    lines[i] = line.replace(head[0], '[private key redacted]');
+    i = stop;
+  }
+  const swap = (rule: SecretRule, re: RegExp, s: string): string =>
+    s.replace(re, (match: string, ...groups: unknown[]) => {
       const caps = groups.slice(0, -2).filter((g): g is string => typeof g === 'string');
       const body = caps[caps.length - 1] ?? match;
       if (!passes(rule, body).ok) return match;
       const at = match.lastIndexOf(body);
       return match.slice(0, at) + redact(body) + match.slice(at + body.length);
     });
-  }
-  return out;
+  // Per line, like scanSecrets, so one pathological line can't stop the rest.
+  return lines
+    .map((line) => {
+      let out = line;
+      for (const { rule, re } of GLOBAL_RULES) {
+        if (rule.minEntropy == null) continue;
+        try {
+          out = swap(rule, re, out);
+        } catch {
+          /* regex overflow on this line — scanSecrets skipped it too */
+        }
+      }
+      return out;
+    })
+    .join('\n');
 }
 
 function shannonEntropy(s: string): number {

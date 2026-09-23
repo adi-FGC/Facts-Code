@@ -61,12 +61,44 @@ export function shareableGitTopology(input: GitTopology): ShareableGit {
   return { git, pathSubs };
 }
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+/* The domain needs a label with a letter before its TLD, and the TLD must not
+   be a file extension: `patches/@remix-run__ui@0.5.0.patch` and
+   `logo@2x.png` are file names, not addresses. */
+const EMAIL_RE =
+  /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]*[A-Za-z][A-Za-z0-9-]*\.)+(?!(?:png|jpe?g|gif|svg|webp|avif|ico|patch|diff|json|m?js|cjs|tsx?|css|scss|md|txt|html?|lock|map|wasm)\b)[A-Za-z]{2,}\b/g;
 const isAbsolutePath = (p: string): boolean => /^(?:[A-Za-z]:[\\/]|[\\/])/.test(p);
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const pathRes = new Map<string, RegExp>();
+/**
+ * One path, every spelling: any separator run (`/`, `\`, the `\\` a JSON or
+ * pack encoder writes, `\\\\` when that is escaped again), case-insensitive
+ * for Windows drive paths (`d:\x` and `D:\x` are one folder), and only at a
+ * name boundary so `/repo` never eats the front of `/repo-2`.
+ */
+function pathRe(p: string): RegExp {
+  let re = pathRes.get(p);
+  if (!re) {
+    const segs = p
+      .split(/[\\/]+/)
+      .filter(Boolean)
+      .map(escapeRe);
+    const lead = /^[\\/]/.test(p) ? '[\\\\/]+' : '';
+    re = new RegExp(
+      lead + segs.join('[\\\\/]+') + '(?![A-Za-z0-9_-])',
+      /^[A-Za-z]:/.test(p) ? 'gi' : 'g',
+    );
+    pathRes.set(p, re);
+  }
+  return re;
+}
 
 function replaceAll(s: string, subs: ReadonlyArray<readonly [string, string]>): string {
   let out = s;
-  for (const [from, to] of subs) if (out.includes(from)) out = out.split(from).join(to);
+  for (const [from, to] of subs) {
+    if (isAbsolutePath(from)) out = out.replace(pathRe(from), () => to);
+    else if (out.includes(from)) out = out.split(from).join(to);
+  }
   return out;
 }
 
@@ -116,7 +148,12 @@ export function shareableDataset<T>(input: T, repoRoot: string): ShareableDatase
       .filter(([from]) => isAbsolutePath(from))
       .sort((a, b) => b[0].length - a[0].length);
   }
-  const textSubs = [...gitSubs, ...localPathSubs(repoRoot)];
+  /* Longest first across BOTH lists: a checkout that contains the build root
+     (the main checkout, when building from a linked worktree) must not rewrite
+     the front of the root before the root's own, more specific rule runs. */
+  const textSubs = [...gitSubs, ...localPathSubs(repoRoot)].sort(
+    (a, b) => b[0].length - a[0].length,
+  );
   const walk = (node: unknown): void => {
     if (node == null || typeof node !== 'object') return;
     if (Array.isArray(node)) {

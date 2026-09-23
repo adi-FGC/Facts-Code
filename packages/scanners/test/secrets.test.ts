@@ -89,6 +89,21 @@ describe('scanSecrets — every text file is in scope', () => {
     expect(scanSecrets('.env.example', env)).toEqual([]);
   });
 
+  it("ignores AWS's own documentation keys, pasted into countless .env.example files", () => {
+    const env = [
+      'AWS_ACCESS_KEY_ID=' + 'AKIAIOSFODNN7' + 'EXAMPLE',
+      'AWS_SECRET_ACCESS_KEY=' + 'wJalrXUtnFEMI/K7MDENG/bPxRfiCY' + 'EXAMPLEKEY',
+    ].join('\n');
+    expect(scanSecrets('.env.example', env)).toEqual([]);
+  });
+
+  it('finds a Google key that ends in "-" (no \\b between "-" and a quote)', () => {
+    const key = 'AIza' + 'SyB3kQ9vX2mN7pL4tR8wZ1cF6hJ0dG5sEa-';
+    expect(scanSecrets('a.ts', `const apiKey = "${key}";`).map((f) => f.ruleId)).toEqual([
+      'google-api-key',
+    ]);
+  });
+
   it('still flags real-shaped keys, including Stripe test-mode keys', () => {
     expect(isPlaceholderSecret(GH)).toBe(false);
     const stripeTest = 'sk_' + 'test_' + '4eC39HqLyjWDarjtT1zdp7dc';
@@ -128,10 +143,30 @@ describe('redactSecrets', () => {
     expect(out).toBe(`# Setup\nexport TOKEN=ghp_***Tu\nsee docs\n`);
   });
 
-  it('collapses a whole private-key block', () => {
+  it('blanks a private-key block without moving a single line', () => {
     const block =
       '-----BEGIN ' + 'RSA PRIVATE KEY-----\nMIIEow' + 'IBAAKCAQEA\n-----END RSA PRIVATE KEY-----';
-    expect(redactSecrets(`a\n${block}\nb`)).toBe('a\n[private key redacted]\nb');
+    const out = redactSecrets(`a\n${block}\nb // TODO keep me on line 5`);
+    expect(out).toBe(
+      'a\n[private key redacted]\n\n-----END RSA PRIVATE KEY-----\nb // TODO keep me on line 5',
+    );
+    expect(out.split('\n')).toHaveLength(5);
+  });
+
+  it('redacts only the header (and any base64 after it) when there is no END line', () => {
+    const src = [
+      "export const HEADER = '-----BEGIN " + "RSA PRIVATE KEY-----';",
+      '// TODO one',
+      '## Rotating keys',
+      '// FIXME two',
+    ].join('\n');
+    const out = redactSecrets(src);
+    expect(out.split('\n')).toEqual([
+      "export const HEADER = '[private key redacted]';",
+      '// TODO one',
+      '## Rotating keys',
+      '// FIXME two',
+    ]);
   });
 
   it('keeps placeholders as written — they were never findings', () => {

@@ -6,7 +6,7 @@
  *      and shows the redacted previews with file + line. Empty state is
  *      itself editorial — an "all clear" headline + the rule reference
  *      so the user knows what we DID check (not just that nothing fired).
- *   2. **Rule reference**: surfaces the 8 secret-detection rules that
+ *   2. **Rule reference**: surfaces the secret-detection rules that
  *      `packages/scanners/src/secrets.ts` runs. Educational + builds
  *      trust — the user sees the actual coverage, not a vague "secret
  *      scanning enabled" badge.
@@ -36,7 +36,7 @@ interface CredentialsProps {
   data: Dataset;
 }
 
-/* The 8 secret rules from packages/scanners/src/secrets.ts. Kept in
+/* The secret rules from packages/scanners/src/secrets.ts. Kept in
    sync manually because we want the page to be self-contained — the
    scanner runs at analyze-time (CLI / worker), the UI runs static.
    When a rule is added in the scanner, also add it here. */
@@ -291,11 +291,12 @@ export function Credentials(handle: Handle<CredentialsProps>) {
             <h1 mix={headline}>Nothing leaked.</h1>
             <p mix={lede}>
               The secrets scanner ran the patterns below across every text file in this analysis —
-              any file type, including files too large to parse (up to 16 MB). Obvious placeholders
-              such as sk-your-key-here are ignored. Not covered: binary files, and folders the
-              analyzer never walks (node_modules, dist, build, vendor, .vscode, .idea). The next
-              analysis will re-check; if a real secret lands in a commit, this page will be the
-              first place it surfaces.
+              any file type, including files too large to parse (up to 16 MB from the CLI; a GitHub
+              scan in the browser fetches files up to 1 MB). Obvious placeholders such as
+              sk-your-key-here are ignored. Not covered: binary files, and folders the analyzer
+              never walks (node_modules, dist, build, vendor, .vscode, .idea). The next analysis
+              will re-check; if a real secret lands in a commit, this page will be the first place
+              it surfaces.
             </p>
             {ruleRef}
           </div>

@@ -50,6 +50,20 @@ export interface FactsFS {
   join(...segments: string[]): string;
 }
 
+/** File extensions that are never text (media, archives, fonts, binaries,
+ *  databases). The one shared list for "is this worth reading as text":
+ *  core skips them in the secret-only pass over oversized files, and the
+ *  browser GitHub scan skips fetching them — so a CLI scan and a browser scan
+ *  of the same repo look at the same files (INV7). Lower-case, with dot. */
+export const NEVER_TEXT_EXTENSIONS: ReadonlySet<string> = new Set(
+  (
+    '.png .jpg .jpeg .gif .webp .avif .ico .bmp .tif .tiff .psd .heic .mp4 .mov .webm .mkv ' +
+    '.avi .mp3 .wav .ogg .flac .m4a .zip .gz .tgz .bz2 .xz .7z .rar .zst .jar .war .ear ' +
+    '.pdf .woff .woff2 .ttf .otf .eot .wasm .exe .dll .so .dylib .a .o .obj .class .pyc ' +
+    '.bin .dat .db .sqlite .sqlite3 .parquet .onnx .pt .pth .h5 .npy .npz .dmg .iso .apk'
+  ).split(' '),
+);
+
 /** Deterministic code-unit string comparator (INV2). Unlike localeCompare,
  *  `<`/`>` compare UTF-16 code units, giving identical ordering across every
  *  runtime/locale — required for byte-identical artifact output. */
