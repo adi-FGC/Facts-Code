@@ -36,8 +36,8 @@ import type {
 
 export interface TopologyOptions {
   /** Read agent session transcripts under the home dir to attach request
-   *  records (who asked for what, when). Default true. The CLI turns it
-   *  off for `--minimal` (the per-edit hook path) to keep that cheap. */
+   *  records (who asked for what, when). OPT-IN: default off unless
+   *  `FACTSTACK_AGENT_REQUESTS=1` is set. An explicit value always wins. */
   agentRequests?: boolean | undefined;
   /** Home directory override (tests). Default `os.homedir()`. */
   homeDir?: string | undefined;
@@ -983,13 +983,17 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
   const maxCommits = opts.maxCommits ?? 12;
   const maxBranches = opts.maxBranches ?? 60;
   const staleMs = (opts.staleDays ?? 90) * 86_400_000;
-  /* `FACTSTACK_NO_AGENT_REQUESTS=1` turns transcript reading off for EVERY
-     adapter, not just `analyze --no-agent-requests`: the MCP server, the `ui`
-     watcher and `open` all call this collector with no flag of their own, so
-     without an env switch there was no way to opt out of having your prompts
-     read on those paths. An explicit `agentRequests: true` still wins. */
-  const envOptOut = /^(1|true|yes)$/i.test(process.env['FACTSTACK_NO_AGENT_REQUESTS'] ?? '');
-  const requestsEnabled = opts.agentRequests ?? !envOptOut;
+  /* Reading someone's agent transcripts is OPT-IN (owner's call, 2026-09-23):
+     a first `analyze` must not open ~/.claude or ~/.codex unasked. Turn it on
+     per run with `agentRequests: true` (CLI: `analyze --agent-requests`), or
+     for EVERY adapter with `FACTSTACK_AGENT_REQUESTS=1` — the MCP server, the
+     `ui` watcher, `export` and `quick` call this with no flag of their own.
+     `FACTSTACK_NO_AGENT_REQUESTS=1` (the old opt-out) still forces it off, and
+     beats the env opt-in. An explicit option always wins over both. */
+  const envFlag = (name: string): boolean => /^(1|true|yes)$/i.test(process.env[name] ?? '');
+  const requestsEnabled =
+    opts.agentRequests ??
+    (envFlag('FACTSTACK_AGENT_REQUESTS') && !envFlag('FACTSTACK_NO_AGENT_REQUESTS'));
 
   const absRoot = norm(path.resolve(root));
   const top = git(absRoot, ['rev-parse', '--show-toplevel']);

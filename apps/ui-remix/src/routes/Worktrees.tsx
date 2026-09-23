@@ -333,11 +333,11 @@ const GAP_HELP: Record<TopologyGap, { what: string; cmd: string }> = {
   },
   'requests-partial': {
     what: 'Transcript scan hit its time budget — some request records may be missing.',
-    cmd: 'factstack analyze  (re-run; fewer transcripts on disk = faster)',
+    cmd: 'factstack analyze --agent-requests  (re-run; fewer transcripts on disk = faster)',
   },
   'requests-disabled': {
-    what: 'Transcript reading was off (--minimal or --no-agent-requests).',
-    cmd: 'factstack analyze',
+    what: 'Agent session records are opt-in and were not read, so "requested" falls back to the oldest unique commit.',
+    cmd: 'factstack analyze --agent-requests  (or set FACTSTACK_AGENT_REQUESTS=1)',
   },
   'no-deploy-config': {
     what: 'No deploy config found, so deploy readiness stops at "no target".',
@@ -685,9 +685,9 @@ export function Worktrees(handle: Handle<WorktreesProps>) {
           <h1 mix={headline}>{title}</h1>
           <p mix={lede}>
             Each checkout below shows what it carries, when that work was first asked for, and
-            whether it is ready to commit and to deploy — judged from local git refs and the agent
-            sessions that ran there. Gaps say what the analyzer could not see and the one move that
-            closes each.
+            whether it is ready to commit and to deploy — judged from local git refs and, if you
+            opted in with <code>--agent-requests</code>, the agent sessions that ran there. Gaps say
+            what the analyzer could not see and the one move that closes each.
           </p>
 
           <LabelNumberRow>

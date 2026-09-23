@@ -298,15 +298,19 @@ program
   .option('--no-gitignore-entry', 'Do not add .facts/ to the project .gitignore')
   .option(
     '--minimal',
-    'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze. Also implies --no-agent-requests, so the Worktrees tab shows commits and branches but no "when was this asked for" records.',
+    'Write only the AI-first core: agent.pack + human.json + MEMORY.md (skips agent.json, agent.jsonl, snapshot). NOTE: factstack diff/scan-vulns/export-* read agent.json — minimal disables them until the next legacy analyze. Never reads agent session transcripts, even with --agent-requests or FACTSTACK_AGENT_REQUESTS=1.',
   )
   .option(
     '--symbols',
     'F2 (beta): also build the symbol-level call/reference graph — declarations as nodes, refs as edges, each provenance-tagged (extracted/inferred/ambiguous). Adds a per-file AST ref walk; off by default until it stabilizes.',
   )
   .option(
+    '--agent-requests',
+    'Opt in: read your Claude Code / Codex session transcripts under your home dir so the Worktrees tab can show who asked for what, and when (prompts are secret-redacted and capped at 200 chars; they stay on this machine — .facts/ and local views like ui and quick — and are stripped from export and the published site). Off by default. Set FACTSTACK_AGENT_REQUESTS=1 to opt in on every surface (MCP server, ui, export).',
+  )
+  .option(
     '--no-agent-requests',
-    'v0.3.11: do not read Claude Code / Codex session transcripts under your home dir for the Worktrees tab request records (who asked for what, when). Git worktree/branch data is still collected. Implied by --minimal. Set FACTSTACK_NO_AGENT_REQUESTS=1 to apply the same opt-out to every surface (MCP server, ui, open).',
+    'Force transcript reading off for this run, overriding FACTSTACK_AGENT_REQUESTS=1.',
   )
   .option(
     '--no-cache',
@@ -396,13 +400,17 @@ program
            two developers can legitimately get different file sets. */
         extraIgnore: hostIgnoreRules,
         /* v0.3.11 — worktree/branch topology. Transcript reading (request
-         records) is skipped on --minimal so the per-edit hook stays cheap. */
-        /* Pass the option ONLY when the user actually opted out, so an
-         unset flag falls through to FACTSTACK_NO_AGENT_REQUESTS inside the
-         collector (an explicit `true` here would outrank the env var). */
+         records) is opt-in. --minimal (the per-edit hook path) never reads
+         them. Otherwise pass the option only when a flag was actually given,
+         so an unset flag falls through to the FACTSTACK_AGENT_REQUESTS /
+         FACTSTACK_NO_AGENT_REQUESTS env switches inside the collector. */
         git: mineGitTopology(
           root,
-          opts.agentRequests === false || (opts.minimal ?? false) ? { agentRequests: false } : {},
+          opts.minimal
+            ? { agentRequests: false }
+            : opts.agentRequests !== undefined
+              ? { agentRequests: opts.agentRequests }
+              : {},
         ),
         symbols: opts.symbols ?? false,
         extractionCache,

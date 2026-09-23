@@ -154,7 +154,7 @@ describe('mineGitTopology', () => {
   });
 
   it('maps the main checkout, the linked worktree and every branch with readiness + request records', () => {
-    const g = mineGitTopology(repo, { homeDir: home, now: NOW })!;
+    const g = mineGitTopology(repo, { homeDir: home, now: NOW, agentRequests: true })!;
     expect(g).not.toBeNull();
     expect(g.repoRoot).toBe(norm(repo));
     expect(g.defaultBranch).toBe('main');
@@ -272,6 +272,7 @@ describe('mineGitTopology', () => {
     const g = mineGitTopology(repo, {
       homeDir: emptyHome,
       now: Date.parse('2030-01-01T00:00:00Z'),
+      agentRequests: true,
     })!;
     expect(g.requestsCoverage).toBe('full');
     expect(g.worktrees[0]!.gaps).toContain('no-request-record');
@@ -306,7 +307,7 @@ describe('mineGitTopology', () => {
         },
       }) + '\n',
     );
-    const g = mineGitTopology(repo, { homeDir: foreignHome, now: NOW })!;
+    const g = mineGitTopology(repo, { homeDir: foreignHome, now: NOW, agentRequests: true })!;
     expect(g.worktrees.every((w) => w.sessions === 0)).toBe(true);
     expect(JSON.stringify(g)).not.toContain('billing module');
     expect(g.worktrees[1]!.gaps).toContain('no-request-record');
@@ -443,7 +444,7 @@ describe('mineGitTopology', () => {
         },
       }) + '\n',
     );
-    const g = mineGitTopology(repo, { homeDir: secretHome, now: NOW })!;
+    const g = mineGitTopology(repo, { homeDir: secretHome, now: NOW, agentRequests: true })!;
     const blob = JSON.stringify(g);
     for (const secret of secrets) {
       const body = secret.includes(': ') ? secret.split(': ')[1]! : secret;
@@ -452,24 +453,64 @@ describe('mineGitTopology', () => {
     expect(blob).toContain('<redacted>');
   });
 
-  it('honours FACTSTACK_NO_AGENT_REQUESTS for adapters that pass no flag', () => {
-    /* The MCP server, the ui watcher and open call the collector with no
-       option of their own; without an env switch there was no way to opt
-       out of transcript reading on those paths. */
-    const prev = process.env.FACTSTACK_NO_AGENT_REQUESTS;
-    try {
-      process.env.FACTSTACK_NO_AGENT_REQUESTS = '1';
-      const off = mineGitTopology(repo, { homeDir: home, now: NOW })!;
-      expect(off.requestsCoverage).toBe('disabled');
-      expect(off.gaps).toContain('requests-disabled');
-      // An explicit opt-in still wins over the env var.
-      const on = mineGitTopology(repo, { homeDir: home, now: NOW, agentRequests: true })!;
-      expect(on.requestsCoverage).toBe('full');
-    } finally {
-      if (prev === undefined) delete process.env.FACTSTACK_NO_AGENT_REQUESTS;
-      else process.env.FACTSTACK_NO_AGENT_REQUESTS = prev;
-    }
+  it('counts every session, even two that share a first prompt (one request, two sessions)', () => {
+    const dupHome = fs.mkdtempSync(path.join(tmp, 'home-dup-'));
+    const dir = path.join(dupHome, '.claude', 'projects', slugOf(wt));
+    const session = (id: string, at: string) =>
+      write(
+        path.join(dir, `${id}.jsonl`),
+        JSON.stringify({
+          type: 'user',
+          cwd: wt,
+          timestamp: at,
+          message: { role: 'user', content: [{ type: 'text', text: 'run the release checklist' }] },
+        }) + '\n',
+      );
+    session('11111111-1111-1111-1111-111111111111', '2020-02-01T00:00:00.000Z');
+    session('22222222-2222-2222-2222-222222222222', '2020-02-02T00:00:00.000Z');
+    const g = mineGitTopology(repo, { homeDir: dupHome, now: NOW, agentRequests: true })!;
+    const linked = g.worktrees.find((w) => w.kind === 'linked')!;
+    expect(linked.sessions).toBe(2);
+    expect(linked.requests).toHaveLength(1);
+    expect(linked.requests[0]!.startedAt).toBe('2020-02-01T00:00:00Z');
   });
+
+  it('reads no transcripts unless asked — opt-in by option or FACTSTACK_AGENT_REQUESTS', () => {
+    /* Owner's call (2026-09-23): a first analyze must not open ~/.claude or
+       ~/.codex unasked. The MCP server, the ui watcher, export and quick call
+       the collector with no option, so the env switch is their only opt-in. */
+    const saved = {
+      on: process.env.FACTSTACK_AGENT_REQUESTS,
+      off: process.env.FACTSTACK_NO_AGENT_REQUESTS,
+    };
+    const restore = (k: string, v: string | undefined) => {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    };
+    try {
+      delete process.env.FACTSTACK_AGENT_REQUESTS;
+      delete process.env.FACTSTACK_NO_AGENT_REQUESTS;
+      const byDefault = mineGitTopology(repo, { homeDir: home, now: NOW })!;
+      expect(byDefault.requestsCoverage).toBe('disabled');
+      expect(byDefault.gaps).toContain('requests-disabled');
+      expect(byDefault.worktrees.every((w) => w.requests.length === 0)).toBe(true);
+
+      process.env.FACTSTACK_AGENT_REQUESTS = '1';
+      expect(mineGitTopology(repo, { homeDir: home, now: NOW })!.requestsCoverage).toBe('full');
+
+      // The old opt-out still forces it off, even with the opt-in set…
+      process.env.FACTSTACK_NO_AGENT_REQUESTS = '1';
+      expect(mineGitTopology(repo, { homeDir: home, now: NOW })!.requestsCoverage).toBe('disabled');
+      // …and an explicit option beats both env switches.
+      const explicit = mineGitTopology(repo, { homeDir: home, now: NOW, agentRequests: true })!;
+      expect(explicit.requestsCoverage).toBe('full');
+    } finally {
+      restore('FACTSTACK_AGENT_REQUESTS', saved.on);
+      restore('FACTSTACK_NO_AGENT_REQUESTS', saved.off);
+    }
+    // Four full topology scans (~1.2 s each on Windows) — well past vitest's
+    // 5 s default on a loaded CI runner.
+  }, 30_000);
 
   it('reports a nested repo as external and never judges it against this repo', () => {
     const host = path.join(tmp, 'nested-host');
