@@ -475,9 +475,15 @@ program
 
       // ft-9: local-first telemetry — numbers only (duration + file count),
       // never throws, and sends nothing remote unless opted in + URL set.
+      // `surface` names the entry point; `root` is hashed to a one-way rootId
+      // on the way in, never stored as a path, and never sent at all. Without
+      // these an analyze that surprises someone cannot be traced to a command
+      // or a project — which is exactly what happened once.
       await createTelemetry().recordEvent('analyze.complete', {
         durationMs: Math.round(elapsed),
         fileCount: result.agent.stats.fileCount,
+        surface: 'cli',
+        root,
       });
 
       if (machine) {

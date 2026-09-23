@@ -9,10 +9,15 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createTelemetry, shouldSendRemote, type TelemetryState } from '../src/telemetry.js';
+import {
+  createTelemetry,
+  rootIdOf,
+  shouldSendRemote,
+  type TelemetryState,
+} from '../src/telemetry.js';
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'facts-tel-'));
@@ -23,6 +28,119 @@ const state = (over: Partial<TelemetryState> = {}): TelemetryState => ({
   optedInAt: null,
   firstRunSeen: true,
   ...over,
+});
+
+/**
+ * Attribution (2026-09-23). Added after an analyze against a frozen repo
+ * could not be traced to a command or a project, because metrics held only
+ * counters. The fix must buy diagnosability WITHOUT storing a path, so both
+ * halves are pinned — the easy regression is someone "simplifying" rootIdOf
+ * into storing the root itself.
+ */
+describe('rootIdOf', () => {
+  it('is stable for the same directory however it is spelled', () => {
+    expect(rootIdOf(process.cwd())).toBe(rootIdOf('.'));
+    expect(rootIdOf('.')).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('distinguishes different roots', () => {
+    expect(rootIdOf(join(tmpdir(), 'alpha'))).not.toBe(rootIdOf(join(tmpdir(), 'beta')));
+  });
+
+  it('never returns anything path-shaped', () => {
+    const secret = join(tmpdir(), 'very-private-client-project');
+    const id = rootIdOf(secret)!;
+    expect(id).not.toContain('very-private');
+    expect(id).not.toContain('/');
+    expect(secret).not.toContain(id);
+  });
+
+  it('treats Windows paths case-insensitively, POSIX paths case-sensitively', () => {
+    const upper = join(tmpdir(), 'CaseProject');
+    const lower = upper.toLowerCase();
+    expect(rootIdOf(upper, 'win32')).toBe(rootIdOf(lower, 'win32'));
+    expect(rootIdOf(upper, 'linux')).not.toBe(rootIdOf(lower, 'linux'));
+  });
+
+  it('is null for an empty or unusable root', () => {
+    expect(rootIdOf('')).toBeNull();
+    expect(rootIdOf('   ')).toBeNull();
+  });
+});
+
+describe('the per-event ring', () => {
+  it('records when, from which surface, and against which root id', async () => {
+    const dir = tempDir();
+    try {
+      const t = createTelemetry({ dir, remoteUrl: null, now: () => '2026-09-23T04:06:00.000Z' });
+      await t.recordEvent('analyze.complete', {
+        durationMs: 1200,
+        fileCount: 42,
+        surface: 'cli',
+        root: '/projects/thing',
+      });
+      const r = (await t.loadMetrics()).recent[0]!;
+      expect(r.at).toBe('2026-09-23T04:06:00.000Z');
+      expect(r.event).toBe('analyze.complete');
+      expect(r.surface).toBe('cli');
+      expect(r.rootId).toBe(rootIdOf('/projects/thing'));
+      expect(r.durationMs).toBe(1200);
+      expect(r.fileCount).toBe(42);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('stores no raw path anywhere in the metrics file', async () => {
+    const dir = tempDir();
+    try {
+      const t = createTelemetry({ dir, remoteUrl: null });
+      await t.recordEvent('analyze.complete', {
+        surface: 'cli',
+        root: '/clients/acme-secret-repo',
+      });
+      const raw = JSON.stringify(await t.loadMetrics());
+      expect(raw).not.toContain('acme-secret-repo');
+      expect(raw).not.toContain('/clients');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('stays bounded, keeping the NEWEST events rather than the oldest', async () => {
+    const dir = tempDir();
+    try {
+      const t = createTelemetry({ dir, remoteUrl: null });
+      for (let i = 0; i < 60; i++)
+        await t.recordEvent('analyze.complete', { surface: 'cli', durationMs: i });
+      const recent = (await t.loadMetrics()).recent;
+      expect(recent).toHaveLength(50);
+      expect(recent[0]!.durationMs).toBe(10); // the first 10 were evicted
+      expect(recent.at(-1)!.durationMs).toBe(59); // the latest survives
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('survives a metrics file written before the ring existed', async () => {
+    const dir = tempDir();
+    try {
+      const t0 = createTelemetry({ dir, remoteUrl: null });
+      await t0.recordEvent('analyze.complete', {});
+      const p = join(dir, 'metrics.json');
+      const old = JSON.parse(readFileSync(p, 'utf8')) as Record<string, unknown>;
+      delete old.recent; // simulate an upgrade from the pre-ring format
+      writeFileSync(p, JSON.stringify(old));
+
+      const t = createTelemetry({ dir, remoteUrl: null });
+      // Readers get the promised array even before the first new event.
+      expect((await t.loadMetrics()).recent).toEqual([]);
+      await expect(t.recordEvent('analyze.complete', { surface: 'cli' })).resolves.toBeUndefined();
+      expect((await t.loadMetrics()).recent).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('shouldSendRemote', () => {
@@ -130,19 +248,28 @@ describe('createTelemetry — remote gating', () => {
         durationMs: 1200,
         fileCount: 389,
         appVersion: '0.1.0',
+        surface: 'cli',
+        root: '/clients/acme-secret-repo', // supplied on purpose: must NOT go out
       });
       expect(bodies).toHaveLength(1);
       const payload = JSON.parse(bodies[0]!);
-      // Exact key set — any extra key would be a privacy leak.
+      // Exact key set — any extra key would be a privacy leak. `surface` is
+      // allowed (it names a code path); `root`/`rootId` are not, because a
+      // per-project id sent off-machine becomes a record of how many projects
+      // someone has and when they touch each one.
       expect(Object.keys(payload).sort()).toEqual(
-        ['appVersion', 'durationMs', 'event', 'fileCount', 'installId', 'ts'].sort(),
+        ['appVersion', 'durationMs', 'event', 'fileCount', 'installId', 'surface', 'ts'].sort(),
       );
       expect(payload).toMatchObject({
         installId: 'id-1',
         event: 'analyze.complete',
         durationMs: 1200,
         fileCount: 389,
+        surface: 'cli',
       });
+      // Neither the path nor its hash may reach the wire.
+      expect(bodies[0]).not.toContain('acme-secret-repo');
+      expect(bodies[0]).not.toContain(rootIdOf('/clients/acme-secret-repo')!);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

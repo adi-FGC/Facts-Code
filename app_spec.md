@@ -204,7 +204,7 @@ Rate-limit, auth, and transport details live in a future `mcp_spec.md`.
 2. Cloud sync (v0.5) is **opt-in and granular**: choose what syncs (metadata only, full tree, etc.).
 3. Detected secrets are **redacted before serialization**. Raw secret values never enter any artifact file on disk. Only file + line + rule match + a masked preview.
 4. `.facts/` is auto-added to `.gitignore` on first run (with user consent prompt).
-5. Telemetry is **opt-in, anonymous, aggregate-only**; opt-out persists.
+5. Telemetry that leaves the machine is **opt-in and anonymous**: counts, durations and the entry-point name, never a path or project id. Locally, `~/.factstack/metrics.json` also keeps a bounded per-event log (timestamp, entry point, hashed project id) so a run can be attributed afterwards; it is never sent. Opt-out persists.
 
 ---
 
