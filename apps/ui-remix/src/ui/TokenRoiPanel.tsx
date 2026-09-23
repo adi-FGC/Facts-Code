@@ -567,7 +567,7 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           <span>
             {/* "verified" is reserved for a rate confirmed on the vendor's own
                 page. A row resting on corroborating sources says "checked" and
-                carries the same † the chart uses, so the stronger word is never
+                carries the same * the chart uses, so the stronger word is never
                 applied to the two rows that did not earn it. */}
             <span mix={rateKey}>
               {rate.isLive ? 'fetched ' : model.confidence === 'primary' ? 'verified ' : 'checked '}
@@ -576,7 +576,7 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
               {rate.isLive ? stamp : model.verifiedOn}
             </span>
             {!rate.isLive && model.confidence !== 'primary' && (
-              <span mix={rateKey}> † not vendor-confirmed</span>
+              <span mix={rateKey}> * not vendor-confirmed</span>
             )}
           </span>
           {/* The selected model's own caveat, shown rather than buried in the
@@ -642,7 +642,7 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
             <>
               Prices are standard list rates for input tokens (not batch, not cached).{' '}
               {primaryCount} of {MODEL_CATALOG.length} were read off the vendor’s own pricing page
-              on the date shown; the rest are marked † and rest on corroborating sources because the
+              on the date shown; the rest are marked * and rest on corroborating sources because the
               vendor’s own page could not be confirmed — see each model’s source link.
             </>
           )}

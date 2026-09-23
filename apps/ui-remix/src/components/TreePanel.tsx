@@ -292,6 +292,22 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
   // populated without a click. Done once in setup.
   for (const c of handle.props.data.tree.children) open.add(c.path);
 
+  /* Rows are built only when the column is actually shown, and never inside
+     the page's first render (2026-09-24 perf pass). They were ~45% of that
+     render's DOM (~580 elements), while at ≤899px app.css hides this column
+     outright — phones built every row and never displayed one. The column
+     keeps its fixed grid width, so filling it a frame later shifts nothing. */
+  const narrow = typeof matchMedia === 'function' ? matchMedia('(max-width: 899px)') : null;
+  let rowsReady = false;
+  const reveal = () => {
+    if (rowsReady || narrow?.matches) return;
+    rowsReady = true;
+    void handle.update();
+  };
+  requestAnimationFrame(() => setTimeout(reveal, 0));
+  narrow?.addEventListener('change', reveal);
+  handle.signal.addEventListener('abort', () => narrow?.removeEventListener('change', reveal));
+
   return () => {
     const { data } = handle.props;
     const activePath = activeFilePath();
@@ -307,7 +323,7 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
         open.add(acc);
       }
     }
-    const allRows = renderNode(data.tree, 0, activePath);
+    const allRows = rowsReady ? renderNode(data.tree, 0, activePath) : null;
 
     return (
       <aside aria-label="Project tree" mix={wrap}>

@@ -146,10 +146,16 @@ export function NumberedNav(handle: Handle<{}>) {
     navEl.scrollLeft += tabRect.left - navRect.left - (navRect.width - tabRect.width) / 2;
   }
 
+  /* Measure AFTER the frame paints, never before: a rect read inside rAF
+     (or mid-commit) runs ahead of the frame's own layout and forces it
+     synchronously — the page's single biggest forced reflow on first load
+     (385 ms, then 174 ms from rAF, on a throttled phone). After paint the
+     layout is clean and the read costs next to nothing. */
+  const afterPaint = (fn: () => void) => requestAnimationFrame(() => setTimeout(fn, 0));
+
   const onNav = () => {
     void handle.update();
-    /* rAF so the patched DOM (new active tab) exists before we scroll. */
-    requestAnimationFrame(scrollActiveIntoView);
+    afterPaint(scrollActiveIntoView);
   };
   window.addEventListener('popstate', onNav);
   window.addEventListener('factstack:nav', onNav);
@@ -167,7 +173,7 @@ export function NumberedNav(handle: Handle<{}>) {
           wrap,
           ref<HTMLElement>((node) => {
             navEl = node;
-            scrollActiveIntoView();
+            afterPaint(scrollActiveIntoView);
           }),
         ]}
       >

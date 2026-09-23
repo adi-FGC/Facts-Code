@@ -47,9 +47,13 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
  *     raw once, silently, on a dependency bump. Use the zod-free subpaths
  *     (`@factstack/spec/routes`, `@factstack/spec/review-severity`) and pull
  *     types with `import type`.
- *   - Route-level code splitting (every tab -> its own lazy chunk) is the
- *     structural lever with the most headroom; every route currently ships in
- *     main. Unclaimed, and still the right first move if first paint regresses.
+ *   - Route-level code splitting: done 2026-09-24. Only the landing tab
+ *     (Overview) ships in main; every other tab is its own chunk, loaded on
+ *     open and prefetched one per idle slot after load (App.tsx). Main went
+ *     125.5 -> 59.6 KB gz. Keep new tabs out of main the same way.
+ *   - Nothing the first screen doesn't show belongs in index.html: doc bodies
+ *     live in dist/data/docs/ and load on demand (inject-data.mjs). The same
+ *     2026-09-24 pass took LCP 4.9 s -> 3.0 s on throttled mobile.
  *
  * The CSP guards and discovery-kit freshness check further down are NOT
  * budgets — they catch silent breakage (a blocked boot script, a drifted
@@ -443,12 +447,16 @@ const localRoots = [APP_DIR_ROOT, dirname(APP_DIR_ROOT)]
       ),
   );
 const publicSinks = ['index.html', 'factstack.pack'];
-try {
-  for (const f of readdirSync(join(DIST, 'data'))) {
-    if (f.endsWith('.json')) publicSinks.push(`data/${f}`);
+for (const dir of ['data', 'data/docs']) {
+  // data/docs/ holds the per-doc bodies moved out of index.html — a public
+  // sink like any other, so the guard proves it too.
+  try {
+    for (const f of readdirSync(join(DIST, ...dir.split('/')))) {
+      if (f.endsWith('.json')) publicSinks.push(`${dir}/${f}`);
+    }
+  } catch {
+    /* directory absent — nothing extra to scan */
   }
-} catch {
-  /* no dist/data — nothing extra to scan */
 }
 for (const rel of publicSinks) {
   let body;

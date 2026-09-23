@@ -204,6 +204,36 @@ try {
   console.warn(`[inject-data] could not write dist/data/summary.json: ${e?.message || e}`);
 }
 
+/* Doc bodies leave the page (2026-09-24 perf pass). They were ~800 KB of the
+   ~1.46 MB baked into index.html — 55% of every first visit — yet only the
+   Docs tab ever shows one, one at a time. Each body is written to its own
+   dist/data/docs/<id>.json and the inline doc keeps a `contentUrl` the Docs
+   tab fetches on demand. Written AFTER dist/data/factstack.json, so the
+   fetchable full dataset agents read keeps every body inline. */
+if (dataset && Array.isArray(dataset.docs)) {
+  const docsDir = resolve(APP_DIR, 'dist', 'data', 'docs');
+  mkdirSync(docsDir, { recursive: true });
+  let moved = 0;
+  let movedChars = 0;
+  for (const d of dataset.docs) {
+    if (!d || typeof d.content !== 'string' || typeof d.path !== 'string') continue;
+    const id = createHash('sha256').update(d.path, 'utf8').digest('hex').slice(0, 16);
+    writeFileSync(
+      join(docsDir, `${id}.json`),
+      JSON.stringify({ path: d.path, content: d.content }),
+      'utf8',
+    );
+    movedChars += d.content.length;
+    d.content = null;
+    d.contentUrl = `/data/docs/${id}.json`;
+    moved++;
+  }
+  if (moved > 0)
+    console.log(
+      `[inject-data] moved ${moved} doc bodies (${(movedChars / 1024).toFixed(0)} KB) out of index.html → dist/data/docs/ (loaded on demand)`,
+    );
+}
+
 try {
   const packSrc = join(REPO_ROOT, '.facts', 'agent.pack');
   if (existsSync(packSrc)) {

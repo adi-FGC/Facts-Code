@@ -206,11 +206,40 @@ function isMarkdownish(f: DocFile): boolean {
   );
 }
 
+/** On the published site a doc's body is not in the page: inject-data moves
+ *  each to /data/docs/<id>.json and leaves this URL (≈800 KB the first visit
+ *  no longer downloads). Local `factstack ui` and exported reports still
+ *  carry `content` inline and never set it. */
+type LazyDoc = DocFile & { contentUrl?: string };
+
 export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
   const first = getDocs(handle.props.data)[0];
   let selPath = first?.path ?? '';
   let mode: 'preview' | 'raw' = 'preview';
   let query = '';
+
+  /* Bodies fetched on demand, once per doc. */
+  const bodies = new Map<string, string | Error>();
+  const pending = new Set<string>();
+  const ensureBody = (doc: LazyDoc | undefined): void => {
+    const url = doc && doc.content === null ? doc.contentUrl : undefined;
+    if (!doc || !url || bodies.has(doc.path) || pending.has(doc.path)) return;
+    pending.add(doc.path);
+    fetch(url)
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json() as Promise<{ content?: unknown }>;
+      })
+      .then((j) => {
+        if (typeof j.content !== 'string') throw new Error('malformed document file');
+        bodies.set(doc.path, j.content);
+      })
+      .catch((e: unknown) => bodies.set(doc.path, e instanceof Error ? e : new Error(String(e))))
+      .finally(() => {
+        pending.delete(doc.path);
+        void handle.update();
+      });
+  };
 
   const select = (p: string) => {
     selPath = p;
@@ -233,7 +262,12 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
       ? docs.filter((d) => (d.path + ' ' + d.title).toLowerCase().includes(q))
       : docs;
     const groups = groupDocs(filtered);
-    const sel = docs.find((d) => d.path === selPath) ?? docs[0];
+    const picked: LazyDoc | undefined = docs.find((d) => d.path === selPath) ?? docs[0];
+    ensureBody(picked);
+    const fetched = picked ? bodies.get(picked.path) : undefined;
+    const lazy = picked?.content === null && Boolean(picked?.contentUrl);
+    const sel: LazyDoc | undefined =
+      picked && typeof fetched === 'string' ? { ...picked, content: fetched } : picked;
 
     return (
       <div mix={wrap}>
@@ -309,7 +343,15 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
                 </button>
               </div>
 
-              {sel.content === null ? (
+              {fetched instanceof Error ? (
+                <p mix={note}>
+                  Couldn’t load this document ({fetched.message}). Outline + structure below.
+                </p>
+              ) : lazy && sel.content === null ? (
+                <p mix={note} role="status">
+                  Loading document…
+                </p>
+              ) : sel.content === null ? (
                 <p mix={note}>
                   Content omitted (doc exceeded the per-artifact content budget). Outline +
                   structure below.
@@ -330,7 +372,7 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
                 </nav>
               ) : null}
 
-              {renderBody(sel, mode)}
+              {lazy && sel.content === null ? null : renderBody(sel, mode)}
             </>
           )}
         </section>

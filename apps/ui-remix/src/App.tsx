@@ -16,23 +16,12 @@
  */
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
-import { activeTab, TABS } from './lib/routes.ts';
+import { activeTab, TABS, type TabKey } from './lib/routes.ts';
 import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
 import { Header } from './components/Header.tsx';
 import { TreePanel } from './components/TreePanel.tsx';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Overview } from './routes/Overview.tsx';
-import { Architecture } from './routes/Architecture.tsx';
-import { Modules } from './routes/Modules.tsx';
-import { FilesTab } from './routes/FilesTab.tsx';
-import { Docs } from './routes/Docs.tsx';
-import { Review } from './routes/Review.tsx';
-import { Security } from './routes/Security.tsx';
-import { Tests } from './routes/Tests.tsx';
-import { History } from './routes/History.tsx';
-import { About } from './routes/About.tsx';
-import { Config } from './routes/Config.tsx';
-import { Worktrees } from './routes/Worktrees.tsx';
 import { CommandPalette } from './ui/CommandPalette.tsx';
 import { CssSuggestionsPanel } from './ui/CssSuggestionsPanel.tsx';
 import { OpenModal } from './components/OpenModal.tsx';
@@ -70,7 +59,11 @@ function ensureLoadStarted() {
   loadArtifacts()
     .then((data) => {
       cached = data;
-      notifyDataReady();
+      /* Yield before the full render: parsing the dataset and building the
+         whole dashboard in one task was the page's longest block of main-
+         thread time. A macrotask boundary lets the loading frame paint and
+         keeps each task short enough not to delay a tap. */
+      setTimeout(notifyDataReady, 0);
     })
     .catch((err: unknown) => {
       loadError = err instanceof Error ? err.message : String(err);
@@ -256,36 +249,115 @@ function RouteView(handle: Handle<{ data: Dataset }>) {
     window.removeEventListener('popstate', onChange);
     window.removeEventListener('factstack:nav', onChange);
   });
-  return () => renderRoute(activeTab(location.pathname), handle.props.data);
+  prefetchRoutesWhenIdle();
+  return () => {
+    const tab = activeTab(location.pathname);
+    const { data } = handle.props;
+    // Overview is the landing tab, so it ships in the main chunk.
+    if (tab === 'overview') return <Overview data={data} />;
+    const Route = loadedRoutes.get(tab);
+    if (Route) return <Route data={data} />;
+    const failed = routeLoadErrors.get(tab);
+    if (failed) return <RouteLoadError message={failed} />;
+    void loadRoute(tab).then(() => handle.update());
+    return <RouteLoading />;
+  };
 }
 
-function renderRoute(tab: ReturnType<typeof activeTab>, data: Dataset) {
-  // Hand-rolled switch — small + obvious, no router needed beyond the
-  // pathname → tab mapping in lib/routes.ts.
-  switch (tab) {
-    case 'overview':
-      return <Overview data={data} />;
-    case 'architecture':
-      return <Architecture data={data} />;
-    case 'modules':
-      return <Modules data={data} />;
-    case 'files':
-      return <FilesTab data={data} />;
-    case 'docs':
-      return <Docs data={data} />;
-    case 'review':
-      return <Review data={data} />;
-    case 'security':
-      return <Security data={data} />;
-    case 'tests':
-      return <Tests data={data} />;
-    case 'history':
-      return <History data={data} />;
-    case 'worktrees':
-      return <Worktrees data={data} />;
-    case 'config':
-      return <Config data={data} />;
-    case 'about':
-      return <About data={data} />;
+const routeLoadingStyle = css({
+  minHeight: '40vh',
+  display: 'grid',
+  placeItems: 'center',
+  color: 'var(--fg-subtle)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+});
+/** Shown inside <main> for the moment a tab's chunk takes to arrive. */
+function RouteLoading() {
+  return () => (
+    <div mix={routeLoadingStyle} role="status" aria-live="polite">
+      Loading view…
+    </div>
+  );
+}
+
+/* ── Route-level code splitting (2026-09-24 perf pass) ─────────────────────
+ * Every tab used to be imported up front, so a first visit parsed and ran
+ * eleven tabs it never showed (main chunk ≈456 KB raw). Now each non-landing
+ * tab is its own chunk, loaded when opened — and prefetched one at a time
+ * once the page is idle, so a later click is normally instant. */
+type RouteComponent = typeof Overview;
+type LazyTab = Exclude<TabKey, 'overview'>;
+const ROUTE_LOADERS: Record<LazyTab, () => Promise<RouteComponent>> = {
+  architecture: () =>
+    import('./routes/Architecture.tsx').then((m) => m.Architecture as unknown as RouteComponent),
+  modules: () => import('./routes/Modules.tsx').then((m) => m.Modules as unknown as RouteComponent),
+  files: () => import('./routes/FilesTab.tsx').then((m) => m.FilesTab as unknown as RouteComponent),
+  docs: () => import('./routes/Docs.tsx').then((m) => m.Docs as unknown as RouteComponent),
+  review: () => import('./routes/Review.tsx').then((m) => m.Review as unknown as RouteComponent),
+  security: () =>
+    import('./routes/Security.tsx').then((m) => m.Security as unknown as RouteComponent),
+  tests: () => import('./routes/Tests.tsx').then((m) => m.Tests as unknown as RouteComponent),
+  history: () => import('./routes/History.tsx').then((m) => m.History as unknown as RouteComponent),
+  worktrees: () =>
+    import('./routes/Worktrees.tsx').then((m) => m.Worktrees as unknown as RouteComponent),
+  config: () => import('./routes/Config.tsx').then((m) => m.Config as unknown as RouteComponent),
+  about: () => import('./routes/About.tsx').then((m) => m.About as unknown as RouteComponent),
+};
+const loadedRoutes = new Map<TabKey, RouteComponent>();
+const routeLoadErrors = new Map<TabKey, string>();
+const routeLoads = new Map<TabKey, Promise<void>>();
+
+function loadRoute(tab: LazyTab): Promise<void> {
+  let p = routeLoads.get(tab);
+  if (!p) {
+    p = ROUTE_LOADERS[tab]()
+      .then((c) => void loadedRoutes.set(tab, c))
+      .catch((e: unknown) => {
+        routeLoads.delete(tab); // a later visit may retry (e.g. after a redeploy)
+        routeLoadErrors.set(tab, e instanceof Error ? e.message : String(e));
+      });
+    routeLoads.set(tab, p);
   }
+  return p;
+}
+
+let prefetchStarted = false;
+/** One chunk per idle slot, so no single task grows long enough to delay an
+ *  interaction the user makes while it runs. */
+function prefetchRoutesWhenIdle(): void {
+  if (prefetchStarted || typeof window === 'undefined') return;
+  prefetchStarted = true;
+  const queue = Object.keys(ROUTE_LOADERS) as LazyTab[];
+  const idle = (fn: () => void) =>
+    'requestIdleCallback' in window
+      ? window.requestIdleCallback(fn, { timeout: 4000 })
+      : setTimeout(fn, 200);
+  const next = () => {
+    const tab = queue.shift();
+    if (!tab) return;
+    void loadRoute(tab).finally(() => idle(next));
+  };
+  // Start after the load event: first paint and the landing tab come first.
+  const start = () => setTimeout(() => idle(next), 1500);
+  if (document.readyState === 'complete') start();
+  else window.addEventListener('load', start, { once: true });
+}
+
+function RouteLoadError(handle: Handle<{ message: string }>) {
+  return () => (
+    <div mix={css({ padding: '32px', maxWidth: '640px' })} role="alert">
+      <h1 class="serif" mix={css({ fontSize: '24px', marginBottom: '12px' })}>
+        This view didn’t load.
+      </h1>
+      <p mix={css({ color: 'var(--fg-muted)' })}>
+        The site may have been updated since this page opened. Reload to get the latest version.
+      </p>
+      <p class="mono" mix={css({ color: 'var(--fg-subtle)', fontSize: '12px', marginTop: '16px' })}>
+        {handle.props.message}
+      </p>
+    </div>
+  );
 }

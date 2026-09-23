@@ -40,11 +40,23 @@ const bootShell = container.querySelector('[data-app-skeleton]');
 // in this VDOM and silently blanks #root on the 2nd+ call (the old
 // "blank on client navigation, fine on refresh" bug).
 const root = createRoot(container);
-root.render(<App />);
-
-/* Drop the boot shell now that real UI occupies the same grid. No-op when
-   the renderer already cleared the container. */
-bootShell?.remove();
+let mounted = false;
+const mount = () => {
+  if (mounted) return;
+  mounted = true;
+  root.render(<App />);
+  /* Drop the boot shell now that real UI occupies the same grid. No-op when
+     the renderer already cleared the container. */
+  bootShell?.remove();
+};
+/* Paint the static boot shell FIRST, then mount. With the dataset out of the
+   HTML the document now arrives in ~1 s on slow 4G, and this module used to
+   run straight into the first render — one long task — before the browser
+   ever painted, pushing first paint from 1.5 s to 3 s. rAF → setTimeout lets
+   the shell's frame land, then the app takes over the same grid. */
+requestAnimationFrame(() => setTimeout(mount, 0));
+// Background tabs don't run rAF; never leave one stuck on the boot shell.
+setTimeout(mount, 250);
 
 // Global click-delegation for internal <a href="..."> links. We do it at
 // the document level instead of via a per-element `on('click', ...)` mixin

@@ -37,7 +37,10 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     proxy: {
       '/api': { target: 'http://127.0.0.1:4848', changeOrigin: true },
-      '/data': { target: 'http://127.0.0.1:4848', changeOrigin: true },
+      // Everything under /data EXCEPT /data/docs/*: those per-doc bodies are
+      // static files the build writes into dist (the CLI never serves them —
+      // it inlines bodies), so `vite preview` must serve them from disk.
+      '^/data/(?!docs/)': { target: 'http://127.0.0.1:4848', changeOrigin: true },
     },
   },
   build: {

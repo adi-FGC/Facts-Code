@@ -138,7 +138,7 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
           <span>○ whole codebase</span>
           <span>▮ with FACTS</span>
           <span>— the saving</span>
-          {L.rows.some((r) => r.flagged) && <span>† price not vendor-confirmed</span>}
+          {L.rows.some((r) => r.flagged) && <span>* price not vendor-confirmed</span>}
         </div>
 
         <svg
@@ -223,7 +223,7 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                       text-anchor="end"
                       dominant-baseline="middle"
                     >
-                      {r.flagged ? `${r.label} †` : r.label}
+                      {r.flagged ? `${r.label} *` : r.label}
                     </text>
                     <text
                       mix={rowVendor}
@@ -244,7 +244,7 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                     text-anchor="start"
                     dominant-baseline="middle"
                   >
-                    {`${r.vendor} ${r.label}${r.flagged ? ' †' : ''}`}
+                    {`${r.vendor} ${r.label}${r.flagged ? ' *' : ''}`}
                   </text>
                 )}
 
