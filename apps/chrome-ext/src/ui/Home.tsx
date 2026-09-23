@@ -96,8 +96,16 @@ export function renderHome(data: Dataset, nav: (p: string) => void): RemixNode {
       {listRow({
         name: 'Security',
         value: String(risks + vulns),
-        valueColor: risks + vulns > 0 ? 'var(--danger)' : 'var(--ok)',
-        sub: `${risks} risk${risks === 1 ? '' : 's'} · ${vulns} vuln${vulns === 1 ? '' : 's'}`,
+        // Green only when "0" is a real answer: with CVEs never checked, a
+        // zero means "nothing found by the analyzer", not "clean".
+        ...(risks + vulns > 0
+          ? { valueColor: 'var(--danger)' }
+          : data.vulnerabilityScan
+            ? { valueColor: 'var(--ok)' }
+            : {}),
+        sub: `${risks} risk${risks === 1 ? '' : 's'} · ${
+          data.vulnerabilityScan ? `${vulns} vuln${vulns === 1 ? '' : 's'}` : 'CVEs not checked'
+        }`,
         onClick: () => nav('/security'),
       })}
       {listRow({

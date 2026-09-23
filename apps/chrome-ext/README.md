@@ -1,22 +1,19 @@
-# @factstack/chrome-ext _(v0.4 stub)_
+# @factstack/chrome-ext _(parked)_
 
-**Not built in v0.1.** Reserved for the Chrome extension surface — target audience: CXOs with no local toolchain who want to understand a GitHub repo without cloning.
+**Status: parked.** A working Manifest V3 side-panel build lives here, but it is not published to the Chrome Web Store and is not being developed right now (owner's call, 2026-09-23). It stays in the tree so it keeps building against the shared packages; do not ship it until the gaps below are closed.
 
-## Design
+## What exists
 
-- Manifest V3 extension.
-- Injects FACTS UI into `github.com/*` repo pages (side panel + content overlay).
-- Uses `@factstack/core` compiled via the WASM build pipeline (constraint C1 — isomorphic core means no source changes needed).
-- Implements `@factstack/fs-browser` (also a v0.4 deliverable) to read repo content via the GitHub REST API instead of the filesystem.
-- Scope-limited: analyzes a repo but cannot modify it. Cannot send code off the user's machine without explicit cloud-sync opt-in.
+- MV3 side panel (`panel.html`) + service worker (`src/sw.ts`), built with `pnpm --filter @factstack/chrome-ext build` into `dist/`.
+- Analyzes the GitHub repo in the active tab, or a local folder, fully in the browser (`@factstack/fs-browser` + a module worker running `@factstack/core`).
+- Fonts are bundled (`public/fonts`); the only network origins are `api.github.com` and `raw.githubusercontent.com`.
 
-## Blocked on
+## Known gaps before it could ship
 
-- `@factstack/fs-browser` implementation.
-- `@factstack/core` WASM build target (Rollup/Vite config).
-- GitHub REST API rate-limit strategy (likely require a GitHub PAT for large repos).
-
-## Open questions
-
-- Should it work without a GitHub PAT at all? Anonymous rate limits are ~60 req/hr — not enough for a real repo scan. Probably: free tier = small repos only; PAT = unrestricted.
-- Analysis budget: the extension shouldn't thrash a user's browser. Web Worker + file-count cap?
+- No automated tests, and no `lint` beyond a placeholder.
+- No icons (`icons` / `action.default_icon`).
+- "Explore the demo" needs `scripts/make-demo.mjs` run by hand first — a fresh build 404s.
+- No way to supply a GitHub token, so large repos hit the anonymous rate limit; the declared `storage` permission is unused.
+- Dependency CVEs are not checked in the panel (the Security view says so).
+- Timeout / cancel do not stop the analyze worker; closing the panel drops an in-flight analysis.
+- Branch names containing `/` are parsed wrong from GitHub URLs.

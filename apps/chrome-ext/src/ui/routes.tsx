@@ -71,10 +71,19 @@ export function renderSecurity(data: Dataset): RemixNode {
   );
   const crit = [...risks, ...vulns].filter((x) => x.severity.toLowerCase() === 'critical').length;
   const high = [...risks, ...vulns].filter((x) => x.severity.toLowerCase() === 'high').length;
+  /* The panel's own analyze never queries OSV, so "0 vulns" only means "none
+     known" when the dataset carries a scan record (e.g. a demo baked after
+     `factstack scan-vulns`). Otherwise say it was not checked. */
+  const scanned = Boolean(data.vulnerabilityScan);
 
   return (
     <>
-      {head('Security', 'Risks from the analyzer plus known CVEs cross-referenced against OSV.')}
+      {head(
+        'Security',
+        scanned
+          ? 'Risks from the analyzer plus known CVEs from an OSV scan.'
+          : 'Risks from the analyzer. Dependency CVEs are not checked in the side panel.',
+      )}
       {statGrid([
         { label: 'Risks', value: fmtNum(risks.length) },
         { label: 'Vulns', value: fmtNum(vulns.length) },
@@ -100,7 +109,11 @@ export function renderSecurity(data: Dataset): RemixNode {
 
       {sectionLabel('Vulnerabilities', fmtNum(vulns.length))}
       {vulns.length === 0
-        ? emptyNote('No known CVEs at the scanned versions.')
+        ? emptyNote(
+            scanned
+              ? 'No known CVEs at the scanned versions.'
+              : 'Not checked — run “factstack scan-vulns” locally to look up CVEs.',
+          )
         : vulns.slice(0, 60).map((v, i) =>
             listRow({
               key: `vuln-${i}`,

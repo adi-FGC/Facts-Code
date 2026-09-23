@@ -236,7 +236,7 @@ factstack/
 │   ├── ui-remix/      # React 19 + React Router v7 — full dashboard (alongside the prototype)
 │   ├── mcp-server/    # `factstack-mcp` binary — MCP stdio server (v0.2)
 │   ├── vscode-ext/    # v0.3 stub (will host the static-mode UI)
-│   ├── chrome-ext/    # v0.4 stub
+│   ├── chrome-ext/    # MV3 side panel — parked, not published
 │   └── webapp/        # v0.5 stub
 ├── plugins/
 │   └── mcp-app/       # v0.6 stub
@@ -252,7 +252,7 @@ factstack/
 
 ### C1 · Isomorphic core
 
-Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`, `graph`, `scanners`) imports zero Node built-ins. I/O flows through the `FactsFS` interface. The Chrome extension (v0.4) will inject a browser FactsFS without touching core.
+Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`, `graph`, `scanners`) imports zero Node built-ins. I/O flows through the `FactsFS` interface. The (parked) Chrome extension injects a browser FactsFS the same way, without touching core.
 
 ### C2 · Artifact discipline
 
@@ -293,7 +293,7 @@ Enforced via `eslint-plugin-boundaries`:
 | v0.1    | CLI + emit + JS/TS imports + WebUI prototype                                                                               | **shipped** |
 | v0.2    | Symbols + call graph + MCP server + watch + diff + query                                                                   | **shipped** |
 | v0.3    | VS Code / Antigravity extension + SQLite index + tree-sitter Python + per-TODO git blame + per-file incremental re-analyze | next        |
-| v0.4    | Chrome extension (WASM analyzer)                                                                                           | planned     |
+| v0.4    | Chrome extension (in-browser analyzer)                                                                                     | parked      |
 | v0.5    | Web app + cloud + MCP HTTP/SSE transport                                                                                   | planned     |
 | v0.6    | MCP app + skills bundle                                                                                                    | planned     |
 

@@ -6,15 +6,10 @@
     <meta name="color-scheme" content="dark light" />
     <title>FactStack</title>
 
-    <!-- Mona Sans (UI) + JetBrains Mono (data). No display face — the panel
-         caps headings at ~24px (the broadsheet display sizes flatten anyway).
-         Authorized via host_permissions in manifest.json. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..600&family=Mona+Sans:wght@400..700&display=swap"
-    />
+    <!-- Mona Sans (UI) + JetBrains Mono (data), bundled in public/fonts.
+         No display face — the panel caps headings at ~24px (the broadsheet
+         display sizes flatten anyway). -->
+    <link rel="stylesheet" href="./fonts.css" />
 
     <!-- External (MV3-clean) no-flash theme boot. -->
     <script src="./theme-init.js"></script>
