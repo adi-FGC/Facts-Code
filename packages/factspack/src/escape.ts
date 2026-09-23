@@ -22,7 +22,7 @@ export function escapeCell(s: string): string {
   let needsEscape = false;
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
-    if (c === 0x09 /* \t */ || c === 0x0A /* \n */ || c === 0x5C /* \\ */) {
+    if (c === 0x09 /* \t */ || c === 0x0a /* \n */ || c === 0x5c /* \\ */) {
       needsEscape = true;
       break;
     }
@@ -34,8 +34,8 @@ export function escapeCell(s: string): string {
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
     if (c === 0x09) out += '\\t';
-    else if (c === 0x0A) out += '\\n';
-    else if (c === 0x5C) out += '\\\\';
+    else if (c === 0x0a) out += '\\n';
+    else if (c === 0x5c) out += '\\\\';
     else out += s[i];
   }
   return out;
@@ -53,24 +53,20 @@ export function unescapeCell(s: string): string {
   let out = '';
   for (let i = 0; i < s.length; i++) {
     const c = s.charCodeAt(i);
-    if (c !== 0x5C /* \\ */) {
+    if (c !== 0x5c /* \\ */) {
       out += s[i];
       continue;
     }
     // We're on a backslash — the next byte must be one of t/n/\.
     if (i + 1 >= s.length) {
-      throw new PackEscapeError(
-        `Unterminated escape sequence at end of cell: ${truncate(s)}`,
-      );
+      throw new PackEscapeError(`Unterminated escape sequence at end of cell: ${truncate(s)}`);
     }
     const n = s.charCodeAt(i + 1);
     if (n === 0x74 /* t */) out += '\t';
-    else if (n === 0x6E /* n */) out += '\n';
-    else if (n === 0x5C /* \\ */) out += '\\';
+    else if (n === 0x6e /* n */) out += '\n';
+    else if (n === 0x5c /* \\ */) out += '\\';
     else {
-      throw new PackEscapeError(
-        `Unknown escape \\${s[i + 1]} in cell: ${truncate(s)}`,
-      );
+      throw new PackEscapeError(`Unknown escape \\${s[i + 1]} in cell: ${truncate(s)}`);
     }
     i++;
   }

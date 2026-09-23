@@ -20,9 +20,12 @@ function dirOf(path: string): string {
   return i > 0 ? path.slice(0, i) : '·';
 }
 
-function flattenFiles(node: VizTreeNode, out: VizFile[] = []): VizFile[] {
-  for (const f of node.files) out.push(f);
-  for (const c of node.children) flattenFiles(c, out);
+function flattenFiles(node: VizTreeNode | undefined, out: VizFile[] = []): VizFile[] {
+  // Defensive against a malformed/empty tree (the demo path validates, but a
+  // future producer might omit it) — degrade to an empty list, never crash.
+  if (!node) return out;
+  for (const f of node.files ?? []) out.push(f);
+  for (const c of node.children ?? []) flattenFiles(c, out);
   return out;
 }
 
@@ -63,7 +66,9 @@ export function renderModules(data: Dataset): RemixNode {
 
 export function renderSecurity(data: Dataset): RemixNode {
   const risks = [...(data.risks ?? [])].sort((a, b) => sevRank(a.severity) - sevRank(b.severity));
-  const vulns = [...(data.vulnerabilities ?? [])].sort((a, b) => sevRank(a.severity) - sevRank(b.severity));
+  const vulns = [...(data.vulnerabilities ?? [])].sort(
+    (a, b) => sevRank(a.severity) - sevRank(b.severity),
+  );
   const crit = [...risks, ...vulns].filter((x) => x.severity.toLowerCase() === 'critical').length;
   const high = [...risks, ...vulns].filter((x) => x.severity.toLowerCase() === 'high').length;
 
@@ -86,7 +91,9 @@ export function renderSecurity(data: Dataset): RemixNode {
               name: r.rule || r.category,
               value: r.severity,
               valueColor: sevTone(r.severity),
-              sub: r.file ? `${truncateMiddle(r.file, 34)}${r.line ? ':' + r.line : ''}` : r.message,
+              sub: r.file
+                ? `${truncateMiddle(r.file, 34)}${r.line ? ':' + r.line : ''}`
+                : r.message,
               title: r.message,
             }),
           )}
@@ -118,7 +125,10 @@ export function renderFiles(data: Dataset): RemixNode {
 
   return (
     <>
-      {head('Files', `${fmtNum(files.length)} files · ${fmtBytes(data.stats?.size ?? 0)}. Heaviest by token cost.`)}
+      {head(
+        'Files',
+        `${fmtNum(files.length)} files · ${fmtBytes(data.stats?.size ?? 0)}. Heaviest by token cost.`,
+      )}
       {top.length === 0
         ? emptyNote('No files in this dataset.')
         : top.map((f) =>
@@ -142,7 +152,10 @@ export function renderHistory(data: Dataset): RemixNode {
   const snaps = [...(data.history ?? [])].reverse(); // newest first
   return (
     <>
-      {head('History', `${fmtNum(snaps.length)} snapshot${snaps.length === 1 ? '' : 's'} of this project over time.`)}
+      {head(
+        'History',
+        `${fmtNum(snaps.length)} snapshot${snaps.length === 1 ? '' : 's'} of this project over time.`,
+      )}
       {snaps.length === 0
         ? emptyNote('No history yet — snapshots accrue as the project is re-analyzed over time.')
         : snaps.map((s, i) =>
@@ -169,15 +182,16 @@ export function renderAbout(data: Dataset, sourceLabel: string): RemixNode {
         <>
           {para(
             <>
-              This panel analyzes the GitHub repo open in your active tab — or a local folder — entirely in your
-              browser, reusing the same <code>@factstack/core</code> analyzer as the FactStack CLI and dashboard.
+              This panel analyzes the GitHub repo open in your active tab — or a local folder —
+              entirely in your browser, reusing the same <code>@factstack/core</code> analyzer as
+              the FactStack CLI and dashboard.
             </>,
           )}
           {para(
             <>
-              <strong>Privacy:</strong> local-folder analysis is network-free; nothing leaves your machine. GitHub
-              analysis fetches the repo through the GitHub API into memory and analyzes it locally — only the repo
-              contents you already have access to are read.
+              <strong>Privacy:</strong> local-folder analysis is network-free; nothing leaves your
+              machine. GitHub analysis fetches the repo through the GitHub API into memory and
+              analyzes it locally — only the repo contents you already have access to are read.
             </>,
           )}
         </>,
@@ -185,7 +199,10 @@ export function renderAbout(data: Dataset, sourceLabel: string): RemixNode {
       {sectionLabel('Loaded')}
       {listRow({ name: 'Source', value: sourceLabel })}
       {listRow({ name: 'Project', value: data.project?.name ?? '—' })}
-      {listRow({ name: 'Generated', value: (data.generatedAt ?? '').slice(0, 16).replace('T', ' ') || '—' })}
+      {listRow({
+        name: 'Generated',
+        value: (data.generatedAt ?? '').slice(0, 16).replace('T', ' ') || '—',
+      })}
     </>
   );
 }

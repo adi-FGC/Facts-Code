@@ -31,9 +31,19 @@ function ds(over: Partial<Dataset> = {}): Dataset {
   return {
     generatedAt: '2026-06-09T00:00:00Z',
     project: { name: 't', root: '.', languages: [], frameworks: [] },
-    summary: { oneLiner: '', description: '', capabilities: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0 } },
+    summary: {
+      oneLiner: '',
+      description: '',
+      capabilities: [],
+      health: { broken: 0, stale: 0, todos: 0, secrets: 0 },
+    },
     stats: { files: 4, loc: 40, size: 0, gzip: 0, tokens: 400 },
-    tree: { name: '', path: '', files: [file('a.ts', 100), file('b.ts', 50), file('c.ts', 70), file('d.ts', 90)], children: [] },
+    tree: {
+      name: '',
+      path: '',
+      files: [file('a.ts', 100), file('b.ts', 50), file('c.ts', 70), file('d.ts', 90)],
+      children: [],
+    },
     edges: [],
     entryPoints: [],
     risks: [],
@@ -50,15 +60,17 @@ describe('buildModuleView', () => {
   });
 
   it('ranks key files by importance (consuming core metrics, not recomputing)', () => {
-    const v = buildModuleView(ds({
-      edges: [{ from: 'b.ts', to: 'a.ts', kind: 'import' }],
-      nodeMetrics: [
-        { path: 'a.ts', importance: 1.0, community: 0 },
-        { path: 'b.ts', importance: 0.3, community: 0 },
-        { path: 'c.ts', importance: 0.5, community: 1 },
-        { path: 'd.ts', importance: 0.9, community: 1 },
-      ],
-    }));
+    const v = buildModuleView(
+      ds({
+        edges: [{ from: 'b.ts', to: 'a.ts', kind: 'import' }],
+        nodeMetrics: [
+          { path: 'a.ts', importance: 1.0, community: 0 },
+          { path: 'b.ts', importance: 0.3, community: 0 },
+          { path: 'c.ts', importance: 0.5, community: 1 },
+          { path: 'd.ts', importance: 0.9, community: 1 },
+        ],
+      }),
+    );
     expect(v.hasMetrics).toBe(true);
     expect(v.keyFiles.map((k) => k.path)).toEqual(['a.ts', 'd.ts', 'c.ts', 'b.ts']);
     // metadata joined from the tree + in-degree from edges.
@@ -69,14 +81,16 @@ describe('buildModuleView', () => {
   });
 
   it('groups files into modules named by their most-important member', () => {
-    const v = buildModuleView(ds({
-      nodeMetrics: [
-        { path: 'a.ts', importance: 1.0, community: 0 },
-        { path: 'b.ts', importance: 0.3, community: 0 },
-        { path: 'c.ts', importance: 0.5, community: 1 },
-        { path: 'd.ts', importance: 0.9, community: 1 },
-      ],
-    }));
+    const v = buildModuleView(
+      ds({
+        nodeMetrics: [
+          { path: 'a.ts', importance: 1.0, community: 0 },
+          { path: 'b.ts', importance: 0.3, community: 0 },
+          { path: 'c.ts', importance: 0.5, community: 1 },
+          { path: 'd.ts', importance: 0.9, community: 1 },
+        ],
+      }),
+    );
     expect(v.modules).toHaveLength(2);
     // community 0 → named a.ts (1.0 > 0.3); community 1 → named d.ts (0.9 > 0.5).
     expect(v.modules[0]!.name).toBe('a.ts');
@@ -87,13 +101,15 @@ describe('buildModuleView', () => {
   });
 
   it('excludes single-file communities (a module needs ≥2 files)', () => {
-    const v = buildModuleView(ds({
-      nodeMetrics: [
-        { path: 'a.ts', importance: 1.0, community: 0 },
-        { path: 'b.ts', importance: 0.3, community: 0 },
-        { path: 'c.ts', importance: 0.5, community: 9 }, // lone member
-      ],
-    }));
+    const v = buildModuleView(
+      ds({
+        nodeMetrics: [
+          { path: 'a.ts', importance: 1.0, community: 0 },
+          { path: 'b.ts', importance: 0.3, community: 0 },
+          { path: 'c.ts', importance: 0.5, community: 9 }, // lone member
+        ],
+      }),
+    );
     expect(v.modules).toHaveLength(1);
     expect(v.modules[0]!.name).toBe('a.ts');
   });

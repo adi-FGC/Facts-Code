@@ -27,7 +27,7 @@ import {
   RISK_DELTA_SEVERITY,
   HOTSPOT_LOW,
   HOTSPOT_MEDIUM,
-} from '@factstack/spec';
+} from '@factstack/spec/review-severity'; // zod-free subpath: keeps the schemas out of first paint
 import { tarjanSCC, findCycles } from './graphAnalysis.ts';
 import type { Dataset } from './loadArtifacts.ts';
 
@@ -247,7 +247,10 @@ function buildHeadline(
   trend: ReviewVerdict['trend'],
 ): string {
   if (findings.length === 0) {
-    const trendBit = trend && trend.risks.delta < 0 ? ` Risks down ${Math.abs(trend.risks.delta)} since baseline.` : '';
+    const trendBit =
+      trend && trend.risks.delta < 0
+        ? ` Risks down ${Math.abs(trend.risks.delta)} since baseline.`
+        : '';
     return `${SEVERITY_LABEL.none}: nothing risk-relevant in the current analysis.${trendBit}`;
   }
   const ranked = [...findings].sort((a, b) => RANK[b.severity] - RANK[a.severity]);

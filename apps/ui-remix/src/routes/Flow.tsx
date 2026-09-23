@@ -62,22 +62,37 @@ function readStoredMode(): FlowViewMode {
   if (typeof localStorage === 'undefined') return 'swimlanes';
   try {
     const v = localStorage.getItem(VIEW_STORAGE_KEY);
-    if (v === 'swimlanes' || v === 'sequence' || v === 'entities' || v === 'text' || v === 'sankey') return v;
-  } catch { /* swallow */ }
+    if (v === 'swimlanes' || v === 'sequence' || v === 'entities' || v === 'text' || v === 'sankey')
+      return v;
+  } catch {
+    /* swallow */
+  }
   return 'swimlanes';
 }
 function writeStoredMode(value: FlowViewMode): void {
   if (typeof localStorage === 'undefined') return;
-  try { localStorage.setItem(VIEW_STORAGE_KEY, value); } catch { /* swallow */ }
+  try {
+    localStorage.setItem(VIEW_STORAGE_KEY, value);
+  } catch {
+    /* swallow */
+  }
 }
 
 function readStoredSeqEntry(): string | null {
   if (typeof localStorage === 'undefined') return null;
-  try { return localStorage.getItem(SEQ_ENTRY_STORAGE_KEY); } catch { return null; }
+  try {
+    return localStorage.getItem(SEQ_ENTRY_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 function writeStoredSeqEntry(value: string): void {
   if (typeof localStorage === 'undefined') return;
-  try { localStorage.setItem(SEQ_ENTRY_STORAGE_KEY, value); } catch { /* swallow */ }
+  try {
+    localStorage.setItem(SEQ_ENTRY_STORAGE_KEY, value);
+  } catch {
+    /* swallow */
+  }
 }
 
 /* ─────────── styles ─────────── */
@@ -166,7 +181,11 @@ const entryPickerSelect = css({
   outline: 'none',
   cursor: 'pointer',
   '&:hover': { borderColor: 'var(--accent)' },
-  '&:focus-visible': { borderColor: 'var(--accent)', outline: '2px solid var(--accent)', outlineOffset: '-1px' },
+  '&:focus-visible': {
+    borderColor: 'var(--accent)',
+    outline: '2px solid var(--accent)',
+    outlineOffset: '-1px',
+  },
 });
 
 /* Local segmented toggle — could reuse ui/graph/ViewModeToggle but its
@@ -201,7 +220,8 @@ const toggleSeg = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
@@ -267,10 +287,14 @@ function tierFlowSankey(result: FlowResult) {
 
 const MODES: ReadonlyArray<{ key: FlowViewMode; label: string; hint: string }> = [
   { key: 'swimlanes', label: 'Swimlanes', hint: 'Horizontal-lane architecture diagram' },
-  { key: 'sequence',  label: 'Sequence',  hint: 'swimlanes.io-style sequence: pick an entry, see what it imports in order' },
-  { key: 'sankey',    label: 'Sankey',    hint: 'Tier-to-tier import flow as weighted ribbons' },
-  { key: 'entities',  label: 'Entities',  hint: 'Data-tier files with referrer counts' },
-  { key: 'text',      label: 'Text',      hint: 'swimlanes.io-style copy-pasteable breakdown' },
+  {
+    key: 'sequence',
+    label: 'Sequence',
+    hint: 'swimlanes.io-style sequence: pick an entry, see what it imports in order',
+  },
+  { key: 'sankey', label: 'Sankey', hint: 'Tier-to-tier import flow as weighted ribbons' },
+  { key: 'entities', label: 'Entities', hint: 'Data-tier files with referrer counts' },
+  { key: 'text', label: 'Text', hint: 'swimlanes.io-style copy-pasteable breakdown' },
 ];
 
 export function Flow(handle: Handle<FlowProps>) {
@@ -328,26 +352,45 @@ export function Flow(handle: Handle<FlowProps>) {
             would grow to fit them and push <body> past 100vw. */}
         <div mix={css({ gridColumn: '1', minWidth: '0' })}>
           <div mix={kicker}>
-            Flow · {activeTiers.length} tier{activeTiers.length === 1 ? '' : 's'} · {fmt(crossEdges)} cross-tier edge{crossEdges === 1 ? '' : 's'}
+            Flow · {activeTiers.length} tier{activeTiers.length === 1 ? '' : 's'} ·{' '}
+            {fmt(crossEdges)} cross-tier edge{crossEdges === 1 ? '' : 's'}
           </div>
           <h1 mix={headline}>How data moves through this system.</h1>
           <p mix={lede}>
-            Files classified into architectural tiers — entry points, UI, routes,
-            handlers, data, and external boundaries — with the import edges
-            between them aggregated into a flow diagram. Click a lane to see the
-            files in it; switch to Entities for the data layer, or Text for a
-            copy-pasteable swimlanes.io-style breakdown.
+            Files classified into architectural tiers — entry points, UI, routes, handlers, data,
+            and external boundaries — with the import edges between them aggregated into a flow
+            diagram. Click a lane to see the files in it; switch to Entities for the data layer, or
+            Text for a copy-pasteable swimlanes.io-style breakdown.
           </p>
 
           <LabelNumberRow>
-            <LabelNumber label="Tiers"      value={fmt(activeTiers.length)} />
-            <LabelNumber label="Files"      value={fmt(all.length)} />
+            <LabelNumber label="Tiers" value={fmt(activeTiers.length)} />
+            <LabelNumber label="Files" value={fmt(all.length)} />
             <LabelNumber label="Cross-tier" value={fmt(crossEdges)} hint="edges between tiers" />
-            <LabelNumber label="Entities"   value={fmt(entityCount)} hint="data-tier files" last />
+            <LabelNumber label="Entities" value={fmt(entityCount)} hint="data-tier files" last />
           </LabelNumberRow>
 
           <div mix={toggleRow}>
-            <div mix={[toggleWrap, on<HTMLDivElement>('keydown', (e) => { if (moveRoving((e as unknown as KeyboardEvent).key, e.currentTarget, MODES, viewMode, setViewMode, 'tab')) e.preventDefault(); })]} role="tablist" aria-label="Flow view mode">
+            <div
+              mix={[
+                toggleWrap,
+                on<HTMLDivElement>('keydown', (e) => {
+                  if (
+                    moveRoving(
+                      (e as unknown as KeyboardEvent).key,
+                      e.currentTarget,
+                      MODES,
+                      viewMode,
+                      setViewMode,
+                      'tab',
+                    )
+                  )
+                    e.preventDefault();
+                }),
+              ]}
+              role="tablist"
+              aria-label="Flow view mode"
+            >
               {MODES.map((m) => {
                 const isActive = m.key === viewMode;
                 return (
@@ -358,25 +401,35 @@ export function Flow(handle: Handle<FlowProps>) {
                     aria-selected={isActive ? 'true' : 'false'}
                     tabIndex={isActive ? 0 : -1}
                     title={m.hint}
-                    mix={[toggleSeg, isActive ? toggleSegActive : null, on('click', () => setViewMode(m.key))]}
+                    mix={[
+                      toggleSeg,
+                      isActive ? toggleSegActive : null,
+                      on('click', () => setViewMode(m.key)),
+                    ]}
                   >
                     {m.label}
                   </button>
                 );
               })}
-              <span aria-hidden="true" mix={[toggleRail, css({ transform: `translateX(${activeIdx * 100}%)` })]} />
+              <span
+                aria-hidden="true"
+                mix={[toggleRail, css({ transform: `translateX(${activeIdx * 100}%)` })]}
+              />
             </div>
             <span mix={toggleHint}>
               {viewMode === 'swimlanes' && 'Tier-grouped diagram'}
-              {viewMode === 'sequence'  && 'swimlanes.io-style sequence'}
-              {viewMode === 'sankey'    && 'Weighted tier-flow ribbons'}
-              {viewMode === 'entities'  && `${entityCount} data file${entityCount === 1 ? '' : 's'}`}
-              {viewMode === 'text'      && 'Plain-text breakdown'}
+              {viewMode === 'sequence' && 'swimlanes.io-style sequence'}
+              {viewMode === 'sankey' && 'Weighted tier-flow ribbons'}
+              {viewMode === 'entities' && `${entityCount} data file${entityCount === 1 ? '' : 's'}`}
+              {viewMode === 'text' && 'Plain-text breakdown'}
             </span>
           </div>
 
           {viewMode === 'swimlanes' && (
-            <Section label="Swimlanes" title={`${activeTiers.length} tiers, ${fmt(crossEdges)} edges`}>
+            <Section
+              label="Swimlanes"
+              title={`${activeTiers.length} tiers, ${fmt(crossEdges)} edges`}
+            >
               <SwimlanesDiagram result={result} />
               <DiagramGuide mode="swimlanes" />
             </Section>
@@ -384,23 +437,30 @@ export function Flow(handle: Handle<FlowProps>) {
 
           {viewMode === 'sequence' && renderSequence()}
 
-          {viewMode === 'sankey' && (() => {
-            const sankey = tierFlowSankey(result);
-            return (
-              <Section label="Sankey" title={`${activeTiers.length} tiers, ${fmt(crossEdges)} cross-tier edges`}>
-                <SankeyDiagram
-                  nodes={sankey.nodes}
-                  links={sankey.links}
-                  formatValue={fmt}
-                  ariaLabel={`Tier-to-tier import flow across ${activeTiers.length} tiers`}
-                />
-                <DiagramGuide mode="sankey" />
-              </Section>
-            );
-          })()}
+          {viewMode === 'sankey' &&
+            (() => {
+              const sankey = tierFlowSankey(result);
+              return (
+                <Section
+                  label="Sankey"
+                  title={`${activeTiers.length} tiers, ${fmt(crossEdges)} cross-tier edges`}
+                >
+                  <SankeyDiagram
+                    nodes={sankey.nodes}
+                    links={sankey.links}
+                    formatValue={fmt}
+                    ariaLabel={`Tier-to-tier import flow across ${activeTiers.length} tiers`}
+                  />
+                  <DiagramGuide mode="sankey" />
+                </Section>
+              );
+            })()}
 
           {viewMode === 'entities' && (
-            <Section label="Entities" title={`${entityCount} data-tier file${entityCount === 1 ? '' : 's'}`}>
+            <Section
+              label="Entities"
+              title={`${entityCount} data-tier file${entityCount === 1 ? '' : 's'}`}
+            >
               <EntityList entities={result.entities} />
               <DiagramGuide mode="entities" />
             </Section>
@@ -419,7 +479,12 @@ export function Flow(handle: Handle<FlowProps>) {
             {topPath
               ? topPath.tiers.map((t) => TIER_LABEL[t]).join(' → ')
               : 'No cross-tier flows detected.'}
-            {topPath && <><br/>weight {topPath.weight}</>}
+            {topPath && (
+              <>
+                <br />
+                weight {topPath.weight}
+              </>
+            )}
           </FootnoteChip>
           {activeTiers.slice(0, 4).map((tier) => {
             const count = result.tierCounts.get(tier) ?? 0;
@@ -430,14 +495,13 @@ export function Flow(handle: Handle<FlowProps>) {
             );
           })}
           <FootnoteChip label="Classifier">
-            Tier classification combines explicit signals (route handlers, entry
-            points) with path-pattern heuristics. Files that don't match fall to
+            Tier classification combines explicit signals (route handlers, entry points) with
+            path-pattern heuristics. Files that don't match fall to
             <span class="mono"> other</span>.
           </FootnoteChip>
           <FootnoteChip label="Coming with v0.4.4">
-            Symbol-level entity relationships — when the analyzer ships
-            type → type edges, Entities gains a graph view of how schemas
-            depend on each other.
+            Symbol-level entity relationships — when the analyzer ships type → type edges, Entities
+            gains a graph view of how schemas depend on each other.
           </FootnoteChip>
         </MarginColumn>
       </ContentWithMargin>
@@ -450,14 +514,21 @@ export function Flow(handle: Handle<FlowProps>) {
     function renderSequence() {
       const routeHandlers = (data.routes ?? []).map((r) => r.handlerFile).filter(Boolean);
       const defaultEntry = pickDefaultEntryPoint(inProject, edges, routeHandlers);
-      const entry = seqEntryOverride && inProject.has(seqEntryOverride) ? seqEntryOverride : defaultEntry;
+      const entry =
+        seqEntryOverride && inProject.has(seqEntryOverride) ? seqEntryOverride : defaultEntry;
 
       if (!entry) {
         return (
           <Section label="Sequence" title="No entry candidates">
-            <p mix={css({ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-12)', color: 'var(--fg-muted)' })}>
-              No file in this project has any outgoing in-project imports.
-              The sequence view needs at least one importer to walk from.
+            <p
+              mix={css({
+                fontFamily: 'var(--font-mono)',
+                fontSize: 'var(--fs-12)',
+                color: 'var(--fg-muted)',
+              })}
+            >
+              No file in this project has any outgoing in-project imports. The sequence view needs
+              at least one importer to walk from.
             </p>
           </Section>
         );
@@ -491,7 +562,9 @@ export function Flow(handle: Handle<FlowProps>) {
       return (
         <Section label="Sequence" title={`From ${entry}`}>
           <div mix={entryPickerRow}>
-            <label mix={entryPickerLabel} for="seq-entry">Entry</label>
+            <label mix={entryPickerLabel} for="seq-entry">
+              Entry
+            </label>
             <select
               id="seq-entry"
               mix={[
@@ -505,20 +578,26 @@ export function Flow(handle: Handle<FlowProps>) {
             >
               {!entryCovered && (
                 <optgroup label="Current">
-                  <option key={entry} value={entry}>{entry}</option>
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
                 </optgroup>
               )}
               {routeOptions.length > 0 && (
                 <optgroup label="Routes">
                   {routeOptions.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </optgroup>
               )}
               {nonRoutes.length > 0 && (
                 <optgroup label="High-fanout files">
                   {nonRoutes.map((p) => (
-                    <option key={p} value={p}>{p}</option>
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
                   ))}
                 </optgroup>
               )}

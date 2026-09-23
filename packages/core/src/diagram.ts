@@ -115,7 +115,10 @@ export function buildPackageDiagram(
    * for the merged edge: if any edge is a regular import, the merged
    * arrow is solid; otherwise we degrade to dashed (type-only) or
    * thick (dynamic). */
-  const edgeMap = new Map<string, { from: string; to: string; count: number; kinds: Set<string> }>();
+  const edgeMap = new Map<
+    string,
+    { from: string; to: string; count: number; kinds: Set<string> }
+  >();
   for (const e of agent.graph.edges) {
     const fromPkg = classifyPath(e.from);
     const toPkg = classifyPath(e.to);
@@ -251,7 +254,12 @@ export function buildHubDiagram(
       const hub = hubData[i];
       while (hub && hub.importers.length > 1 && toDrop > 0) {
         const dropped = hub.importers.pop();
-        if (dropped && !hubData.some((h) => h.path === dropped.from || h.importers.some((j) => j.from === dropped.from))) {
+        if (
+          dropped &&
+          !hubData.some(
+            (h) => h.path === dropped.from || h.importers.some((j) => j.from === dropped.from),
+          )
+        ) {
           allNodes.delete(dropped.from);
           toDrop--;
         }
@@ -265,7 +273,9 @@ export function buildHubDiagram(
   /* Emit hub nodes with a distinctive label so they stand out from
    * the importer commodity nodes. */
   for (const h of hubData) {
-    lines.push(`  ${sanitizeId(h.path)}["${escapeMermaidLabel(shortPath(h.path))}<br/>↪ ${h.inDegree} importers"]`);
+    lines.push(
+      `  ${sanitizeId(h.path)}["${escapeMermaidLabel(shortPath(h.path))}<br/>↪ ${h.inDegree} importers"]`,
+    );
   }
 
   /* Emit importer nodes with their short label. Deduplicate against:
@@ -331,10 +341,7 @@ export function buildFocalDiagram(
     allNodes.add(e.to);
   }
   if (!allNodes.has(focus)) {
-    return (
-      'flowchart LR\n' +
-      `  unknown["focus not in graph:<br/>${escapeMermaidLabel(focus)}"]\n`
-    );
+    return 'flowchart LR\n' + `  unknown["focus not in graph:<br/>${escapeMermaidLabel(focus)}"]\n`;
   }
 
   /* Build reverse-edges map: for each file, who imports it.
@@ -375,9 +382,7 @@ export function buildFocalDiagram(
 
   /* Focus node first, styled distinctively. */
   lines.push(`  ${sanitizeId(focus)}["${escapeMermaidLabel(shortPath(focus))}"]`);
-  lines.push(
-    `  style ${sanitizeId(focus)} fill:#fef3c7,stroke:#d97706,stroke-width:2px`,
-  );
+  lines.push(`  style ${sanitizeId(focus)} fill:#fef3c7,stroke:#d97706,stroke-width:2px`);
 
   /* Other nodes (visited minus focus) in alpha order. */
   const others = [...visited].filter((n) => n !== focus).sort();

@@ -155,15 +155,110 @@ export default tseslint.config(
       ],
     },
   },
+  /* ── BOUNDARY GATE, NOT A STYLE LINTER ──────────────────────────────────
+   * This config exists for the two rules above (element-types + the C1
+   * no-restricted-imports); oxlint owns style (`pnpm lint`). It was never
+   * actually installed until 2026-09-14, and the recommended rule sets it
+   * pulls in had drifted 200+ findings across the repo — every one of them a
+   * duplicate of an oxlint warning, none of them a boundary. Style findings
+   * are kept visible as WARNINGS so the gate cannot go red for a reason it
+   * was never meant to police; a real boundary violation still fails it. */
+  {
+    linterOptions: { reportUnusedDisableDirectives: 'off' },
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        Buffer: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearInterval: 'readonly',
+        queueMicrotask: 'readonly',
+        fetch: 'readonly',
+        Response: 'readonly',
+        Request: 'readonly',
+        Headers: 'readonly',
+        TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        performance: 'readonly',
+        structuredClone: 'readonly',
+        AbortController: 'readonly',
+        crypto: 'readonly',
+        document: 'readonly',
+        window: 'readonly',
+        navigator: 'readonly',
+        location: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        matchMedia: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly',
+        HTMLElement: 'readonly',
+        Element: 'readonly',
+        Node: 'readonly',
+        Event: 'readonly',
+        CustomEvent: 'readonly',
+        MutationObserver: 'readonly',
+        ResizeObserver: 'readonly',
+        IntersectionObserver: 'readonly',
+        Worker: 'readonly',
+        Blob: 'readonly',
+        File: 'readonly',
+        FileReader: 'readonly',
+        FormData: 'readonly',
+        WebSocket: 'readonly',
+        EventSource: 'readonly',
+        module: 'readonly',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': 'warn',
+      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-empty-object-type': 'warn',
+      '@typescript-eslint/no-unused-expressions': 'warn',
+      '@typescript-eslint/no-require-imports': 'warn',
+      '@typescript-eslint/ban-ts-comment': 'warn',
+      'no-useless-assignment': 'warn',
+      'no-useless-escape': 'warn',
+      'no-empty': 'warn',
+      'no-regex-spaces': 'warn',
+      'no-irregular-whitespace': 'warn',
+      'preserve-caught-error': 'warn',
+      'no-unused-vars': 'warn',
+    },
+  },
+  // TypeScript files: the compiler already checks every identifier; ESLint's
+  // `no-undef` has no type information and flags DOM/Node globals (the
+  // typescript-eslint docs say to turn it off for TS).
+  {
+    files: ['**/*.{ts,tsx,mts,cts}'],
+    rules: { 'no-undef': 'off' },
+  },
   {
     ignores: [
-      'node_modules/**',
-      'dist/**',
-      'build/**',
-      '.turbo/**',
-      '.remix/**',
-      'coverage/**',
-      'examples/**/node_modules/**',
+      // Flat-config globs are root-relative: `dist/**` alone ignored only a
+      // top-level dist and let `apps/ui-remix/dist/**` — the built bundle —
+      // be linted whenever a build had just run (114 phantom errors).
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/build/**',
+      '**/.turbo/**',
+      '**/.remix/**',
+      '**/coverage/**',
+      // Not this project's source: the pre-v0.3 prototype, agent worktrees,
+      // generated docs/audits, the benchmark corpus, and analyzer output.
+      'legacy/**',
+      'prototype/**',
+      '.claude/**',
+      'docs/**',
+      'bench/corpus/**',
+      '**/.facts/**',
     ],
   },
 );

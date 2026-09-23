@@ -61,9 +61,7 @@ export function Section(handle: Handle<SectionProps>) {
     return (
       <section mix={wrap}>
         {label && <div mix={labelStyle}>{label}</div>}
-        {title && (
-          <h2 mix={[titleBase, css({ fontSize: SIZE_MAP[titleSize] })]}>{title}</h2>
-        )}
+        {title && <h2 mix={[titleBase, css({ fontSize: SIZE_MAP[titleSize] })]}>{title}</h2>}
         {children}
       </section>
     );

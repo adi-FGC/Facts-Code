@@ -55,7 +55,11 @@ export interface ExtractedSymbol {
  * The analyzer in `packages/core` passes a pre-parsed AST so every
  * JS/TS file is parsed once and reused across import + symbol passes.
  */
-export function extractSymbols(source: string, ext: string, parsed?: ParsedFile | null): ExtractedSymbol[] {
+export function extractSymbols(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): ExtractedSymbol[] {
   if (!isParseable(ext)) return [];
   const pf = parsed ?? parseJS(source, ext);
   if (!pf) return [];
@@ -82,7 +86,10 @@ export function extractSymbols(source: string, ext: string, parsed?: ParsedFile 
  * Handles the exported wrappers (ExportNamedDeclaration,
  * ExportDefaultDeclaration) by unwrapping + marking `exported: true`.
  */
-function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<object>): ExtractedSymbol[] {
+function visitTopLevel(
+  node: AnyNode | null | undefined,
+  fromExport: WeakSet<object>,
+): ExtractedSymbol[] {
   if (!node || typeof node !== 'object') return [];
   const t = node.type;
 
@@ -113,22 +120,26 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
       return inferred;
     }
     if (inner_type === 'ArrowFunctionExpression' || inner_type === 'FunctionExpression') {
-      return [{
-        name: 'default',
-        kind: looksLikeComponent('default', inner) ? 'component' : 'function',
-        startLine: lineOf(node, 'start'),
-        endLine: lineOf(node, 'end'),
-        exported: true,
-      }];
+      return [
+        {
+          name: 'default',
+          kind: looksLikeComponent('default', inner) ? 'component' : 'function',
+          startLine: lineOf(node, 'start'),
+          endLine: lineOf(node, 'end'),
+          exported: true,
+        },
+      ];
     }
     if (inner_type === 'Identifier' && typeof inner.name === 'string') {
-      return [{
-        name: inner.name,
-        kind: 'variable',
-        startLine: lineOf(node, 'start'),
-        endLine: lineOf(node, 'end'),
-        exported: true,
-      }];
+      return [
+        {
+          name: inner.name,
+          kind: 'variable',
+          startLine: lineOf(node, 'start'),
+          endLine: lineOf(node, 'end'),
+          exported: true,
+        },
+      ];
     }
     return [];
   }
@@ -137,14 +148,20 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
   if (t === 'FunctionDeclaration') {
     if (!node.id?.name) return [];
     const name = node.id.name;
-    return [{
-      name,
-      kind: looksLikeComponent(name, node) ? 'component' : (looksLikeHook(name) ? 'hook' : 'function'),
-      startLine: lineOf(node, 'start'),
-      endLine: lineOf(node, 'end'),
-      exported: false,
-      docstring: leadingDoc(node),
-    }];
+    return [
+      {
+        name,
+        kind: looksLikeComponent(name, node)
+          ? 'component'
+          : looksLikeHook(name)
+            ? 'hook'
+            : 'function',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: false,
+        docstring: leadingDoc(node),
+      },
+    ];
   }
   if (t === 'ClassDeclaration' && node.id?.name) {
     const methods: ExtractedSymbol[] = [];
@@ -167,36 +184,53 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
         }
       }
     }
-    return [{
-      name: node.id.name,
-      kind: 'class',
-      startLine: lineOf(node, 'start'),
-      endLine: lineOf(node, 'end'),
-      exported: false,
-      docstring: leadingDoc(node),
-      ...(methods.length ? { children: methods } : {}),
-    }];
+    return [
+      {
+        name: node.id.name,
+        kind: 'class',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: false,
+        docstring: leadingDoc(node),
+        ...(methods.length ? { children: methods } : {}),
+      },
+    ];
   }
   if (t === 'TSInterfaceDeclaration' && node.id?.name) {
-    return [{
-      name: node.id.name, kind: 'interface',
-      startLine: lineOf(node, 'start'), endLine: lineOf(node, 'end'),
-      exported: false, docstring: leadingDoc(node),
-    }];
+    return [
+      {
+        name: node.id.name,
+        kind: 'interface',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: false,
+        docstring: leadingDoc(node),
+      },
+    ];
   }
   if (t === 'TSTypeAliasDeclaration' && node.id?.name) {
-    return [{
-      name: node.id.name, kind: 'type',
-      startLine: lineOf(node, 'start'), endLine: lineOf(node, 'end'),
-      exported: false, docstring: leadingDoc(node),
-    }];
+    return [
+      {
+        name: node.id.name,
+        kind: 'type',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: false,
+        docstring: leadingDoc(node),
+      },
+    ];
   }
   if (t === 'TSEnumDeclaration' && node.id?.name) {
-    return [{
-      name: node.id.name, kind: 'enum',
-      startLine: lineOf(node, 'start'), endLine: lineOf(node, 'end'),
-      exported: false, docstring: leadingDoc(node),
-    }];
+    return [
+      {
+        name: node.id.name,
+        kind: 'enum',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: false,
+        docstring: leadingDoc(node),
+      },
+    ];
   }
 
   // `const foo = …` — we only emit from the exported wrapper path
@@ -217,9 +251,11 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
       if (init) {
         const initType = init.type;
         if (initType === 'ArrowFunctionExpression' || initType === 'FunctionExpression') {
-          kind = looksLikeComponent(name, init) ? 'component'
-               : looksLikeHook(name) ? 'hook'
-               : 'function';
+          kind = looksLikeComponent(name, init)
+            ? 'component'
+            : looksLikeHook(name)
+              ? 'hook'
+              : 'function';
         }
       }
       out.push({
@@ -227,7 +263,7 @@ function visitTopLevel(node: AnyNode | null | undefined, fromExport: WeakSet<obj
         kind,
         startLine: lineOf(d, 'start'),
         endLine: lineOf(d, 'end'),
-        exported: false,         // wrapper re-stamps
+        exported: false, // wrapper re-stamps
         docstring: leadingDoc(node),
       });
     }
@@ -267,15 +303,23 @@ function containsJsx(node: AnyNode | null | undefined): boolean {
 // ── Misc helpers ───────────────────────────────────────────────────────
 
 function lineOf(node: AnyNode | null | undefined, which: 'start' | 'end'): number {
-  const loc = (node as { loc?: { start?: { line?: number }; end?: { line?: number } } } | null | undefined)?.loc;
+  const loc = (
+    node as { loc?: { start?: { line?: number }; end?: { line?: number } } } | null | undefined
+  )?.loc;
   const pos = which === 'start' ? loc?.start : loc?.end;
   return typeof pos?.line === 'number' ? pos.line : 0;
 }
 
 function leadingDoc(node: AnyNode | null | undefined): string | undefined {
-  const comments = (node as { leadingComments?: Array<{ type?: string; value?: string }> } | null | undefined)?.leadingComments;
+  const comments = (
+    node as { leadingComments?: Array<{ type?: string; value?: string }> } | null | undefined
+  )?.leadingComments;
   if (!Array.isArray(comments) || comments.length === 0) return undefined;
-  const block = [...comments].reverse().find((c) => c?.type === 'CommentBlock' && typeof c.value === 'string' && c.value.startsWith('*'));
+  const block = [...comments]
+    .reverse()
+    .find(
+      (c) => c?.type === 'CommentBlock' && typeof c.value === 'string' && c.value.startsWith('*'),
+    );
   if (!block?.value) return undefined;
   // Strip the JSDoc " * " line prefixes, trim, cap at 240 chars.
   const text = block.value

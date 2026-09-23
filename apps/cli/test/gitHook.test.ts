@@ -8,14 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  existsSync,
-  rmSync,
-} from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -66,7 +59,8 @@ describe('ensureGitHook (pure merge)', () => {
     const existing =
       '#!/bin/sh\n' +
       'echo "pre-existing CI notifier"\n' +
-      factstackGitHookBlock('OLD-COMMAND') + '\n' +
+      factstackGitHookBlock('OLD-COMMAND') +
+      '\n' +
       'echo "trailing user logic"\n';
     const out = ensureGitHook(existing, 'npx factstack analyze');
     // Old command gone, new command present, exactly one block.
@@ -104,8 +98,7 @@ describe('stripGitHook (pure removal)', () => {
   });
 
   it('preserves other hook logic, removing only our block', () => {
-    const existing =
-      '#!/bin/sh\necho keep-me\n' + factstackGitHookBlock() + '\n';
+    const existing = '#!/bin/sh\necho keep-me\n' + factstackGitHookBlock() + '\n';
     const { content, removed } = stripGitHook(existing);
     expect(removed).toBe(true);
     expect(content).toContain('echo keep-me');
@@ -167,7 +160,9 @@ describe('installGitHook / uninstallGitHook (fs round-trip)', () => {
       expect(r1.changed).toBe(true);
       expect(r1.hookPath.endsWith(join('.git', 'hooks', 'post-commit'))).toBe(true);
       expect(existsSync(r1.hookPath)).toBe(true);
-      expect(readFileSync(r1.hookPath, 'utf8')).toContain('npx factstack analyze . >/dev/null 2>&1 || true');
+      expect(readFileSync(r1.hookPath, 'utf8')).toContain(
+        'npx factstack analyze . >/dev/null 2>&1 || true',
+      );
 
       const r2 = installGitHook(dir);
       expect(r2.changed).toBe(false); // byte-identical → no rewrite

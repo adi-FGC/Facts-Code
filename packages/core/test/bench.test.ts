@@ -9,14 +9,32 @@ import type { AgentArtifact } from '@factstack/spec';
  */
 
 function fnode(path: string, importance: number, tokenCost: number) {
-  return { id: path, path, language: 'typescript', loc: 50, tokenCost, status: 'ok' as const, importance };
+  return {
+    id: path,
+    path,
+    language: 'typescript',
+    loc: 50,
+    tokenCost,
+    status: 'ok' as const,
+    importance,
+  };
 }
 function foutline(path: string, tokenCost: number) {
   return {
-    path, language: 'typescript', loc: 50, bytes: 1500, bundleSize: null, tokenCost,
-    imports: [], exports: [], declarations: [], todos: [],
-    complexity: { cyclomatic: 0, cognitive: 0 }, status: 'ok' as const,
-    lastModifiedMs: null, churnScore: null,
+    path,
+    language: 'typescript',
+    loc: 50,
+    bytes: 1500,
+    bundleSize: null,
+    tokenCost,
+    imports: [],
+    exports: [],
+    declarations: [],
+    todos: [],
+    complexity: { cyclomatic: 0, cognitive: 0 },
+    status: 'ok' as const,
+    lastModifiedMs: null,
+    churnScore: null,
   };
 }
 function edge(from: string, to: string) {
@@ -29,7 +47,14 @@ function makeAgent(): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-06-10T00:00:00Z',
-    project: { name: 'bench-fixture', root: '/t', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'bench-fixture',
+      root: '/t',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [
       foutline('src/user-api.ts', 300),
       foutline('src/user-model.ts', 200),
@@ -48,9 +73,16 @@ function makeAgent(): AgentArtifact {
         edge('src/orders.ts', 'src/user-model.ts'),
         edge('src/user-model.ts', 'src/db.ts'),
       ],
-      cycles: [], symbolNodes: [], symbolEdges: [], entities: [], entityEdges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
     },
-    routes: [], scripts: {}, capabilities: [], risks: [],
+    routes: [],
+    scripts: {},
+    capabilities: [],
+    risks: [],
     stats: { loc: 200, fileCount: 4, packageCount: 1, totalTokenCost: 1000 },
   } as AgentArtifact;
 }

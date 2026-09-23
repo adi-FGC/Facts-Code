@@ -107,9 +107,7 @@ describe('FsaFileWriter — browser filesystem targets', () => {
     await expect(writer.writeText('agent.json', '{"x":1}\n')).rejects.toThrow(
       /Write verification could not re-read "agent\.json"/u,
     );
-    await expect(writer.writeText('agent.json', '{"x":1}\n')).rejects.toThrow(
-      /iCloud Drive/u,
-    );
+    await expect(writer.writeText('agent.json', '{"x":1}\n')).rejects.toThrow(/iCloud Drive/u);
   });
 
   it('verification error mentions iCloud Drive + Documents/Downloads in the actionable hint', async () => {
@@ -187,13 +185,34 @@ describe('writeBrowserArtifacts — complete artifact write', () => {
   it('TC-2: emits agent.diff.pack on a warm run (reads the prior agent.pack)', async () => {
     const root = new MemoryFsaDirectory('');
     // Cold run seeds .facts/agent.pack (the prior master).
-    const cold = await writeBrowserArtifacts({ root: root.asHandle(), agent: makeAgent(), human: makeHuman(), memoryBody: '# d\n' });
+    const cold = await writeBrowserArtifacts({
+      root: root.asHandle(),
+      agent: makeAgent(),
+      human: makeHuman(),
+      memoryBody: '# d\n',
+    });
     expect(cold.diffName).toBeNull(); // no prior master on a cold run
     expect(root.hasFile('.facts/agent.pack')).toBe(true);
 
     // Warm run with a CHANGED agent (one new risk) → the F8 diff sidecar.
-    const changed = { ...makeAgent(), risks: [{ severity: 'low', category: 'large-file', rule: 'big-file', message: 'oversized', file: 'src/big.ts' }] } as AgentArtifact;
-    const warm = await writeBrowserArtifacts({ root: root.asHandle(), agent: changed, human: makeHuman(), memoryBody: '# d\n' });
+    const changed = {
+      ...makeAgent(),
+      risks: [
+        {
+          severity: 'low',
+          category: 'large-file',
+          rule: 'big-file',
+          message: 'oversized',
+          file: 'src/big.ts',
+        },
+      ],
+    } as AgentArtifact;
+    const warm = await writeBrowserArtifacts({
+      root: root.asHandle(),
+      agent: changed,
+      human: makeHuman(),
+      memoryBody: '# d\n',
+    });
     expect(warm.diffName).toBe('agent.diff.pack');
     expect(root.hasFile('.facts/agent.diff.pack')).toBe(true);
   });
@@ -204,7 +223,14 @@ function makeAgent(): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-05-25T00:00:00.000Z',
-    project: { name: 'demo', root: '.', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'demo',
+      root: '.',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -271,7 +297,10 @@ class MemoryFsaDirectory {
   readonly createWritableOpts = new Map<string, { keepExistingData?: boolean } | undefined>();
   readonly root: MemoryFsaDirectory;
 
-  constructor(private readonly path: string, root?: MemoryFsaDirectory) {
+  constructor(
+    private readonly path: string,
+    root?: MemoryFsaDirectory,
+  ) {
     this.root = root ?? this;
   }
 
@@ -290,7 +319,10 @@ class MemoryFsaDirectory {
     return this as unknown as FileSystemDirectoryHandle;
   }
 
-  async getDirectoryHandle(name: string, opts?: { create?: boolean }): Promise<FileSystemDirectoryHandle> {
+  async getDirectoryHandle(
+    name: string,
+    opts?: { create?: boolean },
+  ): Promise<FileSystemDirectoryHandle> {
     let dir = this.dirs.get(name);
     if (!dir) {
       if (!opts?.create) throw new Error(`Directory not found: ${name}`);
@@ -349,13 +381,18 @@ class MemoryFsaDirectory {
 }
 
 class MemoryFsaFileHandle {
-  constructor(private readonly dir: MemoryFsaDirectory, private readonly name: string) {}
+  constructor(
+    private readonly dir: MemoryFsaDirectory,
+    private readonly name: string,
+  ) {}
 
   asHandle(): FileSystemFileHandle {
     return this as unknown as FileSystemFileHandle;
   }
 
-  async createWritable(opts?: { keepExistingData?: boolean }): Promise<FileSystemWritableFileStream> {
+  async createWritable(opts?: {
+    keepExistingData?: boolean;
+  }): Promise<FileSystemWritableFileStream> {
     const path = this.dir['path'] ? `${this.dir['path']}/${this.name}` : this.name;
     const root = this.dir['root'] as MemoryFsaDirectory;
     /* Capture for the keepExistingData-explicit-false guard test. */
@@ -386,8 +423,12 @@ class MemoryFsaFileHandle {
     // (write.ts reads the prior agent.pack via getFile().text()) needs them.
     return {
       size,
-      async text() { return new TextDecoder().decode(bytes); },
-      async arrayBuffer() { return bytes.slice().buffer; },
+      async text() {
+        return new TextDecoder().decode(bytes);
+      },
+      async arrayBuffer() {
+        return bytes.slice().buffer;
+      },
     } as unknown as File;
   }
 }

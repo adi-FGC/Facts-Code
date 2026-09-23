@@ -135,7 +135,8 @@ export function runBenchTask(agent: AgentArtifact, task: BenchTask): BenchTaskRe
   const tokenByPath = new Map(agent.files.map((f) => [f.path, f.tokenCost]));
   const naiveTokens = naiveFiles.reduce((sum, p) => sum + (tokenByPath.get(p) ?? 0), 0);
 
-  const savingsPct = naiveTokens > 0 ? round1(((naiveTokens - ctx.totalTokens) / naiveTokens) * 100) : 0;
+  const savingsPct =
+    naiveTokens > 0 ? round1(((naiveTokens - ctx.totalTokens) / naiveTokens) * 100) : 0;
 
   return {
     id: task.id,
@@ -161,7 +162,8 @@ export function runBench(agent: AgentArtifact, tasks: BenchTask[]): BenchReport 
   const results = tasks.map((t) => runBenchTask(agent, t));
   const factsTokens = results.reduce((s, r) => s + r.facts.tokens, 0);
   const naiveTokens = results.reduce((s, r) => s + r.naive.tokens, 0);
-  const mean = (xs: number[]): number => (xs.length ? round3(xs.reduce((a, b) => a + b, 0) / xs.length) : 1);
+  const mean = (xs: number[]): number =>
+    xs.length ? round3(xs.reduce((a, b) => a + b, 0) / xs.length) : 1;
   return {
     corpus: {
       files: agent.stats.fileCount,

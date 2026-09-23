@@ -12,17 +12,36 @@ import { isRelative, isNodeBuiltin } from '../src/resolver.js';
 
 function file(path: string) {
   return {
-    path, language: 'typescript', loc: 10, bytes: 200, bundleSize: null, tokenCost: 50,
-    imports: [], exports: [], declarations: [], routes: [], components: [], tests: [], todos: [],
-    complexity: { cyclomatic: 1, cognitive: 1 }, status: 'ok' as const,
-    lastModifiedMs: null, churnScore: null,
+    path,
+    language: 'typescript',
+    loc: 10,
+    bytes: 200,
+    bundleSize: null,
+    tokenCost: 50,
+    imports: [],
+    exports: [],
+    declarations: [],
+    routes: [],
+    components: [],
+    tests: [],
+    todos: [],
+    complexity: { cyclomatic: 1, cognitive: 1 },
+    status: 'ok' as const,
+    lastModifiedMs: null,
+    churnScore: null,
   };
 }
-function rawImport(specifier: string, kind: 'import' | 'dynamic-import' | 'type-import' = 'import') {
+function rawImport(
+  specifier: string,
+  kind: 'import' | 'dynamic-import' | 'type-import' = 'import',
+) {
   return { specifier, kind, line: 1 };
 }
 
-const emptyCtx = { files: new Set<string>(['a.ts', 'b.ts', 'c.ts', 'd.ts']), workspaces: new Map() };
+const emptyCtx = {
+  files: new Set<string>(['a.ts', 'b.ts', 'c.ts', 'd.ts']),
+  workspaces: new Map(),
+};
 
 describe('buildDependencyGraph', () => {
   it('builds nodes from outlines', () => {
@@ -95,15 +114,17 @@ describe('buildDependencyGraph', () => {
       ['c.ts', [rawImport('./d')]],
       ['d.ts', [rawImport('./c')]],
     ]);
-    const g = buildDependencyGraph([file('a.ts'), file('b.ts'), file('c.ts'), file('d.ts')], importsByFile, ctx);
+    const g = buildDependencyGraph(
+      [file('a.ts'), file('b.ts'), file('c.ts'), file('d.ts')],
+      importsByFile,
+      ctx,
+    );
     expect(g.cycles.length).toBeGreaterThanOrEqual(2);
   });
 
   it('preserves edge kind (import / dynamic-import / type-import)', () => {
     const ctx = { files: new Set(['a.ts', 'b.ts']), workspaces: new Map() };
-    const importsByFile = new Map([
-      ['a.ts', [rawImport('./b', 'dynamic-import')]],
-    ]);
+    const importsByFile = new Map([['a.ts', [rawImport('./b', 'dynamic-import')]]]);
     const g = buildDependencyGraph([file('a.ts'), file('b.ts')], importsByFile, ctx);
     expect(g.edges[0]?.kind).toBe('dynamic-import');
   });
@@ -142,12 +163,20 @@ describe('F1 — GraphEdgeSchema confidence (INV4 backward-compat)', () => {
     expect(parsed.confidenceScore).toBeUndefined();
   });
   it('preserves an explicit inferred confidence + score (what F2 will write)', () => {
-    const parsed = GraphEdgeSchema.parse({ from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred', confidenceScore: 0.9 });
+    const parsed = GraphEdgeSchema.parse({
+      from: 'a.ts',
+      to: 'b.ts',
+      kind: 'import',
+      confidence: 'inferred',
+      confidenceScore: 0.9,
+    });
     expect(parsed.confidence).toBe('inferred');
     expect(parsed.confidenceScore).toBe(0.9);
   });
   it('rejects an out-of-range confidenceScore', () => {
-    expect(() => GraphEdgeSchema.parse({ from: 'a', to: 'b', kind: 'import', confidenceScore: 1.5 })).toThrow();
+    expect(() =>
+      GraphEdgeSchema.parse({ from: 'a', to: 'b', kind: 'import', confidenceScore: 1.5 }),
+    ).toThrow();
   });
 });
 

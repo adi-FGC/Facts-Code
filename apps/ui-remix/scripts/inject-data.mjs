@@ -29,7 +29,15 @@
  *   node scripts/inject-data.mjs --src path.json # explicit override
  *   node scripts/inject-data.mjs --root ../..    # custom repo root
  */
-import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync, copyFileSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  readdirSync,
+  mkdirSync,
+  copyFileSync,
+} from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -103,6 +111,11 @@ if (explicitSrc) {
    dataset so EVERY public sink (the inline bake AND dist/data/factstack.json)
    ships redacted, not just one of them. */
 scrubDataset(dataset, REPO_ROOT);
+/* v0.3.11 — the git topology needs its own pass: `pathSubs` only knows the
+   current repo root and its parent, while worktrees carry the absolute path of
+   EVERY checkout on this machine, and request records carry the first prompt of
+   every local agent session. Neither belongs on a public site. */
+const gitPathSubs = scrubGitTopology(dataset);
 
 /* Lean the inline dataset for the static bake. HTML docs are full
    generated pages (their own <svg>, <style>, <script>); baking their raw
@@ -120,7 +133,10 @@ if (dataset && Array.isArray(dataset.docs)) {
       stripped++;
     }
   }
-  if (stripped > 0) console.log(`[inject-data] dropped raw content from ${stripped} HTML doc(s) to keep the static dataset lean`);
+  if (stripped > 0)
+    console.log(
+      `[inject-data] dropped raw content from ${stripped} HTML doc(s) to keep the static dataset lean`,
+    );
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -172,14 +188,22 @@ try {
     },
     entryPoints: s.entryPoints,
     risks: arr(s.risks).map((r) => ({
-      severity: r.severity, category: r.category, rule: r.rule,
-      file: r.file, line: r.line, message: r.message,
+      severity: r.severity,
+      category: r.category,
+      rule: r.rule,
+      file: r.file,
+      line: r.line,
+      message: r.message,
     })),
     vulnerabilities: s.vulnerabilities,
     fullDataset: '/data/factstack.json',
     pack: '/factstack.pack',
   };
-  writeFileSync(resolve(APP_DIR, 'dist', 'data', 'summary.json'), JSON.stringify(digest, null, 2), 'utf8');
+  writeFileSync(
+    resolve(APP_DIR, 'dist', 'data', 'summary.json'),
+    JSON.stringify(digest, null, 2),
+    'utf8',
+  );
   console.log(`[inject-data] wrote dist/data/summary.json (compact chatbot digest)`);
 } catch (e) {
   console.warn(`[inject-data] could not write dist/data/summary.json: ${e?.message || e}`);
@@ -191,7 +215,7 @@ try {
     /* The pack is a separate file (not derived from `dataset`), so it needs
        its own text-level scrub — otherwise /factstack.pack would re-leak the
        same email + paths the JSON scrub just removed. */
-    const packText = scrubText(readFileSync(packSrc, 'utf8'), REPO_ROOT);
+    const packText = scrubPack(readFileSync(packSrc, 'utf8'), REPO_ROOT, gitPathSubs);
     writeFileSync(resolve(APP_DIR, 'dist', 'factstack.pack'), packText, 'utf8');
     console.log(`[inject-data] wrote scrubbed .facts/agent.pack → dist/factstack.pack`);
   } else {
@@ -316,13 +340,118 @@ function scrubDataset(root, repoRoot) {
   walk(root);
 }
 
+/**
+ * v0.3.11 — scrub `dataset.git` (the Worktrees tab's data) for public sinks.
+ *
+ * Two things in it are local-only:
+ *   - absolute paths of every checkout (`pathSubs` only rewrites the current
+ *     repo root + its parent, so a sibling worktree elsewhere on the disk
+ *     survived as a full `C:/Users/<name>/...` string), and
+ *   - `requests[]`: the first prompt of every Claude Code / Codex session that
+ *     ran there. Redacted for secrets, but still private text.
+ *
+ * The tab still works: counts, verdicts, gaps, commit features and dates all
+ * survive; request-derived features are dropped and `sessions` is kept so the
+ * page can still say how many sessions were matched.
+ */
+function scrubGitTopology(root) {
+  const git = root?.git;
+  if (!git || typeof git !== 'object') return new Map();
+  const label = (w, i) => {
+    if (w.relPath === '.') return '.';
+    if (w.relPath) return w.relPath;
+    return `«checkout ${i + 1}»`;
+  };
+  const byPath = new Map();
+  (git.worktrees ?? []).forEach((w, i) => {
+    if (typeof w.path === 'string') byPath.set(w.path, label(w, i));
+  });
+  const relabel = (p) => (typeof p === 'string' ? (byPath.get(p) ?? '«path»') : p);
+
+  git.repoRoot = '.';
+  git.currentPath = '.';
+  for (const w of git.worktrees ?? []) {
+    w.path = relabel(w.path);
+    if (w.target) w.target = '«path»';
+    w.requests = [];
+    w.features = (w.features ?? []).filter((f) => f.source !== 'request');
+    if (Array.isArray(w.readiness?.deployReasons)) {
+      w.readiness.deployReasons = w.readiness.deployReasons.map((r) => scrubStrings(r, byPath));
+    }
+    if (Array.isArray(w.readiness?.commitReasons)) {
+      w.readiness.commitReasons = w.readiness.commitReasons.map((r) => scrubStrings(r, byPath));
+    }
+  }
+  for (const b of git.branches ?? []) {
+    if (b.worktree) b.worktree = relabel(b.worktree);
+    b.deleteBlockers = (b.deleteBlockers ?? []).map((r) => scrubStrings(r, byPath));
+  }
+  for (const r of git.remotes ?? []) r.url = null; // host + org are not needed to render
+  /* Handed to scrubPack: the pack is scrubbed as TEXT and would otherwise keep
+     the absolute path of every OTHER checkout (pathSubs only knows this one). */
+  return byPath;
+}
+
+/** Replace any absolute checkout path embedded in a free-text reason. */
+function scrubStrings(s, byPath) {
+  if (typeof s !== 'string') return s;
+  let out = s;
+  for (const [from, to] of byPath) if (out.includes(from)) out = out.split(from).join(to);
+  return out;
+}
+
+/**
+ * Text-level scrub for `dist/factstack.pack`, which is a separate file the
+ * JSON scrub never sees. Drops the `features` rows carrying agent prompts and
+ * the interned worktree paths, then RE-MINTS the `; end` trailer — the pack's
+ * sha256 covers every preceding byte, so any scrub (including the pre-existing
+ * email/path substitution) left the published pack failing its own integrity
+ * check, which tells a reader to discard it.
+ */
+function scrubPack(raw, repoRoot, extraSubs) {
+  let text = scrubText(raw, repoRoot);
+  for (const [from, to] of extraSubs ?? [])
+    if (text.includes(from)) text = text.split(from).join(to);
+  const kept = [];
+  let table = null;
+  for (const line of text.split('\n')) {
+    if (line.startsWith('& ')) {
+      table = line.slice(2).split('\t')[0];
+      kept.push(line);
+      continue;
+    }
+    if (/^; end rows=\d+ tables=\d+ sha256=[0-9a-f]{12}$/.test(line)) continue; // re-minted below
+    if (table === 'features' && /^[-+] /.test(line)) {
+      const cells = line.slice(2).split('\t');
+      if (cells[2] === 'request') continue; // an agent session prompt — never public
+    }
+    kept.push(line);
+  }
+  let body = kept.join('\n').replace(/\n+$/, '') + '\n';
+  const rows = body.split('\n').filter((l) => /^[-+x] /.test(l)).length;
+  const tables = body.split('\n').filter((l) => l.startsWith('& ')).length;
+  /* The HEADER carries rowCount too (field 4) and a strict decoder rejects a
+     pack whose header and trailer disagree — dropping rows without re-minting
+     it published a pack that fails its own validation. */
+  const nlIx = body.indexOf('\n');
+  const head = body.slice(0, nlIx).split('\t');
+  if (head[0] && head[0].startsWith('# ') && head.length > 3) {
+    head[3] = String(rows);
+    body = head.join('\t') + body.slice(nlIx);
+  }
+  const sha = createHash('sha256').update(body, 'utf8').digest('hex').slice(0, 12);
+  return `${body}; end rows=${rows} tables=${tables} sha256=${sha}\n`;
+}
+
 /* ─────────────────────────────────────────────────────────────────
  * Snapshot loader — feeds the History tab's sparkline.
  * ─────────────────────────────────────────────────────────────── */
 function loadSnapshots(snapDir) {
   if (!existsSync(snapDir)) return [];
   try {
-    const files = readdirSync(snapDir).filter((n) => n.endsWith('.json')).sort();
+    const files = readdirSync(snapDir)
+      .filter((n) => n.endsWith('.json'))
+      .sort();
     const out = [];
     for (const name of files) {
       try {
@@ -335,7 +464,9 @@ function loadSnapshots(snapDir) {
           risks: body.risks ?? 0,
           todos: body.todos ?? 0,
         });
-      } catch { /* skip malformed snapshot files */ }
+      } catch {
+        /* skip malformed snapshot files */
+      }
     }
     return out;
   } catch {

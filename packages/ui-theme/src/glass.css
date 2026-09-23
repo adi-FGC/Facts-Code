@@ -24,7 +24,10 @@
 /* Specular hover sweep — signals interactivity on glass without color
    change. Shipped only behind the backdrop-filter feature query so
    fallback paths stay clean. */
-.glass.sweep { position: relative; overflow: hidden; }
+.glass.sweep {
+  position: relative;
+  overflow: hidden;
+}
 .glass.sweep::after {
   content: '';
   position: absolute;
@@ -39,7 +42,9 @@
   translate: -120% 0;
   transition: translate 320ms var(--ease-out-expo);
 }
-.glass.sweep:hover::after { translate: 120% 0; }
+.glass.sweep:hover::after {
+  translate: 120% 0;
+}
 
 @supports not (backdrop-filter: blur(1px)) {
   .glass {
@@ -53,9 +58,13 @@
     background: var(--surface-1);
     backdrop-filter: none !important;
   }
-  .glass.sweep::after { display: none; }
+  .glass.sweep::after {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .glass.sweep::after { transition: none; }
+  .glass.sweep::after {
+    transition: none;
+  }
 }

@@ -65,8 +65,8 @@ export function ensureFreshnessHook(
      (not `hooks: e.hooks`) so we never set `hooks: undefined` explicitly,
      which exactOptionalPropertyTypes rejects against `hooks?: CommandHook[]`. */
   const post: HookEntry[] = Array.isArray(existing)
-    ? existing.map((e): HookEntry =>
-        Array.isArray(e.hooks) ? { ...e, hooks: [...e.hooks] } : { ...e },
+    ? existing.map(
+        (e): HookEntry => (Array.isArray(e.hooks) ? { ...e, hooks: [...e.hooks] } : { ...e }),
       )
     : [];
 

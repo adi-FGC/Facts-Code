@@ -13,20 +13,20 @@
 ###############################################################################
 
 [build]
-  base    = "."
-  publish = "apps/ui-remix/dist"
-  # `pnpm install` + filtered build keeps the deploy fast — Netlify
-  # caches node_modules between runs and only rebuilds the @factstack
-  # workspace deps the UI app actually consumes.
-  # OPD-3: pin the same pnpm CI validates (package.json packageManager: 11.3.0)
-  # so Netlify's frozen-lockfile install matches. OPD-5: build:static emits no
-  # source maps (the default `build` mode does), so production doesn't publicly
-  # serve the full TypeScript source — matching the Cloudflare deploy.
-  command = "corepack enable && corepack use pnpm@11.3.0 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static"
+base = "."
+publish = "apps/ui-remix/dist"
+# `pnpm install` + filtered build keeps the deploy fast — Netlify
+# caches node_modules between runs and only rebuilds the @factstack
+# workspace deps the UI app actually consumes.
+# OPD-3: pin the same pnpm CI validates (package.json packageManager: 11.3.0)
+# so Netlify's frozen-lockfile install matches. OPD-5: build:static emits no
+# source maps (the default `build` mode does), so production doesn't publicly
+# serve the full TypeScript source — matching the Cloudflare deploy.
+command = "corepack enable && corepack use pnpm@11.3.0 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static"
 
 [build.environment]
-  # Pin Node high enough for Remix v3 + Vite 8. Remix 3 requires >=24.3.0.
-  NODE_VERSION = "24"
+# Pin Node high enough for Remix v3 + Vite 8. Remix 3 requires >=24.3.0.
+NODE_VERSION = "24"
 
 ###############################################################################
 # Caching:
@@ -37,44 +37,44 @@
 ###############################################################################
 
 [[headers]]
-  for = "/*.html"
-  [headers.values]
-    # must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
-    # returning visitor paint from cache in the same second while the browser
-    # checks for a newer bake in the background. MUST match
-    # apps/ui-remix/public/_headers — the build guard enforces CSP parity but
-    # NOT cache parity, so this one drifts silently.
-    Cache-Control = "public, max-age=0, must-revalidate, stale-while-revalidate=604800"
+for = "/*.html"
+[headers.values]
+# must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
+# returning visitor paint from cache in the same second while the browser
+# checks for a newer bake in the background. MUST match
+# apps/ui-remix/public/_headers — the build guard enforces CSP parity but
+# NOT cache parity, so this one drifts silently.
+Cache-Control = "public, max-age=0, must-revalidate, stale-while-revalidate=604800"
 
 # Self-hosted woff2 (apps/ui-remix/src/styles/fonts.css). Content never changes
 # under a given name — replacing a face means a new filename, not new bytes.
 [[headers]]
-  for = "/fonts/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    Access-Control-Allow-Origin = "*"
+for = "/fonts/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+Access-Control-Allow-Origin = "*"
 
 [[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+for = "/assets/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
 
 # Agent-discovery + data endpoints. .json/.txt/.xml auto-infer correctly; the
 # pack (no extension) and the manifest need explicit types. Data + discovery
 # files revalidate so a fresh `factstack analyze` + redeploy ships instantly.
 [[headers]]
-  for = "/factstack.pack"
-  [headers.values]
-    Content-Type = "text/plain; charset=utf-8"
-    Cache-Control = "public, max-age=0, must-revalidate"
+for = "/factstack.pack"
+[headers.values]
+Content-Type = "text/plain; charset=utf-8"
+Cache-Control = "public, max-age=0, must-revalidate"
 [[headers]]
-  for = "/site.webmanifest"
-  [headers.values]
-    Content-Type = "application/manifest+json"
+for = "/site.webmanifest"
+[headers.values]
+Content-Type = "application/manifest+json"
 [[headers]]
-  for = "/data/*"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
+for = "/data/*"
+[headers.values]
+Cache-Control = "public, max-age=0, must-revalidate"
 
 ###############################################################################
 # Security headers — baseline hardening; the SPA doesn't accept any
@@ -82,25 +82,25 @@
 ###############################################################################
 
 [[headers]]
-  for = "/*"
-  [headers.values]
-    X-Content-Type-Options    = "nosniff"
-    Referrer-Policy           = "strict-origin-when-cross-origin"
-    X-Frame-Options           = "DENY"
-    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
-    Permissions-Policy        = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
-    # Mirror of apps/ui-remix/public/_headers (Cloudflare) — MUST stay byte-equal
-    # to that file's CSP; check-bundle-size.mjs fails the build if the two drift.
-    # script-src pins the inline no-flash theme boot script by SHA-256 (verified
-    # at build); connect-src allows the OSV CVE API + GitHub (the in-browser
-    # GitHub-repo scanner fetches the tree/blobs from api.github.com +
-    # raw.githubusercontent.com, governed by THIS page CSP since the scan runs in
-    # a Web Worker); fonts are self-hosted from /fonts (v0.3.13), so no
-    # third-party font or style origin appears here; worker-src covers the worker. SEC-3: style-src has NO 'unsafe-inline' — the
-    # css() runtime injects via adopted stylesheets and all inline style= props
-    # were converted to css() classes / SVG presentation attributes (guarded by
-    # check-bundle-size.mjs, which also asserts style-src parity with _headers).
-    Content-Security-Policy   = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'"
+for = "/*"
+[headers.values]
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+X-Frame-Options = "DENY"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+Permissions-Policy = "camera=(), microphone=(), geolocation=(), interest-cohort=()"
+# Mirror of apps/ui-remix/public/_headers (Cloudflare) — MUST stay byte-equal
+# to that file's CSP; check-bundle-size.mjs fails the build if the two drift.
+# script-src pins the inline no-flash theme boot script by SHA-256 (verified
+# at build); connect-src allows the OSV CVE API + GitHub (the in-browser
+# GitHub-repo scanner fetches the tree/blobs from api.github.com +
+# raw.githubusercontent.com, governed by THIS page CSP since the scan runs in
+# a Web Worker); fonts are self-hosted from /fonts (v0.3.13), so no
+# third-party font or style origin appears here; worker-src covers the worker. SEC-3: style-src has NO 'unsafe-inline' — the
+# css() runtime injects via adopted stylesheets and all inline style= props
+# were converted to css() classes / SVG presentation attributes (guarded by
+# check-bundle-size.mjs, which also asserts style-src parity with _headers).
+Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data:; font-src 'self'; style-src 'self'; script-src 'self' 'sha256-mep93d+TYbqkTXigp7/se25JNnDPP4lUmN1PshDxS+o='; worker-src 'self' blob:; connect-src 'self' https://api.osv.dev https://api.github.com https://raw.githubusercontent.com; manifest-src 'self'"
 
 # Scoped CSP for the MCP Google sign-in page ONLY (Firebase SDK from gstatic +
 # Google popup + POST to the local loopback). Kept separate so the main app CSP
@@ -109,9 +109,9 @@
 # (Netlify serves .html verbatim, so unlike _headers there is no /mcp-auth
 # clean-URL block here; that key is Cloudflare-only.)
 [[headers]]
-  for = "/mcp-auth.html"
-  [headers.values]
-    Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com"
+for = "/mcp-auth.html"
+[headers.values]
+Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com"
 
 ###############################################################################
 # SPA-style fallback: client-side routing in React Router v7 owns paths
@@ -120,6 +120,6 @@
 ###############################################################################
 
 [[redirects]]
-  from   = "/*"
-  to     = "/index.html"
-  status = 200
+from = "/*"
+to = "/index.html"
+status = 200

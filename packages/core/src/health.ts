@@ -26,7 +26,14 @@
 import type { AgentArtifact, HealthFactor, HealthHeadline } from '@factstack/spec';
 
 /** Points each vulnerability subtracts, by severity (before the category cap). */
-const VULN_WEIGHT: Record<string, number> = { critical: 20, high: 12, medium: 5, low: 2, unknown: 2, info: 0 };
+const VULN_WEIGHT: Record<string, number> = {
+  critical: 20,
+  high: 12,
+  medium: 5,
+  low: 2,
+  unknown: 2,
+  info: 0,
+};
 
 /** Singular form of each factor label, for grammatically-correct prose at
  *  count === 1 ("1 secret exposed", not "1 secrets exposed"). The plural
@@ -44,7 +51,7 @@ const FACTOR_SINGULAR: Record<string, string> = {
 
 /** "{count} {label}" with the label de-pluralized at count === 1. Pure. */
 function phrase(count: number, label: string): string {
-  return `${count} ${count === 1 ? FACTOR_SINGULAR[label] ?? label : label}`;
+  return `${count} ${count === 1 ? (FACTOR_SINGULAR[label] ?? label) : label}`;
 }
 
 const clamp = (n: number, max: number): number => Math.min(Math.max(0, Math.round(n)), max);
@@ -60,12 +67,19 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
   const brokenFiles = new Set<string>();
   for (const r of risks) {
     if (r.rule === 'unscanned-import') continue;
-    if ((r.category === 'broken-import' || r.category === 'parse-error' || r.category === 'read-error') && r.file) {
+    if (
+      (r.category === 'broken-import' ||
+        r.category === 'parse-error' ||
+        r.category === 'read-error') &&
+      r.file
+    ) {
       brokenFiles.add(r.file);
     }
   }
   const broken = brokenFiles.size;
-  const secrets = risks.filter((r) => r.category === 'secret').length;
+  /* v0.3.11 — fixture-path secrets are emitted at `low` (see analyze());
+     they stay visible in the Credentials view but do not cost the grade. */
+  const secrets = risks.filter((r) => r.category === 'secret' && r.severity !== 'low').length;
   const oversized = risks.filter((r) => r.category === 'large-file').length;
   const stale = files.filter((f) => f.status === 'stale').length;
   const todos = files.reduce((sum, f) => sum + (f.todos?.length ?? 0), 0);
@@ -98,5 +112,14 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
       ? 'clean — no blockers detected'
       : factors.map((f) => phrase(f.count, f.label)).join(', ');
 
-  return { broken, stale, todos, secrets, score, grade, factors, headline: `${grade} · ${score} — ${tail}` };
+  return {
+    broken,
+    stale,
+    todos,
+    secrets,
+    score,
+    grade,
+    factors,
+    headline: `${grade} · ${score} — ${tail}`,
+  };
 }

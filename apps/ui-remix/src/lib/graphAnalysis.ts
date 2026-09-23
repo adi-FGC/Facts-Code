@@ -199,7 +199,7 @@ export function orderByBarycenter(
       sum += p;
       count++;
     }
-    return count > 0 ? sum / count : pos.get(node) ?? 0;
+    return count > 0 ? sum / count : (pos.get(node) ?? 0);
   }
 
   function sweep(downward: boolean): boolean {

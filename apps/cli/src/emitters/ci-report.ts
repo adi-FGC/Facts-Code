@@ -118,11 +118,7 @@ export function renderCiReport(
     /* Same-ID severity churn case: ID sets are stable but the score
      * moved. Surface it so reviewers know GitHub re-classified an
      * advisory mid-flight. */
-    if (
-      diff.vulns.new.length === 0 &&
-      diff.vulns.fixed.length === 0 &&
-      shift !== 0
-    ) {
+    if (diff.vulns.new.length === 0 && diff.vulns.fixed.length === 0 && shift !== 0) {
       lines.push(
         `_Severity reclassification on existing advisories shifted the score by ${shift >= 0 ? '+' : ''}${shift}._`,
       );
@@ -173,11 +169,10 @@ export function renderCiReport(
     diff.files.removed.length > 0 ||
     diff.files.changed.length > 0
   ) {
-    const total =
-      diff.files.added.length +
-      diff.files.removed.length +
-      diff.files.changed.length;
-    lines.push(`<details><summary><strong>Files (${total})</strong> — ${diff.files.added.length} added · ${diff.files.removed.length} removed · ${diff.files.changed.length} changed</summary>`);
+    const total = diff.files.added.length + diff.files.removed.length + diff.files.changed.length;
+    lines.push(
+      `<details><summary><strong>Files (${total})</strong> — ${diff.files.added.length} added · ${diff.files.removed.length} removed · ${diff.files.changed.length} changed</summary>`,
+    );
     lines.push('');
     if (diff.files.added.length > 0) {
       lines.push('**Added:**');
@@ -204,7 +199,9 @@ export function renderCiReport(
        * sorts by `Math.abs(tokenDelta)` desc, so we just slice. */
       lines.push('**Changed (top by token delta):**');
       for (const c of diff.files.changed.slice(0, FILE_LIST_CAP)) {
-        lines.push(`- \`${escapeInlineCode(c.path)}\` — LOC ${signed(c.locDelta)}, tokens ${signed(c.tokenDelta)}`);
+        lines.push(
+          `- \`${escapeInlineCode(c.path)}\` — LOC ${signed(c.locDelta)}, tokens ${signed(c.tokenDelta)}`,
+        );
       }
       if (diff.files.changed.length > FILE_LIST_CAP) {
         lines.push(`- _…${diff.files.changed.length - FILE_LIST_CAP} more_`);
@@ -272,7 +269,7 @@ function renderDiagramLede(d: CiReportDiagram): string {
     case 'focal':
       return d.focus
         ? `_Focal view_ — callers of \`${escapeInlineCode(d.focus)}\` (this PR's primary change site).`
-        : '_Focal view_ — caller graph rooted on this PR\'s primary change.';
+        : "_Focal view_ — caller graph rooted on this PR's primary change.";
   }
 }
 

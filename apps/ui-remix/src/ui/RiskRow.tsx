@@ -33,10 +33,10 @@ interface RiskRowProps {
 
 const SEV_COLOR: Record<Severity, string> = {
   critical: 'var(--danger)',
-  high:     'var(--warn)',
-  medium:   'var(--info)',
-  low:      'var(--fg-muted)',
-  info:     'var(--fg-subtle)',
+  high: 'var(--warn)',
+  medium: 'var(--info)',
+  low: 'var(--fg-muted)',
+  info: 'var(--fg-subtle)',
 };
 
 /* Audit fix #4: severity is encoded TWICE — colored bar on left + text
@@ -58,13 +58,14 @@ const wrap = css({
   },
 });
 
-const bar = (color: string) => css({
-  alignSelf: 'stretch',
-  background: color,
-  width: '4px',
-  marginTop: '4px',
-  marginBottom: '4px',
-});
+const bar = (color: string) =>
+  css({
+    alignSelf: 'stretch',
+    background: color,
+    width: '4px',
+    marginTop: '4px',
+    marginBottom: '4px',
+  });
 
 const messageCol = css({
   display: 'flex',

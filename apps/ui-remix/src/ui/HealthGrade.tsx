@@ -159,7 +159,10 @@ export function HealthGrade(handle: Handle<HealthGradeProps>): () => RemixNode {
                   <span mix={barTrack}>
                     <span
                       aria-hidden="true"
-                      mix={[barFill, css({ '--w': `${Math.round((f.penalty / maxPenalty) * 100)}%` })]}
+                      mix={[
+                        barFill,
+                        css({ '--w': `${Math.round((f.penalty / maxPenalty) * 100)}%` }),
+                      ]}
                     />
                   </span>
                 </li>

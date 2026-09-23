@@ -20,32 +20,32 @@ export function ContentWithMargin(handle: Handle<ContentWithMarginProps>) {
   return () => {
     const { children } = handle.props;
     return (
-    <div
-      mix={css({
-        display: 'grid',
-        /* minmax(0, 1fr) not 1fr: a bare 1fr track's min is min-content,
+      <div
+        mix={css({
+          display: 'grid',
+          /* minmax(0, 1fr) not 1fr: a bare 1fr track's min is min-content,
            which lets a wide child (e.g. a min-width table on the Files
            tab) blow the column past the viewport instead of letting an
            inner scroll container scroll. Identical to 1fr for normal
            text content; only prevents the blowout. */
-        gridTemplateColumns: 'minmax(0, 1fr) var(--margin-col-w)',
-        columnGap: 'var(--gutter)',
-        rowGap: 'var(--space-8)',
-        maxWidth: 'var(--content-max)',
-        marginInline: 'auto',
-        paddingInline: 'var(--gutter)',
-        paddingBlock: 'var(--space-12)',
+          gridTemplateColumns: 'minmax(0, 1fr) var(--margin-col-w)',
+          columnGap: 'var(--gutter)',
+          rowGap: 'var(--space-8)',
+          maxWidth: 'var(--content-max)',
+          marginInline: 'auto',
+          paddingInline: 'var(--gutter)',
+          paddingBlock: 'var(--space-12)',
 
-        /* Below xl: margin column collapses. The grid flips to single
+          /* Below xl: margin column collapses. The grid flips to single
            column and any `<MarginColumn>` block stacks underneath the
            body chunk it was annotating. */
-        '@media (max-width: 1279px)': {
-          gridTemplateColumns: 'minmax(0, 1fr)',
-        },
-      })}
-    >
-      {children}
-    </div>
+          '@media (max-width: 1279px)': {
+            gridTemplateColumns: 'minmax(0, 1fr)',
+          },
+        })}
+      >
+        {children}
+      </div>
     );
   };
 }
@@ -61,24 +61,24 @@ export function MarginColumn(handle: Handle<MarginColumnProps>) {
   return () => {
     const { children, align = 'top' } = handle.props;
     return (
-    <aside
-      role="complementary"
-      mix={css({
-        gridColumn: '2',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-4)',
-        ...(align === 'baseline' ? { marginTop: 'var(--space-3)' } : {}),
-        '@media (max-width: 1279px)': {
-          gridColumn: '1',
-          flexDirection: 'row',
-          flexWrap: 'wrap',
-          marginTop: 'calc(var(--space-4) * -1)',
-        },
-      })}
-    >
-      {children}
-    </aside>
+      <aside
+        role="complementary"
+        mix={css({
+          gridColumn: '2',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-4)',
+          ...(align === 'baseline' ? { marginTop: 'var(--space-3)' } : {}),
+          '@media (max-width: 1279px)': {
+            gridColumn: '1',
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            marginTop: 'calc(var(--space-4) * -1)',
+          },
+        })}
+      >
+        {children}
+      </aside>
     );
   };
 }

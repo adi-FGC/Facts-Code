@@ -36,16 +36,16 @@ See `animations_spec.md` §7 for the specular sweep motion curve.
 
 ### 3.1 Breakpoint table
 
-| Name | Range | LHS behavior | Global tabs | Content |
-|---|---|---|---|---|
-| **xs** | 340–389 px | Hidden drawer, 82 vw | Scrollable pill row | Single column, stacked |
-| **sm** | 390–639 px | Hidden drawer, 82 vw | Scrollable pill row | Single column |
-| **md** | 640–899 px | Hidden drawer, 75 vw | Visible, no wrap | Single column |
-| **lg** | 900–1279 px | Inline, `28dvw` default, resizable | Visible | Primary + side slide-outs |
-| **xl** | 1280–1919 px | Inline, `22dvw` default, resizable | Visible + shortcut hints | Full shell |
-| **2xl** | 1920–2559 px | Inline, `20dvw` default | Full, roomy | Extra right rail for context |
-| **3xl (4K)** | 2560–3839 px | Inline, `18dvw` default | Full | Graph uses wider viewport; code preview splits horizontally |
-| **4xl (5K–8K)** | ≥ 3840 px | Inline, `15dvw`, **capped at 600 px** | Full | **Content column capped at 1400 px**; remaining space = breathing room + secondary rails |
+| Name            | Range        | LHS behavior                          | Global tabs              | Content                                                                                  |
+| --------------- | ------------ | ------------------------------------- | ------------------------ | ---------------------------------------------------------------------------------------- |
+| **xs**          | 340–389 px   | Hidden drawer, 82 vw                  | Scrollable pill row      | Single column, stacked                                                                   |
+| **sm**          | 390–639 px   | Hidden drawer, 82 vw                  | Scrollable pill row      | Single column                                                                            |
+| **md**          | 640–899 px   | Hidden drawer, 75 vw                  | Visible, no wrap         | Single column                                                                            |
+| **lg**          | 900–1279 px  | Inline, `28dvw` default, resizable    | Visible                  | Primary + side slide-outs                                                                |
+| **xl**          | 1280–1919 px | Inline, `22dvw` default, resizable    | Visible + shortcut hints | Full shell                                                                               |
+| **2xl**         | 1920–2559 px | Inline, `20dvw` default               | Full, roomy              | Extra right rail for context                                                             |
+| **3xl (4K)**    | 2560–3839 px | Inline, `18dvw` default               | Full                     | Graph uses wider viewport; code preview splits horizontally                              |
+| **4xl (5K–8K)** | ≥ 3840 px    | Inline, `15dvw`, **capped at 600 px** | Full                     | **Content column capped at 1400 px**; remaining space = breathing room + secondary rails |
 
 ### 3.2 Principles
 
@@ -100,6 +100,7 @@ See `animations_spec.md` §7 for the specular sweep motion curve.
 All colors live as CSS custom properties in `packages/ui-theme/src/tokens.css`. No hard-coded hex anywhere else.
 
 Core tokens (each defined in both light and dark):
+
 - `--fg`, `--fg-muted`, `--fg-subtle`
 - `--bg`, `--surface-1`, `--surface-2`, `--surface-3`
 - `--surface-glass` (with RGB variant for rgba composition)
@@ -112,6 +113,7 @@ Core tokens (each defined in both light and dark):
 ### 5.2 Light vs dark — not inverted
 
 Dark is tuned independently:
+
 - `--bg` dark: `#0B0D10` (near-black with a cool tint).
 - `--surface-1` dark: `#14171C`.
 - `--surface-glass-rgb` dark: `20, 23, 28`.
@@ -122,6 +124,7 @@ Dark is tuned independently:
 ### 5.3 Graph & tree data-viz palette
 
 **Separate configs for light and dark — not color-inverted.**
+
 - Dark palette tuned for OLED + low ambient light.
 - Light palette tuned for daylight readability.
 - Theme swap triggers a **full graph re-layout/re-paint** via the analyzer-driven render function, not just a CSS swap. Keeps cluster legibility after swap.
@@ -145,6 +148,7 @@ Dark is tuned independently:
 Every component documents these states: **default / hover / focus-visible / pressed / disabled / loading / empty / error**.
 
 ### 6.1 Core set
+
 - **Tree node** — language icon · name · status chip · bundle-size badge · token-cost badge · last-modified (relative).
 - **Graph node** — same metadata in a card form; hover opens preview.
 - **View-mode toggle** — Tree / Graph / Split (three-segment).
@@ -176,6 +180,7 @@ Comfortable / Compact toggle in settings. Affects tree row height, outline spaci
 ### 6.4 Empty & error states
 
 Every screen defines an empty state. No unexplained spinners. Examples:
+
 - Overview on a brand-new repo: "This looks like a fresh project. Run `factstack analyze` to populate data."
 - Graph with no imports: "No cross-file imports detected yet — maybe the code is all in `main.py`? Open the Files tab."
 - History with one snapshot: "Run `factstack analyze` again later to see trends."
@@ -216,6 +221,7 @@ Mobile variant: LHS hidden behind hamburger as a sliding drawer (82 vw).
 Priority: a non-developer understands the project in 20 seconds.
 
 **Sections top-to-bottom**:
+
 1. **Project banner** — name · inferred intent (one sentence) · entry-point links · stack badges.
 2. **Capabilities** — 3–5 one-liners of what the project does ("Serves HTTP API at `/api/*`", "Renders React UI for bookings", "Integrates Stripe for payments").
 3. **Health headline** — e.g. "3 broken files, 47 TODOs, no secrets detected" — each clause clickable, jumps to Risks.
@@ -250,6 +256,7 @@ Priority: a non-developer understands the project in 20 seconds.
 ### 8.5 Risks tab
 
 Local tabs: `Secrets | Licenses | Broken | Stale | Supply Chain`.
+
 - Each tab is a filter-and-table of risk rows.
 - Severity indicator + rule name + file:line + redacted preview + action.
 - Keyboard-first: j/k to move, Enter to open file at line.
@@ -340,7 +347,9 @@ Every major view, before PR merge, passes through at least one `critique` + one 
 This section documents the formal design grammar for rendering dependency graphs in a layered, top-to-bottom **Sugiyama DAG** layout with integrated **Swimlanes**.
 
 ### 15.1 Hierarchical Layering Structure
+
 The graph enforces a strict layered topology from top to bottom, grouping files by architectural depth:
+
 - **L0 · entry**: Entrypoint systems, root handlers (e.g., `app/root.tsx`).
 - **L1 · routes**: HTTP controllers, page routes (e.g., `routes/_index.tsx`, `routes/dashboard.tsx`).
 - **L2 · domain**: Pure business logic, core services, auth handlers (e.g., `domain/auth.ts`).
@@ -349,7 +358,9 @@ The graph enforces a strict layered topology from top to bottom, grouping files 
 Each layer is demarcated with a faint, left-aligned typography marker (e.g., `L0 · entry`) matching the node's horizontal baseline.
 
 ### 15.2 Interactive Color Grammar
+
 We use color semantics to separate flow direction and architectural health:
+
 - **Import Edge (Green)**: Indicates a dynamic or static module import.
 - **Export Edge (Blue)**: Represents public interfaces or compiled asset exports.
 - **Circular Warning (Amber)**: Highlights cyclic dependency edges to immediately flag structure issues.
@@ -358,6 +369,7 @@ We use color semantics to separate flow direction and architectural health:
 ### 15.3 Replicating the Visuals (Step-by-Step)
 
 #### Dark Mode Configuration
+
 - **Background**: Tinted near-black `oklch(12% 0.015 240)` / `#0B0D10`.
 - **Node Cards**: Rich charcoal `oklch(20% 0.02 240)` / `#14171C` with a 1 px border of `oklch(28% 0.02 240)` / `#242930` and border-radius of `6px`.
 - **Node Text**: Soft off-white monospaced `oklch(90% 0.005 240)` / `#E6E8EA` at `13px`.
@@ -366,6 +378,7 @@ We use color semantics to separate flow direction and architectural health:
 - **Layer Labels**: Deep muted slate `oklch(40% 0.015 240)` / `#4B5563` in a sans-serif stack.
 
 #### Light Mode Configuration
+
 - **Background**: Tinted warm paper base `oklch(99% 0.005 95)` / `#FAF9F6`.
 - **Node Cards**: Solid clean white `oklch(100% 0 0)` / `#FFFFFF` with a 1 px border of `oklch(92% 0.01 95)` / `#E5E7EB` and border-radius of `6px`, backed by a soft `box-shadow: 0 4px 12px rgba(0,0,0,0.03)`.
 - **Node Text**: Dark slate monospaced `oklch(25% 0.02 240)` / `#1F2937` at `13px`.
@@ -374,9 +387,10 @@ We use color semantics to separate flow direction and architectural health:
 - **Layer Labels**: Clean warm slate `oklch(55% 0.01 95)` / `#6B7280` in a sans-serif stack.
 
 ### 15.4 Algorithmic Layout Pipeline
+
 To reproduce this DAG dynamically in standard components:
+
 1. **Layer Assignment**: Group nodes into structural tiers ($L_0, L_1, L_2, L_3$) based on their import/export dependencies.
 2. **Vertex Ordering (Crossing Minimization)**: Run a barycenter or median heuristic sweep across sequential layers to rearrange nodes horizontally and minimize overlapping edge lines.
 3. **Coordinate Determination**: Assign horizontal spacing using a modular spring tension or alignment layout (e.g. via `dagre` or `@xyflow/react` layout configurations).
 4. **Edge Splines**: Draw connecting paths using cubic Bezier curves (`d="M... C..."`) with dynamic control points positioned vertically between the source and target tiers. This ensures a clean, flowing water path style.
-

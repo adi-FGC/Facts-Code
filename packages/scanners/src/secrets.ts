@@ -27,18 +27,62 @@ export interface SecretFinding {
 }
 
 const RULES: SecretRule[] = [
-  { id: 'aws-access-key',      label: 'AWS access key ID',   pattern: /\b(AKIA[0-9A-Z]{16})\b/,                  minEntropy: 3.2 },
-  { id: 'aws-secret-key',      label: 'AWS secret access key', pattern: /aws(.{0,20})?(secret|key).{0,5}['"=:\s]([A-Za-z0-9/+=]{40})\b/i, minEntropy: 4 },
-  { id: 'google-api-key',      label: 'Google API key',      pattern: /\b(AIza[0-9A-Za-z_-]{35})\b/,              minEntropy: 3.5 },
-  { id: 'stripe-secret-key',   label: 'Stripe secret key',   pattern: /\b(sk_(?:live|test)_[0-9a-zA-Z]{24,})\b/,  minEntropy: 3 },
-  { id: 'slack-token',         label: 'Slack token',         pattern: /\b(xox[baprs]-[0-9A-Za-z-]{10,})\b/,       minEntropy: 3 },
-  { id: 'github-token',        label: 'GitHub token',        pattern: /\b(gh[pousr]_[0-9A-Za-z]{36,})\b/,          minEntropy: 3.5 },
+  {
+    id: 'aws-access-key',
+    label: 'AWS access key ID',
+    pattern: /\b(AKIA[0-9A-Z]{16})\b/,
+    minEntropy: 3.2,
+  },
+  {
+    id: 'aws-secret-key',
+    label: 'AWS secret access key',
+    pattern: /aws(.{0,20})?(secret|key).{0,5}['"=:\s]([A-Za-z0-9/+=]{40})\b/i,
+    minEntropy: 4,
+  },
+  {
+    id: 'google-api-key',
+    label: 'Google API key',
+    pattern: /\b(AIza[0-9A-Za-z_-]{35})\b/,
+    minEntropy: 3.5,
+  },
+  {
+    id: 'stripe-secret-key',
+    label: 'Stripe secret key',
+    pattern: /\b(sk_(?:live|test)_[0-9a-zA-Z]{24,})\b/,
+    minEntropy: 3,
+  },
+  {
+    id: 'slack-token',
+    label: 'Slack token',
+    pattern: /\b(xox[baprs]-[0-9A-Za-z-]{10,})\b/,
+    minEntropy: 3,
+  },
+  {
+    id: 'github-token',
+    label: 'GitHub token',
+    pattern: /\b(gh[pousr]_[0-9A-Za-z]{36,})\b/,
+    minEntropy: 3.5,
+  },
   // Anthropic keys (`sk-ant-…`) are a strict subset of the generic `sk-…`
   // shape, so the OpenAI rule excludes that prefix (negative lookahead) to
   // avoid a single Anthropic key double-firing as BOTH providers.
-  { id: 'openai-api-key',      label: 'OpenAI API key',      pattern: /\b(sk-(?!ant-)[A-Za-z0-9-_]{20,})\b/,      minEntropy: 3.5 },
-  { id: 'anthropic-api-key',   label: 'Anthropic API key',   pattern: /\b(sk-ant-[A-Za-z0-9-_]{20,})\b/,          minEntropy: 3.5 },
-  { id: 'private-key-header',  label: 'Private key block',   pattern: /(-----BEGIN (RSA |OPENSSH |DSA |EC |PGP )?PRIVATE KEY-----)/ },
+  {
+    id: 'openai-api-key',
+    label: 'OpenAI API key',
+    pattern: /\b(sk-(?!ant-)[A-Za-z0-9-_]{20,})\b/,
+    minEntropy: 3.5,
+  },
+  {
+    id: 'anthropic-api-key',
+    label: 'Anthropic API key',
+    pattern: /\b(sk-ant-[A-Za-z0-9-_]{20,})\b/,
+    minEntropy: 3.5,
+  },
+  {
+    id: 'private-key-header',
+    label: 'Private key block',
+    pattern: /(-----BEGIN (RSA |OPENSSH |DSA |EC |PGP )?PRIVATE KEY-----)/,
+  },
 ];
 
 export function scanSecrets(file: string, text: string): SecretFinding[] {

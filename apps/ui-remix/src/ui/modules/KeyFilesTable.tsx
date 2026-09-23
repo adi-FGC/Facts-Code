@@ -48,23 +48,43 @@ export function KeyFilesTable(handle: Handle<KeyFilesTableProps>) {
       <Section label="Importance" title="Key files by graph centrality">
         <RuledTable minWidth="38rem" cols="auto minmax(0, 1.5fr) minmax(0, 1.1fr) auto auto auto">
           <RuledRow header>
-            <RuledCell header align="right">#</RuledCell>
+            <RuledCell header align="right">
+              #
+            </RuledCell>
             <RuledCell header>File</RuledCell>
             <RuledCell header>Folder</RuledCell>
-            <RuledCell header align="right">In</RuledCell>
-            <RuledCell header align="right">Tokens</RuledCell>
-            <RuledCell header align="right">Importance</RuledCell>
+            <RuledCell header align="right">
+              In
+            </RuledCell>
+            <RuledCell header align="right">
+              Tokens
+            </RuledCell>
+            <RuledCell header align="right">
+              Importance
+            </RuledCell>
           </RuledRow>
           {files.map((f, i) => (
             <RuledRow key={f.path}>
-              <RuledCell align="right"><span mix={rankText}>{i + 1}</span></RuledCell>
-              <RuledCell>
-                <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{f.name}</a>
+              <RuledCell align="right">
+                <span mix={rankText}>{i + 1}</span>
               </RuledCell>
-              <RuledCell><span mix={dirText}>{f.dir || '·'}</span></RuledCell>
-              <RuledCell mono align="right">{f.inDegree}</RuledCell>
-              <RuledCell mono align="right">{fmtTokens(f.tokens)}</RuledCell>
-              <RuledCell align="right"><ImportanceBar value={f.importance} /></RuledCell>
+              <RuledCell>
+                <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                  {f.name}
+                </a>
+              </RuledCell>
+              <RuledCell>
+                <span mix={dirText}>{f.dir || '·'}</span>
+              </RuledCell>
+              <RuledCell mono align="right">
+                {f.inDegree}
+              </RuledCell>
+              <RuledCell mono align="right">
+                {fmtTokens(f.tokens)}
+              </RuledCell>
+              <RuledCell align="right">
+                <ImportanceBar value={f.importance} />
+              </RuledCell>
             </RuledRow>
           ))}
         </RuledTable>

@@ -26,18 +26,18 @@ Reference: [MDN — View Transition API](https://developer.mozilla.org/en-US/doc
 
 Every route-level or major-state transition goes through `document.startViewTransition()` via a shared helper in `apps/ui-remix/app/lib/view-transition.ts`.
 
-| # | Trigger | What transitions | Named elements | Duration |
-|---|---|---|---|---|
-| 1 | LHS tree → file select | RHS morph-in; tree node keeps `view-transition-name: file-{hash}` | file card, breadcrumb | 220 ms |
-| 2 | Graph node click | Graph shrinks to side-peek; file outline slides in | graph node, RHS pane | 280 ms |
-| 3 | Tree ↔ Graph view-mode toggle | Nodes morph in place between hierarchical and force-directed positions | each node with stable id | 420 ms |
-| 4 | Global tab switch | Underline slides between tabs; content crossfades | tab underline | 180 ms |
-| 5 | Outline region expand/collapse | Shared-element morph between collapsed and expanded cards | symbol card | 200 ms |
-| 6 | Theme swap | Circular reveal from toggle click origin; graph re-paints with dark-native palette AFTER reveal completes | `::view-transition-old(root)` / `::view-transition-new(root)` | 360 ms |
-| 7 | Route navigation via Remix 3 `viewTransition` prop | Crossfade + hero morph where applicable | hero element | 220 ms |
-| 8 | Mobile LHS drawer open/close | Slide + scrim fade (crossfade on scrim) | drawer, scrim | 380 ms |
-| 9 | Re-analyze completes | Status bar pulses; affected tree rows flash subtly | tree rows w/ `data-changed` | 450 ms |
-| 10 | ⌘K palette open/close | Glass panel scales + fades from search-button origin | palette, input | 240 ms |
+| #   | Trigger                                            | What transitions                                                                                          | Named elements                                                | Duration |
+| --- | -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | -------- |
+| 1   | LHS tree → file select                             | RHS morph-in; tree node keeps `view-transition-name: file-{hash}`                                         | file card, breadcrumb                                         | 220 ms   |
+| 2   | Graph node click                                   | Graph shrinks to side-peek; file outline slides in                                                        | graph node, RHS pane                                          | 280 ms   |
+| 3   | Tree ↔ Graph view-mode toggle                      | Nodes morph in place between hierarchical and force-directed positions                                    | each node with stable id                                      | 420 ms   |
+| 4   | Global tab switch                                  | Underline slides between tabs; content crossfades                                                         | tab underline                                                 | 180 ms   |
+| 5   | Outline region expand/collapse                     | Shared-element morph between collapsed and expanded cards                                                 | symbol card                                                   | 200 ms   |
+| 6   | Theme swap                                         | Circular reveal from toggle click origin; graph re-paints with dark-native palette AFTER reveal completes | `::view-transition-old(root)` / `::view-transition-new(root)` | 360 ms   |
+| 7   | Route navigation via Remix 3 `viewTransition` prop | Crossfade + hero morph where applicable                                                                   | hero element                                                  | 220 ms   |
+| 8   | Mobile LHS drawer open/close                       | Slide + scrim fade (crossfade on scrim)                                                                   | drawer, scrim                                                 | 380 ms   |
+| 9   | Re-analyze completes                               | Status bar pulses; affected tree rows flash subtly                                                        | tree rows w/ `data-changed`                                   | 450 ms   |
+| 10  | ⌘K palette open/close                              | Glass panel scales + fades from search-button origin                                                      | palette, input                                                | 240 ms   |
 
 ---
 
@@ -164,13 +164,13 @@ A 300 ms linear-gradient translate across the surface on hover. Signals interact
 
 ## 8. Graph interaction motion
 
-| Interaction | Duration | Easing |
-|---|---|---|
-| Node hover scale to 1.05 | 120 ms | ease-out |
-| Edge highlight (stroke-width + opacity) | 150 ms | ease-out |
-| Auto-layout re-run | 400 ms | position tween with dampened overshoot |
-| Node drag | no transition (direct follow) | — |
-| Zoom/pan inertia | framer-motion `gentle` spring | — |
+| Interaction                             | Duration                      | Easing                                 |
+| --------------------------------------- | ----------------------------- | -------------------------------------- |
+| Node hover scale to 1.05                | 120 ms                        | ease-out                               |
+| Edge highlight (stroke-width + opacity) | 150 ms                        | ease-out                               |
+| Auto-layout re-run                      | 400 ms                        | position tween with dampened overshoot |
+| Node drag                               | no transition (direct follow) | —                                      |
+| Zoom/pan inertia                        | framer-motion `gentle` spring | —                                      |
 
 All graph animations obey `prefers-reduced-motion` — replaced with instant updates.
 

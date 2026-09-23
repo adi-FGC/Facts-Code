@@ -38,9 +38,7 @@ function renderCopilotInstructions(spec: SkillSpec): string {
 
   /* Opener — Copilot's "we" framing. State the project + stack in
      one sentence so the model adopts a coherent project voice. */
-  const stack = spec.languages.length
-    ? `${spec.languages[0]!.id}`
-    : 'this codebase';
+  const stack = spec.languages.length ? `${spec.languages[0]!.id}` : 'this codebase';
   const frameworks = spec.frameworks.length
     ? ` built with ${spec.frameworks.slice(0, 3).join(', ')}`
     : '';
@@ -64,9 +62,7 @@ function renderCopilotInstructions(spec: SkillSpec): string {
   lines.push(statsLine);
   if (spec.languages.length) {
     lines.push('');
-    lines.push(
-      `**Languages**: ${spec.languages.map((l) => `${l.id} ${l.pct}%`).join(', ')}.`,
-    );
+    lines.push(`**Languages**: ${spec.languages.map((l) => `${l.id} ${l.pct}%`).join(', ')}.`);
   }
   if (spec.frameworks.length) {
     lines.push(`**Frameworks**: ${spec.frameworks.join(', ')}.`);
@@ -94,7 +90,7 @@ function renderCopilotInstructions(spec: SkillSpec): string {
     lines.push('');
     lines.push('## Key files');
     lines.push('');
-    lines.push("Start here when exploring:");
+    lines.push('Start here when exploring:');
     lines.push('');
     for (const k of spec.keyFiles) lines.push(`- \`${k.path}\``);
   }
@@ -130,9 +126,7 @@ function renderCopilotInstructions(spec: SkillSpec): string {
   lines.push('');
   lines.push('- Match existing file and naming patterns when adding code.');
   lines.push('- Prefer extending existing modules over creating new ones.');
-  lines.push(
-    '- Keep diffs minimal and revertable — one concern per commit.',
-  );
+  lines.push('- Keep diffs minimal and revertable — one concern per commit.');
 
   /* ── Footer ───────────────────────────────────────────────────── */
   lines.push('');

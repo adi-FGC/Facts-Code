@@ -20,7 +20,9 @@ const OUT = join(OUT_DIR, 'factstack.json');
 const agentP = join(REPO_ROOT, '.facts', 'agent.json');
 const humanP = join(REPO_ROOT, '.facts', 'human.json');
 if (!existsSync(agentP) || !existsSync(humanP)) {
-  console.error('[make-demo] .facts/{agent,human}.json not found — run `factstack analyze .` from the repo root first.');
+  console.error(
+    '[make-demo] .facts/{agent,human}.json not found — run `factstack analyze .` from the repo root first.',
+  );
   process.exit(1);
 }
 
@@ -33,7 +35,9 @@ const viz = humanToViz(agent, human);
 const snapDir = join(REPO_ROOT, '.facts', 'snapshots');
 if (existsSync(snapDir)) {
   const hist = [];
-  for (const name of readdirSync(snapDir).filter((n) => n.endsWith('.json')).sort()) {
+  for (const name of readdirSync(snapDir)
+    .filter((n) => n.endsWith('.json'))
+    .sort()) {
     try {
       const b = JSON.parse(readFileSync(join(snapDir, name), 'utf8'));
       hist.push({
@@ -44,7 +48,9 @@ if (existsSync(snapDir)) {
         risks: b.risks ?? 0,
         todos: b.todos ?? 0,
       });
-    } catch { /* skip malformed */ }
+    } catch {
+      /* skip malformed */
+    }
   }
   if (hist.length) viz.history = hist;
 }
@@ -59,4 +65,6 @@ mkdirSync(OUT_DIR, { recursive: true });
 const json = JSON.stringify(viz);
 writeFileSync(OUT, json);
 console.log(`[make-demo] wrote ${(Buffer.byteLength(json) / 1024).toFixed(1)} KB → ${OUT}`);
-console.log(`  project: ${viz.project?.name}  files: ${viz.stats?.files}  risks: ${viz.risks?.length ?? 0}`);
+console.log(
+  `  project: ${viz.project?.name}  files: ${viz.stats?.files}  risks: ${viz.risks?.length ?? 0}`,
+);

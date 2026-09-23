@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 100,
+  "useTabs": false,
+  "tabWidth": 2,
+  "sortPackageJson": false,
+  "ignorePatterns": [
+    "legacy/**",
+    "docs/**",
+    "bench/corpus/**",
+    "**/.facts/**",
+    "**/dist/**",
+    "**/data/*.json",
+    "**/*.min.*",
+    ".claude/**",
+    "prototype/**",
+    "**/*.md",
+    "**/*.html"
+  ]
+}

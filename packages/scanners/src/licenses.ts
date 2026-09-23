@@ -34,27 +34,67 @@ export interface LicenseRisk {
 
 /** Common SPDX ids we recognize. Non-exhaustive but covers the 99%. */
 const SPDX_IDS = [
-  'MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC',
-  'MPL-2.0', 'CC0-1.0', 'Unlicense', '0BSD', 'BlueOak-1.0.0',
-  'GPL-2.0', 'GPL-2.0-only', 'GPL-2.0-or-later',
-  'GPL-3.0', 'GPL-3.0-only', 'GPL-3.0-or-later',
-  'LGPL-2.1', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
-  'LGPL-3.0', 'LGPL-3.0-only', 'LGPL-3.0-or-later',
-  'AGPL-3.0', 'AGPL-3.0-only', 'AGPL-3.0-or-later',
-  'EUPL-1.2', 'Proprietary', 'UNLICENSED',
+  'MIT',
+  'MIT-0',
+  'Apache-2.0',
+  'BSD-2-Clause',
+  'BSD-3-Clause',
+  'ISC',
+  'MPL-2.0',
+  'CC0-1.0',
+  'Unlicense',
+  '0BSD',
+  'BlueOak-1.0.0',
+  'GPL-2.0',
+  'GPL-2.0-only',
+  'GPL-2.0-or-later',
+  'GPL-3.0',
+  'GPL-3.0-only',
+  'GPL-3.0-or-later',
+  'LGPL-2.1',
+  'LGPL-2.1-only',
+  'LGPL-2.1-or-later',
+  'LGPL-3.0',
+  'LGPL-3.0-only',
+  'LGPL-3.0-or-later',
+  'AGPL-3.0',
+  'AGPL-3.0-only',
+  'AGPL-3.0-or-later',
+  'EUPL-1.2',
+  'Proprietary',
+  'UNLICENSED',
 ] as const;
 
 const COPYLEFT = new Set([
-  'GPL-2.0', 'GPL-2.0-only', 'GPL-2.0-or-later',
-  'GPL-3.0', 'GPL-3.0-only', 'GPL-3.0-or-later',
-  'LGPL-2.1', 'LGPL-2.1-only', 'LGPL-2.1-or-later',
-  'LGPL-3.0', 'LGPL-3.0-only', 'LGPL-3.0-or-later',
-  'AGPL-3.0', 'AGPL-3.0-only', 'AGPL-3.0-or-later',
+  'GPL-2.0',
+  'GPL-2.0-only',
+  'GPL-2.0-or-later',
+  'GPL-3.0',
+  'GPL-3.0-only',
+  'GPL-3.0-or-later',
+  'LGPL-2.1',
+  'LGPL-2.1-only',
+  'LGPL-2.1-or-later',
+  'LGPL-3.0',
+  'LGPL-3.0-only',
+  'LGPL-3.0-or-later',
+  'AGPL-3.0',
+  'AGPL-3.0-only',
+  'AGPL-3.0-or-later',
 ]);
 
 const PERMISSIVE = new Set([
-  'MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'ISC',
-  'MPL-2.0', 'CC0-1.0', 'Unlicense', '0BSD', 'BlueOak-1.0.0',
+  'MIT',
+  'MIT-0',
+  'Apache-2.0',
+  'BSD-2-Clause',
+  'BSD-3-Clause',
+  'ISC',
+  'MPL-2.0',
+  'CC0-1.0',
+  'Unlicense',
+  '0BSD',
+  'BlueOak-1.0.0',
 ]);
 
 /** Extract the SPDX id from a file header (first 60 lines). */
@@ -83,7 +123,9 @@ export function scanManifestLicense(text: string, filename: string): string | nu
       const m = /^\s*license\s*=\s*['"]([^'"]+)['"]/im.exec(text);
       if (m && m[1]) return m[1];
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null;
 }
 
@@ -122,7 +164,8 @@ export function deriveLicenseRisks(
   if (!projectLicense) {
     risks.push({
       severity: 'low',
-      message: 'No project license declared. Add a "license" field to package.json (or a LICENSE file).',
+      message:
+        'No project license declared. Add a "license" field to package.json (or a LICENSE file).',
     });
   } else if (projectLicense === 'UNLICENSED' || projectLicense === 'Proprietary') {
     // Intentional — not a risk by itself.

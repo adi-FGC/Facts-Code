@@ -93,7 +93,11 @@ export async function validSession(): Promise<Session | null> {
       body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(s.refreshToken)}`,
     });
     if (!res.ok) return null;
-    const j = (await res.json()) as { id_token: string; refresh_token?: string; expires_in: string };
+    const j = (await res.json()) as {
+      id_token: string;
+      refresh_token?: string;
+      expires_in: string;
+    };
     const next: Session = {
       ...s,
       idToken: j.id_token,
@@ -192,8 +196,12 @@ export async function login(): Promise<Session> {
         req.on('end', () => {
           if (tooBig) return;
           let p: {
-            uid?: string; email?: string; idToken?: string; refreshToken?: string;
-            expiresIn?: number; state?: string;
+            uid?: string;
+            email?: string;
+            idToken?: string;
+            refreshToken?: string;
+            expiresIn?: number;
+            state?: string;
           };
           try {
             p = JSON.parse(body);

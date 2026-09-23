@@ -116,9 +116,7 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
     packPath: path.join(root, result.packName),
     diffPath: result.diffName ? path.join(root, result.diffName) : null,
     memoryPath: result.memoryName ? path.join(root, result.memoryName) : null,
-    snapshotPath: result.snapshotName
-      ? path.join(root, 'snapshots', result.snapshotName)
-      : null,
+    snapshotPath: result.snapshotName ? path.join(root, 'snapshots', result.snapshotName) : null,
     bytesWritten: result.bytesWritten,
   };
 }
@@ -134,19 +132,31 @@ export async function writeArtifacts(opts: WriteOptions): Promise<{
  * interface would let us deepen this the same way `FileWriter` did
  * for the write path — tracked in CONTEXT.md.
  */
-export async function readSnapshots(root: string): Promise<Array<{
-  at: string;
-  loc: number;
-  tokens: number;
-  files: number;
-  risks: number;
-  todos: number;
-}>> {
+export async function readSnapshots(root: string): Promise<
+  Array<{
+    at: string;
+    loc: number;
+    tokens: number;
+    files: number;
+    risks: number;
+    todos: number;
+  }>
+> {
   const snapDir = path.join(root, '.facts', 'snapshots');
   let entries: string[];
-  try { entries = await fs.readdir(snapDir); }
-  catch { return []; }
-  const out: Array<{ at: string; loc: number; tokens: number; files: number; risks: number; todos: number }> = [];
+  try {
+    entries = await fs.readdir(snapDir);
+  } catch {
+    return [];
+  }
+  const out: Array<{
+    at: string;
+    loc: number;
+    tokens: number;
+    files: number;
+    risks: number;
+    todos: number;
+  }> = [];
   for (const name of entries.sort()) {
     if (!name.endsWith('.json')) continue;
     try {
@@ -165,7 +175,9 @@ export async function readSnapshots(root: string): Promise<Array<{
         risks: j.risks ?? 0,
         todos: j.todos ?? 0,
       });
-    } catch { /* skip malformed */ }
+    } catch {
+      /* skip malformed */
+    }
   }
   return out;
 }
@@ -181,10 +193,14 @@ export async function readSnapshots(root: string): Promise<Array<{
 async function ensureGitignoreEntry(root: string): Promise<void> {
   const giPath = path.join(root, '.gitignore');
   let existing = '';
-  try { existing = await fs.readFile(giPath, 'utf8'); }
-  catch { /* file will be created */ }
+  try {
+    existing = await fs.readFile(giPath, 'utf8');
+  } catch {
+    /* file will be created */
+  }
   if (/^\.facts\/?\s*$/m.test(existing)) return;
   const needsNewline = existing.length > 0 && !existing.endsWith('\n');
-  const appended = existing + (needsNewline ? '\n' : '') + '\n# FACTS analysis artifacts\n.facts/\n';
+  const appended =
+    existing + (needsNewline ? '\n' : '') + '\n# FACTS analysis artifacts\n.facts/\n';
   await fs.writeFile(giPath, appended);
 }

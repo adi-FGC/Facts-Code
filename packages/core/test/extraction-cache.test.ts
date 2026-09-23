@@ -38,7 +38,13 @@ function makeCache(): { cache: ExtractionCache; store: Map<string, FileExtractio
       store.set(k, v);
     },
   };
-  return { cache, store, get sets() { return state.sets; } } as never;
+  return {
+    cache,
+    store,
+    get sets() {
+      return state.sets;
+    },
+  } as never;
 }
 
 describe('extractFile — pure baseline', () => {
@@ -66,7 +72,9 @@ describe('extractFile — pure baseline', () => {
 
 describe('extractionCacheKey — segregation', () => {
   it('embeds the cache version so an extractor upgrade invalidates everything', () => {
-    expect(extractionCacheKey(SRC, '.ts', false).startsWith(`v${EXTRACTION_CACHE_VERSION}:`)).toBe(true);
+    expect(extractionCacheKey(SRC, '.ts', false).startsWith(`v${EXTRACTION_CACHE_VERSION}:`)).toBe(
+      true,
+    );
   });
 
   it('segregates by refs flag — a no-refs entry must not serve a --symbols run', () => {
@@ -100,8 +108,14 @@ describe('extractFileCached — INV2 + isolation', () => {
     let gets = 0;
     let sets = 0;
     const cache: ExtractionCache = {
-      get: (k) => { gets++; return store.get(k); },
-      set: (k, v) => { sets++; store.set(k, v); },
+      get: (k) => {
+        gets++;
+        return store.get(k);
+      },
+      set: (k, v) => {
+        sets++;
+        store.set(k, v);
+      },
     };
     extractFileCached(SRC, '.ts', true, cache);
     extractFileCached(SRC, '.ts', true, cache);
@@ -111,7 +125,10 @@ describe('extractFileCached — INV2 + isolation', () => {
 
   it('mutating a returned value never corrupts the stored entry (store-side clone)', () => {
     const store = new Map<string, FileExtraction>();
-    const cache: ExtractionCache = { get: (k) => store.get(k), set: (k, v) => void store.set(k, v) };
+    const cache: ExtractionCache = {
+      get: (k) => store.get(k),
+      set: (k, v) => void store.set(k, v),
+    };
     const first = extractFileCached(SRC, '.ts', true, cache); // miss: returns the live object, stores a clone
     first.imports.push({ specifier: 'INJECTED', kind: 'import', line: 999 } as never);
     first.symbols.length = 0;
@@ -122,7 +139,10 @@ describe('extractFileCached — INV2 + isolation', () => {
 
   it('mutating one hit never corrupts the next (read-side clone)', () => {
     const store = new Map<string, FileExtraction>();
-    const cache: ExtractionCache = { get: (k) => store.get(k), set: (k, v) => void store.set(k, v) };
+    const cache: ExtractionCache = {
+      get: (k) => store.get(k),
+      set: (k, v) => void store.set(k, v),
+    };
     extractFileCached(SRC, '.ts', true, cache); // prime
     const a = extractFileCached(SRC, '.ts', true, cache); // hit -> clone
     a.imports.length = 0;

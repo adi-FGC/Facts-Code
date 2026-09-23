@@ -55,7 +55,9 @@ describe('ListTools payload (from MCP_TOOL_CATALOG)', () => {
 
   it('pins the query_graph verb enum to the shared QUERY_VERBS tuple', () => {
     const qg = listToolsPayload.find((t) => t.name === 'query_graph');
-    const verbProp = qg?.inputSchema.properties?.verb as { enum?: string[]; default?: string } | undefined;
+    const verbProp = qg?.inputSchema.properties?.verb as
+      | { enum?: string[]; default?: string }
+      | undefined;
     expect(verbProp?.default).toBe('callers');
     expect(verbProp?.enum).toContain('impact');
     expect(verbProp?.enum).toContain('callers');

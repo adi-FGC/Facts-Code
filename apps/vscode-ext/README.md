@@ -1,4 +1,4 @@
-# @factstack/vscode-ext *(v0.3 stub)*
+# @factstack/vscode-ext _(v0.3 stub)_
 
 **Not built in v0.1.** Reserved for the VS Code / Antigravity extension surface.
 

@@ -26,7 +26,12 @@
  * filesystem in CLI, in-memory in tests).
  */
 
-import type { DependencyManifest, ManifestEcosystem, Vulnerability, VulnerabilitySeverity } from '@factstack/spec';
+import type {
+  DependencyManifest,
+  ManifestEcosystem,
+  Vulnerability,
+  VulnerabilitySeverity,
+} from '@factstack/spec';
 import { flattenManifests } from './dependencies.js';
 
 /* The scanners package's tsconfig uses `lib: ["ES2022"]` only — no DOM,
@@ -40,7 +45,9 @@ type FetchFn = (
   input: string,
   init?: { method?: string; headers?: Record<string, string>; body?: string; signal?: AbortSignal },
 ) => Promise<{ ok: boolean; status: number; statusText: string; json: () => Promise<unknown> }>;
-interface AbortSignal { readonly aborted: boolean; }
+interface AbortSignal {
+  readonly aborted: boolean;
+}
 declare const fetch: FetchFn;
 /* `AbortSignal.timeout(ms)` is a Node 18+/browser global the bare ES2022 lib
  * types only as an interface, not a value. Declare the slice we use (same
@@ -210,7 +217,7 @@ export async function queryOsvBatch(
     if (!res.ok) {
       throw new Error(`OSV batch failed: ${res.status} ${res.statusText}`);
     }
-    const json = await res.json() as { results: Array<{ vulns?: OsvVulnRef[] }> };
+    const json = (await res.json()) as { results: Array<{ vulns?: OsvVulnRef[] }> };
     for (const r of json.results) stage1.push({ vulns: r.vulns ?? [] });
   }
 
@@ -223,20 +230,22 @@ export async function queryOsvBatch(
   const CONCURRENT_DETAIL = 8;
   for (let i = 0; i < ids.length; i += CONCURRENT_DETAIL) {
     const slice = ids.slice(i, i + CONCURRENT_DETAIL);
-    await Promise.all(slice.map(async (id) => {
-      try {
-        const sig = opts.signal ?? defaultOsvSignal();
-        const res = await fetch(OSV_VULN_ENDPOINT + encodeURIComponent(id), {
-          ...(sig ? { signal: sig } : {}),
-        });
-        if (!res.ok) return;
-        const detail = await res.json() as OsvVuln;
-        vulnDetails.set(id, detail);
-      } catch {
-        /* Skip failed detail fetches — id alone is still useful (the
+    await Promise.all(
+      slice.map(async (id) => {
+        try {
+          const sig = opts.signal ?? defaultOsvSignal();
+          const res = await fetch(OSV_VULN_ENDPOINT + encodeURIComponent(id), {
+            ...(sig ? { signal: sig } : {}),
+          });
+          if (!res.ok) return;
+          const detail = (await res.json()) as OsvVuln;
+          vulnDetails.set(id, detail);
+        } catch {
+          /* Skip failed detail fetches — id alone is still useful (the
            renderer falls back to osv.dev/vulnerability/{id}). */
-      }
-    }));
+        }
+      }),
+    );
   }
 
   // EH-3: ids whose detail fetch failed (non-ok or threw) never made it into
@@ -369,9 +378,10 @@ function isHttpUrl(s: string): boolean {
  *  the osv.dev fallback is always a safe https URL. */
 export function pickAdvisoryUrl(v: OsvVuln): string {
   const refs = v.references ?? [];
-  const ref = refs.find((r) => r.type === 'ADVISORY' && isHttpUrl(r.url))
-    ?? refs.find((r) => isHttpUrl(r.url) && r.url.includes('github.com/advisories'))
-    ?? refs.find((r) => isHttpUrl(r.url));
+  const ref =
+    refs.find((r) => r.type === 'ADVISORY' && isHttpUrl(r.url)) ??
+    refs.find((r) => isHttpUrl(r.url) && r.url.includes('github.com/advisories')) ??
+    refs.find((r) => isHttpUrl(r.url));
   return ref?.url ?? `https://osv.dev/vulnerability/${v.id}`;
 }
 
@@ -466,5 +476,7 @@ export function reconcileVulnerabilities(
     const concrete = e.ecosystem === 'npm' ? normalizeNpmVersion(e.version) : e.version;
     if (concrete) installed.add(`${e.ecosystem}\t${e.name}\t${concrete}`);
   }
-  return previous.filter((v) => installed.has(`${v.ecosystem}\t${v.package}\t${v.installedVersion}`));
+  return previous.filter((v) =>
+    installed.has(`${v.ecosystem}\t${v.package}\t${v.installedVersion}`),
+  );
 }

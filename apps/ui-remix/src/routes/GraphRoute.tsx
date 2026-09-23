@@ -64,11 +64,7 @@ import { SugiyamaDag } from '../ui/graph/SugiyamaDag.tsx';
 import { DagControls, type Granularity } from '../ui/graph/DagControls.tsx';
 import { SankeyDiagram } from '../ui/SankeyDiagram.tsx';
 import { ExportMermaidButton } from '../ui/graph/ExportMermaidButton.tsx';
-import {
-  ViewModeToggle,
-  readStoredMode,
-  type GraphViewMode,
-} from '../ui/graph/ViewModeToggle.tsx';
+import { ViewModeToggle, readStoredMode, type GraphViewMode } from '../ui/graph/ViewModeToggle.tsx';
 
 interface GraphProps {
   data: Dataset;
@@ -192,9 +188,7 @@ function moduleFlowSankey(coupling: HeatmapResult, cap = MODULE_SANKEY_CAP): Mod
     return t;
   });
 
-  const coupled = folders
-    .map((f, i) => ({ f, i, t: throughput[i]! }))
-    .filter((m) => m.t > 0);
+  const coupled = folders.map((f, i) => ({ f, i, t: throughput[i]! })).filter((m) => m.t > 0);
   const kept = coupled
     .slice()
     .sort((a, b) => b.t - a.t || (a.f < b.f ? -1 : a.f > b.f ? 1 : 0))
@@ -252,7 +246,7 @@ export function GraphRoute(handle: Handle<GraphProps>) {
   let granularity: Granularity = 'files';
   let showAll = false;
   let zoomedOrPanned = false;
-  
+
   /* Neo-DAG style mode: classic or neo */
   let styleMode: 'classic' | 'neo' = 'neo';
   if (typeof localStorage !== 'undefined') {
@@ -390,9 +384,7 @@ export function GraphRoute(handle: Handle<GraphProps>) {
        dependencies. Until that lands, the Symbols mode renders an
        explanatory empty state — the toggle in DagControls is disabled
        until `symbolsAvailable` flips true. */
-    const symbolsAvailable = Array.isArray(
-      (data as { symbolEdges?: unknown[] }).symbolEdges,
-    );
+    const symbolsAvailable = Array.isArray((data as { symbolEdges?: unknown[] }).symbolEdges);
 
     /* F5 — path → community map for the optional node coloring overlay.
        Sourced from data.nodeMetrics (the same metrics the Modules tab
@@ -455,22 +447,27 @@ export function GraphRoute(handle: Handle<GraphProps>) {
             `overflow: auto` then becomes the scroll surface. */}
         <div mix={css({ gridColumn: '1', minWidth: '0' })}>
           <div mix={kicker}>
-            Graph · {fmt(folderCount)} {folderCount === 1 ? 'module' : 'modules'} · {fmt(maxLayer + 1)} layer{maxLayer === 0 ? '' : 's'}
+            Graph · {fmt(folderCount)} {folderCount === 1 ? 'module' : 'modules'} ·{' '}
+            {fmt(maxLayer + 1)} layer{maxLayer === 0 ? '' : 's'}
           </div>
           <h1 mix={headline}>Where the dependency lives.</h1>
           <p mix={lede}>
-            Three lenses on the same import graph. Heatmap shows where the weight
-            is concentrated, diagram shows how the dependency flows, layers shows
-            what runs at each depth. Cycles, heaviest couplings, and the central
-            hubs surface below regardless of view.
+            Three lenses on the same import graph. Heatmap shows where the weight is concentrated,
+            diagram shows how the dependency flows, layers shows what runs at each depth. Cycles,
+            heaviest couplings, and the central hubs surface below regardless of view.
           </p>
 
           <LabelNumberRow>
             <LabelNumber label="Modules" value={fmt(folderCount)} />
-            <LabelNumber label="Files"   value={fmt(all.length)} />
-            <LabelNumber label="Edges"   value={fmt(edges.length)} />
-            <LabelNumber label="Layers"  value={fmt(maxLayer + 1)} />
-            <LabelNumber label="Cycles"  value={cycles.length} hint={cycles.length === 0 ? 'clean DAG' : 'must resolve'} last />
+            <LabelNumber label="Files" value={fmt(all.length)} />
+            <LabelNumber label="Edges" value={fmt(edges.length)} />
+            <LabelNumber label="Layers" value={fmt(maxLayer + 1)} />
+            <LabelNumber
+              label="Cycles"
+              value={cycles.length}
+              hint={cycles.length === 0 ? 'clean DAG' : 'must resolve'}
+              last
+            />
           </LabelNumberRow>
 
           <div mix={toggleRow}>
@@ -478,27 +475,31 @@ export function GraphRoute(handle: Handle<GraphProps>) {
             <span mix={toggleHint}>
               {viewMode === 'heatmap' && 'Module × module coupling'}
               {viewMode === 'diagram' && `Top ${SUGIYAMA_NODE_CAP} by degree`}
-              {viewMode === 'sankey'  && 'Module → module import flow'}
-              {viewMode === 'layers'  && 'Files grouped by depth'}
+              {viewMode === 'sankey' && 'Module → module import flow'}
+              {viewMode === 'layers' && 'Files grouped by depth'}
             </span>
           </div>
 
           {/* The primary view changes with the toggle. */}
-          {viewMode === 'heatmap' && (() => {
-            const grid = capHeatmap(heatmap, HEATMAP_MODULE_CAP);
-            const capped = grid.folders.length < heatmap.folders.length;
-            const title = capped
-              ? `top ${grid.folders.length} of ${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`
-              : `${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`;
-            return (
-              <Section label="Heatmap" title={title}>
-                <Heatmap data={grid} />
-              </Section>
-            );
-          })()}
+          {viewMode === 'heatmap' &&
+            (() => {
+              const grid = capHeatmap(heatmap, HEATMAP_MODULE_CAP);
+              const capped = grid.folders.length < heatmap.folders.length;
+              const title = capped
+                ? `top ${grid.folders.length} of ${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`
+                : `${heatmap.folders.length} modules · ${heatmap.crossEdges} cross-module imports`;
+              return (
+                <Section label="Heatmap" title={title}>
+                  <Heatmap data={grid} />
+                </Section>
+              );
+            })()}
 
           {viewMode === 'diagram' && sugiyamaLayout && (
-            <Section label="Diagram" title={`${sugiyamaLayout.layerCount} layers, ${sugiyamaLayout.nodes.size} nodes`}>
+            <Section
+              label="Diagram"
+              title={`${sugiyamaLayout.layerCount} layers, ${sugiyamaLayout.nodes.size} nodes`}
+            >
               <DagControls
                 granularity={granularity}
                 onGranularityChange={setGranularity}
@@ -533,30 +534,32 @@ export function GraphRoute(handle: Handle<GraphProps>) {
             </Section>
           )}
 
-          {viewMode === 'sankey' && (() => {
-            /* Reuses the shared module-level `heatmap` (apps/ui-remix,
+          {viewMode === 'sankey' &&
+            (() => {
+              /* Reuses the shared module-level `heatmap` (apps/ui-remix,
                packages/spec, …). moduleFlowSankey drops the diagonal + any
                module with no cross-module flow, so this is the import-coupling
                half of the same matrix the Heatmap draws. */
-            const sankey = moduleFlowSankey(heatmap);
-            const truncated = sankey.shownModules < sankey.totalModules;
-            const title = sankey.totalCrossEdges === 0
-              ? 'no cross-module imports'
-              : truncated
-                ? `top ${sankey.shownModules} of ${sankey.totalModules} modules · ${sankey.totalCrossEdges} cross-module imports`
-                : `${sankey.shownModules} modules · ${sankey.totalCrossEdges} cross-module imports`;
-            return (
-              <Section label="Sankey" title={title}>
-                <SankeyDiagram
-                  nodes={sankey.nodes}
-                  links={sankey.links}
-                  formatValue={fmt}
-                  height={Math.max(320, Math.min(900, Math.max(sankey.shownModules, 1) * 52))}
-                  ariaLabel={`Module-to-module import flow across ${sankey.shownModules} modules`}
-                />
-              </Section>
-            );
-          })()}
+              const sankey = moduleFlowSankey(heatmap);
+              const truncated = sankey.shownModules < sankey.totalModules;
+              const title =
+                sankey.totalCrossEdges === 0
+                  ? 'no cross-module imports'
+                  : truncated
+                    ? `top ${sankey.shownModules} of ${sankey.totalModules} modules · ${sankey.totalCrossEdges} cross-module imports`
+                    : `${sankey.shownModules} modules · ${sankey.totalCrossEdges} cross-module imports`;
+              return (
+                <Section label="Sankey" title={title}>
+                  <SankeyDiagram
+                    nodes={sankey.nodes}
+                    links={sankey.links}
+                    formatValue={fmt}
+                    height={Math.max(320, Math.min(900, Math.max(sankey.shownModules, 1) * 52))}
+                    ariaLabel={`Module-to-module import flow across ${sankey.shownModules} modules`}
+                  />
+                </Section>
+              );
+            })()}
 
           {viewMode === 'layers' && (
             <Section label="Layers" title="Files at each depth">
@@ -575,16 +578,15 @@ export function GraphRoute(handle: Handle<GraphProps>) {
 
         <MarginColumn>
           <FootnoteChip label="Three views" tone="accent">
-            Heatmap = "where's the weight?" · Diagram = "how does it flow?"
-            · Layers = "what runs when?". Same graph, different questions.
+            Heatmap = "where's the weight?" · Diagram = "how does it flow?" · Layers = "what runs
+            when?". Same graph, different questions.
           </FootnoteChip>
           <FootnoteChip label="Diagonal">
-            Heatmap diagonal = self-coupling within a module. Tinted
-            differently to read as "internal".
+            Heatmap diagonal = self-coupling within a module. Tinted differently to read as
+            "internal".
           </FootnoteChip>
           <FootnoteChip label="Layer 0">
-            Diagram top row + Layers L0 = entry points, files no other
-            in-project file imports.
+            Diagram top row + Layers L0 = entry points, files no other in-project file imports.
           </FootnoteChip>
           <FootnoteChip label="Cycles" tone={cycles.length === 0 ? 'ok' : 'danger'}>
             {cycles.length === 0
@@ -592,8 +594,8 @@ export function GraphRoute(handle: Handle<GraphProps>) {
               : `${cycles.length} dependency loop${cycles.length === 1 ? '' : 's'} — see panel below.`}
           </FootnoteChip>
           <FootnoteChip label="Algorithm">
-            Tarjan SCC for cycles, Kahn topological + longest-path for layers,
-            barycenter heuristic for in-layer order. O(V+E).
+            Tarjan SCC for cycles, Kahn topological + longest-path for layers, barycenter heuristic
+            for in-layer order. O(V+E).
           </FootnoteChip>
         </MarginColumn>
       </ContentWithMargin>

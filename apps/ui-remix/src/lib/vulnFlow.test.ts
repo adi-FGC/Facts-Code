@@ -4,7 +4,8 @@ import { vulnSeveritySankey, type VulnFlowInput } from './vulnFlow.ts';
 /** How the page groups packages for its headline counts: ecosystem|package@version. */
 const pkgGroupKey = (v: VulnFlowInput) => `${v.ecosystem}|${v.package}@${v.installedVersion}`;
 const distinctPackages = (vulns: VulnFlowInput[]) => new Set(vulns.map(pkgGroupKey)).size;
-const pkgNodes = (vulns: VulnFlowInput[]) => vulnSeveritySankey(vulns).nodes.filter((n) => n.column === 1);
+const pkgNodes = (vulns: VulnFlowInput[]) =>
+  vulnSeveritySankey(vulns).nodes.filter((n) => n.column === 1);
 
 describe('vulnSeveritySankey', () => {
   it('keeps two installed versions of the same package as distinct nodes (the headline-vs-diagram invariant)', () => {
@@ -17,7 +18,11 @@ describe('vulnSeveritySankey', () => {
     expect(pkgNodes(vulns)).toHaveLength(distinctPackages(vulns));
     expect(pkgNodes(vulns)).toHaveLength(2);
     // Labels carry the version so the two nodes are distinguishable.
-    expect(pkgNodes(vulns).map((n) => n.label).sort()).toEqual(['lodash@4.17.20', 'lodash@4.17.21']);
+    expect(
+      pkgNodes(vulns)
+        .map((n) => n.label)
+        .sort(),
+    ).toEqual(['lodash@4.17.20', 'lodash@4.17.21']);
   });
 
   it('does NOT merge advisory ribbons across versions', () => {
@@ -52,7 +57,9 @@ describe('vulnSeveritySankey', () => {
       { ecosystem: 'npm', package: 'a', installedVersion: '1', severity: 'unknown' },
       { ecosystem: 'npm', package: 'b', installedVersion: '1', severity: 'critical' },
     ];
-    const sevNodes = vulnSeveritySankey(vulns).nodes.filter((n) => n.column === 0).map((n) => n.label);
+    const sevNodes = vulnSeveritySankey(vulns)
+      .nodes.filter((n) => n.column === 0)
+      .map((n) => n.label);
     expect(sevNodes).toEqual(['Critical', 'Unknown']); // high/medium/low absent, order preserved
   });
 
@@ -67,6 +74,8 @@ describe('vulnSeveritySankey', () => {
       { ecosystem: 'npm', package: 'x', installedVersion: '1', severity: 'high' },
       { ecosystem: 'npm', package: 'y', installedVersion: '2', severity: 'low' },
     ];
-    expect(JSON.stringify(vulnSeveritySankey(vulns))).toBe(JSON.stringify(vulnSeveritySankey(vulns)));
+    expect(JSON.stringify(vulnSeveritySankey(vulns))).toBe(
+      JSON.stringify(vulnSeveritySankey(vulns)),
+    );
   });
 });

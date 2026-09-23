@@ -42,7 +42,8 @@ const btn = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -78,7 +79,10 @@ export function OpenButton(_handle: Handle) {
         aria-label="Open project"
         mix={[btn, on<HTMLButtonElement, 'click'>('click', fire)]}
       >
-        Open<span aria-hidden="true" mix={arrow}>↗</span>
+        Open
+        <span aria-hidden="true" mix={arrow}>
+          ↗
+        </span>
       </button>
     </div>
   );

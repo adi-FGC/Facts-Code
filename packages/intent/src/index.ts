@@ -26,8 +26,14 @@ import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 /** The set of frameworks that imply "this serves an HTTP API". */
 const SERVER_FRAMEWORKS = new Set([
-  'Express', 'Hono', 'Koa', 'Fastify', 'NestJS',
-  'FastAPI', 'Django', 'Flask',
+  'Express',
+  'Hono',
+  'Koa',
+  'Fastify',
+  'NestJS',
+  'FastAPI',
+  'Django',
+  'Flask',
 ]);
 
 /** Frameworks that imply "this renders a React-shaped UI." */
@@ -57,7 +63,11 @@ export function inferIntent(agent: AgentArtifact, human: HumanArtifact): string 
  * under apps/.
  * ─────────────────────────────────────────────────────────────── */
 
-function monorepoIntent(agent: AgentArtifact, human: HumanArtifact, manager: string): string | null {
+function monorepoIntent(
+  agent: AgentArtifact,
+  human: HumanArtifact,
+  manager: string,
+): string | null {
   const subApps = enumerateSubApps(agent);
   if (subApps.length > 0) {
     /* "A pnpm monorepo containing a CLI, an MCP server, and a
@@ -125,11 +135,23 @@ function labelForAppDir(dir: string, agent: AgentArtifact): string | null {
   if (lower === 'vscode-ext' || /^vscode[-_]/.test(lower)) return 'a VS Code extension';
   if (lower === 'chrome-ext' || /^chrome[-_]/.test(lower)) return 'a browser extension';
   if (lower === 'extension' || /-ext$/.test(lower)) return 'a browser extension';
-  if (lower === 'web' || lower === 'webui' || lower === 'webapp' ||
-      lower === 'dashboard' || /^ui[-_]/.test(lower)) {
+  if (
+    lower === 'web' ||
+    lower === 'webui' ||
+    lower === 'webapp' ||
+    lower === 'dashboard' ||
+    /^ui[-_]/.test(lower)
+  ) {
     /* Name the UI framework when one is detected. */
     const fw = findFirst(agent.project.frameworks, [
-      'Remix', 'Next.js', 'Gatsby', 'Astro', 'Vue', 'Svelte', 'Solid', 'React',
+      'Remix',
+      'Next.js',
+      'Gatsby',
+      'Astro',
+      'Vue',
+      'Svelte',
+      'Solid',
+      'React',
     ]);
     if (fw) return `a ${fw} dashboard`;
     return 'a web UI';
@@ -160,16 +182,25 @@ function singleAppIntent(agent: AgentArtifact, human: HumanArtifact): string | n
   // verifies "this is an API."
   for (const py of ['FastAPI', 'Django', 'Flask']) {
     if (fwks.includes(py)) {
-      const tail = agent.routes.length > 0
-        ? ` with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}`
-        : '';
+      const tail =
+        agent.routes.length > 0
+          ? ` with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}`
+          : '';
       const noun = py === 'Django' ? 'web app' : 'service';
       return `A ${py} ${noun}${tail}.`;
     }
   }
 
   // JS/TS server framework
-  const jsServer = findFirst(fwks, ['Next.js', 'Remix', 'NestJS', 'Express', 'Hono', 'Koa', 'Fastify']);
+  const jsServer = findFirst(fwks, [
+    'Next.js',
+    'Remix',
+    'NestJS',
+    'Express',
+    'Hono',
+    'Koa',
+    'Fastify',
+  ]);
   if (jsServer && agent.routes.length > 0) {
     return `A ${jsServer} application with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}.`;
   }

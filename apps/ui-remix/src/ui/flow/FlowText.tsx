@@ -32,12 +32,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
-import {
-  TIER_LABEL,
-  TIER_ORDER,
-  type FlowResult,
-  type Tier,
-} from '../../lib/flowAnalysis.ts';
+import { TIER_LABEL, TIER_ORDER, type FlowResult, type Tier } from '../../lib/flowAnalysis.ts';
 
 interface FlowTextProps {
   result: FlowResult;
@@ -75,7 +70,8 @@ const copyBtn = css({
   paddingInline: 'var(--space-3)',
   paddingBlock: '4px',
   cursor: 'pointer',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': { color: 'var(--accent)', background: 'var(--accent-soft)' },
 });
 
@@ -130,7 +126,9 @@ function renderFlowText(result: FlowResult): string {
   if (interEdges.length > 0) {
     lines.push('── Cross-tier flow ──');
     for (const e of interEdges) {
-      lines.push(`${TIER_LABEL[e.from]} -> ${TIER_LABEL[e.to]}: ${e.count} import${e.count === 1 ? '' : 's'}`);
+      lines.push(
+        `${TIER_LABEL[e.from]} -> ${TIER_LABEL[e.to]}: ${e.count} import${e.count === 1 ? '' : 's'}`,
+      );
     }
     lines.push('');
   }

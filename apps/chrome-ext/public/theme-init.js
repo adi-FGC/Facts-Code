@@ -4,7 +4,8 @@
 (function () {
   try {
     var t = localStorage.getItem('factstack-panel-theme') || 'dark';
-    var dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+    var dark =
+      t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
     var html = document.documentElement;
     html.dataset.theme = dark ? 'dark' : 'light';
     html.style.colorScheme = dark ? 'dark' : 'light';

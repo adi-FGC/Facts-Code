@@ -55,6 +55,35 @@ describe('walk — basic enumeration', () => {
   });
 });
 
+describe('walk — other checkouts inside the tree', () => {
+  it('does not descend into a linked worktree (a directory with a .git FILE)', async () => {
+    const fs = memoryFS({
+      'src/a.ts': 'x',
+      '.claude/worktrees/feature-x/.git': 'gitdir: ../../../.git/worktrees/feature-x',
+      '.claude/worktrees/feature-x/src/a.ts': 'copy — must not be counted twice',
+      '.claude/worktrees/feature-x/test/secrets.test.ts': 'AKIA_FIXTURE',
+    });
+    const paths = await collect(walk(fs));
+    expect(paths).toEqual(['src/a.ts']);
+  });
+
+  it('does not descend into a nested clone (a directory with a .git DIR)', async () => {
+    const fs = memoryFS({
+      'src/a.ts': 'x',
+      'examples/sample/.git/HEAD': 'ref: refs/heads/main',
+      'examples/sample/index.ts': 'y',
+      'examples/plain/index.ts': 'z',
+    });
+    const paths = await collect(walk(fs));
+    expect(paths).toEqual(['examples/plain/index.ts', 'src/a.ts']);
+  });
+
+  it("still walks the root itself, whose .git is the project's own", async () => {
+    const fs = memoryFS({ '.git/HEAD': 'ref', 'src/a.ts': 'x' });
+    expect(await collect(walk(fs))).toEqual(['src/a.ts']);
+  });
+});
+
 describe('walk — always-exclude folders', () => {
   it('skips node_modules', async () => {
     const fs = memoryFS({
@@ -173,9 +202,11 @@ describe('walk — file size cap + binary detection', () => {
   it('does NOT flag a normal source file containing a single embedded NUL (facts+ engine.ts regression)', async () => {
     // Real-world case: a 338-line TS file used a literal `\0` as a cache-key
     // separator inside a template string and got packed as loc 0 / "ok".
-    const source = 'export function cacheKey(files: string[]): string {\n' +
+    const source =
+      'export function cacheKey(files: string[]): string {\n' +
       '  return files.map((f) => `${f}\0suffix`).join("|");\n' +
-      '}\n' + '// padding line\n'.repeat(300);
+      '}\n' +
+      '// padding line\n'.repeat(300);
     const fs = memoryFS({ 'src/engine.ts': source });
     const out: Array<{ path: string; skippedReason: string | null; loc: number }> = [];
     for await (const f of walk(fs)) out.push(f);
@@ -196,7 +227,12 @@ describe('walk — file size cap + binary detection', () => {
 describe('walk — read errors', () => {
   it('retries a transient read failure and yields the file with content', async () => {
     const fs = flakyReadFS({ 'src/engine.ts': 'export const x = 1;\n' }, 'src/engine.ts', 1);
-    const out: Array<{ path: string; text: string | null; loc: number; skippedReason: string | null }> = [];
+    const out: Array<{
+      path: string;
+      text: string | null;
+      loc: number;
+      skippedReason: string | null;
+    }> = [];
     for await (const f of walk(fs)) out.push(f);
     const file = out.find((f) => f.path === 'src/engine.ts');
     expect(file?.skippedReason).toBeNull();
@@ -206,11 +242,120 @@ describe('walk — read errors', () => {
 
   it('yields skippedReason="read_error" with null text when the read keeps failing', async () => {
     const fs = flakyReadFS({ 'src/engine.ts': 'export const x = 1;\n' }, 'src/engine.ts', Infinity);
-    const out: Array<{ path: string; text: string | null; loc: number; skippedReason: string | null }> = [];
+    const out: Array<{
+      path: string;
+      text: string | null;
+      loc: number;
+      skippedReason: string | null;
+    }> = [];
     for await (const f of walk(fs)) out.push(f);
     const file = out.find((f) => f.path === 'src/engine.ts');
     expect(file?.skippedReason).toBe('read_error');
     expect(file?.text).toBeNull();
     expect(file?.loc).toBe(0);
+  });
+});
+
+/* ───────── v0.3.12 — files git ignores from OUTSIDE the repo ───────── */
+
+describe('personal, untracked agent files and injected ignore rules', () => {
+  const paths = async (fsx: FactsFS, opts?: Parameters<typeof walk>[2]) => {
+    const out: string[] = [];
+    for await (const f of walk(fsx, '.', opts)) out.push(f.path);
+    return out;
+  };
+
+  it("never analyzes an agent's per-developer settings or memory", async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json':
+        '{"hooks":{"PostToolUse":[{"command":"C:/Users/someone/x.mjs"}]}}\n',
+      '.claude/settings.json': '{"shared":true}\n',
+      'CLAUDE.local.md': 'my private notes\n',
+      'CLAUDE.md': 'shared instructions\n',
+    });
+    const out = await paths(fsx);
+    expect(out).toContain('src/a.ts');
+    // Shared, tracked siblings stay: only the personal variants are dropped.
+    expect(out).toContain('.claude/settings.json');
+    expect(out).toContain('CLAUDE.md');
+    expect(out).not.toContain('.claude/settings.local.json');
+    expect(out).not.toContain('CLAUDE.local.md');
+  });
+
+  it('applies injected rules (git global excludes) relative to the root', async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      'notes.private.md': 'personal\n',
+      'src/scratch/tmp.ts': 'export const t = 1;\n',
+      'keep.md': 'shared\n',
+    });
+    const out = await paths(fsx, {
+      extraIgnore: [
+        '# a user global excludes file, comments and blanks included',
+        '',
+        '*.private.md',
+        'scratch/',
+      ],
+    });
+    expect(out).toContain('src/a.ts');
+    expect(out).toContain('keep.md');
+    expect(out).not.toContain('notes.private.md');
+    expect(out).not.toContain('src/scratch/tmp.ts');
+  });
+
+  it('is unchanged when no rules are injected', async () => {
+    const files = { 'src/a.ts': 'export const a = 1;\n', 'notes.private.md': 'personal\n' };
+    expect(await paths(memoryFS(files), {})).toEqual(await paths(memoryFS(files)));
+    expect(await paths(memoryFS(files), { extraIgnore: [] })).toContain('notes.private.md');
+  });
+
+  it('drops a personal file at any depth, not just at the root', async () => {
+    const fsx = memoryFS({
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+      'packages/foo/.claude/settings.local.json': '{"hooks":{}}\n',
+      'packages/foo/CLAUDE.local.md': 'private\n',
+      'packages/foo/.cursor/rules/mine.local.mdc': 'private\n',
+    });
+    expect(await paths(fsx)).toEqual(['src/a.ts']);
+  });
+
+  it('cannot be re-admitted by an injected negation: host rules never un-hide a personal file', async () => {
+    // A stray `!` line in someone's global excludes must not put an agent's
+    // per-developer settings back into an artifact that gets published.
+    const files = {
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+      'CLAUDE.local.md': 'private\n',
+    };
+    for (const rule of ['!', '!*', '!.claude/settings.local.json', '!CLAUDE.local.md']) {
+      const out = await paths(memoryFS(files), { extraIgnore: [rule] });
+      expect(out, rule).not.toContain('.claude/settings.local.json');
+      expect(out, rule).not.toContain('CLAUDE.local.md');
+      expect(out, rule).toContain('src/a.ts');
+    }
+  });
+
+  it('lets the REPOSITORY re-include a personal path it deliberately tracks', async () => {
+    // The escape hatch stays with the repo's own ignore files, which are
+    // applied after both the injected rules and the built-in list.
+    const fsx = memoryFS({
+      '.gitignore': '!.claude/settings.local.json\n',
+      'src/a.ts': 'export const a = 1;\n',
+      '.claude/settings.local.json': '{"hooks":{}}\n',
+    });
+    expect(await paths(fsx)).toContain('.claude/settings.local.json');
+  });
+
+  it('keeps a repo .gitignore working alongside injected rules', async () => {
+    const fsx = memoryFS({
+      '.gitignore': 'build/\n',
+      'src/a.ts': 'export const a = 1;\n',
+      'build/out.js': 'x\n',
+      'local.env.md': 'secret\n',
+    });
+    const out = await paths(fsx, { extraIgnore: ['local.env.md'] });
+    expect(out).toEqual(['src/a.ts']);
   });
 });

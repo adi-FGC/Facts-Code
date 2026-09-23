@@ -30,7 +30,14 @@ function agentWith(parts: {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-06-01T00:00:00Z',
-    project: { name: 'demo', root: '/demo', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'demo',
+      root: '/demo',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: parts.files ?? [],
     graph: { nodes: [], edges: [], cycles: parts.cycles ?? [] },
     routes: [],
@@ -49,7 +56,8 @@ const risk = (category: string, opts: Record<string, unknown> = {}) => ({
   message: 'm',
   ...opts,
 });
-const secretRisk = (file: string) => risk('secret', { severity: 'high', file, rule: 'hardcoded-secret' });
+const secretRisk = (file: string) =>
+  risk('secret', { severity: 'high', file, rule: 'hardcoded-secret' });
 const brokenRisk = (file: string) => risk('broken-import', { file });
 const oversizedRisk = (file: string) => risk('large-file', { file });
 
@@ -115,10 +123,7 @@ describe('computeHealth — grade boundaries', () => {
   for (const c of cases) {
     it(`${c.name} → ${c.score} / ${c.grade}`, () => {
       const risks = make(c.secrets ?? 0, () => 0).map((_, i) => secretRisk(`s${i}.ts`));
-      const files = [
-        ...make(c.stale ?? 0, staleFile),
-        ...(c.todos ? [okFile(c.todos)] : []),
-      ];
+      const files = [...make(c.stale ?? 0, staleFile), ...(c.todos ? [okFile(c.todos)] : [])];
       const h = computeHealth(agentWith({ risks, files, cycles: cyclesOf(c.cycles ?? 0) }));
       expect(h.score).toBe(c.score);
       expect(h.grade).toBe(c.grade);
@@ -132,7 +137,9 @@ describe('computeHealth — per-category caps', () => {
     expect(computeHealth(agentWith({ risks })).score).toBe(40);
   });
   it('vulnerabilities cap at −50 (10 critical = 200 raw)', () => {
-    expect(computeHealth(agentWith({ vulnerabilities: make(10, () => vuln('critical')) })).score).toBe(50);
+    expect(
+      computeHealth(agentWith({ vulnerabilities: make(10, () => vuln('critical')) })).score,
+    ).toBe(50);
   });
   it('broken imports cap at −32 (5 files × 8 = 40 raw)', () => {
     const risks = make(5, () => 0).map((_, i) => brokenRisk(`b${i}.ts`));
@@ -142,7 +149,11 @@ describe('computeHealth — per-category caps', () => {
     expect(computeHealth(agentWith({ cycles: cyclesOf(10) })).score).toBe(82);
   });
   it('oversized cap at −10, stale cap at −10, TODOs cap at −6', () => {
-    expect(computeHealth(agentWith({ risks: make(10, () => 0).map((_, i) => oversizedRisk(`o${i}.ts`)) })).score).toBe(90);
+    expect(
+      computeHealth(
+        agentWith({ risks: make(10, () => 0).map((_, i) => oversizedRisk(`o${i}.ts`)) }),
+      ).score,
+    ).toBe(90);
     expect(computeHealth(agentWith({ files: make(20, staleFile) })).score).toBe(90);
     expect(computeHealth(agentWith({ files: [okFile(500)] })).score).toBe(94);
   });
@@ -187,13 +198,21 @@ describe('computeHealth — factor ledger', () => {
       agentWith({ risks, files: [...make(1, staleFile), okFile(50)], cycles: cyclesOf(6) }),
     );
     // penalties: secrets 25, cycles 18, broken 8, stale 1, todos 1 → top 3
-    expect(h.factors!.map((f) => f.label)).toEqual(['secrets exposed', 'import cycles', 'broken imports']);
+    expect(h.factors!.map((f) => f.label)).toEqual([
+      'secrets exposed',
+      'import cycles',
+      'broken imports',
+    ]);
     expect(h.factors!.map((f) => f.penalty)).toEqual([25, 18, 8]);
   });
 
   it('breaks penalty ties by label ascending (deterministic)', () => {
     // broken 1 file (8) and oversized 4 (8) tie; 'broken imports' < 'oversized files'.
-    const risks = [brokenRisk('b.ts'), ...make(4, () => 0).map((_, i) => oversizedRisk(`o${i}.ts`)), ...make(1, staleFile).map(() => secretRisk('x'))];
+    const risks = [
+      brokenRisk('b.ts'),
+      ...make(4, () => 0).map((_, i) => oversizedRisk(`o${i}.ts`)),
+      ...make(1, staleFile).map(() => secretRisk('x')),
+    ];
     const h = computeHealth(agentWith({ risks, files: [staleFile()] }));
     const tied = h.factors!.filter((f) => f.penalty === 8).map((f) => f.label);
     expect(tied).toEqual(['broken imports', 'oversized files']);
@@ -230,7 +249,12 @@ describe('computeHealth — purity & determinism (INV1/INV2)', () => {
     expect(stale.stale).toBe(1);
   });
   it('is a pure function — identical input yields byte-identical output', () => {
-    const build = () => agentWith({ risks: [secretRisk('s.ts'), brokenRisk('b.ts')], files: [staleFile(), okFile(120)], cycles: cyclesOf(4) });
+    const build = () =>
+      agentWith({
+        risks: [secretRisk('s.ts'), brokenRisk('b.ts')],
+        files: [staleFile(), okFile(120)],
+        cycles: cyclesOf(4),
+      });
     expect(JSON.stringify(computeHealth(build()))).toBe(JSON.stringify(computeHealth(build())));
   });
   it('tolerates an agent with no vulnerabilities field (pre-v0.6 artifact)', () => {

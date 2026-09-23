@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { GitTopologySchema } from './git.js';
 import { DocFileSchema } from './docs.js';
 import { StyleAuditSchema } from './styles.js';
 
@@ -124,14 +125,16 @@ export const FileOutlineSchema = z.object({
   /** v0.3.8 — top-3 git contributors by commit count, with last-touched
    *  timestamps. Empty / absent when no git history is available
    *  (zip-only, fresh clone, etc). */
-  topContributors: z.array(
-    z.object({
-      email: z.string(),
-      name: z.string(),
-      commits: z.number().int().nonnegative(),
-      lastTouchedMs: z.number().nonnegative(),
-    }),
-  ).optional(),
+  topContributors: z
+    .array(
+      z.object({
+        email: z.string(),
+        name: z.string(),
+        commits: z.number().int().nonnegative(),
+        lastTouchedMs: z.number().nonnegative(),
+      }),
+    )
+    .optional(),
 });
 export const ContributorSchema = z.object({
   email: z.string(),
@@ -473,13 +476,7 @@ export const DependencyManifestSchema = z.object({
 });
 export type DependencyManifest = z.infer<typeof DependencyManifestSchema>;
 
-export const VulnerabilitySeveritySchema = z.enum([
-  'critical',
-  'high',
-  'medium',
-  'low',
-  'unknown',
-]);
+export const VulnerabilitySeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'unknown']);
 export type VulnerabilitySeverity = z.infer<typeof VulnerabilitySeveritySchema>;
 
 export const VulnerabilitySchema = z.object({
@@ -549,9 +546,9 @@ export const VulnerabilityScanSchema = z.object({
 export type VulnerabilityScan = z.infer<typeof VulnerabilityScanSchema>;
 
 export const AgentArtifactSchema = z.object({
-  $schema: z.literal('https://factstack.dev/schema/agent.v1.json').default(
-    'https://factstack.dev/schema/agent.v1.json',
-  ),
+  $schema: z
+    .literal('https://factstack.dev/schema/agent.v1.json')
+    .default('https://factstack.dev/schema/agent.v1.json'),
   factsVersion: z.literal(FACTS_SCHEMA_VERSION).default(FACTS_SCHEMA_VERSION),
   generatedAt: z.string(),
   project: ProjectMetaSchema,
@@ -596,5 +593,10 @@ export const AgentArtifactSchema = z.object({
    *  lightningcss/tooling check). Optional for backward-compat; absent when
    *  the project has no CSS sources. */
   styles: StyleAuditSchema.optional(),
+  /** v0.3.11 — worktrees, branches, nested repos and what each carries
+   *  (features, request dates, commit + deploy readiness, gaps). Absent
+   *  when the project is not a git repo or the adapter didn't collect it
+   *  (pre-v0.3.11 artifacts, browser builds). See git.ts. */
+  git: GitTopologySchema.optional(),
 });
 export type AgentArtifact = z.infer<typeof AgentArtifactSchema>;

@@ -215,7 +215,11 @@ function resolveTarget(schema: string | undefined, name: string): string {
 }
 
 /** Parse one CREATE TABLE body into columns + foreign keys. */
-function parseTableBody(source: string, body: string, baseIndex: number): {
+function parseTableBody(
+  source: string,
+  body: string,
+  baseIndex: number,
+): {
   columns: SqlColumn[];
   foreignKeys: SqlForeignKey[];
 } {

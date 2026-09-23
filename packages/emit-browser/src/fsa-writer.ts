@@ -139,17 +139,17 @@ export class FsaFileWriter implements FileWriter {
     } catch (err) {
       throw new Error(
         `Write verification could not re-read "${p}": ${err instanceof Error ? err.message : String(err)}. ` +
-        `The write may have silently failed. If the destination folder is inside iCloud Drive, ` +
-        `try saving to a local folder (e.g., your home directory) instead.`,
+          `The write may have silently failed. If the destination folder is inside iCloud Drive, ` +
+          `try saving to a local folder (e.g., your home directory) instead.`,
       );
     }
     if (verifiedSize !== byteLength) {
       throw new Error(
         `Write verification failed for "${p}": expected ${byteLength} bytes on disk, ` +
-        `found ${verifiedSize}. The destination directory may be inside iCloud Drive ` +
-        `with offline-only sync, or the browser's File System Access write permission ` +
-        `was silently denied. Try picking a folder under your home directory that's NOT ` +
-        `in iCloud Drive, Documents, or Downloads.`,
+          `found ${verifiedSize}. The destination directory may be inside iCloud Drive ` +
+          `with offline-only sync, or the browser's File System Access write permission ` +
+          `was silently denied. Try picking a folder under your home directory that's NOT ` +
+          `in iCloud Drive, Documents, or Downloads.`,
       );
     }
 

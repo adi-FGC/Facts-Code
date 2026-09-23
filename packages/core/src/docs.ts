@@ -27,12 +27,21 @@ import type {
 export const DOC_CONTENT_CAP = 96_000;
 
 const DOC_EXTS = new Set([
-  '.md', '.mdx', '.markdown', '.mkd', '.txt', '.rst', '.adoc', '.asciidoc', '.ipynb',
+  '.md',
+  '.mdx',
+  '.markdown',
+  '.mkd',
+  '.txt',
+  '.rst',
+  '.adoc',
+  '.asciidoc',
+  '.ipynb',
 ]);
 
 /** Basenames (case-insensitive, sans extension) that are docs regardless
  *  of where they live or what extension they carry. */
-const DOC_STEMS = /^(readme|changelog|changes|history|contributing|license|licence|notice|authors|maintainers|code_of_conduct|security|support|context|claude|agents?|todo)$/i;
+const DOC_STEMS =
+  /^(readme|changelog|changes|history|contributing|license|licence|notice|authors|maintainers|code_of_conduct|security|support|context|claude|agents?|todo)$/i;
 
 /**
  * Is this file documentation? Cheap basename/extension checks only — runs
@@ -76,7 +85,8 @@ function detectKind(path: string, name: string): DocKind {
   if (/roadmap/.test(lower)) return 'roadmap';
   if (/openapi|swagger/.test(lower) || /(^|\/)api\//.test(p)) return 'api';
   if (/spec|\brfc\b|schema/.test(lower)) return 'spec';
-  if (stem === 'context' || stem === 'claude' || stem === 'agent' || stem === 'agents') return 'agent-doc';
+  if (stem === 'context' || stem === 'claude' || stem === 'agent' || stem === 'agents')
+    return 'agent-doc';
   if (/\.env|config/.test(lower)) return 'config-doc';
   if (/(^|\/)docs?\//.test(p)) return 'guide';
   return 'doc';
@@ -96,7 +106,10 @@ function mermaidType(code: string): string | null {
   for (const raw of code.split('\n')) {
     const t = raw.trim();
     if (!t || t.startsWith('%%')) continue;
-    const m = /^(flowchart|graph|sequenceDiagram|erDiagram|classDiagram|stateDiagram(?:-v2)?|gantt|journey|pie|mindmap|timeline|gitGraph|quadrantChart|c4context)/i.exec(t);
+    const m =
+      /^(flowchart|graph|sequenceDiagram|erDiagram|classDiagram|stateDiagram(?:-v2)?|gantt|journey|pie|mindmap|timeline|gitGraph|quadrantChart|c4context)/i.exec(
+        t,
+      );
     return m ? (m[1] ?? null) : null;
   }
   return null;
@@ -104,7 +117,11 @@ function mermaidType(code: string): string | null {
 
 /** Light HTML structure: pull <title> + h1..h6 text so HTML explainers
  *  still get an outline + title without a full DOM parse. */
-function parseHtmlStructure(text: string): { title: string; headings: DocHeading[]; wordCount: number } {
+function parseHtmlStructure(text: string): {
+  title: string;
+  headings: DocHeading[];
+  wordCount: number;
+} {
   const headings: DocHeading[] = [];
   const headingRe = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
   let m: RegExpExecArray | null;
@@ -117,13 +134,17 @@ function parseHtmlStructure(text: string): { title: string; headings: DocHeading
     }
   }
   const titleMatch = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(text);
-  const title = titleMatch ? stripTags(titleMatch[1] ?? '').trim() : headings[0]?.text ?? '';
+  const title = titleMatch ? stripTags(titleMatch[1] ?? '').trim() : (headings[0]?.text ?? '');
   const wordCount = stripTags(text).split(/\s+/).filter(Boolean).length;
   return { title, headings, wordCount };
 }
 
 function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ').replace(/\s+/g, ' ').trim();
+  return html
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 interface ParsedStructure {
@@ -159,7 +180,13 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
     const code = fenceBuf.join('\n');
     const lang = fenceLang.toLowerCase();
     if (lang === 'mermaid') {
-      diagrams.push({ kind: 'mermaid', type: mermaidType(code), lang: 'mermaid', code, line: fenceStart });
+      diagrams.push({
+        kind: 'mermaid',
+        type: mermaidType(code),
+        lang: 'mermaid',
+        code,
+        line: fenceStart,
+      });
     } else if (lang === 'plantuml' || lang === 'puml') {
       diagrams.push({ kind: 'plantuml', type: null, lang: fenceLang, code, line: fenceStart });
     } else if (lang === 'dot' || lang === 'graphviz') {
@@ -202,7 +229,11 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
     // checkbox task item
     const cb = /^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(line);
     if (cb) {
-      const t: DocTodo = { done: (cb[1] ?? '').toLowerCase() === 'x', text: (cb[2] ?? '').trim(), line: i + 1 };
+      const t: DocTodo = {
+        done: (cb[1] ?? '').toLowerCase() === 'x',
+        text: (cb[2] ?? '').trim(),
+        line: i + 1,
+      };
       if (curSection) t.section = curSection;
       todos.push(t);
     } else {

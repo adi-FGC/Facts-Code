@@ -16,20 +16,32 @@ import type { RemixNode } from 'remix/ui';
 
 export function sevTone(sev: string): string {
   switch (sev.toLowerCase()) {
-    case 'critical': return 'var(--danger)';
-    case 'high': return 'var(--danger)';
-    case 'medium': case 'moderate': return 'var(--warn)';
-    case 'low': return 'var(--fg-muted)';
-    default: return 'var(--fg-faint)';
+    case 'critical':
+      return 'var(--danger)';
+    case 'high':
+      return 'var(--danger)';
+    case 'medium':
+    case 'moderate':
+      return 'var(--warn)';
+    case 'low':
+      return 'var(--fg-muted)';
+    default:
+      return 'var(--fg-faint)';
   }
 }
 
 export function gradeTone(grade?: string): string {
   switch ((grade ?? '').toUpperCase()) {
-    case 'A': case 'B': return 'var(--ok)';
-    case 'C': return 'var(--warn)';
-    case 'D': case 'F': return 'var(--danger)';
-    default: return 'var(--fg-muted)';
+    case 'A':
+    case 'B':
+      return 'var(--ok)';
+    case 'C':
+      return 'var(--warn)';
+    case 'D':
+    case 'F':
+      return 'var(--danger)';
+    default:
+      return 'var(--fg-muted)';
   }
 }
 
@@ -165,7 +177,12 @@ export function bar(fraction: number, color = 'var(--accent)'): RemixNode {
   // Round to whole-% so the generated-class set is bounded at ≤101 (× a handful
   // of colors) and reused across rows/datasets, instead of churning a new class
   // per fractional width. Sub-pixel precision is invisible on a 3px bar.
-  const fill = css({ height: '100%', borderRadius: 'var(--r-pill)', width: `${pct.toFixed(0)}%`, background: color });
+  const fill = css({
+    height: '100%',
+    borderRadius: 'var(--r-pill)',
+    width: `${pct.toFixed(0)}%`,
+    background: color,
+  });
   return (
     <div mix={barTrack}>
       <div mix={fill} />
@@ -186,7 +203,11 @@ const rowBtn = css({
   padding: 'var(--space-3) var(--space-4)',
   transition: 'background var(--dur-instant) var(--ease-out-quart)',
   '&:hover': { background: 'var(--highlight-faint, var(--accent-soft))' },
-  '&:focus-visible': { background: 'var(--accent-soft)', outline: '2px solid var(--accent)', outlineOffset: '-2px' },
+  '&:focus-visible': {
+    background: 'var(--accent-soft)',
+    outline: '2px solid var(--accent)',
+    outlineOffset: '-2px',
+  },
   '&:last-child': { borderBottom: 'none' },
 });
 
@@ -250,18 +271,28 @@ export function listRow(o: ListRowOpts): RemixNode {
   const body = (
     <>
       <div mix={rowTop}>
-        <span mix={rowName} {...(o.title ? { title: o.title } : {})}>{o.name}</span>
+        <span mix={rowName} {...(o.title ? { title: o.title } : {})}>
+          {o.name}
+        </span>
         {o.value !== undefined && (
-          <span mix={[rowValue, ...(o.valueColor ? [css({ color: o.valueColor })] : [])]}>{o.value}</span>
+          <span mix={[rowValue, ...(o.valueColor ? [css({ color: o.valueColor })] : [])]}>
+            {o.value}
+          </span>
         )}
       </div>
       {o.sub && <div mix={rowSub}>{o.sub}</div>}
       {o.fraction !== undefined && bar(o.fraction, o.barColor)}
     </>
   );
-  return o.onClick
-    ? <button type="button" key={o.key} mix={[rowBtn, on('click', o.onClick)]}>{body}</button>
-    : <div key={o.key} mix={rowStatic}>{body}</div>;
+  return o.onClick ? (
+    <button type="button" key={o.key} mix={[rowBtn, on('click', o.onClick)]}>
+      {body}
+    </button>
+  ) : (
+    <div key={o.key} mix={rowStatic}>
+      {body}
+    </div>
+  );
 }
 
 /* ─────────── stat grid ─────────── */
@@ -297,7 +328,11 @@ const statValue = css({
   marginTop: '2px',
 });
 
-export interface Stat { label: string; value: string; tone?: string | undefined; }
+export interface Stat {
+  label: string;
+  value: string;
+  tone?: string | undefined;
+}
 
 export function statGrid(stats: Stat[]): RemixNode {
   return (
@@ -328,7 +363,9 @@ const pillCls = css({
 });
 
 export function pill(text: string, tone?: string): RemixNode {
-  return <span mix={[pillCls, ...(tone ? [css({ color: tone, borderColor: tone })] : [])]}>{text}</span>;
+  return (
+    <span mix={[pillCls, ...(tone ? [css({ color: tone, borderColor: tone })] : [])]}>{text}</span>
+  );
 }
 
 /* ─────────── buttons ─────────── */
@@ -358,7 +395,11 @@ const btnPrimary = css({
   border: '1px solid var(--accent)',
   background: 'var(--accent)',
   color: 'var(--accent-fg)',
-  '&:hover:not(:disabled)': { opacity: '0.9', background: 'var(--accent)', color: 'var(--accent-fg)' },
+  '&:hover:not(:disabled)': {
+    opacity: '0.9',
+    background: 'var(--accent)',
+    color: 'var(--accent-fg)',
+  },
 });
 
 export interface BtnOpts {
@@ -380,7 +421,9 @@ export function btn(o: BtnOpts): RemixNode {
         btnBase,
         ...(o.kind === 'primary' ? [btnPrimary] : []),
         ...(o.full ? [css({ width: '100%' })] : []),
-        on('click', () => { if (!o.disabled) o.onClick(); }),
+        on('click', () => {
+          if (!o.disabled) o.onClick();
+        }),
       ]}
     >
       {o.label}
@@ -420,8 +463,11 @@ const progLabel = css({
 
 export function progressBlock(label: string, fraction: number): RemixNode {
   return (
-    <div mix={progWrap}>
-      <div mix={progLabel}>{spinner()}<span>{label}</span></div>
+    <div mix={progWrap} role="status" aria-live="polite" aria-atomic="true">
+      <div mix={progLabel}>
+        {spinner()}
+        <span>{label}</span>
+      </div>
       {bar(fraction)}
     </div>
   );

@@ -104,7 +104,9 @@ async function withStore<T>(
     const store = tx.objectStore(STORE_NAME);
     let result: T;
     Promise.resolve(fn(store))
-      .then((r) => { result = r; })
+      .then((r) => {
+        result = r;
+      })
       .catch(reject);
     tx.oncomplete = () => resolve(result);
     tx.onerror = () => reject(tx.error ?? new Error('IDB tx failed'));
@@ -148,9 +150,10 @@ export async function listRecents(): Promise<Recent[]> {
  * After insert, prunes to MAX_RECENTS oldest-first.
  */
 export async function addRecent(entry: AddRecentInput): Promise<Recent> {
-  const id = entry.kind === 'local'
-    ? 'local:' + entry.handle.name
-    : 'github:' + entry.owner + '/' + entry.repo + (entry.ref ? '@' + entry.ref : '');
+  const id =
+    entry.kind === 'local'
+      ? 'local:' + entry.handle.name
+      : 'github:' + entry.owner + '/' + entry.repo + (entry.ref ? '@' + entry.ref : '');
   const now = Date.now();
   /* Build the persisted record from the input. The discriminated union
      forces both variants to be handled; unsafe spreads through Recent

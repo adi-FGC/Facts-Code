@@ -60,8 +60,8 @@ export function ModulesView(handle: Handle<ModulesViewProps>) {
       return (
         <Section label="Communities" title="Modules">
           <p mix={intro}>
-            No multi-file modules detected — the import graph is mostly flat
-            (each file is its own cluster).
+            No multi-file modules detected — the import graph is mostly flat (each file is its own
+            cluster).
           </p>
         </Section>
       );
@@ -71,8 +71,8 @@ export function ModulesView(handle: Handle<ModulesViewProps>) {
       <div>
         <Section label="Communities" title="Modules">
           <p mix={intro}>
-            Files that import one another cluster into modules (deterministic label
-            propagation). Each module is named by its most important member.
+            Files that import one another cluster into modules (deterministic label propagation).
+            Each module is named by its most important member.
           </p>
         </Section>
         {shown.map((m) => {
@@ -87,20 +87,30 @@ export function ModulesView(handle: Handle<ModulesViewProps>) {
                 <RuledRow header>
                   <RuledCell header>File</RuledCell>
                   <RuledCell header>Folder</RuledCell>
-                  <RuledCell header align="right">Importance</RuledCell>
+                  <RuledCell header align="right">
+                    Importance
+                  </RuledCell>
                 </RuledRow>
                 {members.map((f) => (
                   <RuledRow key={f.path}>
                     <RuledCell>
-                      <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{f.name}</a>
+                      <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                        {f.name}
+                      </a>
                     </RuledCell>
-                    <RuledCell><span mix={dirText}>{f.dir || '·'}</span></RuledCell>
-                    <RuledCell align="right"><ImportanceBar value={f.importance} /></RuledCell>
+                    <RuledCell>
+                      <span mix={dirText}>{f.dir || '·'}</span>
+                    </RuledCell>
+                    <RuledCell align="right">
+                      <ImportanceBar value={f.importance} />
+                    </RuledCell>
                   </RuledRow>
                 ))}
               </RuledTable>
               {m.memberCount > MEMBERS_PER_MODULE && (
-                <p mix={moreText}>+{m.memberCount - MEMBERS_PER_MODULE} more files in this module</p>
+                <p mix={moreText}>
+                  +{m.memberCount - MEMBERS_PER_MODULE} more files in this module
+                </p>
               )}
             </Section>
           );

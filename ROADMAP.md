@@ -13,20 +13,20 @@
 
 ### Shipped (v0.0 → v0.2.1, 9 commits on `master`)
 
-| Surface | Commit | What landed |
-|---|---|---|
-| `v0.1` analyzer pipeline + CLI | `27e3da5` | Walker + extractors + scanners + emit + agent.json/human.json. CLI at `apps/cli`. |
-| `v0.2` symbols + MCP + watch + diff + query + Library + About | `7c77d36` | Caller index, MCP server, `factstack watch/diff/query`, 10 UI tabs. |
-| Reviewer-pass polish (P2 + nits) | `78e6c9c` | Astro reclassification, README abbreviation handling, sr-only h2, etc. |
-| Netlify static deploy | `2d2ead2` | Live at https://factstack-demo.netlify.app |
-| Static-mode detection | `761a727` | Hide Re-analyze on hosted demo, friendly alert. |
-| Toolbar reorder (chip → Open → Scan) | `6771dcf` | Always-visible Scan button. |
-| Modal scan flow | `051bb83` | Directory display + tips + live progress bar. |
-| Rootness fix + smoke test | `4c73b31` | Open button now works on real projects. |
-| Imports/Files/Routes/Tests fixes | `9374ef9` | Library imports list populated, Files folder breakdown, client routes, new Tests tab. |
-| Test coverage — 26 → 230 tests | `7c98417` | All packages have vitest + coverage; smoke tests guard against regression. |
-| Master roadmap consolidated | `98cddb5` | This file: v0.3-v0.6 phases with PRs + sequencing. |
-| GitHub source + Supabase persistence | `67e3b48` | Toolbar GitHub button → zipball fetch → JSZip → synthetic FSDH → existing scanHandle. Cache-first deep links via Supabase storage bucket. New `smoke-scan-github.mjs` test. |
+| Surface                                                       | Commit    | What landed                                                                                                                                                                 |
+| ------------------------------------------------------------- | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.1` analyzer pipeline + CLI                                | `27e3da5` | Walker + extractors + scanners + emit + agent.json/human.json. CLI at `apps/cli`.                                                                                           |
+| `v0.2` symbols + MCP + watch + diff + query + Library + About | `7c77d36` | Caller index, MCP server, `factstack watch/diff/query`, 10 UI tabs.                                                                                                         |
+| Reviewer-pass polish (P2 + nits)                              | `78e6c9c` | Astro reclassification, README abbreviation handling, sr-only h2, etc.                                                                                                      |
+| Netlify static deploy                                         | `2d2ead2` | Live at https://factstack-demo.netlify.app                                                                                                                                  |
+| Static-mode detection                                         | `761a727` | Hide Re-analyze on hosted demo, friendly alert.                                                                                                                             |
+| Toolbar reorder (chip → Open → Scan)                          | `6771dcf` | Always-visible Scan button.                                                                                                                                                 |
+| Modal scan flow                                               | `051bb83` | Directory display + tips + live progress bar.                                                                                                                               |
+| Rootness fix + smoke test                                     | `4c73b31` | Open button now works on real projects.                                                                                                                                     |
+| Imports/Files/Routes/Tests fixes                              | `9374ef9` | Library imports list populated, Files folder breakdown, client routes, new Tests tab.                                                                                       |
+| Test coverage — 26 → 230 tests                                | `7c98417` | All packages have vitest + coverage; smoke tests guard against regression.                                                                                                  |
+| Master roadmap consolidated                                   | `98cddb5` | This file: v0.3-v0.6 phases with PRs + sequencing.                                                                                                                          |
+| GitHub source + Supabase persistence                          | `67e3b48` | Toolbar GitHub button → zipball fetch → JSZip → synthetic FSDH → existing scanHandle. Cache-first deep links via Supabase storage bucket. New `smoke-scan-github.mjs` test. |
 
 ### Live
 
@@ -58,6 +58,7 @@ Every later phase assumes these. Violate any one and the bug-to-PR loop won't cl
 **What it is**: a markdown file FACTS keeps in sync with the codebase. Every agent reads it FIRST when joining. Sections: project tagline, architecture (tier breakdown), conventions, recent decisions (PR-derived), known patterns to follow, anti-patterns to avoid.
 
 **Files to add/modify**:
+
 ```
 packages/core/src/memory.ts          (NEW — generates the markdown)
 packages/core/src/index.ts           (call memory generator at end of analyze())
@@ -67,6 +68,7 @@ packages/core/test/memory.test.ts    (NEW — pure-function tests)
 ```
 
 **Definition of done**:
+
 - Running `factstack analyze .` regenerates `.facts/MEMORY.md`
 - File is git-trackable (consumers can review changes)
 - MCP tool `read_memory()` returns the file's content
@@ -83,6 +85,7 @@ packages/core/test/memory.test.ts    (NEW — pure-function tests)
 **What it is**: returns added / modified / removed files + new declarations + new routes + new risks since a given ISO timestamp. Lets long-running agents recover state in 5KB instead of re-reading 200KB.
 
 **Files**:
+
 ```
 packages/core/src/since.ts           (NEW — diff against snapshot or previous artifact)
 apps/mcp-server/src/server.ts        (NEW MCP tool: since(timestamp))
@@ -90,6 +93,7 @@ packages/core/test/since.test.ts     (NEW — multiple-snapshot fixtures)
 ```
 
 **Definition of done**:
+
 - MCP `since('2026-04-30T00:00:00Z')` returns structured diff
 - Re-analyzes are fast (uses existing snapshot store)
 - 5+ tests for: nothing changed, file added, file removed, declaration added, route added, risk added
@@ -105,6 +109,7 @@ packages/core/test/since.test.ts     (NEW — multiple-snapshot fixtures)
 **What it is**: `.facts/agents/<agent-id>.json` per-agent file tracking: lastSeen, filesRead, openTopics, decisions made, decisions accepted by humans. Foundation for the trust framework.
 
 **Files**:
+
 ```
 packages/core/src/agents.ts          (NEW — read/write agent session files)
 apps/mcp-server/src/server.ts        (NEW: register_agent, log_decision tools)
@@ -112,6 +117,7 @@ packages/core/test/agents.test.ts
 ```
 
 **Definition of done**:
+
 - MCP tools: `register_agent({ id, name, model })`, `log_decision({ ticketId, action, reasoning })`, `resume_session(agentId)`
 - Files diff-able in git (humans can audit AI activity)
 - Privacy: NEVER includes file contents — only paths + metadata
@@ -127,6 +133,7 @@ packages/core/test/agents.test.ts
 **What it is**: append-only log of every AI proposal and its outcome. Calibration data for the trust framework that the bug-to-PR pipeline will need at v0.6.
 
 **Files**:
+
 ```
 packages/core/src/learnings.ts       (NEW — append + query helpers)
 apps/mcp-server/src/server.ts        (NEW MCP tool: log_learning, query_learnings)
@@ -134,6 +141,7 @@ packages/core/test/learnings.test.ts
 ```
 
 **Definition of done**:
+
 - JSONL format (one event per line, append-only)
 - Schema validated
 - `query_learnings({ since, agent, outcome })` returns filtered events
@@ -152,6 +160,7 @@ packages/core/test/learnings.test.ts
 **Why now**: this is the substrate that makes `impact_of` / `find_examples` / `unused` cheap. Every later phase compounds on it. Without it, v0.5 power tools cost 2-3x as much to build and return weaker answers.
 
 **Files**:
+
 ```
 packages/extractors/src/symbols.ts      (extend — emit refs alongside defs)
 packages/extractors/src/symbols-refs.ts (NEW — identifier walk that records call sites)
@@ -162,6 +171,7 @@ packages/graph/test/symbol-graph.test.ts
 ```
 
 **Definition of done**:
+
 - Every declaration tracked has a `refs[]` array with `{file, line, kind: 'call' | 'read' | 'type-ref'}`
 - Symbol resolution handles named imports + default imports + re-exports
 - Confidence flag per ref (`exact` for resolved imports, `heuristic` for string-name matches in dynamic contexts)
@@ -178,9 +188,10 @@ packages/graph/test/symbol-graph.test.ts
 
 **What it is**: detect every `process.env.X`, `os.getenv("X")`, `import.meta.env.X`, and Zod/Pydantic config schema in the codebase. Emit a deduplicated list with read sites + inferred schema where possible. ([`plan.md`](./plan.md) candidate **C5** — composite +6, highest in its group.)
 
-**Why now**: highest-composite-score CXO signal in the inventory. *"This app needs 12 env vars; here they are."* Onboarding gold; reviewer gold; investor gold.
+**Why now**: highest-composite-score CXO signal in the inventory. _"This app needs 12 env vars; here they are."_ Onboarding gold; reviewer gold; investor gold.
 
 **Files**:
+
 ```
 packages/extractors/src/config-schema.ts (NEW — env-var + Zod/Pydantic detector)
 packages/spec/src/agent.ts               (NEW top-level `config: { envVars: EnvVar[], schemas: ConfigSchema[] }`)
@@ -190,6 +201,7 @@ packages/extractors/test/config-schema.test.ts
 ```
 
 **Definition of done**:
+
 - Env-var entry: `{ name, readSites: [{ file, line }], defaultValue?: string, schema?: 'zod' | 'pydantic' | null }`
 - Zod / Pydantic config objects extracted as JSON Schema where shape is statically inferable
 - Config tab renders the table sorted by read-site count (most-used first)
@@ -206,9 +218,10 @@ packages/extractors/test/config-schema.test.ts
 
 **What it is**: heuristic test-coverage map. For each test file, infer which non-test files (and ideally which symbols once C1 lands) it exercises, by walking the import graph from the test root. ([`plan.md`](./plan.md) candidate **C7** — composite +6.)
 
-**Why now**: enables the "if I change X, run these tests" answer that agents need before proposing refactors. Cheap heuristic version is fine — false positives are tolerable here because the failure mode is *running too many tests*, not *missing failures*.
+**Why now**: enables the "if I change X, run these tests" answer that agents need before proposing refactors. Cheap heuristic version is fine — false positives are tolerable here because the failure mode is _running too many tests_, not _missing failures_.
 
 **Files**:
+
 ```
 packages/graph/src/test-coverage.ts     (NEW — walks import graph from test files)
 packages/spec/src/agent.ts              (NEW top-level `testCoverage: { [subject]: testFile[] }`)
@@ -218,6 +231,7 @@ packages/graph/test/test-coverage.test.ts
 ```
 
 **Definition of done**:
+
 - Documented heuristic with measured precision/recall against `examples/react-fastapi-booking` (target ≥70% precision, recall is bonus)
 - Confidence per pairing (`direct-import` = high, `transitive-import-depth-2` = medium, etc.)
 - Tests tab shows new "Tested by" column when a file is selected
@@ -236,11 +250,12 @@ packages/graph/test/test-coverage.test.ts
 
 - **Reading-time** per folder: `loc / 25 + complexity_bonus` minutes. Surfaces in tree node tooltips and the Folder Breakdown panel.
 - **Owner inference**: per-file top-3 contributors with last-touched date. Already have git history extraction; just summarize. Replaces a `CODEOWNERS` file you never wrote.
-- **Plain-English risk**: rewrite each rule's `message` field to be CXO-readable. Not "47 high-severity SCA findings" but *"3 packages haven't shipped in 2+ years; 1 maintainer's account is deleted."* Deterministic — just a rule message rewrite, no LLM.
+- **Plain-English risk**: rewrite each rule's `message` field to be CXO-readable. Not "47 high-severity SCA findings" but _"3 packages haven't shipped in 2+ years; 1 maintainer's account is deleted."_ Deterministic — just a rule message rewrite, no LLM.
 
 **Why now**: cheapest CXO trust signals in the entire feasibility doc (3 items, ~2.5 days total) and they touch existing UI surfaces with no new tabs.
 
 **Files**:
+
 ```
 packages/core/src/reading-time.ts        (NEW — pure fn: loc + complexity → minutes)
 packages/core/src/owner-inference.ts     (NEW — git stats → top-3 + last-touched)
@@ -253,6 +268,7 @@ packages/scanners/test/risks-rewrite.test.ts
 ```
 
 **Definition of done**:
+
 - Folder breakdown shows reading-time (e.g., "~12 min cold")
 - Hovering a tree row shows top-3 contributors + days-since-last-touched
 - Every existing risk rule has a human-readable message variant; old technical text retained as `messageTechnical`
@@ -277,6 +293,7 @@ packages/scanners/test/risks-rewrite.test.ts
 The 3-level classification work designed in the strategic conversation. Every file gets `category` (app/manifest/lockfile/etc), `tier` (frontend/backend/etc), `role` (page/route/middleware/etc).
 
 **Files**:
+
 ```
 packages/core/src/categorize.ts      (NEW ~150 lines — top-level category)
 packages/core/src/tier.ts            (NEW ~200 lines — frontend/backend/etc detection)
@@ -289,6 +306,7 @@ packages/core/test/role.test.ts
 ```
 
 **Definition of done**:
+
 - Every file in `agent.json` has a category + tier
 - Stratified stats in Overview ("89 app · 34 tests · 18 docs · 12 config")
 - New global tab "Architecture" with tier-block diagram
@@ -306,6 +324,7 @@ packages/core/test/role.test.ts
 **What it is**: `factstack docs` emits `ARCHITECTURE.md` from analyzer data. Pure-data mode for v0.4 (no LLM). Every claim is traceable.
 
 **Files**:
+
 ```
 packages/emit/src/docs.ts            (NEW — markdown generator)
 apps/cli/src/cli.ts                  (NEW subcommand: `factstack docs`)
@@ -314,6 +333,7 @@ packages/emit/test/docs.test.ts
 ```
 
 **Definition of done**:
+
 - `factstack docs` writes ARCHITECTURE.md to project root
 - Sections: At a Glance, Tiers, Public API surface, Routes, Conventions, Risks
 - Marked `<!-- AUTO-GENERATED · regenerate with `factstack docs` -->`
@@ -331,6 +351,7 @@ packages/emit/test/docs.test.ts
 **What it is**: hits npm registry + OSV.dev API for each dep. Surfaces CVEs, age, maintainer count.
 
 **Files**:
+
 ```
 packages/scanners/src/dependencies.ts   (NEW — registry + OSV API client)
 packages/scanners/src/index.ts          (export new scanner)
@@ -341,6 +362,7 @@ packages/scanners/test/dependencies.test.ts (with mocked HTTP)
 ```
 
 **Definition of done**:
+
 - Per-dep: CVEs, last-release age, maintainer count, weekly downloads
 - New Supply Chain tab with severity-grouped rows
 - New risks of category `supply-chain` in `agent.risks`
@@ -360,6 +382,7 @@ packages/scanners/test/dependencies.test.ts (with mocked HTTP)
 **What it is**: trace user input from sources to sinks. Flags SSRF / SQL-injection / XSS shapes.
 
 **Files**:
+
 ```
 packages/scanners/src/taint.ts          (NEW — AST walker with source/sink rules)
 packages/spec/src/agent.ts              (add 'taint-flow' to risk category enum)
@@ -367,6 +390,7 @@ packages/scanners/test/taint.test.ts
 ```
 
 **Definition of done**:
+
 - Sources detected: req.body, req.query, searchParams, form.value, localStorage
 - Sinks detected: exec, spawn, query (string-concat), innerHTML, eval, fetch with user URL, redirect with user URL
 - Each unsanitized flow → risk with severity HIGH
@@ -384,6 +408,7 @@ packages/scanners/test/taint.test.ts
 **What it is**: track AI-author trailers in commits + detect convention drift.
 
 **Files**:
+
 ```
 packages/scanners/src/staleness.ts      (NEW — git blame + pattern comparison)
 packages/fs-node/src/git.ts             (extend mineGitStats with AI-author detection)
@@ -393,6 +418,7 @@ packages/scanners/test/staleness.test.ts
 ```
 
 **Definition of done**:
+
 - Per-file `aiTouchedAt` + `humanTouchedAt` from git history (uses `AI-Author:` commit trailer convention)
 - Pattern drift: detects React class components when project is mostly hooks, var when const elsewhere, etc
 - New risks of category `staleness` with severity LOW (informational)
@@ -413,6 +439,7 @@ packages/scanners/test/staleness.test.ts
 **Why**: deletable code is a CXO-readable signal of project hygiene. `unused()` is the "what can I safely delete?" query agents currently brute-force with grep + manual inspection.
 
 **Files**:
+
 ```
 packages/graph/src/api-surface.ts        (NEW — classifies exports as public/private)
 packages/spec/src/agent.ts               (extend exports with `visibility: 'public' | 'private'`)
@@ -422,6 +449,7 @@ packages/graph/test/api-surface.test.ts
 ```
 
 **Definition of done**:
+
 - Visibility correct for: named exports, default exports, re-exports
 - "Test files" + entry points correctly excluded as referrers (so test-only exports → `private` is intentional)
 - `unused('src/lib/')` returns scoped list
@@ -441,6 +469,7 @@ packages/graph/test/api-surface.test.ts
 **Promotion rationale**: with C1 in place, the implementation cost drops from 6 days to 2-3 days (we read the symbol graph instead of building one). Demo value for "agents you can trust" is highest of any tool in the inventory.
 
 **Files**:
+
 ```
 packages/core/src/impact.ts             (uses graph + symbols + callers from v0.3.5)
 apps/mcp-server/src/server.ts           (NEW MCP tool: impact_of)
@@ -448,6 +477,7 @@ packages/core/test/impact.test.ts
 ```
 
 **Definition of done**:
+
 - Supports change kinds: rename / delete_symbol / change_signature / move_file / extract_function
 - Returns: definite changes (definition site), likely (call sites), ambiguous (string matches)
 - **Confidence flag per result** (per the [`plan.md`](./plan.md) risk note: gate `impact_of` on "high confidence only" by default; surface "I don't know" instead of wrong answers)
@@ -467,6 +497,7 @@ packages/core/test/impact.test.ts
 **Promotion rationale**: same as v0.4.7. With v0.3.5 symbol graph, this is a sorted lookup, not a fresh graph build. Folds **C36 live exemplar mining** (which was just "find_examples with rendering").
 
 **Files**:
+
 ```
 packages/core/src/examples.ts           (NEW — symbol → ranked usage list)
 apps/mcp-server/src/server.ts           (NEW MCP tool: find_examples(api, n=5))
@@ -475,6 +506,7 @@ packages/core/test/examples.test.ts
 ```
 
 **Definition of done**:
+
 - Returns top-N usage sites ranked by: recency, diversity (different files/symbols), and concision (shorter call sites first)
 - UI inline panel shows the call site with 3 lines of context
 - Heuristic ranking documented; no LLM in the loop
@@ -488,9 +520,10 @@ packages/core/test/examples.test.ts
 
 ### v0.4.9 — `risk_explain` MCP tool + plain-English risk extension
 
-**What it is**: takes a `(rule_id, file)` pair and returns: what the rule means, why it fires here specifically, what to fix, and (when v0.5.2 conventions land) the fix in *this codebase's style*. ([`plan.md`](./plan.md) candidate **C19**.)
+**What it is**: takes a `(rule_id, file)` pair and returns: what the rule means, why it fires here specifically, what to fix, and (when v0.5.2 conventions land) the fix in _this codebase's style_. ([`plan.md`](./plan.md) candidate **C19**.)
 
 **Files**:
+
 ```
 packages/scanners/src/risk-explain.ts   (NEW — rule registry + per-rule explainer fns)
 apps/mcp-server/src/server.ts           (NEW MCP tool: risk_explain(ruleId, filePath))
@@ -499,6 +532,7 @@ packages/scanners/test/risk-explain.test.ts
 ```
 
 **Definition of done**:
+
 - Every risk rule has a `summary` (one sentence), a `why` (file-context-aware paragraph), and a `fix` (concrete action)
 - Deterministic; no LLM (LLM polish slot reserved for v0.5.5)
 - 100% rule coverage; CI fails if a new rule lacks an explainer
@@ -516,6 +550,7 @@ packages/scanners/test/risk-explain.test.ts
 **Why**: replaces architecture meetings with CI checks. Folds naturally into v0.4.1 taxonomy + v0.4.2 ARCHITECTURE.md (rules.toml is the machine-readable companion to the doc).
 
 **Files**:
+
 ```
 packages/core/src/arch-lint.ts          (NEW — rule loader + graph evaluator)
 apps/cli/src/cli.ts                     (NEW subcommand: `factstack lint` exits non-zero on violations)
@@ -524,6 +559,7 @@ packages/core/test/arch-lint.test.ts
 ```
 
 **Definition of done**:
+
 - Rule shape: `{ from: glob, to_not: glob, kind?: 'import' | 'call' }` (and `to:` allowlist variant)
 - Violations include the offending edge (file → file, line) + the rule id
 - Exit code 0/1; JSON output via `--json` for CI parsing
@@ -538,11 +574,12 @@ packages/core/test/arch-lint.test.ts
 
 ### v0.4.11 — Effect graph + call-counts per route
 
-**What it is**: annotate functions with detected effects (`db.read`, `db.write`, `network`, `fs`, `env`, `time`). Aggregate per route to surface "this route does 3 DB reads + 1 external HTTP call." ([`plan.md`](./plan.md) candidates **C3** + the *counts half* of **C21** — dollar estimates explicitly deferred to v0.7+ per the trust-killer rationale in plan.md.)
+**What it is**: annotate functions with detected effects (`db.read`, `db.write`, `network`, `fs`, `env`, `time`). Aggregate per route to surface "this route does 3 DB reads + 1 external HTTP call." ([`plan.md`](./plan.md) candidates **C3** + the _counts half_ of **C21** — dollar estimates explicitly deferred to v0.7+ per the trust-killer rationale in plan.md.)
 
 **Why**: makes "what does this route actually do?" answerable at a glance. Counts (not dollars) are deterministic and useful both as agent context and CXO clarity.
 
 **Files**:
+
 ```
 packages/extractors/src/effects.ts      (NEW — heuristic detector for known APIs)
 packages/graph/src/route-effects.ts     (NEW — aggregate per route)
@@ -552,6 +589,7 @@ packages/extractors/test/effects.test.ts
 ```
 
 **Definition of done**:
+
 - Detected APIs: pg/postgres/mysql/sqlite (db), fetch/axios/got (network), fs/fs-extra (fs), `process.env`/`os.getenv` (env), Date.now/performance.now (time)
 - Routes tab shows e.g. `↓2 ↑1` for "2 DB reads, 1 DB write"
 - Documented as heuristic; false-positive bound measured on `examples/`
@@ -565,9 +603,10 @@ packages/extractors/test/effects.test.ts
 
 ### v0.4.12 — Stale tests panel
 
-**What it is**: tests that haven't been edited in N months *and* whose subject (per v0.3.7 mapping) hasn't changed either *and* haven't run in CI in K runs. Often surfaces dead tests for live code OR live tests for dead code — both are signals worth acting on. ([`plan.md`](./plan.md) candidate **C29**.)
+**What it is**: tests that haven't been edited in N months _and_ whose subject (per v0.3.7 mapping) hasn't changed either _and_ haven't run in CI in K runs. Often surfaces dead tests for live code OR live tests for dead code — both are signals worth acting on. ([`plan.md`](./plan.md) candidate **C29**.)
 
 **Files**:
+
 ```
 packages/scanners/src/stale-tests.ts    (NEW — combines git mtime + test-coverage map + CI metadata if present)
 prototype/index.html                    (Tests tab: new "Stale" sub-tab)
@@ -575,6 +614,7 @@ packages/scanners/test/stale-tests.test.ts
 ```
 
 **Definition of done**:
+
 - Stale signals stratified: "test untouched 6+ months", "subject untouched same period", "no recent CI runs (when CI metadata available)"
 - Optional: reads `.facts/ci-runs.jsonl` if present (out of scope to populate; users wire their CI)
 - New panel renders 3-column table (test file, last-edited, status)
@@ -593,7 +633,7 @@ packages/scanners/test/stale-tests.test.ts
 
 **Goal**: ship the MCP tools that turn FACTS from a map into a navigation system for agents.
 
-### v0.5.1 — *PROMOTED to v0.4.7* — `impact_of` MCP tool
+### v0.5.1 — _PROMOTED to v0.4.7_ — `impact_of` MCP tool
 
 Per [`plan.md`](./plan.md): cheaply unlocked once v0.3.5 symbol graph lands, so moved into v0.4. See **v0.4.7**.
 
@@ -604,6 +644,7 @@ Per [`plan.md`](./plan.md): cheaply unlocked once v0.3.5 symbol graph lands, so 
 `code_conventions()` returns inferred naming/import/pattern rules. (`find_examples` moved to **v0.4.8** per [`plan.md`](./plan.md) — symbol graph from v0.3.5 makes the API-shaped lookup cheap; `code_conventions` is the harder, heuristic-heavy half and stays here.)
 
 **Files**:
+
 ```
 packages/core/src/conventions.ts       (NEW — sample-based pattern inference)
 apps/mcp-server/src/server.ts          (NEW MCP tool: code_conventions)
@@ -611,6 +652,7 @@ packages/core/test/conventions.test.ts
 ```
 
 **Definition of done**:
+
 - `code_conventions()` returns naming + import order + tab-vs-space + return-style + error-handling pattern
 - Conventions are tier-aware (frontend rules vs backend rules) — depends on v0.4.1
 - Each convention rule includes 3-5 exemplar files
@@ -627,6 +669,7 @@ packages/core/test/conventions.test.ts
 Where should I add this? + Just-the-neighborhood query.
 
 **Files**:
+
 ```
 packages/core/src/suggest.ts           (NEW — path-frequency + role match)
 packages/core/src/neighborhood.ts      (NEW — focus + N-hop graph query)
@@ -634,6 +677,7 @@ apps/mcp-server/src/server.ts          (NEW MCP tools)
 ```
 
 **Definition of done**:
+
 - `suggest_location(intent)` returns 1-3 ranked file/dir candidates with rationale
 - `query_around(focus)` returns subject + callers + callees + siblings + tests
 - Both <50KB output even on large repos
@@ -649,6 +693,7 @@ apps/mcp-server/src/server.ts          (NEW MCP tools)
 Project-defined types as plain shapes. Pulls from TS interfaces, Zod, Prisma, Pydantic.
 
 **Files**:
+
 ```
 packages/extractors/src/data-shapes.ts  (NEW — extracts type defs across formats)
 apps/mcp-server/src/server.ts           (NEW MCP tool: data_shapes())
@@ -656,6 +701,7 @@ packages/extractors/test/data-shapes.test.ts
 ```
 
 **Definition of done**:
+
 - Returns flat map: typeName → { field: type } pairs
 - Handles TypeScript interfaces, Zod schemas, Prisma models, basic Pydantic
 - Used by agents writing queries / DTOs
@@ -671,6 +717,7 @@ packages/extractors/test/data-shapes.test.ts
 **What it is**: given two endpoints (or a route + an external sink like a Stripe call), return the ordered call chain between them with effect annotations from v0.4.11. Replaces a class of multi-file investigations agents currently do via grep + read. ([`plan.md`](./plan.md) candidate **C14**.)
 
 **Files**:
+
 ```
 packages/core/src/trace-data.ts        (NEW — graph traversal between two anchors)
 apps/mcp-server/src/server.ts          (NEW MCP tool: trace_data(from, to))
@@ -678,6 +725,7 @@ packages/core/test/trace-data.test.ts
 ```
 
 **Definition of done**:
+
 - Anchors can be: route paths (`POST /api/checkout`), file:symbol pairs (`src/lib/stripe.ts:createCharge`), or external API references (`stripe.charges.create`)
 - Returns ordered call chain with effect at each step + confidence
 - Returns "no path found" cleanly (not a wrong path)
@@ -694,6 +742,7 @@ packages/core/test/trace-data.test.ts
 **What it is**: auto-generated 5-step tour for a new engineer (or a fresh agent): entry point → main router → 2 most-edited business modules → tests dir. Each stop has a 1-line summary. Deterministic v1; LLM polish reserved for v0.6+. ([`plan.md`](./plan.md) candidate **C22**.)
 
 **Files**:
+
 ```
 packages/core/src/tour.ts              (NEW — pick stops by churn + role + edge centrality)
 prototype/index.html                   (NEW Tour tab + per-stop "next" navigation)
@@ -702,6 +751,7 @@ packages/core/test/tour.test.ts
 ```
 
 **Definition of done**:
+
 - Stop selection is deterministic given the same dataset
 - Each stop: file path, role, 1-line summary (template-driven, not LLM)
 - Tour is < 10 KB output
@@ -718,6 +768,7 @@ packages/core/test/tour.test.ts
 **What it is**: for any file, return the linked PR(s) that last touched it with title + body excerpt. Mines `git log` + GitHub API (when remote is GitHub). Cached in `.facts/cache/prs/`. ([`plan.md`](./plan.md) candidate **C23**.)
 
 **Files**:
+
 ```
 packages/scanners/src/pr-archaeology.ts (NEW — git log → PR numbers + GH API fetch)
 packages/spec/src/agent.ts              (extend FileOutline with `recentPRs: PRRef[]`)
@@ -727,6 +778,7 @@ packages/scanners/test/pr-archaeology.test.ts (mocked HTTP)
 ```
 
 **Definition of done**:
+
 - Detects PR numbers from `Merge pull request #N` and squash-style `(#N)` suffix
 - GitHub API client respects rate limits + uses PAT when available
 - Cache: 24h TTL keyed by `(repo, prNumber)`
@@ -741,9 +793,10 @@ packages/scanners/test/pr-archaeology.test.ts (mocked HTTP)
 
 ### v0.5.8 — Copy-paste / clone detector
 
-**What it is**: detect duplicated code blocks across the repo. Side-by-side renderer in the UI. ([`plan.md`](./plan.md) candidate **C26** — where bugs hide; CXO hook is *"you have 3 copies of billing logic, last edited at different times."*)
+**What it is**: detect duplicated code blocks across the repo. Side-by-side renderer in the UI. ([`plan.md`](./plan.md) candidate **C26** — where bugs hide; CXO hook is _"you have 3 copies of billing logic, last edited at different times."_)
 
 **Files**:
+
 ```
 packages/scanners/src/clones.ts        (NEW — token-stream hashing with sliding window)
 packages/spec/src/agent.ts             (NEW top-level `clones: CloneCluster[]`)
@@ -752,6 +805,7 @@ packages/scanners/test/clones.test.ts
 ```
 
 **Definition of done**:
+
 - Detects ≥80-token blocks duplicated across ≥2 files
 - Each cluster: { fingerprint, files: [{path, range}], lastEditedAt[] }
 - Severity LOW (informational) by default; MEDIUM when last-edit dates diverge >30 days (= drift risk)
@@ -766,9 +820,10 @@ packages/scanners/test/clones.test.ts
 
 ### v0.5.9 — Semantic diff
 
-**What it is**: function-level diffs that say *"renamed `getUser` → `fetchUser`, body unchanged"* or *"signature changed: added `opts?: Options` parameter"* instead of red/green lines. Layered on top of `factstack diff` (already shipped). ([`plan.md`](./plan.md) candidate **C32** — PR review collapse from 30 min → 5.)
+**What it is**: function-level diffs that say _"renamed `getUser` → `fetchUser`, body unchanged"_ or _"signature changed: added `opts?: Options` parameter"_ instead of red/green lines. Layered on top of `factstack diff` (already shipped). ([`plan.md`](./plan.md) candidate **C32** — PR review collapse from 30 min → 5.)
 
 **Files**:
+
 ```
 packages/core/src/semantic-diff.ts     (NEW — pair declarations across snapshots; classify the change)
 apps/cli/src/cli.ts                    (extend `factstack diff --semantic`)
@@ -777,6 +832,7 @@ packages/core/test/semantic-diff.test.ts
 ```
 
 **Definition of done**:
+
 - Change kinds detected: rename, signature change (added/removed/reordered params), body change with same signature, moved file (same content), pure reformatting
 - Classification is heuristic; documented precision
 - New History sub-tab "Semantic" shows the classified changes alongside the line-diff
@@ -793,6 +849,7 @@ packages/core/test/semantic-diff.test.ts
 **What it is**: extract OpenAPI from server route handlers (TS types + Zod schemas + framework decorators) AND from client API call sites (fetch URLs + body shapes). Diff them; surface mismatches. ([`plan.md`](./plan.md) candidate **C38** — single most common silent-bug class in web apps.)
 
 **Files**:
+
 ```
 packages/extractors/src/openapi-server.ts (NEW — derive OpenAPI from route handlers)
 packages/extractors/src/openapi-client.ts (NEW — derive expected shapes from call sites)
@@ -803,6 +860,7 @@ packages/scanners/test/spec-drift.test.ts
 ```
 
 **Definition of done**:
+
 - Detects: missing fields on either side, type mismatches (string vs number), removed routes still called by client, new routes not yet called
 - Confidence flag per finding (server side is usually high; client side often heuristic)
 - New `spec-drift` risk category
@@ -821,6 +879,7 @@ packages/scanners/test/spec-drift.test.ts
 The optional second mode for ARCHITECTURE.md generation: an LLM pass that drafts narrative prose, marked as AI-generated.
 
 **Files**:
+
 ```
 packages/emit/src/docs-llm.ts          (NEW — LLM client + prompt templates)
 apps/cli/src/cli.ts                    (NEW: `factstack docs --llm` flag)
@@ -829,6 +888,7 @@ packages/emit/test/docs-llm.test.ts    (mocked LLM responses)
 ```
 
 **Definition of done**:
+
 - `factstack docs --llm` writes ARCHITECTURE.draft.md alongside ARCHITECTURE.md
 - Every LLM-drafted paragraph carries `<!-- ai-draft -->` marker
 - LLM context: ONLY `agent.json` + extracted symbols + framework list — never raw file contents (privacy)
@@ -840,6 +900,7 @@ packages/emit/test/docs-llm.test.ts    (mocked LLM responses)
 **Estimated**: 7 days (optional — ship only if budget allows)
 
 **v0.5 total (must-ship)**: ~50 days
+
 - v0.5.2 code_conventions: 4 days
 - v0.5.3 suggest_location + query_around: 4 days
 - v0.5.4 data_shapes: 5 days
@@ -865,6 +926,7 @@ packages/emit/test/docs-llm.test.ts    (mocked LLM responses)
 **What it is**: simple file-based ticket store + intake endpoints.
 
 **Files**:
+
 ```
 packages/core/src/tickets.ts            (NEW — file-based store)
 apps/cli/src/cli.ts                     (NEW commands: tickets create/list/show)
@@ -875,6 +937,7 @@ packages/core/test/tickets.test.ts
 ```
 
 **Ticket schema**:
+
 ```jsonc
 {
   "id": "T-2026-05-01-001",
@@ -893,6 +956,7 @@ packages/core/test/tickets.test.ts
 ```
 
 **Definition of done**:
+
 - `factstack tickets create --summary "..." --details "..."`
 - `.facts/tickets/T-*.json` is git-committable
 - MCP can list / read / create tickets
@@ -911,6 +975,7 @@ packages/core/test/tickets.test.ts
 This is THE unknown — depends on AI capability and how much sandboxing you accept.
 
 **Files**:
+
 ```
 packages/core/src/reproduce.ts          (NEW — orchestrator: ticket → test draft)
 apps/cli/src/cli.ts                     (NEW: `factstack bug verify <ticket-id>`)
@@ -918,6 +983,7 @@ apps/cli/src/cli.ts                     (NEW: `factstack bug verify <ticket-id>`
 ```
 
 **Definition of done**:
+
 - `factstack bug verify T-001` runs end-to-end
 - Output: `tests/regression/T-001-*.test.ts` written + ticket status → "reproduced" if test fails as predicted
 - Confidence score attached: "AI is X% confident this test reproduces the bug"
@@ -935,12 +1001,14 @@ apps/cli/src/cli.ts                     (NEW: `factstack bug verify <ticket-id>`
 **What it is**: given a confirmed reproduction, AI proposes a code change.
 
 **Files**:
+
 ```
 packages/core/src/propose-fix.ts        (NEW — orchestrator)
 apps/cli/src/cli.ts                     (NEW: `factstack bug fix <ticket-id>`)
 ```
 
 **Definition of done**:
+
 - Given a ticket in `reproduced` status, write a fix
 - Run the regression test + full test suite
 - Status transitions: `reproduced` → `fix-ready` (if all tests pass) | `fix-failed` (else)
@@ -958,12 +1026,14 @@ apps/cli/src/cli.ts                     (NEW: `factstack bug fix <ticket-id>`)
 **What it is**: open a PR with the test + fix + risk analysis. Run a SECOND AI to write attack tests trying to break the fix.
 
 **Files**:
+
 ```
 packages/core/src/pr.ts                 (NEW — git automation)
 packages/core/src/adversarial.ts        (NEW — second-AI attack tester)
 ```
 
 **Definition of done**:
+
 - Auto-PR with templated description
 - Adversarial pass writes 5 tests trying to break the fix; if any pass, PR is rejected
 - Confidence score visible in PR body
@@ -981,12 +1051,14 @@ packages/core/src/adversarial.ts        (NEW — second-AI attack tester)
 **What it is**: read the postmortem log, surface AI accuracy by ticket type, calibrate confidence gates.
 
 **Files**:
+
 ```
 packages/core/src/calibration.ts        (NEW — learnings → accuracy stats)
 prototype/index.html                    (NEW Trust tab — agent calibration over time)
 ```
 
 **Definition of done**:
+
 - Per-agent accuracy: % of accepted fixes by confidence tier
 - Trends over time
 - Suggested confidence-gate adjustments based on data
@@ -1004,26 +1076,26 @@ prototype/index.html                    (NEW Trust tab — agent calibration ove
 
 These survived [`plan.md`](./plan.md) feasibility but didn't make the cut for v0.3-v0.6. Each has a specific gate that must clear before it's worth the engineering cost.
 
-| Candidate | Gate | Why deferred |
-|---|---|---|
-| **TS type flow across modules** (C2) | tsserver integration matures, or a non-TS user appears who needs equivalent | TS-only fragments the cross-language story; reinventing tsserver is wasteful |
-| **Build/runtime config inference** (C8) | An explicit user need for accurate bundle topology beyond what framework detection covers | Existing detection covers 80%; marginal value not yet justified |
-| **`find_pattern(description)` LLM mode** (C11) | Cost model for LLM-driven AST queries proves out (per-call $ + hit rate) | Deterministic AST query DSL is fine for v0.7; LLM angle blocked on cost |
-| **Money-per-month $ estimates** (C21-$) | A pricing-data partner that warrants the trust contract OR a regulator mandates disclosure | Pricing tables drift quarterly; confidently-wrong $ in a CXO dashboard is a trust killer (call counts ship in v0.4.11) |
-| **Cross-repo graph** (C33) | Single-repo case is rock-solid AND a multi-repo customer asks for it | Premature; assumes a deployment model FACTS hasn't earned yet |
+| Candidate                                      | Gate                                                                                       | Why deferred                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| **TS type flow across modules** (C2)           | tsserver integration matures, or a non-TS user appears who needs equivalent                | TS-only fragments the cross-language story; reinventing tsserver is wasteful                                           |
+| **Build/runtime config inference** (C8)        | An explicit user need for accurate bundle topology beyond what framework detection covers  | Existing detection covers 80%; marginal value not yet justified                                                        |
+| **`find_pattern(description)` LLM mode** (C11) | Cost model for LLM-driven AST queries proves out (per-call $ + hit rate)                   | Deterministic AST query DSL is fine for v0.7; LLM angle blocked on cost                                                |
+| **Money-per-month $ estimates** (C21-$)        | A pricing-data partner that warrants the trust contract OR a regulator mandates disclosure | Pricing tables drift quarterly; confidently-wrong $ in a CXO dashboard is a trust killer (call counts ship in v0.4.11) |
+| **Cross-repo graph** (C33)                     | Single-repo case is rock-solid AND a multi-repo customer asks for it                       | Premature; assumes a deployment model FACTS hasn't earned yet                                                          |
 
 ---
 
 ## Dropped — explicit decisions not to build
 
-These were proposed in the strategic discussion on 2026-05-01 and explicitly rejected after [`plan.md`](./plan.md) feasibility scoring. Recording the *rationale* so future "should we revisit?" conversations have a record.
+These were proposed in the strategic discussion on 2026-05-01 and explicitly rejected after [`plan.md`](./plan.md) feasibility scoring. Recording the _rationale_ so future "should we revisit?" conversations have a record.
 
-| Candidate | Rationale |
-|---|---|
-| **Property-based test synthesis** (C31) | Trust collapse if synthesized tests are wrong. v0.6 bug-pipeline already targets test generation in a controlled, adversarial setting — that's the right vehicle. Free-floating PBT would undermine the trust framework. |
-| **AI-fingerprint detection** (C34) | Adversarial signal — devs work around it the moment it's deployed. Low actual user value. The problem it solves (review-quality ranking) is better addressed by `learnings.jsonl` calibration data, not by "is this AI?" guessing. |
-| **Carbon estimate** (C35) | Built on shaky math (cost × CO2-per-cost factor). Emission factors change quarterly. CXO dashboards trade on precision — a fuzzy carbon number in a tool whose moat is *clarity* is the wrong trade-off. |
-| **Replay scenarios** (C39) | Not really static analysis. Closer to integration testing or staging tooling. The static substrate (route detection, type extraction) makes it possible but the operational surface (dev-traffic capture, PII redaction, replay infra) is a separate product. Don't fold it in. |
+| Candidate                               | Rationale                                                                                                                                                                                                                                                                       |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Property-based test synthesis** (C31) | Trust collapse if synthesized tests are wrong. v0.6 bug-pipeline already targets test generation in a controlled, adversarial setting — that's the right vehicle. Free-floating PBT would undermine the trust framework.                                                        |
+| **AI-fingerprint detection** (C34)      | Adversarial signal — devs work around it the moment it's deployed. Low actual user value. The problem it solves (review-quality ranking) is better addressed by `learnings.jsonl` calibration data, not by "is this AI?" guessing.                                              |
+| **Carbon estimate** (C35)               | Built on shaky math (cost × CO2-per-cost factor). Emission factors change quarterly. CXO dashboards trade on precision — a fuzzy carbon number in a tool whose moat is _clarity_ is the wrong trade-off.                                                                        |
+| **Replay scenarios** (C39)              | Not really static analysis. Closer to integration testing or staging tooling. The static substrate (route detection, type extraction) makes it possible but the operational surface (dev-traffic capture, PII redaction, replay infra) is a separate product. Don't fold it in. |
 
 ---
 
@@ -1088,18 +1160,20 @@ the substrate is in place, the CXO trust signals are deployed.
 ### What ships in month 3
 
 All of v0.4 (12 sub-phases) + most of v0.5. Agents have:
+
 - v0.4 power tools: `impact_of`, `find_examples`, `unused`, `risk_explain`, `why_dependency`, `drift`, `arch_lint`, `tests_for`
 - v0.5 (in flight): `code_conventions`, `suggest_location`, `query_around`, `data_shapes`, `trace_data`, onboarding tour, PR archaeology
 
-The MCP tool surface is feature-complete by end of month 3 *for everything
-that doesn't need an LLM*. LLM-augmented `design.md` (v0.5.11) becomes
+The MCP tool surface is feature-complete by end of month 3 _for everything
+that doesn't need an LLM_. LLM-augmented `design.md` (v0.5.11) becomes
 optional cleanup.
 
 ### What ships in month 6
 
 v0.5 fully landed (clones, semantic diff, spec drift) + v0.6.1 (bug intake)
-+ v0.6.2 (reproduction alpha). Bug-to-PR is partially live for HIGH-
-confidence cases only. Calibration data starts accumulating.
+
+- v0.6.2 (reproduction alpha). Bug-to-PR is partially live for HIGH-
+  confidence cases only. Calibration data starts accumulating.
 
 ### What ships in year 1
 
@@ -1125,15 +1199,18 @@ Every PR in this roadmap ships with:
 ## Risks + open questions
 
 ### v0.4 risks
+
 - **OSV.dev API rate limits** — research before v0.4.3. Caching mitigates but need a fallback.
 - **Taint-flow false positives** — every static analyzer over-reports. Need a calibration period before HIGH severity is trusted.
 - **AI authorship convention** — needs `AI-Author:` commit trailer adoption. Document in CONTRIBUTING.
 
 ### v0.5 risks
+
 - **MCP scope creep** — too many tools = agent confusion. Cap at 15 tools total. Currently at 5; budget for 10 more.
 - **LLM cost in --llm mode** — ARCHITECTURE.draft.md generation costs ~$0.10-1 per regen depending on project size. Document in CLI help.
 
 ### v0.6 risks (the big ones)
+
 - **Reproduction AI accuracy** — unknown until we ship and measure. Need 50+ test runs against real bugs to calibrate.
 - **Sandbox security** — AI-generated tests can't have fs/network access by default. Worker_threads is a start; revisit with proper isolation if needed.
 - **Adversarial agent collusion** — if both repro and adversarial AIs are the same model, they share blind spots. Use different providers (claude reproduces, gpt attacks).
@@ -1156,13 +1233,13 @@ Every PR in this roadmap ships with:
 
 Two PRs paired for maximum compounding:
 
-**PR 1 (~3 days) — `.facts/MEMORY.md` generator + `read_memory` MCP tool** *(v0.3.1)*
+**PR 1 (~3 days) — `.facts/MEMORY.md` generator + `read_memory` MCP tool** _(v0.3.1)_
 
 Why: smallest unit of code, biggest single-PR impact. Every AI agent that uses FACTS gets a 40× context savings on cold-start (5KB MEMORY.md vs 200KB agent.json walk). Pure synthesis from existing data — no new analyzer pass, no new schemas, just a markdown templater + an MCP wrapper.
 
-**PR 2 (~5 days) — Symbol-level call graph** *(v0.3.5)*
+**PR 2 (~5 days) — Symbol-level call graph** _(v0.3.5)_
 
-Why: the substrate decision. Doing this in week 1 cheapens v0.4's `impact_of` (3d → 2d), `find_examples` (4d → 2d), `unused()` (3d → 1d), and dead-code viz (3d → 1d). Net cost across the program drops by ~7 days — front-loading C1 *pays for itself before v0.4 starts*.
+Why: the substrate decision. Doing this in week 1 cheapens v0.4's `impact_of` (3d → 2d), `find_examples` (4d → 2d), `unused()` (3d → 1d), and dead-code viz (3d → 1d). Net cost across the program drops by ~7 days — front-loading C1 _pays for itself before v0.4 starts_.
 
 Per [`plan.md`](./plan.md) C1 risk note: ship with **a confidence flag per ref**. Surface "I don't know" instead of wrong answers. The worst outcome is `impact_of` returning a confidently wrong "what breaks if I rename" answer when the symbol graph has bugs — gate on high-confidence by default, expose low-confidence behind an explicit flag.
 

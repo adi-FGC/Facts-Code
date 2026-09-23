@@ -81,7 +81,9 @@ const GH_TOKEN_KEY = 'factstack:gh-token';
  * preference see instant state swaps instead. */
 const ANIM_KEYFRAMES_ID = 'open-modal-keyframes';
 function ensureAnimKeyframes() {
-  adoptCss(ANIM_KEYFRAMES_ID, `
+  adoptCss(
+    ANIM_KEYFRAMES_ID,
+    `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes openmodal-overlay-in {
         from { opacity: 0 }
@@ -96,7 +98,8 @@ function ensureAnimKeyframes() {
         to   { opacity: 1; transform: translateY(0) }
       }
     }
-  `);
+  `,
+  );
 }
 
 const overlay = css({
@@ -278,7 +281,8 @@ const secondaryBtn = css({
   height: '32px',
   paddingInline: 'var(--space-3)',
   cursor: 'pointer',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -423,7 +427,8 @@ const profileSegBtn = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderRight: 'none' },
   '&:hover:not(:disabled)': { color: 'var(--accent)', background: 'var(--accent-soft)' },
   '&:disabled': { color: 'var(--fg-faint)', cursor: 'not-allowed' },
@@ -691,7 +696,8 @@ const recentRow = css({
   textAlign: 'left',
   font: 'inherit',
   color: 'var(--fg-muted)',
-  transition: 'background var(--dur-quick) var(--ease-out-quart), color var(--dur-quick) var(--ease-out-quart), padding-left var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'background var(--dur-quick) var(--ease-out-quart), color var(--dur-quick) var(--ease-out-quart), padding-left var(--dur-quick) var(--ease-out-quart)',
   '&:last-child': { borderBottom: 'none' },
   '&:hover': {
     background: 'var(--highlight-faint)',
@@ -957,12 +963,14 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     if (!lastSourceHandle) return;
     try {
       const factsDir = await lastSourceHandle.getDirectoryHandle('.facts');
-      const picker = (window as unknown as {
-        showDirectoryPicker?: (opts?: {
-          mode?: 'read' | 'readwrite';
-          startIn?: FileSystemDirectoryHandle;
-        }) => Promise<FileSystemDirectoryHandle>;
-      }).showDirectoryPicker;
+      const picker = (
+        window as unknown as {
+          showDirectoryPicker?: (opts?: {
+            mode?: 'read' | 'readwrite';
+            startIn?: FileSystemDirectoryHandle;
+          }) => Promise<FileSystemDirectoryHandle>;
+        }
+      ).showDirectoryPicker;
       if (!picker) return;
       try {
         await picker({ mode: 'read', startIn: factsDir });
@@ -1103,11 +1111,17 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       /* showDirectoryPicker is gated behind a user gesture (this click
          qualifies). We ask for read-only — the save path (PR5) reopens
          with mode: 'readwrite' when the user opts to write artifacts. */
-      const picker = (window as unknown as {
-        showDirectoryPicker?: (opts?: { mode?: 'read' | 'readwrite' }) => Promise<FileSystemDirectoryHandle>;
-      }).showDirectoryPicker;
+      const picker = (
+        window as unknown as {
+          showDirectoryPicker?: (opts?: {
+            mode?: 'read' | 'readwrite';
+          }) => Promise<FileSystemDirectoryHandle>;
+        }
+      ).showDirectoryPicker;
       if (!picker) {
-        throw new Error('File System Access API not supported in this browser. Try Chrome or Edge.');
+        throw new Error(
+          'File System Access API not supported in this browser. Try Chrome or Edge.',
+        );
       }
       /* Keep this as the first user-visible action in the click handler.
          Some embedded Chromium shells reject native pickers if the page
@@ -1149,7 +1163,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     /* Re-probe env checks now that we have a handle — the read/write
        permission rows for the picked dir become relevant here. */
     void refreshEnvChecks();
-    await runScan(bridge, (onProgress) => bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }));
+    await runScan(bridge, (onProgress) =>
+      bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }),
+    );
   }
 
   async function scanFileInput(filesRaw: FileList | null) {
@@ -1162,7 +1178,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const files = picked
       .map((file) => {
         const rawPath = file.webkitRelativePath || file.name;
-        const path = rawPath.startsWith(rootName + '/') ? rawPath.slice(rootName.length + 1) : rawPath;
+        const path = rawPath.startsWith(rootName + '/')
+          ? rawPath.slice(rootName.length + 1)
+          : rawPath;
         return { path, file };
       })
       .filter((entry) => entry.path.length > 0);
@@ -1452,9 +1470,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const fraction = progress?.fraction ?? 0;
     const pct = Math.round(fraction * 100);
     const progressLabelText =
-      phase === 'picking' ? 'Waiting for directory…' :
-      progress            ? progress.label :
-                            'Starting…';
+      phase === 'picking' ? 'Waiting for directory…' : progress ? progress.label : 'Starting…';
 
     return (
       <div
@@ -1476,17 +1492,32 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                 <button
                   type="button"
                   aria-pressed={mode === 'local' ? 'true' : 'false'}
-                  mix={[tabBtn, mode === 'local' ? tabBtnActive : null, on('click', () => { mode = 'local'; void handle.update(); })]}
-                >Local</button>
+                  mix={[
+                    tabBtn,
+                    mode === 'local' ? tabBtnActive : null,
+                    on('click', () => {
+                      mode = 'local';
+                      void handle.update();
+                    }),
+                  ]}
+                >
+                  Local
+                </button>
                 <button
                   type="button"
                   aria-pressed={mode === 'github' ? 'true' : 'false'}
-                  mix={[tabBtn, mode === 'github' ? tabBtnActive : null, on('click', () => {
-                    mode = 'github';
-                    void handle.update();
-                    setTimeout(() => urlInputEl?.focus(), 0);
-                  })]}
-                >GitHub</button>
+                  mix={[
+                    tabBtn,
+                    mode === 'github' ? tabBtnActive : null,
+                    on('click', () => {
+                      mode = 'github';
+                      void handle.update();
+                      setTimeout(() => urlInputEl?.focus(), 0);
+                    }),
+                  ]}
+                >
+                  GitHub
+                </button>
               </span>
             )}
           </div>
@@ -1499,7 +1530,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
             {isPostScan
               ? renderPostScan()
-              : mode === 'local' ? renderLocalBody() : renderGithubBody()}
+              : mode === 'local'
+                ? renderLocalBody()
+                : renderGithubBody()}
 
             {isScanning && (
               <div mix={progressRail}>
@@ -1512,7 +1545,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             )}
 
             {phase === 'error' && (
-              <div role="alert" mix={errorBanner}>{error}</div>
+              <div role="alert" mix={errorBanner}>
+                {error}
+              </div>
             )}
           </div>
         </div>
@@ -1557,9 +1592,19 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                    animationDelay calc reads it. CSSProps' index signature
                    accepts custom properties, and the css mixin injects via
                    adopted stylesheets (CSP-clean — no inline style attr). */
-                mix={[recentRow, isActive ? recentRowActive : null, css({ '--i': String(i) }), on('click', () => { void openRecent(r); })]}
+                mix={[
+                  recentRow,
+                  isActive ? recentRowActive : null,
+                  css({ '--i': String(i) }),
+                  on('click', () => {
+                    void openRecent(r);
+                  }),
+                ]}
               >
-                <span aria-hidden="true" mix={[recentGlyphCell, isActive ? recentGlyphActive : null]}>
+                <span
+                  aria-hidden="true"
+                  mix={[recentGlyphCell, isActive ? recentGlyphActive : null]}
+                >
                   {recentGlyph(r)}
                 </span>
                 <span mix={recentName}>{recentLabel(r)}</span>
@@ -1568,12 +1613,17 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                   type="button"
                   aria-label={`Remove ${recentLabel(r)} from recents`}
                   title="Remove from recents"
-                  mix={[recentRemove, on<HTMLButtonElement, 'click'>('click', (e) => {
-                    /* Don't trigger the parent row's openRecent. */
-                    e.stopPropagation();
-                    void dropRecent(r);
-                  })]}
-                >×</button>
+                  mix={[
+                    recentRemove,
+                    on<HTMLButtonElement, 'click'>('click', (e) => {
+                      /* Don't trigger the parent row's openRecent. */
+                      e.stopPropagation();
+                      void dropRecent(r);
+                    }),
+                  ]}
+                >
+                  ×
+                </button>
               </button>
             );
           })}
@@ -1595,10 +1645,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   function renderDisclaimer() {
     return (
       <div mix={disclaimer}>
-        Everything runs in your browser. <span mix={disclaimerStrong}>No code or files
-        leave your device</span> unless you click Save to write{' '}
-        <span class="mono">.facts/</span> back to disk. A page refresh clears the
-        in-memory analysis — nothing persists unless saved.
+        Everything runs in your browser.{' '}
+        <span mix={disclaimerStrong}>No code or files leave your device</span> unless you click Save
+        to write <span class="mono">.facts/</span> back to disk. A page refresh clears the in-memory
+        analysis — nothing persists unless saved.
       </div>
     );
   }
@@ -1633,10 +1683,13 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         <button
           type="button"
           aria-expanded={envExpanded ? 'true' : 'false'}
-          mix={[envHeader, on('click', () => {
-            envExpanded = !envExpanded;
-            void handle.update();
-          })]}
+          mix={[
+            envHeader,
+            on('click', () => {
+              envExpanded = !envExpanded;
+              void handle.update();
+            }),
+          ]}
         >
           <span mix={envHeaderLeft}>
             <span aria-hidden="true" mix={[dot, headerDotClass]} />
@@ -1669,8 +1722,15 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                     <button
                       type="button"
                       disabled={envGrantingId !== null}
-                      mix={[envGrantBtn, on('click', () => { void runGrant(c); })]}
-                    >{isGranting ? 'Granting...' : 'Grant'}</button>
+                      mix={[
+                        envGrantBtn,
+                        on('click', () => {
+                          void runGrant(c);
+                        }),
+                      ]}
+                    >
+                      {isGranting ? 'Granting...' : 'Grant'}
+                    </button>
                   ) : null}
                 </div>
               );
@@ -1702,15 +1762,21 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     return (
       <div mix={viewFilesPanel}>
         <div mix={actionsRow}>
-          <button
-            type="button"
-            mix={[secondaryBtn, on('click', toggleViewFiles)]}
-          >{viewFilesOpen ? 'Hide files' : 'View .facts files'}</button>
+          <button type="button" mix={[secondaryBtn, on('click', toggleViewFiles)]}>
+            {viewFilesOpen ? 'Hide files' : 'View .facts files'}
+          </button>
           <button
             type="button"
             title="Open the OS-native file picker rooted at .facts/ — closest a browser sandbox can get to revealing in Finder/Explorer."
-            mix={[secondaryBtn, on('click', () => { void revealFactsInPicker(); })]}
-          >Reveal in OS picker</button>
+            mix={[
+              secondaryBtn,
+              on('click', () => {
+                void revealFactsInPicker();
+              }),
+            ]}
+          >
+            Reveal in OS picker
+          </button>
         </div>
         {viewFilesOpen && (
           <>
@@ -1729,11 +1795,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
               <div mix={viewFilesNote}>No files in .facts/. The save may not have completed.</div>
             )}
             <div mix={viewFilesNote}>
-              Browsers can't open Finder or Explorer directly from a page. The list above
-              reads the files via the same File System Access permission you granted —
-              the actual files live at <span class="mono">{lastSourceHandle.name}/.facts/</span>{' '}
-              on your device. Use <span class="mono">Reveal in OS picker</span> to see them
-              through the native file UI.
+              Browsers can't open Finder or Explorer directly from a page. The list above reads the
+              files via the same File System Access permission you granted — the actual files live
+              at <span class="mono">{lastSourceHandle.name}/.facts/</span> on your device. Use{' '}
+              <span class="mono">Reveal in OS picker</span> to see them through the native file UI.
             </div>
           </>
         )}
@@ -1748,9 +1813,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         {renderDisclaimer()}
         {renderEnvPanel()}
         <p mix={lede}>
-          Pick a directory on your machine. The scan runs entirely in your browser —
-          no files leave the device. After the scan you can save the artifacts
-          to <span class="mono">.facts/</span>.
+          Pick a directory on your machine. The scan runs entirely in your browser — no files leave
+          the device. After the scan you can save the artifacts to <span class="mono">.facts/</span>
+          .
         </p>
         <div mix={actionsRow}>
           <span mix={filePickWrap}>
@@ -1790,12 +1855,23 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
               type="button"
               disabled={phase === 'scanning' || phase === 'picking'}
               title="Choose a folder to scan — opens your OS folder picker"
-              mix={[primaryBtn, on('click', () => { chooseFolder(); })]}
+              mix={[
+                primaryBtn,
+                on('click', () => {
+                  chooseFolder();
+                }),
+              ]}
             >
               Choose folder…
             </button>
           </span>
-          <button type="button" mix={[secondaryBtn, on('click', hide)]} disabled={phase === 'scanning'}>Close</button>
+          <button
+            type="button"
+            mix={[secondaryBtn, on('click', hide)]}
+            disabled={phase === 'scanning'}
+          >
+            Close
+          </button>
         </div>
       </>
     );
@@ -1817,24 +1893,26 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const tokens = result.agent.stats.totalTokenCost;
     const loc = result.agent.stats.loc;
     const projectName = result.agent.project.name;
-    const saveLabel = phase === 'saving'
-      ? 'Saving…'
-      : lastSourceHandle
-        ? `Save to ${lastSourceHandle.name}/.facts`
-        : 'Save artifacts…';
+    const saveLabel =
+      phase === 'saving'
+        ? 'Saving…'
+        : lastSourceHandle
+          ? `Save to ${lastSourceHandle.name}/.facts`
+          : 'Save artifacts…';
     return (
       <>
         <p mix={lede}>
           Analyzed <strong mix={css({ color: 'var(--fg)' })}>{projectName}</strong> — the dashboard
-          behind this modal is now showing the fresh data. Save the artifacts so the AI
-          tier (<span class="mono">agent.json</span>, <span class="mono">agent.pack</span>,{' '}
+          behind this modal is now showing the fresh data. Save the artifacts so the AI tier (
+          <span class="mono">agent.json</span>, <span class="mono">agent.pack</span>,{' '}
           <span class="mono">MEMORY.md</span>) lands on disk for downstream agents.
         </p>
         <div mix={resultPanel}>
           <div mix={resultStatLine}>
             <span>Files</span>
             <span mix={resultStatNum}>
-              {fmtNum(filesOK)}{filesSkipped > 0 ? ` · ${fmtNum(filesSkipped)} skipped` : ''}
+              {fmtNum(filesOK)}
+              {filesSkipped > 0 ? ` · ${fmtNum(filesSkipped)} skipped` : ''}
             </span>
           </div>
           <div mix={resultStatLine}>
@@ -1857,20 +1935,37 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                   Wrote {savedSummary.files} files ({fmtBytes(savedSummary.bytes)}) to{' '}
                   <span class="mono">{savedSummary.destination}</span>
                   {savedSummary.rulesFiles ? (
-                    <> · plus {savedSummary.rulesFiles} agent-rules file{savedSummary.rulesFiles === 1 ? '' : 's'} at the project root (<span class="mono">AGENTS.md</span>, <span class="mono">.cursorrules</span>, …)</>
+                    <>
+                      {' '}
+                      · plus {savedSummary.rulesFiles} agent-rules file
+                      {savedSummary.rulesFiles === 1 ? '' : 's'} at the project root (
+                      <span class="mono">AGENTS.md</span>, <span class="mono">.cursorrules</span>,
+                      …)
+                    </>
                   ) : null}
                   {savedSummary.rulesError ? (
-                    <> · <span mix={css({ color: 'var(--warn)' })}>agent-rules files couldn’t be written: {savedSummary.rulesError}</span></>
+                    <>
+                      {' '}
+                      ·{' '}
+                      <span mix={css({ color: 'var(--warn)' })}>
+                        agent-rules files couldn’t be written: {savedSummary.rulesError}
+                      </span>
+                    </>
                   ) : null}
                   {savedSummary.rulesPreserved && savedSummary.rulesPreserved.length > 0 ? (
-                    <> · kept your existing <span class="mono">{savedSummary.rulesPreserved.join(', ')}</span> (not overwritten)</>
+                    <>
+                      {' '}
+                      · kept your existing{' '}
+                      <span class="mono">{savedSummary.rulesPreserved.join(', ')}</span> (not
+                      overwritten)
+                    </>
                   ) : null}
                 </span>
               </div>
               <div mix={savedHint}>
                 <span class="mono">.facts/</span> is hidden in macOS Finder by default — press{' '}
-                <span class="mono">⌘⇧.</span> (Cmd-Shift-Period) to reveal it, or open the folder
-                in your editor / terminal.
+                <span class="mono">⌘⇧.</span> (Cmd-Shift-Period) to reveal it, or open the folder in
+                your editor / terminal.
               </div>
               {renderViewFiles()}
             </>
@@ -1892,16 +1987,28 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                   aria-checked={emitProfile === 'minimal' ? 'true' : 'false'}
                   disabled={phase === 'saving'}
                   title="agent.pack + human.json + MEMORY.md — the AI-first core"
-                  mix={[profileSegBtn, emitProfile === 'minimal' ? profileSegActive : null, on('click', () => setProfile('minimal'))]}
-                >Minimal</button>
+                  mix={[
+                    profileSegBtn,
+                    emitProfile === 'minimal' ? profileSegActive : null,
+                    on('click', () => setProfile('minimal')),
+                  ]}
+                >
+                  Minimal
+                </button>
                 <button
                   type="button"
                   role="radio"
                   aria-checked={emitProfile === 'legacy' ? 'true' : 'false'}
                   disabled={phase === 'saving'}
                   title="Adds agent.json + agent.jsonl + a snapshot for tools that read raw JSON"
-                  mix={[profileSegBtn, emitProfile === 'legacy' ? profileSegActive : null, on('click', () => setProfile('legacy'))]}
-                >Legacy</button>
+                  mix={[
+                    profileSegBtn,
+                    emitProfile === 'legacy' ? profileSegActive : null,
+                    on('click', () => setProfile('legacy')),
+                  ]}
+                >
+                  Legacy
+                </button>
               </div>
             </div>
             <div mix={profileHint}>
@@ -1923,8 +2030,17 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                   aria-checked={writeAgentRules ? 'true' : 'false'}
                   disabled={phase === 'saving'}
                   title="Also write AGENTS.md + .cursorrules + .github/copilot-instructions.md + .claude/skills/<name>/SKILL.md at the project root"
-                  mix={[profileSegBtn, writeAgentRules ? profileSegActive : null, on('click', () => { writeAgentRules = !writeAgentRules; void handle.update(); })]}
-                >{writeAgentRules ? '✓ Write' : 'Skip'}</button>
+                  mix={[
+                    profileSegBtn,
+                    writeAgentRules ? profileSegActive : null,
+                    on('click', () => {
+                      writeAgentRules = !writeAgentRules;
+                      void handle.update();
+                    }),
+                  ]}
+                >
+                  {writeAgentRules ? '✓ Write' : 'Skip'}
+                </button>
               </div>
             </div>
             <div mix={profileHint}>
@@ -1938,14 +2054,20 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           <button
             type="button"
             disabled={phase === 'saving' || phase === 'saved'}
-            title={lastSourceHandle
-              ? 'Writes .facts/ into the directory you scanned'
-              : 'Pick a destination directory; .facts/ will be created inside it'}
+            title={
+              lastSourceHandle
+                ? 'Writes .facts/ into the directory you scanned'
+                : 'Pick a destination directory; .facts/ will be created inside it'
+            }
             mix={[primaryBtn, on('click', triggerSave)]}
           >
             {saveLabel}
           </button>
-          <button type="button" disabled={phase === 'saving'} mix={[secondaryBtn, on('click', hide)]}>
+          <button
+            type="button"
+            disabled={phase === 'saving'}
+            mix={[secondaryBtn, on('click', hide)]}
+          >
             {phase === 'saved' ? 'Done' : 'Close'}
           </button>
         </div>
@@ -1959,12 +2081,14 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         {renderDisclaimer()}
         {renderEnvPanel()}
         <p mix={lede}>
-          Paste a public repo URL or <span class="mono">owner/repo</span>. We hit the GitHub Trees API
-          and fetch source files via <span class="mono">raw.githubusercontent.com</span>. PAT raises the
-          rate limit from 60 to 5,000 requests/hour and is held only in this browser.
+          Paste a public repo URL or <span class="mono">owner/repo</span>. We hit the GitHub Trees
+          API and fetch source files via <span class="mono">raw.githubusercontent.com</span>. PAT
+          raises the rate limit from 60 to 5,000 requests/hour and is held only in this browser.
         </p>
         <div>
-          <label mix={inputLabel} for="ghurl">Repository</label>
+          <label mix={inputLabel} for="ghurl">
+            Repository
+          </label>
           <input
             id="ghurl"
             type="text"
@@ -1975,7 +2099,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             disabled={phase === 'scanning'}
             mix={[
               inputEl,
-              ref<HTMLInputElement>((node) => { urlInputEl = node; }),
+              ref<HTMLInputElement>((node) => {
+                urlInputEl = node;
+              }),
               on<HTMLInputElement, 'input'>('input', (e) => {
                 urlInput = (e.currentTarget as HTMLInputElement | null)?.value ?? '';
               }),
@@ -1989,7 +2115,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           />
         </div>
         <div>
-          <label mix={inputLabel} for="ghpat">Personal access token <span mix={css({ textTransform: 'none', letterSpacing: '0' })}>(optional)</span></label>
+          <label mix={inputLabel} for="ghpat">
+            Personal access token{' '}
+            <span mix={css({ textTransform: 'none', letterSpacing: '0' })}>(optional)</span>
+          </label>
           <input
             id="ghpat"
             type="password"
@@ -2007,10 +2136,20 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           />
         </div>
         <div mix={actionsRow}>
-          <button type="button" disabled={phase === 'scanning' || urlInput.trim().length === 0} mix={[primaryBtn, on('click', pickGithub)]}>
+          <button
+            type="button"
+            disabled={phase === 'scanning' || urlInput.trim().length === 0}
+            mix={[primaryBtn, on('click', pickGithub)]}
+          >
             {phase === 'scanning' ? 'Analyzing…' : 'Fetch & analyze'}
           </button>
-          <button type="button" mix={[secondaryBtn, on('click', hide)]} disabled={phase === 'scanning'}>Close</button>
+          <button
+            type="button"
+            mix={[secondaryBtn, on('click', hide)]}
+            disabled={phase === 'scanning'}
+          >
+            Close
+          </button>
         </div>
       </>
     );

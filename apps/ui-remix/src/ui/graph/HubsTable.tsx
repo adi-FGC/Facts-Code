@@ -47,21 +47,37 @@ export function HubsTable(handle: Handle<HubsTableProps>) {
           <RuledRow header>
             <RuledCell header>File</RuledCell>
             <RuledCell header>Folder</RuledCell>
-            <RuledCell header align="right">In</RuledCell>
-            <RuledCell header align="right">Out</RuledCell>
-            <RuledCell header align="right">Total</RuledCell>
+            <RuledCell header align="right">
+              In
+            </RuledCell>
+            <RuledCell header align="right">
+              Out
+            </RuledCell>
+            <RuledCell header align="right">
+              Total
+            </RuledCell>
           </RuledRow>
           {hubs.map((h) => {
             const { dir, name } = splitDirAndName(h.path);
             return (
               <RuledRow key={h.path}>
                 <RuledCell>
-                  <a href={`/files?p=${encodeURIComponent(h.path)}`} mix={fileLink}>{name}</a>
+                  <a href={`/files?p=${encodeURIComponent(h.path)}`} mix={fileLink}>
+                    {name}
+                  </a>
                 </RuledCell>
-                <RuledCell><span mix={dirText}>{dir || '·'}</span></RuledCell>
-                <RuledCell mono align="right">{h.in}</RuledCell>
-                <RuledCell mono align="right">{h.out}</RuledCell>
-                <RuledCell mono align="right">{h.total}</RuledCell>
+                <RuledCell>
+                  <span mix={dirText}>{dir || '·'}</span>
+                </RuledCell>
+                <RuledCell mono align="right">
+                  {h.in}
+                </RuledCell>
+                <RuledCell mono align="right">
+                  {h.out}
+                </RuledCell>
+                <RuledCell mono align="right">
+                  {h.total}
+                </RuledCell>
               </RuledRow>
             );
           })}

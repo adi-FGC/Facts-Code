@@ -8,25 +8,56 @@ function todo(kind: 'TODO' | 'FIXME' | 'HACK' | 'XXX' | 'NOTE', text: string, li
   return { kind, text, line, authoredAt: null };
 }
 function decl(name: string, startLine: number, endLine: number, docstring?: string): SymbolDecl {
-  return { name, kind: 'function', startLine, endLine, exported: false, ...(docstring ? { docstring } : {}) } as SymbolDecl;
+  return {
+    name,
+    kind: 'function',
+    startLine,
+    endLine,
+    exported: false,
+    ...(docstring ? { docstring } : {}),
+  } as SymbolDecl;
 }
-function outline(path: string, todos: ReturnType<typeof todo>[], declarations: SymbolDecl[] = []): FileOutline {
+function outline(
+  path: string,
+  todos: ReturnType<typeof todo>[],
+  declarations: SymbolDecl[] = [],
+): FileOutline {
   return { path, todos, declarations } as unknown as FileOutline;
 }
 function snode(path: string, name: string, startLine: number, endLine: number): SymbolNode {
-  return { id: `${path}#${name}@${startLine}`, path, name, kind: 'function', startLine, endLine, exported: false };
+  return {
+    id: `${path}#${name}@${startLine}`,
+    path,
+    name,
+    kind: 'function',
+    startLine,
+    endLine,
+    exported: false,
+  };
 }
 
 describe('buildRationale (F10)', () => {
   it('links a comment to its innermost enclosing symbol', () => {
-    const r = buildRationale([outline('a.ts', [todo('NOTE', 'why we cache here', 5)])], [snode('a.ts', 'cache', 1, 10)]);
+    const r = buildRationale(
+      [outline('a.ts', [todo('NOTE', 'why we cache here', 5)])],
+      [snode('a.ts', 'cache', 1, 10)],
+    );
     expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ symbol: 'a.ts#cache@1', kind: 'note', line: 5, text: 'why we cache here', file: 'a.ts' });
+    expect(r[0]).toMatchObject({
+      symbol: 'a.ts#cache@1',
+      kind: 'note',
+      line: 5,
+      text: 'why we cache here',
+      file: 'a.ts',
+    });
     expect(r[0]!.id).toBe('a.ts@5#note');
   });
 
   it('attaches a module-level comment at file level (symbol: null)', () => {
-    const r = buildRationale([outline('a.ts', [todo('TODO', 'top of file', 1)])], [snode('a.ts', 'cache', 5, 10)]);
+    const r = buildRationale(
+      [outline('a.ts', [todo('TODO', 'top of file', 1)])],
+      [snode('a.ts', 'cache', 5, 10)],
+    );
     expect(r[0]!.symbol).toBeNull();
     expect(r[0]!.kind).toBe('todo');
   });
@@ -40,15 +71,33 @@ describe('buildRationale (F10)', () => {
   });
 
   it('links a docstring to its own declaration symbol id', () => {
-    const r = buildRationale([outline('a.ts', [], [decl('greet', 3, 8, 'Greets the user politely.')])], [snode('a.ts', 'greet', 3, 8)]);
+    const r = buildRationale(
+      [outline('a.ts', [], [decl('greet', 3, 8, 'Greets the user politely.')])],
+      [snode('a.ts', 'greet', 3, 8)],
+    );
     expect(r).toHaveLength(1);
-    expect(r[0]).toMatchObject({ symbol: 'a.ts#greet@3', kind: 'docstring', line: 3, text: 'Greets the user politely.' });
+    expect(r[0]).toMatchObject({
+      symbol: 'a.ts#greet@3',
+      kind: 'docstring',
+      line: 3,
+      text: 'Greets the user politely.',
+    });
   });
 
   it('walks nested declarations for docstrings (class + method)', () => {
-    const cls = { name: 'Service', kind: 'class', startLine: 1, endLine: 20, exported: true, docstring: 'A service.', children: [decl('run', 5, 10, 'Runs it.')] } as unknown as SymbolDecl;
+    const cls = {
+      name: 'Service',
+      kind: 'class',
+      startLine: 1,
+      endLine: 20,
+      exported: true,
+      docstring: 'A service.',
+      children: [decl('run', 5, 10, 'Runs it.')],
+    } as unknown as SymbolDecl;
     const r = buildRationale([outline('a.ts', [], [cls])], []);
-    expect(r.map((x) => x.symbol)).toEqual(expect.arrayContaining(['a.ts#Service@1', 'a.ts#run@5']));
+    expect(r.map((x) => x.symbol)).toEqual(
+      expect.arrayContaining(['a.ts#Service@1', 'a.ts#run@5']),
+    );
     expect(r.map((x) => x.text)).toEqual(expect.arrayContaining(['A service.', 'Runs it.']));
   });
 
@@ -59,7 +108,10 @@ describe('buildRationale (F10)', () => {
   });
 
   it('caps long text with an ellipsis', () => {
-    const r = buildRationale([outline('a.ts', [todo('NOTE', 'x'.repeat(500), 2)])], [snode('a.ts', 'fn', 1, 5)]);
+    const r = buildRationale(
+      [outline('a.ts', [todo('NOTE', 'x'.repeat(500), 2)])],
+      [snode('a.ts', 'fn', 1, 5)],
+    );
     expect(r[0]!.text.length).toBeLessThanOrEqual(280);
     expect(r[0]!.text.endsWith('…')).toBe(true);
   });

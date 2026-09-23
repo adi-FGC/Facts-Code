@@ -101,12 +101,13 @@ interface SugiyamaDagProps {
   communityOf?: Map<string, number> | undefined;
 }
 
-
 /* ─────────── motion (entrance choreography) ─────────── */
 
 const SUGIYAMA_KEYFRAMES_ID = 'sugiyama-keyframes';
 function ensureSugiyamaKeyframes() {
-  adoptCss(SUGIYAMA_KEYFRAMES_ID, `
+  adoptCss(
+    SUGIYAMA_KEYFRAMES_ID,
+    `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes sugiyama-edge-draw {
         from { opacity: 0 }
@@ -117,7 +118,8 @@ function ensureSugiyamaKeyframes() {
         to   { opacity: 1; transform: translateY(0) }
       }
     }
-  `);
+  `,
+  );
 }
 
 /* ─────────── styles ─────────── */
@@ -183,7 +185,8 @@ const svg = css({
      incident paths with data-incident=""; the more-specific selector
      below brightens those. */
   '&[data-hover-id] path': {
-    transition: 'stroke var(--dur-quick) var(--ease-out-quart), stroke-opacity var(--dur-quick) var(--ease-out-quart), stroke-width var(--dur-quick) var(--ease-out-quart)',
+    transition:
+      'stroke var(--dur-quick) var(--ease-out-quart), stroke-opacity var(--dur-quick) var(--ease-out-quart), stroke-width var(--dur-quick) var(--ease-out-quart)',
     strokeOpacity: '0.10',
   },
   /* Classic-mode incident edge hover uses the shared focus token
@@ -226,7 +229,8 @@ const transformGroup = css({
 const nodeGroup = css({
   cursor: 'pointer',
   '> rect': {
-    transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart), transform var(--dur-quick) var(--ease-out-quart)',
+    transition:
+      'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart), transform var(--dur-quick) var(--ease-out-quart)',
   },
   /* Classic Hover — focus token (interaction-reserved orange). */
   'svg:not([data-style-mode="neo"]) &:hover > rect': {
@@ -254,7 +258,6 @@ const nodeGroup = css({
   transformBox: 'fill-box',
   transformOrigin: 'center',
 });
-
 
 const edgeLayer = css({
   animation: 'sugiyama-edge-draw 320ms var(--ease-out-quart) both',
@@ -342,9 +345,9 @@ function nodeLabel(path: string): string {
  *      reading as "this cluster." Bump the 20% for louder color.
  */
 const COMMUNITY_TOKENS = [
-  'var(--ok)',     // green   (a.k.a. --dg-edge-import)
-  'var(--info)',   // blue    (a.k.a. --dg-edge-export)
-  'var(--warn)',   // amber
+  'var(--ok)', // green   (a.k.a. --dg-edge-import)
+  'var(--info)', // blue    (a.k.a. --dg-edge-export)
+  'var(--warn)', // amber
   'var(--accent)', // orange  (a.k.a. --dg-focus) — see constraint 2
 ] as const;
 
@@ -458,7 +461,15 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
      The kind is decided at pointerdown by the target hit-test. */
   let drag:
     | { kind: 'pan'; x: number; y: number; movedFar: boolean }
-    | { kind: 'node'; nodeId: string; x: number; y: number; movedFar: boolean; baseDx: number; baseDy: number }
+    | {
+        kind: 'node';
+        nodeId: string;
+        x: number;
+        y: number;
+        movedFar: boolean;
+        baseDx: number;
+        baseDy: number;
+      }
     | null = null;
   /* Per-node x/y offsets in SVG-local pixels (NOT screen pixels — the
      offsets must scale with zoom). null map entries are equivalent to
@@ -475,10 +486,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
        button enables on any of those — pressing it returns to the
        layout-computed identity. */
     handle.props.onTransformChange?.(
-      transform.scale !== 1 ||
-      transform.tx !== 0 ||
-      transform.ty !== 0 ||
-      nodeOffsets.size > 0,
+      transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0 || nodeOffsets.size > 0,
     );
   }
 
@@ -527,10 +535,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     handle.props.resetSink({
       reset,
       isIdentity: () =>
-        transform.scale === 1 &&
-        transform.tx === 0 &&
-        transform.ty === 0 &&
-        nodeOffsets.size === 0,
+        transform.scale === 1 && transform.tx === 0 && transform.ty === 0 && nodeOffsets.size === 0,
     });
     exposedOnce = true;
   }
@@ -629,8 +634,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
        the current zoom to keep the node tracking the cursor 1:1. */
     const totalScreenDx = e.clientX - (drag.x - (e.clientX - drag.x));
     void totalScreenDx; /* fold below; commented for clarity */
-    const newDx = drag.baseDx + (e.clientX - drag.x + (drag.baseDx - drag.baseDx)) / transform.scale;
-    const newDy = drag.baseDy + (e.clientY - drag.y + (drag.baseDy - drag.baseDy)) / transform.scale;
+    const newDx =
+      drag.baseDx + (e.clientX - drag.x + (drag.baseDx - drag.baseDx)) / transform.scale;
+    const newDy =
+      drag.baseDy + (e.clientY - drag.y + (drag.baseDy - drag.baseDy)) / transform.scale;
     /* The two lines above compute "base offset + (current movement
        since pointerdown, in SVG-local pixels)". The double-negatives
        are intentional placeholders so the formula reads as "base +
@@ -658,9 +665,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     const off = nodeOffsets.get(nodeId);
     if (!off) return;
     /* CSS.escape handles paths with quotes/slashes safely. */
-    const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-      ? CSS.escape(nodeId)
-      : nodeId.replace(/(["\\])/g, '\\$1');
+    const esc =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(nodeId)
+        : nodeId.replace(/(["\\])/g, '\\$1');
     const el = svgEl.querySelector(`a[data-node-id="${esc}"]`) as SVGGElement | null;
     if (!el) return;
     el.setAttribute('transform', `translate(${off.dx} ${off.dy})`);
@@ -685,9 +693,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
            anchor so the next render's rect-coordinate positioning
            doesn't double the offset. */
         if (svgEl) {
-          const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-            ? CSS.escape(draggedId)
-            : draggedId.replace(/(["\\])/g, '\\$1');
+          const esc =
+            typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+              ? CSS.escape(draggedId)
+              : draggedId.replace(/(["\\])/g, '\\$1');
           const el = svgEl.querySelector(`a[data-node-id="${esc}"]`) as SVGGElement | null;
           if (el) el.removeAttribute('transform');
         }
@@ -759,9 +768,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     /* Escape quotes/backslashes for the attribute selector. File paths
        can include odd characters in worst-case repos. CSS.escape is
        Baseline 2018, safe to use unconditionally. */
-    const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-      ? CSS.escape(id)
-      : id.replace(/(["\\])/g, '\\$1');
+    const esc =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(id)
+        : id.replace(/(["\\])/g, '\\$1');
 
     // Add data-incident="hovered" to the hovered node itself
     const hoveredNode = svgEl.querySelector(`a[data-node-id="${esc}"]`);
@@ -778,9 +788,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
       const toId = el.getAttribute('data-to');
       const otherId = fromId === id ? toId : fromId;
       if (otherId) {
-        const otherEsc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-          ? CSS.escape(otherId)
-          : otherId.replace(/(["\\])/g, '\\$1');
+        const otherEsc =
+          typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+            ? CSS.escape(otherId)
+            : otherId.replace(/(["\\])/g, '\\$1');
         const otherNode = svgEl.querySelector(`a[data-node-id="${otherEsc}"]`);
         if (otherNode) {
           otherNode.setAttribute('data-incident', 'connected');
@@ -872,8 +883,8 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
       return (
         <div mix={wrap}>
           <div mix={empty}>
-            No graph nodes to render — the project has no in-project import edges,
-            or the current granularity has no edges yet.
+            No graph nodes to render — the project has no in-project import edges, or the current
+            granularity has no edges yet.
           </div>
         </div>
       );
@@ -930,13 +941,19 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     return (
       <div mix={wrap}>
         <div mix={meta}>
-          <span>Sugiyama layered DAG · {layout.layerCount} layer{layout.layerCount === 1 ? '' : 's'}</span>
+          <span>
+            Sugiyama layered DAG · {layout.layerCount} layer{layout.layerCount === 1 ? '' : 's'}
+          </span>
           <span mix={metaCount}>
             {layout.nodes.size}
-            {totalNodeCount != null && totalNodeCount !== layout.nodes.size && ` of ${totalNodeCount}`}
-            {' '}nodes · {layout.edges.length} edges
+            {totalNodeCount != null &&
+              totalNodeCount !== layout.nodes.size &&
+              ` of ${totalNodeCount}`}{' '}
+            nodes · {layout.edges.length} edges
             {nodeOffsets.size > 0 && (
-              <span mix={css({ color: 'var(--accent)', marginLeft: '8px' })}>· {nodeOffsets.size} moved</span>
+              <span mix={css({ color: 'var(--accent)', marginLeft: '8px' })}>
+                · {nodeOffsets.size} moved
+              </span>
             )}
           </span>
         </div>
@@ -949,7 +966,9 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                   mix={[legendSwatch, css({ background: communityFill(community) })]}
                   aria-hidden="true"
                 />
-                <span mix={legendText}>#{community} · {count}</span>
+                <span mix={legendText}>
+                  #{community} · {count}
+                </span>
               </span>
             ))}
             {legend.length > LEGEND_CAP && (
@@ -1020,7 +1039,7 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
               <g aria-hidden="true">
                 {Array.from({ length: layout.layerCount }).map((_, L) => {
                   const baselineY = padding + L * (nodeHeight + layerGap) + nodeHeight / 2;
-                  
+
                   // Label naming depending on the layer
                   let label = `L${L}`;
                   if (L === 0) label = 'L0 · Entry';
@@ -1072,14 +1091,18 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                 const isExport = from.layer === 0;
 
                 const strokeColor = isNeo
-                  ? (isExport ? 'var(--neo-export)' : 'var(--neo-import)')
+                  ? isExport
+                    ? 'var(--neo-export)'
+                    : 'var(--neo-import)'
                   : 'var(--border-strong, var(--border))';
 
                 const strokeWidth = isNeo ? '1.5' : '1';
-                const strokeOpacity = isNeo ? '0.75' : (e.long ? '0.32' : '0.55');
+                const strokeOpacity = isNeo ? '0.75' : e.long ? '0.32' : '0.55';
 
                 const markerEnd = isNeo
-                  ? (isExport ? 'url(#arrow-out)' : 'url(#arrow-in)')
+                  ? isExport
+                    ? 'url(#arrow-out)'
+                    : 'url(#arrow-in)'
                   : undefined;
 
                 return (
@@ -1129,7 +1152,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
                     mix={[nodeGroup, css({ '--layer': String(n.layer) })]}
                     data-node-id={n.id}
                   >
-                    <title>{n.id} · degree {n.degree}{nodeOffsets.has(n.id) ? ' · moved' : ''}</title>
+                    <title>
+                      {n.id} · degree {n.degree}
+                      {nodeOffsets.has(n.id) ? ' · moved' : ''}
+                    </title>
                     <rect
                       x={x}
                       y={y}

@@ -8,7 +8,17 @@
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
 
-type Kind = 'ok' | 'broken' | 'stale' | 'parse_error' | 'read_error' | 'high' | 'critical' | 'medium' | 'low' | 'info';
+type Kind =
+  | 'ok'
+  | 'broken'
+  | 'stale'
+  | 'parse_error'
+  | 'read_error'
+  | 'high'
+  | 'critical'
+  | 'medium'
+  | 'low'
+  | 'info';
 
 interface StatusChipProps {
   kind: Kind;

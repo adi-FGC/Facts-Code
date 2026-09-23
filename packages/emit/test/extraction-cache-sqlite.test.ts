@@ -66,7 +66,9 @@ describe('SqliteExtractionCache', () => {
     c.close();
     // Hand-corrupt the value via a raw connection.
     const raw = new DatabaseSync(db);
-    raw.prepare('INSERT OR REPLACE INTO extraction (key, val) VALUES (?, ?)').run('bad', '{not valid json');
+    raw
+      .prepare('INSERT OR REPLACE INTO extraction (key, val) VALUES (?, ?)')
+      .run('bad', '{not valid json');
     raw.close();
     const c2 = new SqliteExtractionCache(db);
     expect(() => c2.get('bad')).not.toThrow();

@@ -29,7 +29,14 @@ function makeAgent(): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    project: { name: 'test', root: '.', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'test',
+      root: '.',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -45,9 +52,26 @@ function makeHuman(): HumanArtifact {
     $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: '0.1.0',
     generatedAt: new Date().toISOString(),
-    summary: { oneLiner: 'x', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 1, todos: 2, secrets: 0, headline: 'ok' } },
+    summary: {
+      oneLiner: 'x',
+      intent: '',
+      capabilities: [],
+      entryPoints: [],
+      health: { broken: 0, stale: 1, todos: 2, secrets: 0, headline: 'ok' },
+    },
     stack: [],
-    tree: { id: 'root', name: 'root', path: '.', kind: 'directory', language: null, loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [] },
+    tree: {
+      id: 'root',
+      name: 'root',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
+    },
     graph: { nodes: [], edges: [], cycles: [] },
     activity: [],
     risks: [],
@@ -60,7 +84,10 @@ function makeHuman(): HumanArtifact {
  *  writeFileSync` loop but operates on the in-memory map. */
 async function seedSnapshots(w: MemoryFileWriter, count: number): Promise<void> {
   for (let i = 0; i < count; i++) {
-    const t = new Date(Date.now() - (count - i) * 1000).toISOString().replace(/[:.]/g, '-').slice(0, 23);
+    const t = new Date(Date.now() - (count - i) * 1000)
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .slice(0, 23);
     await w.writeText(`snapshots/${t}Z.json`, '{}');
   }
 }
@@ -101,7 +128,15 @@ describe('writeArtifactsTo — F8 diff sidecar', () => {
   function agentWithRisk(): AgentArtifact {
     return {
       ...makeAgent(),
-      risks: [{ severity: 'low', category: 'large-file', rule: 'big-file', message: 'oversized', file: 'src/big.ts' }],
+      risks: [
+        {
+          severity: 'low',
+          category: 'large-file',
+          rule: 'big-file',
+          message: 'oversized',
+          file: 'src/big.ts',
+        },
+      ],
     } as AgentArtifact;
   }
 
@@ -139,7 +174,9 @@ describe('writeArtifactsTo — F8 diff sidecar', () => {
   });
 
   it('skips the diff (no throw) when prevPackBody is corrupt — master stays authoritative', async () => {
-    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { prevPackBody: 'not a pack at all' });
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), {
+      prevPackBody: 'not a pack at all',
+    });
     expect(r.diffName).toBeNull();
     expect(writer.has('agent.diff.pack')).toBe(false);
     expect(writer.has('agent.pack')).toBe(true);
@@ -149,10 +186,21 @@ describe('writeArtifactsTo — F8 diff sidecar', () => {
     // A valid v0.2 master stamped under an OLD schema name (agent-v3): it
     // decodes fine, but the schema guard must refuse to diff across it.
     const oldSchemaPack = encode({
-      header: { producer: 'factstack/0.0.0', schema: 'agent-v3', snapshotId: 'old', rowCount: null, seq: 1, parent: '-', kind: 'master', generated: 'old' },
+      header: {
+        producer: 'factstack/0.0.0',
+        schema: 'agent-v3',
+        snapshotId: 'old',
+        rowCount: null,
+        seq: 1,
+        parent: '-',
+        kind: 'master',
+        generated: 'old',
+      },
       tables: [{ name: 'files', columns: [{ name: 'path' }], rows: [['a.ts']] }],
     });
-    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), { prevPackBody: oldSchemaPack });
+    const r = await writeArtifactsTo(writer, makeAgent(), makeHuman(), {
+      prevPackBody: oldSchemaPack,
+    });
     expect(r.diffName).toBeNull();
     expect(writer.has('agent.diff.pack')).toBe(false);
   });

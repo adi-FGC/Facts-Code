@@ -58,7 +58,8 @@ const button = css({
   letterSpacing: '0.12em',
   textTransform: 'uppercase',
   cursor: 'pointer',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover:not(:disabled)': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -130,7 +131,10 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
     if (handle.signal.aborted) return;
     copyPhase = next;
     void handle.update();
-    if (copyTimer) { clearTimeout(copyTimer); copyTimer = null; }
+    if (copyTimer) {
+      clearTimeout(copyTimer);
+      copyTimer = null;
+    }
     if (next === 'done' || next === 'error') {
       copyTimer = setTimeout(() => {
         copyTimer = null;
@@ -145,7 +149,10 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
     if (handle.signal.aborted) return;
     dlPhase = next;
     void handle.update();
-    if (dlTimer) { clearTimeout(dlTimer); dlTimer = null; }
+    if (dlTimer) {
+      clearTimeout(dlTimer);
+      dlTimer = null;
+    }
     if (next === 'done' || next === 'error') {
       dlTimer = setTimeout(() => {
         dlTimer = null;
@@ -210,16 +217,22 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
     const empty = edges.length === 0;
 
     const copyLabel =
-      copyPhase === 'working' ? 'Copying…'
-      : copyPhase === 'done' ? 'Copied ✓'
-      : copyPhase === 'error' ? 'Failed'
-      : 'Copy Mermaid';
+      copyPhase === 'working'
+        ? 'Copying…'
+        : copyPhase === 'done'
+          ? 'Copied ✓'
+          : copyPhase === 'error'
+            ? 'Failed'
+            : 'Copy Mermaid';
 
     const dlLabel =
-      dlPhase === 'working' ? 'Saving…'
-      : dlPhase === 'done' ? 'Saved ✓'
-      : dlPhase === 'error' ? 'Failed'
-      : 'Download .mmd';
+      dlPhase === 'working'
+        ? 'Saving…'
+        : dlPhase === 'done'
+          ? 'Saved ✓'
+          : dlPhase === 'error'
+            ? 'Failed'
+            : 'Download .mmd';
 
     return (
       <div mix={groupWrap} role="group" aria-label="Export diagram">
@@ -227,9 +240,11 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
           type="button"
           disabled={copyPhase === 'working' || empty}
           aria-live="polite"
-          title={empty
-            ? 'No edges to export'
-            : 'Copy the package-level dependency graph as a Mermaid flowchart (fenced) — paste into a PR, README, or issue'}
+          title={
+            empty
+              ? 'No edges to export'
+              : 'Copy the package-level dependency graph as a Mermaid flowchart (fenced) — paste into a PR, README, or issue'
+          }
           mix={[
             button,
             copyPhase === 'done' ? buttonDone : null,
@@ -241,7 +256,9 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
             on('click', () => void copyDiagram(edges)),
           ]}
         >
-          <span aria-hidden="true" mix={glyph}>⧉</span>
+          <span aria-hidden="true" mix={glyph}>
+            ⧉
+          </span>
           {copyLabel}
         </button>
 
@@ -249,9 +266,11 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
           type="button"
           disabled={dlPhase === 'working' || empty}
           aria-live="polite"
-          title={empty
-            ? 'No edges to export'
-            : 'Download the dependency graph as a raw .mmd file — open in a Mermaid editor or feed to mermaid-cli'}
+          title={
+            empty
+              ? 'No edges to export'
+              : 'Download the dependency graph as a raw .mmd file — open in a Mermaid editor or feed to mermaid-cli'
+          }
           mix={[
             button,
             dlPhase === 'done' ? buttonDone : null,
@@ -259,7 +278,9 @@ export function ExportMermaidButton(handle: Handle<ExportMermaidButtonProps>) {
             on('click', () => void downloadDiagram(edges)),
           ]}
         >
-          <span aria-hidden="true" mix={glyph}>⤓</span>
+          <span aria-hidden="true" mix={glyph}>
+            ⤓
+          </span>
           {dlLabel}
         </button>
       </div>

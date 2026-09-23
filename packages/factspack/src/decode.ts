@@ -71,16 +71,15 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
   const mode = opts?.mode ?? 'strictV02';
   /* Strict mode layers the generous default ceilings under any caller
      overrides; legacy applies caps only when explicitly asked. */
-  const limits: DecodeLimits = mode === 'strictV02'
-    ? { ...STRICT_DEFAULT_LIMITS, ...opts?.limits }
-    : { ...opts?.limits };
+  const limits: DecodeLimits =
+    mode === 'strictV02' ? { ...STRICT_DEFAULT_LIMITS, ...opts?.limits } : { ...opts?.limits };
   /* agent-v5 — parse inline `name:type` schema tokens. Enabled by the caller
      option, or self-enabled when the pack declares it via a `; caps … typed`
      line (which always precedes the `&` schema lines). */
   let typedColumns = opts?.typedColumns ?? false;
   let sawSchema = false; // any `&` line parsed yet (for the caps-ordering guard)
 
-  if (text.length > 0 && text.charCodeAt(0) === 0xFEFF) {
+  if (text.length > 0 && text.charCodeAt(0) === 0xfeff) {
     /* Spec §10: BOM is forbidden. Reject loudly so producers can fix
        their writer instead of silently appearing fine in some
        consumers and broken in others. */
@@ -112,7 +111,13 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
   /* v0.2 — the `; end …` trailer, if seen. `offset` tracks where each
      line starts in `text` so the sha256 can cover the exact preceding
      bytes. */
-  let trailer: { rows: number; tables: number; sha256: string; lineNo: number; start: number } | null = null;
+  let trailer: {
+    rows: number;
+    tables: number;
+    sha256: string;
+    lineNo: number;
+    start: number;
+  } | null = null;
   let offset = 0;
 
   for (let i = 0; i < lines.length; i++) {
@@ -131,9 +136,7 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
        The space at index 1 is part of the line shape ("# fields",
        "@ K=V", etc.). Lines too short to contain it are malformed. */
     if (line.length < 2 || line.charCodeAt(1) !== 0x20 /* space */) {
-      throw new PackDecodeError(
-        `Line ${i + 1}: missing required space after prefix '${line[0]}'`,
-      );
+      throw new PackDecodeError(`Line ${i + 1}: missing required space after prefix '${line[0]}'`);
     }
     const body = line.slice(2);
 
@@ -158,7 +161,9 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
           );
         }
         if (limits.maxDictEntries !== undefined && dict.size >= limits.maxDictEntries) {
-          throw new PackDecodeError(`Line ${i + 1}: pack exceeds maxDictEntries limit (${limits.maxDictEntries})`);
+          throw new PackDecodeError(
+            `Line ${i + 1}: pack exceeds maxDictEntries limit (${limits.maxDictEntries})`,
+          );
         }
         dict.set(key, escapedValue);
         break;
@@ -188,15 +193,21 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
           throw new PackDecodeError(`Line ${i + 1}: schema for '${name}' has zero columns`);
         }
         if (limits.maxColumns !== undefined && columns.length > limits.maxColumns) {
-          throw new PackDecodeError(`Line ${i + 1}: table '${name}' exceeds maxColumns limit (${limits.maxColumns})`);
+          throw new PackDecodeError(
+            `Line ${i + 1}: table '${name}' exceeds maxColumns limit (${limits.maxColumns})`,
+          );
         }
         const existing = tables.get(name);
         if (existing) {
           // Re-declared schema must match column-for-column, INCLUDING the
           // agent-v5 type token (a contradictory `id:int` then `id:str` is a
           // real divergence, not a benign repeat).
-          if (existing.columns.length !== columns.length ||
-              existing.columns.some((c, j) => c.name !== columns[j]!.name || c.type !== columns[j]!.type)) {
+          if (
+            existing.columns.length !== columns.length ||
+            existing.columns.some(
+              (c, j) => c.name !== columns[j]!.name || c.type !== columns[j]!.type,
+            )
+          ) {
             throw new PackDecodeError(
               `Line ${i + 1}: schema for '${name}' redeclared with different columns`,
             );
@@ -204,31 +215,37 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
           active = existing;
         } else {
           if (limits.maxTables !== undefined && tables.size >= limits.maxTables) {
-            throw new PackDecodeError(`Line ${i + 1}: pack exceeds maxTables limit (${limits.maxTables})`);
+            throw new PackDecodeError(
+              `Line ${i + 1}: pack exceeds maxTables limit (${limits.maxTables})`,
+            );
           }
           active = { name, columns, rows: [], addedRows: [], deletedIds: [] };
           tables.set(name, active);
         }
         break;
       }
-      case 0x2D /* - */: {
+      case 0x2d /* - */: {
         if (!active) {
           throw new PackDecodeError(`Line ${i + 1}: row '-' with no active schema`);
         }
         const row = parseRow(body, active.columns, i + 1);
         if (limits.maxRows !== undefined && ++totalRows > limits.maxRows) {
-          throw new PackDecodeError(`Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`);
+          throw new PackDecodeError(
+            `Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`,
+          );
         }
         active.rows.push(row);
         break;
       }
-      case 0x2B /* + */: {
+      case 0x2b /* + */: {
         if (!active) {
           throw new PackDecodeError(`Line ${i + 1}: row '+' with no active schema`);
         }
         const row = parseRow(body, active.columns, i + 1);
         if (limits.maxRows !== undefined && ++totalRows > limits.maxRows) {
-          throw new PackDecodeError(`Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`);
+          throw new PackDecodeError(
+            `Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`,
+          );
         }
         active.addedRows.push(row);
         break;
@@ -238,7 +255,9 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
           throw new PackDecodeError(`Line ${i + 1}: row 'x' with no active schema`);
         }
         if (limits.maxRows !== undefined && ++totalRows > limits.maxRows) {
-          throw new PackDecodeError(`Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`);
+          throw new PackDecodeError(
+            `Line ${i + 1}: pack exceeds maxRows limit (${limits.maxRows})`,
+          );
         }
         // The `x` line carries a single field — the deleted row's
         // primary-key value. It's NOT split on tabs even if the value
@@ -246,7 +265,7 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
         active.deletedIds.push(unescapeCell(body));
         break;
       }
-      case 0x3B /* ; */: {
+      case 0x3b /* ; */: {
         /* v0.2 (S1) — meta line. Unknown forms are collected, never
            rejected. The one structural form is the `; end` trailer. */
         const t = parseTrailer(body);
@@ -334,7 +353,9 @@ export function decode(text: string, opts?: DecodeOptions): DecodedPack {
       );
     }
     return {
-      header, tables, meta,
+      header,
+      tables,
+      meta,
       trailer: { rows: trailer.rows, tables: trailer.tables, sha256: trailer.sha256 },
     };
   }
@@ -412,9 +433,7 @@ function parseTrailer(body: string): { rows: number; tables: number; sha256: str
 function parseHeader(body: string, lineNo: number): PackHeader {
   const fields = body.split('\t');
   if (fields.length < 4) {
-    throw new PackDecodeError(
-      `Line ${lineNo}: header has ${fields.length} fields, expected 4`,
-    );
+    throw new PackDecodeError(`Line ${lineNo}: header has ${fields.length} fields, expected 4`);
   }
   const [producer, schema, snapshotId, rowCountField] = fields;
   if (!producer || !schema || !snapshotId) {
@@ -432,7 +451,12 @@ function parseHeader(body: string, lineNo: number): PackHeader {
       `Line ${lineNo}: header rowCount '${rowCountField}' is not a non-negative integer or '-'`,
     );
   }
-  const header: PackHeader = { producer: producer!, schema: schema!, snapshotId: snapshotId!, rowCount };
+  const header: PackHeader = {
+    producer: producer!,
+    schema: schema!,
+    snapshotId: snapshotId!,
+    rowCount,
+  };
 
   /* v0.2 (S5) — optional appended fields 5-8: seq, parent, kind,
      generated. A `-` slot means absent for seq/kind/generated; for
@@ -502,9 +526,7 @@ function resolveRows(rows: PackRow[], columns: PackColumn[], dict: Map<string, s
       if (cell === null || cell === '') continue;
       const escaped = dict.get(cell as string);
       if (escaped === undefined) {
-        throw new PackDecodeError(
-          `Unresolved dictionary key '${cell}' in column '${col.name}'`,
-        );
+        throw new PackDecodeError(`Unresolved dictionary key '${cell}' in column '${col.name}'`);
       }
       row[i] = unescapeCell(escaped);
     }

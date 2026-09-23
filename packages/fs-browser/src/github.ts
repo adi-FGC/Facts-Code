@@ -36,20 +36,54 @@ import { MemoryFS } from '@factstack/fs-memory';
 /** Files we'll actually analyze. Filtering at the network layer keeps small
  *  repos under the 60-req unauth rate limit. */
 export const GH_TEXT_EXTS: ReadonlySet<string> = new Set([
-  '.ts', '.tsx', '.mts', '.cts',
-  '.js', '.jsx', '.mjs', '.cjs',
-  '.py', '.rb', '.go', '.rs', '.java', '.kt', '.swift', '.php', '.sh',
-  '.json', '.yaml', '.yml', '.toml',
-  '.md', '.html', '.htm', '.css', '.scss', '.txt',
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.cjs',
+  '.py',
+  '.rb',
+  '.go',
+  '.rs',
+  '.java',
+  '.kt',
+  '.swift',
+  '.php',
+  '.sh',
+  '.json',
+  '.yaml',
+  '.yml',
+  '.toml',
+  '.md',
+  '.html',
+  '.htm',
+  '.css',
+  '.scss',
+  '.txt',
 ]);
 
 /** Mirrors the in-memory ALWAYS_EXCLUDE set the local-folder scanner uses,
  *  so a GitHub scan and a local scan of the same repo produce the same
  *  file set. */
 export const GH_EXCLUDE_DIRS: ReadonlySet<string> = new Set([
-  'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
-  '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
-  '.pnpm-store', '.vscode', '.idea',
+  'node_modules',
+  'dist',
+  'build',
+  '.next',
+  '.turbo',
+  '.cache',
+  '__pycache__',
+  '.venv',
+  '.git',
+  'vendor',
+  'target',
+  'coverage',
+  '.pnpm-store',
+  '.vscode',
+  '.idea',
 ]);
 
 const GH_MAX_FILE_BYTES = 1024 * 1024;
@@ -259,7 +293,12 @@ export async function fetchGitHubToMemory(
     );
   }
   const totalFiles = interesting.length;
-  onProgress?.({ phase: 'walking', current: 0, total: totalFiles, label: `Found ${totalFiles} source files…` });
+  onProgress?.({
+    phase: 'walking',
+    current: 0,
+    total: totalFiles,
+    label: `Found ${totalFiles} source files…`,
+  });
 
   // 4. Concurrent raw-blob fetches.
   const files: Record<string, string> = Object.create(null);

@@ -21,6 +21,6 @@
     "@factstack/fs-memory": "workspace:*",
     "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^5.6.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   }
 }

@@ -215,7 +215,7 @@ export interface DecodedPack {
 export function isInternedColumn(colName: string): boolean {
   if (colName.length === 0) return false;
   const c = colName.charCodeAt(0);
-  return c >= 0x41 && c <= 0x5A; // A..Z
+  return c >= 0x41 && c <= 0x5a; // A..Z
 }
 
 /**

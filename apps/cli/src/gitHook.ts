@@ -19,7 +19,15 @@
  * are out of scope for this increment (documented limitation).
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, statSync, rmSync, chmodSync } from 'node:fs';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+  rmSync,
+  chmodSync,
+} from 'node:fs';
 import { join, isAbsolute, resolve, dirname } from 'node:path';
 
 /** Default command the hook runs. `npx` resolves a local devDependency or a
@@ -93,7 +101,10 @@ export function ensureGitHook(existing: string | null, command: string = GIT_HOO
  * - `null` when the input had no factstack block AND is shebang-only (idempotent
  *   uninstall is a no-op the caller can detect via `removed`).
  */
-export function stripGitHook(existing: string | null): { content: string | null; removed: boolean } {
+export function stripGitHook(existing: string | null): {
+  content: string | null;
+  removed: boolean;
+} {
   if (existing == null) return { content: null, removed: false };
   const start = existing.indexOf(MARKER_START);
   if (start < 0) return { content: existing, removed: false };

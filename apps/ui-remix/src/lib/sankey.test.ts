@@ -88,11 +88,7 @@ describe('computeSankey', () => {
   });
 
   it('returns an empty layout when there is no flow', () => {
-    const out = computeSankey(
-      [{ id: 'a', label: 'A', column: 0 }],
-      [],
-      opts,
-    );
+    const out = computeSankey([{ id: 'a', label: 'A', column: 0 }], [], opts);
     expect(out.nodes).toEqual([]);
     expect(out.links).toEqual([]);
   });

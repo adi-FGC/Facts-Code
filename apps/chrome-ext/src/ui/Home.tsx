@@ -81,8 +81,18 @@ export function renderHome(data: Dataset, nav: (p: string) => void): RemixNode {
       ])}
 
       {sectionLabel('Explore')}
-      {listRow({ name: 'Modules', value: fmtNum(keyFiles), sub: 'ranked by importance', onClick: () => nav('/modules') })}
-      {listRow({ name: 'Files', value: fmtNum(stats.files), sub: fmtBytes(stats.size), onClick: () => nav('/files') })}
+      {listRow({
+        name: 'Modules',
+        value: fmtNum(keyFiles),
+        sub: 'ranked by importance',
+        onClick: () => nav('/modules'),
+      })}
+      {listRow({
+        name: 'Files',
+        value: fmtNum(stats.files),
+        sub: fmtBytes(stats.size),
+        onClick: () => nav('/files'),
+      })}
       {listRow({
         name: 'Security',
         value: String(risks + vulns),
@@ -90,9 +100,24 @@ export function renderHome(data: Dataset, nav: (p: string) => void): RemixNode {
         sub: `${risks} risk${risks === 1 ? '' : 's'} · ${vulns} vuln${vulns === 1 ? '' : 's'}`,
         onClick: () => nav('/security'),
       })}
-      {listRow({ name: 'History', value: fmtNum(history.length), sub: 'snapshots', onClick: () => nav('/history') })}
-      {docs > 0 && listRow({ name: 'Docs', value: fmtNum(docs), sub: 'documents', onClick: () => nav('/about') })}
-      {listRow({ name: 'About this panel', sub: 'data source · privacy', onClick: () => nav('/about') })}
+      {listRow({
+        name: 'History',
+        value: fmtNum(history.length),
+        sub: 'snapshots',
+        onClick: () => nav('/history'),
+      })}
+      {docs > 0 &&
+        listRow({
+          name: 'Docs',
+          value: fmtNum(docs),
+          sub: 'documents',
+          onClick: () => nav('/about'),
+        })}
+      {listRow({
+        name: 'About this panel',
+        sub: 'data source · privacy',
+        onClick: () => nav('/about'),
+      })}
     </>
   );
 }

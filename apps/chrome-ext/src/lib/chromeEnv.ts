@@ -56,7 +56,11 @@ export function onActiveTabChange(cb: () => void): () => void {
 
 /** Resolve a packaged asset path (demo dataset) for both extension + web ctx. */
 export function assetUrl(path: string): string {
-  if (typeof chrome !== 'undefined' && chrome?.runtime?.id && typeof chrome.runtime.getURL === 'function') {
+  if (
+    typeof chrome !== 'undefined' &&
+    chrome?.runtime?.id &&
+    typeof chrome.runtime.getURL === 'function'
+  ) {
     return chrome.runtime.getURL(path);
   }
   return new URL(path, location.href).href;

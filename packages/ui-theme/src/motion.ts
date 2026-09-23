@@ -13,18 +13,18 @@
 
 export const EASINGS = {
   enter: [0.2, 0, 0, 1] as const,
-  exit:  [0.4, 0, 1, 1] as const,
+  exit: [0.4, 0, 1, 1] as const,
   outQuart: [0.25, 1, 0.5, 1] as const,
   outQuint: [0.22, 1, 0.36, 1] as const,
-  outExpo:  [0.16, 1, 0.3, 1] as const,
+  outExpo: [0.16, 1, 0.3, 1] as const,
 } as const;
 
 export const DURATIONS = {
-  instant:   120,   // button press, toggle
-  quick:     180,   // tab underline slide
-  state:     260,   // hover → focus, zoom button tween
-  layout:    380,   // accordion expand, panel swap
-  signature: 500,   // hero entry, camera fit
+  instant: 120, // button press, toggle
+  quick: 180, // tab underline slide
+  state: 260, // hover → focus, zoom button tween
+  layout: 380, // accordion expand, panel swap
+  signature: 500, // hero entry, camera fit
 } as const;
 
 /** CSS-var fallbacks — match tokens.css exactly so we stay in sync. */

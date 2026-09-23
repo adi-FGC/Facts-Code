@@ -139,7 +139,14 @@ export function computeTreemap(
 }
 
 /** Build a TreemapRect, applying the gap inset (never producing negatives). */
-function pack(item: TreemapItem, x: number, y: number, w: number, h: number, pad: number): TreemapRect {
+function pack(
+  item: TreemapItem,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  pad: number,
+): TreemapRect {
   const inset = Math.min(pad, w / 2, h / 2);
   return {
     id: item.id,

@@ -80,7 +80,13 @@ import {
   packSnapshotId,
 } from './pack-responses.js';
 import { gzippedBytes, writeArtifacts } from '@factstack/emit';
-import { mineGitStats, nodeFS } from '@factstack/fs-node';
+import {
+  gitGlobalExcludes,
+  mineGitStats,
+  mineGitTopology,
+  nodeFS,
+  repoDisplayName,
+} from '@factstack/fs-node';
 import { resolveSyncPack } from './sync-pack.js';
 import {
   approximateTokens,
@@ -112,7 +118,7 @@ import {
 // ── Bootstrap ──────────────────────────────────────────────────────────
 
 const root = resolveRoot();
-const projectName = path.basename(root);
+const projectName = repoDisplayName(root); // the repo's name even from a linked worktree (v0.3.11)
 
 /**
  * Mutable cache of the latest analyzer output. Populated on startup and
@@ -134,6 +140,8 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
     projectName,
     gzip: gzippedBytes,
     gitStats: mineGitStats(root),
+    git: mineGitTopology(root),
+    extraIgnore: gitGlobalExcludes(root),
   });
   // v0.11 — a re-analyze must not wipe the last CVE scan (analyze itself is
   // network-free per INV6 and returns an empty list). Mirrors the CLI.
@@ -177,12 +185,12 @@ async function runAnalyze(): Promise<AgentArtifact['stats']> {
 }
 
 function resolveRoot(): string {
-  const fromArg = process.argv.find((a, i) => (a === '--root' || a === '-r') && i < process.argv.length - 1);
+  const fromArg = process.argv.find(
+    (a, i) => (a === '--root' || a === '-r') && i < process.argv.length - 1,
+  );
   const argIdx = fromArg ? process.argv.indexOf(fromArg) + 1 : -1;
   const root =
-    argIdx > 0 && process.argv[argIdx]
-      ? process.argv[argIdx]!
-      : process.env.FACTS_ROOT || '.';
+    argIdx > 0 && process.argv[argIdx] ? process.argv[argIdx]! : process.env.FACTS_ROOT || '.';
   return path.resolve(root);
 }
 
@@ -262,7 +270,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
         .map((f) => f.path);
       throw new Error(
         `Unknown file: ${relPath}` +
-        (matches.length ? ` (did you mean: ${matches.join(', ')})` : ''),
+          (matches.length ? ` (did you mean: ${matches.join(', ')})` : ''),
       );
     }
     return jsonResource(uri, outline);
@@ -274,25 +282,24 @@ server.setRequestHandler(ReadResourceRequestSchema, async (req) => {
 // resource so MCP clients can discover it via resources/templates/list.
 // Without this, listResources only returns the 4 concrete URIs and the
 // per-file outline is invisible to clients that don't know it exists.
-server.setRequestHandler(
-  ListResourceTemplatesRequestSchema,
-  async () => ({
-    resourceTemplates: [
-      {
-        uriTemplate: `${FACTS_MCP_URI_SCHEME}://file/{path}`,
-        name: 'File outline',
-        description: 'Per-file FileOutline (declarations, imports, status, LOC, tokens). Substitute {path} with a project-relative path.',
-        mimeType: 'application/json',
-      },
-      {
-        uriTemplate: `${FACTS_MCP_URI_SCHEME}://schema/{kind}`,
-        name: 'JSON Schema for FACTS artifacts',
-        description: 'JSON Schema (draft-07) for the named FACTS artifact. {kind} is "agent" or "human". Use this to validate decoded responses or to generate types in any language without reading the full artifact.',
-        mimeType: 'application/json',
-      },
-    ],
-  }),
-);
+server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({
+  resourceTemplates: [
+    {
+      uriTemplate: `${FACTS_MCP_URI_SCHEME}://file/{path}`,
+      name: 'File outline',
+      description:
+        'Per-file FileOutline (declarations, imports, status, LOC, tokens). Substitute {path} with a project-relative path.',
+      mimeType: 'application/json',
+    },
+    {
+      uriTemplate: `${FACTS_MCP_URI_SCHEME}://schema/{kind}`,
+      name: 'JSON Schema for FACTS artifacts',
+      description:
+        'JSON Schema (draft-07) for the named FACTS artifact. {kind} is "agent" or "human". Use this to validate decoded responses or to generate types in any language without reading the full artifact.',
+      mimeType: 'application/json',
+    },
+  ],
+}));
 
 // List tools. The catalog in @factstack/spec is the single source of
 // truth — the emitted payload maps each entry to just the three wire
@@ -349,15 +356,25 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const versionInfo = {
       facts: '0.1.0',
       schemas: {
-        agent: 'agent-v4',     // agent.pack wire format (FactsPack standard v0.2: in-band `;` legend + hot hints, sha256 trailer, leading `top` table, unified F namespace, mtime_d, chain header fields). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
-        human: 'human.v1',     // human.json
+        agent: 'agent-v4', // agent.pack wire format (FactsPack standard v0.2: in-band `;` legend + hot hints, sha256 trailer, leading `top` table, unified F namespace, mtime_d, chain header fields). agent.json shape is additive → `facts: '0.1.0'` above is unchanged.
+        human: 'human.v1', // human.json
         memory: 'factstack-memory.v1',
         learnings: 'factstack-learnings.v1',
-        pack: { agent: 'agent-v4', risks: 'risks-v1', envs: 'envs-v1', outline: 'outline-v2', learnings: 'learnings-v1', queryGraph: 'query-graph-v1', subgraph: 'subgraph-v1' },
+        pack: {
+          agent: 'agent-v4',
+          risks: 'risks-v1',
+          envs: 'envs-v1',
+          outline: 'outline-v2',
+          learnings: 'learnings-v1',
+          queryGraph: 'query-graph-v1',
+          subgraph: 'subgraph-v1',
+        },
       },
       producer: 'factstack-mcp/0.3.11',
     };
-    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, stats, version: versionInfo }) }] };
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ ok: true, stats, version: versionInfo }) }],
+    };
   }
 
   if (name === MCP_TOOL.query_graph) {
@@ -372,10 +389,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         message: i.message,
       }));
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ ok: false, error: 'invalid query_graph input', issues }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { ok: false, error: 'invalid query_graph input', issues },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       };
     }
@@ -393,7 +416,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       ...(parsed.depth !== undefined ? { depth: parsed.depth } : {}),
     });
     if (pickFormat(args) === 'pack') {
-      return { content: [{ type: 'text', text: queryGraphToPack(result, packSnapshotId(cached!.agent)) }] };
+      return {
+        content: [{ type: 'text', text: queryGraphToPack(result, packSnapshotId(cached!.agent)) }],
+      };
     }
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
@@ -407,7 +432,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         message: i.message,
       }));
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid query input', issues }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: false, error: 'invalid query input', issues }, null, 2),
+          },
+        ],
         isError: true,
       };
     }
@@ -427,12 +457,27 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     // Free-text → deterministic plan (INV3). No confident match → did-you-mean.
     const plan = planFromQuestion(agent, parseResult.data.q!);
     if (!plan.ok) {
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, reason: plan.reason, candidates: plan.candidates }, null, 2) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { ok: false, reason: plan.reason, candidates: plan.candidates },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
     }
     // Resolve the plan to a subgraph: GraphQuery plans run on the engine;
     // verb plans (orphans/cycles/path-between) run on the verb engine and are
     // lifted into a node-list subgraph so the response shape is uniform.
-    let sub: { nodes: string[]; edges: Array<{ from: string; to: string; kind: string; confidence?: string }>; truncated: boolean };
+    let sub: {
+      nodes: string[];
+      edges: Array<{ from: string; to: string; kind: string; confidence?: string }>;
+      truncated: boolean;
+    };
     if (plan.plan.graphQuery) {
       sub = runGraphQuery(agent, plan.plan.graphQuery);
     } else {
@@ -449,7 +494,18 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (wantPack) {
       return { content: [{ type: 'text', text: subgraphToPack(agent, sub, snapshotId) }] };
     }
-    return { content: [{ type: 'text', text: JSON.stringify({ interpretation: plan.plan.interpretation, entities: plan.plan.entities, ...sub }) }] };
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            interpretation: plan.plan.interpretation,
+            entities: plan.plan.entities,
+            ...sub,
+          }),
+        },
+      ],
+    };
   }
 
   if (name === MCP_TOOL.get_diagram) {
@@ -457,13 +513,22 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     /* Validate view against the union; default to package. Focal needs a
        focus path — surface that as a structured error (like query_graph)
        rather than letting buildDiagram throw. */
-    const view = (['package', 'hub', 'focal'].includes(String(args.view))
+    const view = ['package', 'hub', 'focal'].includes(String(args.view))
       ? (args.view as DiagramView)
-      : 'package');
+      : 'package';
     const focus = typeof args.focus === 'string' && args.focus.length > 0 ? args.focus : undefined;
     if (view === 'focal' && !focus) {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'view=focal requires a "focus" file path' }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { ok: false, error: 'view=focal requires a "focus" file path' },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       };
     }
@@ -488,20 +553,32 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
        id, so a path containing `#` can't break the match. Empty unless
        analysis ran with `--symbols`; the converter still emits the table. */
     const fileSymbolIds = new Set(
-      (cached!.agent.graph.symbolNodes ?? [])
-        .filter((n) => n.path === relPath)
-        .map((n) => n.id),
+      (cached!.agent.graph.symbolNodes ?? []).filter((n) => n.path === relPath).map((n) => n.id),
     );
-    const fileRefs = (cached!.agent.graph.symbolEdges ?? []).filter((e) => fileSymbolIds.has(e.from));
+    const fileRefs = (cached!.agent.graph.symbolEdges ?? []).filter((e) =>
+      fileSymbolIds.has(e.from),
+    );
     // Prefer pre-extracted declarations from the cached artifact; fall
     // back to a live extractor call for parity with the CLI endpoint.
     const outline = cached!.agent.files.find((f) => f.path === relPath);
     if (outline && outline.declarations.length) {
       if (fmt === 'pack') {
-        const text = getOutlineToPack(relPath, outline.declarations as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent), fileRefs);
+        const text = getOutlineToPack(
+          relPath,
+          outline.declarations as Parameters<typeof getOutlineToPack>[1],
+          packSnapshotId(cached!.agent),
+          fileRefs,
+        );
         return { content: [{ type: 'text', text }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: outline.declarations, refs: fileRefs }) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ path: relPath, outline: outline.declarations, refs: fileRefs }),
+          },
+        ],
+      };
     }
     const abs = resolveInRoot(root, relPath); // SEC: reject paths escaping the project root
     if (!existsSync(abs)) throw new Error(`File not found: ${relPath}`);
@@ -513,12 +590,23 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         /* Live outline returns OutlineNode[]; cast to ExtractedSymbol[]
            shape — both share { name, kind, startLine, endLine,
            exported, children? } so the converter handles both. */
-        const text = getOutlineToPack(relPath, live as unknown as Parameters<typeof getOutlineToPack>[1], packSnapshotId(cached!.agent), fileRefs);
+        const text = getOutlineToPack(
+          relPath,
+          live as unknown as Parameters<typeof getOutlineToPack>[1],
+          packSnapshotId(cached!.agent),
+          fileRefs,
+        );
         return { content: [{ type: 'text', text }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, outline: live, refs: fileRefs }) }] };
+      return {
+        content: [
+          { type: 'text', text: JSON.stringify({ path: relPath, outline: live, refs: fileRefs }) },
+        ],
+      };
     } catch (err) {
-      throw new Error(`Failed to extract outline for ${relPath}: ${err instanceof Error ? err.message : String(err)}`);
+      throw new Error(
+        `Failed to extract outline for ${relPath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   }
 
@@ -530,7 +618,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (sev) risks = risks.filter((r) => r.severity === sev);
     if (cat) risks = risks.filter((r) => r.category === cat);
     if (pickFormat(args) === 'pack') {
-      return { content: [{ type: 'text', text: listRisksToPack(risks, packSnapshotId(cached!.agent)) }] };
+      return {
+        content: [{ type: 'text', text: listRisksToPack(risks, packSnapshotId(cached!.agent)) }],
+      };
     }
     return { content: [{ type: 'text', text: JSON.stringify({ count: risks.length, risks }) }] };
   }
@@ -543,7 +633,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const sev = args.severity as string | undefined;
     let creds = cached!.agent.risks.filter((r) => r.category === 'secret');
     if (sev) creds = creds.filter((r) => r.severity === sev);
-    return { content: [{ type: 'text', text: JSON.stringify({ count: creds.length, credentials: creds }) }] };
+    return {
+      content: [
+        { type: 'text', text: JSON.stringify({ count: creds.length, credentials: creds }) },
+      ],
+    };
   }
 
   /* v0.6 — vulnerabilities pulled from agent.vulnerabilities (populated
@@ -563,8 +657,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       let skipped = 0;
       for (const e of flat) {
         const concrete = e.ecosystem === 'npm' ? normalizeNpmVersion(e.version) : e.version;
-        if (!concrete) { skipped++; continue; }
-        queries.push({ ecosystem: e.ecosystem, name: e.name, version: concrete, manifestPath: e.manifestPaths[0] ?? '' });
+        if (!concrete) {
+          skipped++;
+          continue;
+        }
+        queries.push({
+          ecosystem: e.ecosystem,
+          name: e.name,
+          version: concrete,
+          manifestPath: e.manifestPaths[0] ?? '',
+        });
       }
       try {
         const results = await queryOsvBatch(queries, { cache: noopCache });
@@ -594,7 +696,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           ...cached!.human,
           summary: { ...cached!.human.summary, health: computeHealth(nextAgent) },
         };
-        const memoryBody = buildMemory(nextAgent, updatedHuman, { contextStore: buildContextStore(readLearnings()) });
+        const memoryBody = buildMemory(nextAgent, updatedHuman, {
+          contextStore: buildContextStore(readLearnings()),
+        });
         // CONC-1: serialize this write+swap through the SAME fence `analyze`
         // uses, so a concurrent analyze + refresh can't interleave two
         // writeArtifacts calls (which would leave disk and `cached` pointing at
@@ -603,7 +707,13 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         // still propagates to the catch below — preserving the "swap `cached`
         // only after the write succeeds" crash-safety contract above.
         const work = analyzeChain.then(async () => {
-          await writeArtifacts({ root, agent: nextAgent, human: updatedHuman, addGitignoreEntry: false, memoryBody });
+          await writeArtifacts({
+            root,
+            agent: nextAgent,
+            human: updatedHuman,
+            addGitignoreEntry: false,
+            memoryBody,
+          });
           cached = { agent: nextAgent, human: updatedHuman, memory: memoryBody };
         });
         analyzeChain = work.catch(() => undefined);
@@ -612,7 +722,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         /* A failed refresh must NEVER look like a successful empty scan —
            return an explicit error; the stale data stays untouched on disk. */
         return {
-          content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `OSV refresh failed: ${(err as Error).message}`, hint: 'Network/OSV.dev issue — the previously scanned data is unchanged. Retry later or run `factstack scan-vulns`.' }) }],
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({
+                ok: false,
+                error: `OSV refresh failed: ${(err as Error).message}`,
+                hint: 'Network/OSV.dev issue — the previously scanned data is unchanged. Retry later or run `factstack scan-vulns`.',
+              }),
+            },
+          ],
           isError: true,
         };
       }
@@ -628,31 +747,35 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     /* Most-recent lastChecked across all findings — null when array
        is empty. Kept for backward compat; `scan` (v0.11) is the better
        signal because it also marks a scanned-and-CLEAN artifact. */
-    const lastChecked = cached!.agent.vulnerabilities.reduce(
-      (m, v) => Math.max(m, v.lastChecked), 0,
-    ) || null;
+    const lastChecked =
+      cached!.agent.vulnerabilities.reduce((m, v) => Math.max(m, v.lastChecked), 0) || null;
     const scan = cached!.agent.vulnerabilityScan ?? null;
     const VULN_SCAN_STALE_DAYS = 7;
-    const scanAgeDays = scan ? Math.max(0, Math.floor((Date.now() - Date.parse(scan.scannedAt)) / 86_400_000)) : null;
+    const scanAgeDays = scan
+      ? Math.max(0, Math.floor((Date.now() - Date.parse(scan.scannedAt)) / 86_400_000))
+      : null;
     const stale = scanAgeDays !== null && scanAgeDays >= VULN_SCAN_STALE_DAYS;
     return {
-      content: [{
-        type: 'text',
-        text: JSON.stringify({
-          count: findings.length,
-          lastChecked,
-          scan,
-          scanAgeDays,
-          stale,
-          manifestCount: cached!.agent.dependencyManifests.length,
-          hint: scan === null
-            ? 'No vulnerability scan recorded for this artifact. Pass refresh:true (queries OSV.dev live) or run `factstack scan-vulns .`.'
-            : stale
-              ? `Scan is ${scanAgeDays}d old — new CVEs are published daily. Pass refresh:true to update.`
-              : undefined,
-          findings,
-        }),
-      }],
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            count: findings.length,
+            lastChecked,
+            scan,
+            scanAgeDays,
+            stale,
+            manifestCount: cached!.agent.dependencyManifests.length,
+            hint:
+              scan === null
+                ? 'No vulnerability scan recorded for this artifact. Pass refresh:true (queries OSV.dev live) or run `factstack scan-vulns .`.'
+                : stale
+                  ? `Scan is ${scanAgeDays}d old — new CVEs are published daily. Pass refresh:true to update.`
+                  : undefined,
+            findings,
+          }),
+        },
+      ],
     };
   }
 
@@ -695,7 +818,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         ...(typeof args.model === 'string' ? { model: args.model } : {}),
         ...(typeof args.ticketId === 'string' ? { ticketId: args.ticketId } : {}),
         ...(typeof args.reasoning === 'string' ? { reasoning: args.reasoning } : {}),
-        ...(Array.isArray(args.filesAffected) ? { filesAffected: args.filesAffected as string[] } : {}),
+        ...(Array.isArray(args.filesAffected)
+          ? { filesAffected: args.filesAffected as string[] }
+          : {}),
         ...(typeof args.confidence === 'number' ? { confidence: args.confidence } : {}),
         ...(Array.isArray(args.tags) ? { tags: args.tags as string[] } : {}),
       });
@@ -703,13 +828,26 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       // EH-1: a validation failure is a caller error — signal it with
       // isError:true (clients gate on that, like every other validation path in
       // this file) and surface structured Zod issues when available.
-      const issues = err && typeof err === 'object' && Array.isArray((err as { issues?: unknown }).issues)
-        ? (err as { issues: Array<{ path?: unknown[]; message?: unknown }> }).issues.map((i) => ({
-            field: Array.isArray(i.path) ? i.path.join('.') : '',
-            message: String(i.message ?? ''),
-          }))
-        : undefined;
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: (err as Error).message, ...(issues ? { issues } : {}) }) }], isError: true };
+      const issues =
+        err && typeof err === 'object' && Array.isArray((err as { issues?: unknown }).issues)
+          ? (err as { issues: Array<{ path?: unknown[]; message?: unknown }> }).issues.map((i) => ({
+              field: Array.isArray(i.path) ? i.path.join('.') : '',
+              message: String(i.message ?? ''),
+            }))
+          : undefined;
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ok: false,
+              error: (err as Error).message,
+              ...(issues ? { issues } : {}),
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
     try {
       appendLearning(event);
@@ -732,9 +870,22 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       // The write can fail (ENOSPC / EACCES / EROFS / Windows EBUSY). The event
       // validated, so report a structured failure rather than throwing a raw MCP
       // protocol error — mirrors the wrapped append in get_context.
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `event validated but write failed: ${appendErr instanceof Error ? appendErr.message : String(appendErr)}` }) }], isError: true };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ok: false,
+              error: `event validated but write failed: ${appendErr instanceof Error ? appendErr.message : String(appendErr)}`,
+            }),
+          },
+        ],
+        isError: true,
+      };
     }
-    return { content: [{ type: 'text', text: JSON.stringify({ ok: true, timestamp: event.timestamp }) }] };
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ ok: true, timestamp: event.timestamp }) }],
+    };
   }
 
   // v0.3.4 — read + filter learnings.jsonl.
@@ -744,7 +895,15 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       ...(typeof args.since === 'string' ? { since: args.since } : {}),
       ...(typeof args.until === 'string' ? { until: args.until } : {}),
       ...(typeof args.agent === 'string' ? { agent: args.agent } : {}),
-      ...(typeof args.outcome === 'string' ? { outcome: args.outcome as Parameters<typeof queryLearnings>[1] extends infer Q ? (Q extends { outcome?: infer O } ? O : never) : never } : {}),
+      ...(typeof args.outcome === 'string'
+        ? {
+            outcome: args.outcome as Parameters<typeof queryLearnings>[1] extends infer Q
+              ? Q extends { outcome?: infer O }
+                ? O
+                : never
+              : never,
+          }
+        : {}),
       ...(typeof args.action === 'string' ? { action: args.action } : {}),
       ...(typeof args.tag === 'string' ? { tag: args.tag } : {}),
       ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
@@ -753,7 +912,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const sid = cached ? packSnapshotId(cached.agent) : new Date().toISOString();
       return { content: [{ type: 'text', text: queryLearningsToPack(result, sid) }] };
     }
-    return { content: [{ type: 'text', text: JSON.stringify({ count: result.length, events: result }) }] };
+    return {
+      content: [{ type: 'text', text: JSON.stringify({ count: result.length, events: result }) }],
+    };
   }
 
   // v0.3.6 — env-var inventory.
@@ -761,7 +922,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!cached) await ensureAnalyzed();
     const config = cached!.agent.config ?? { envVars: [], schemas: [] };
     if (pickFormat(args) === 'pack') {
-      return { content: [{ type: 'text', text: getConfigToPack(config.envVars, packSnapshotId(cached!.agent)) }] };
+      return {
+        content: [
+          { type: 'text', text: getConfigToPack(config.envVars, packSnapshotId(cached!.agent)) },
+        ],
+      };
     }
     return { content: [{ type: 'text', text: JSON.stringify(config) }] };
   }
@@ -776,7 +941,16 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       // EH-2: a missing baseline is an actionable precondition failure, not a
       // silent empty result — signal isError:true so clients surface it.
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'No baseline snapshot in .facts/snapshots/ to compare against. Run `factstack analyze` after a change to create one, then retry.' }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ok: false,
+              error:
+                'No baseline snapshot in .facts/snapshots/ to compare against. Run `factstack analyze` after a change to create one, then retry.',
+            }),
+          },
+        ],
         isError: true,
       };
     }
@@ -791,34 +965,92 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   if (name === MCP_TOOL.count_tokens) {
     const parsed = CountTokensInputSchema.safeParse(args);
     if (!parsed.success) {
-      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      const issues = parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || '(root)',
+        message: i.message,
+      }));
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid count_tokens input', issues }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { ok: false, error: 'invalid count_tokens input', issues },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       };
     }
     // Raw text → pure estimate, no analysis needed.
     if (parsed.data.text !== undefined) {
       const text = parsed.data.text;
-      return { content: [{ type: 'text', text: JSON.stringify({ tokens: approximateTokens(text), chars: text.length, source: 'estimate' }) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              tokens: approximateTokens(text),
+              chars: text.length,
+              source: 'estimate',
+            }),
+          },
+        ],
+      };
     }
     // Path → prefer the artifact's exact pre-computed tokenCost; else live-read.
     if (!cached) await ensureAnalyzed();
     const relPath = String(parsed.data.path);
     const fileEntry = cached!.agent.files.find((f) => f.path === relPath);
     if (fileEntry) {
-      return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: fileEntry.tokenCost, source: 'artifact' }) }] };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              path: relPath,
+              tokens: fileEntry.tokenCost,
+              source: 'artifact',
+            }),
+          },
+        ],
+      };
     }
     let abs: string;
     try {
       abs = resolveInRoot(root, relPath); // SEC: reject paths escaping the project root
     } catch {
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Path outside project root' }) }], isError: true };
+      return {
+        content: [
+          { type: 'text', text: JSON.stringify({ ok: false, error: 'Path outside project root' }) },
+        ],
+        isError: true,
+      };
     }
     if (!existsSync(abs)) {
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: `File not found: ${relPath}` }) }], isError: true };
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: false, error: `File not found: ${relPath}` }),
+          },
+        ],
+        isError: true,
+      };
     }
-    return { content: [{ type: 'text', text: JSON.stringify({ path: relPath, tokens: approximateTokens(readFileSync(abs, 'utf8')), source: 'estimate' }) }] };
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            path: relPath,
+            tokens: approximateTokens(readFileSync(abs, 'utf8')),
+            source: 'estimate',
+          }),
+        },
+      ],
+    };
   }
 
   // F4 — assemble a ranked, token-budgeted context block for a task.
@@ -826,9 +1058,21 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!cached) await ensureAnalyzed();
     const parsed = ContextInputSchema.safeParse(args);
     if (!parsed.success) {
-      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      const issues = parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || '(root)',
+        message: i.message,
+      }));
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'invalid get_context input', issues }, null, 2) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(
+              { ok: false, error: 'invalid get_context input', issues },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       };
     }
@@ -853,13 +1097,17 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     try {
       const servedIds = result.items.map((i) => i.id);
       if (JSON.stringify(servedIds) !== JSON.stringify(lastServedEntities(sessionEvents))) {
-        appendLearning(sessionActionEvent({
-          action: 'served',
-          entities: servedIds,
-          tokens: result.totalTokens,
-        }));
+        appendLearning(
+          sessionActionEvent({
+            action: 'served',
+            entities: servedIds,
+            tokens: result.totalTokens,
+          }),
+        );
       }
-    } catch { /* serving context must never fail on a log write */ }
+    } catch {
+      /* serving context must never fail on a log write */
+    }
     if (pickFormat(args) === 'pack') {
       return { content: [{ type: 'text', text: contextToPack(result, snapshotId) }] };
     }
@@ -870,9 +1118,17 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     if (!cached) await ensureAnalyzed();
     const parsed = SyncPackInputSchema.safeParse(args);
     if (!parsed.success) {
-      const issues = parsed.error.issues.map((i) => ({ field: i.path.join('.') || '(root)', message: i.message }));
+      const issues = parsed.error.issues.map((i) => ({
+        field: i.path.join('.') || '(root)',
+        message: i.message,
+      }));
       return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'invalid sync_pack input', issues }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ status: 'error', error: 'invalid sync_pack input', issues }),
+          },
+        ],
         isError: true,
       };
     }
@@ -888,13 +1144,25 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       masterBody = readFileSync(masterPath, 'utf8');
     } catch {
       return {
-        content: [{ type: 'text', text: JSON.stringify({ status: 'error', error: 'no readable agent.pack — run analyze first' }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              status: 'error',
+              error: 'no readable agent.pack — run analyze first',
+            }),
+          },
+        ],
         isError: true,
       };
     }
     let diffBody: string | undefined;
     if (existsSync(diffPath)) {
-      try { diffBody = readFileSync(diffPath, 'utf8'); } catch { diffBody = undefined; }
+      try {
+        diffBody = readFileSync(diffPath, 'utf8');
+      } catch {
+        diffBody = undefined;
+      }
     }
 
     const result = resolveSyncPack(masterBody, diffBody, have);
@@ -933,7 +1201,10 @@ function loadSnapshotEntry(snapDir: string, entry: string): SnapshotArtifact | n
  * snapshot `analyze` just wrote for this same head (which would always read
  * as "no change").
  */
-function readLatestSnapshot(excludeGeneratedAt?: string, requireFull = false): SnapshotArtifact | null {
+function readLatestSnapshot(
+  excludeGeneratedAt?: string,
+  requireFull = false,
+): SnapshotArtifact | null {
   try {
     const snapDir = path.join(root, '.facts', 'snapshots');
     if (!existsSync(snapDir)) return null;
@@ -961,7 +1232,9 @@ function readdirSyncSafe(p: string): string[] {
   // `review_change`. Use the static import instead.
   try {
     return readdirSync(p);
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 function learningsPath(): string {
@@ -1001,12 +1274,17 @@ function restoreVulnScanInto(agent: AgentArtifact): void {
     if (!existsSync(p)) return;
     const prev = JSON.parse(readFileSync(p, 'utf8')) as Partial<AgentArtifact>;
     if (!prev.vulnerabilityScan) return;
-    agent.vulnerabilities = reconcileVulnerabilities(prev.vulnerabilities ?? [], agent.dependencyManifests);
+    agent.vulnerabilities = reconcileVulnerabilities(
+      prev.vulnerabilities ?? [],
+      agent.dependencyManifests,
+    );
     /* Recompute `findings` to mirror the reconciled array — the spec's
        scanned-and-clean marker must not contradict agent.vulnerabilities.length
        (list_vulnerabilities returns both in one payload). */
     agent.vulnerabilityScan = { ...prev.vulnerabilityScan, findings: agent.vulnerabilities.length };
-  } catch { /* best-effort */ }
+  } catch {
+    /* best-effort */
+  }
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -1047,7 +1325,9 @@ async function main() {
       );
       process.exit(0);
     } catch (e) {
-      process.stderr.write(`[factstack-mcp] login failed: ${e instanceof Error ? e.message : String(e)}\n`);
+      process.stderr.write(
+        `[factstack-mcp] login failed: ${e instanceof Error ? e.message : String(e)}\n`,
+      );
       process.exit(1);
     }
   }
@@ -1055,8 +1335,8 @@ async function main() {
   await ensureAnalyzed();
   process.stderr.write(
     `[factstack-mcp] cached ${cached!.agent.files.length} files, ` +
-    `${cached!.agent.graph.edges.length} edges, ` +
-    `${cached!.agent.risks.length} risks\n`,
+      `${cached!.agent.graph.edges.length} edges, ` +
+      `${cached!.agent.risks.length} risks\n`,
   );
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -1064,6 +1344,8 @@ async function main() {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`[factstack-mcp] fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(
+    `[factstack-mcp] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
+  );
   process.exit(1);
 });

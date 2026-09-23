@@ -57,7 +57,9 @@ interface SwimlanesDiagramProps {
 
 const KEYFRAMES_ID = 'swimlanes-keyframes';
 function ensureKeyframes() {
-  adoptCss(KEYFRAMES_ID, `
+  adoptCss(
+    KEYFRAMES_ID,
+    `
     @media (prefers-reduced-motion: no-preference) {
       @keyframes swimlanes-lane-in {
         from { opacity: 0; transform: translateY(-4px) }
@@ -68,7 +70,8 @@ function ensureKeyframes() {
         to   { stroke-dashoffset: 0 }
       }
     }
-  `);
+  `,
+  );
 }
 
 /* ─────────── styles ─────────── */
@@ -128,7 +131,8 @@ const laneGroup = css({
   /* All lane backgrounds get the same subtle hover. Highlighted state
      lives on incident arrows (data-hover-lane attribute on SVG). */
   '> rect.lane-bg': {
-    transition: 'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
+    transition:
+      'fill var(--dur-quick) var(--ease-out-quart), stroke var(--dur-quick) var(--ease-out-quart)',
   },
   '&:hover > rect.lane-bg': {
     fill: 'var(--dg-focus-soft)',
@@ -198,11 +202,12 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
     const laneHeight = 92;
     const laneGap = 16;
     const padding = 32;
-    const labelColumnWidth = 200;  // left column holds the tier label + count
+    const labelColumnWidth = 200; // left column holds the tier label + count
     const detailColumnWidth = 380; // right column holds sample file paths
-    const arrowGutter = 80;        // space at the right for arcing arrows
+    const arrowGutter = 80; // space at the right for arcing arrows
     const svgWidth = padding * 2 + labelColumnWidth + detailColumnWidth + arrowGutter;
-    const svgHeight = padding * 2 + activeTiers.length * laneHeight + (activeTiers.length - 1) * laneGap;
+    const svgHeight =
+      padding * 2 + activeTiers.length * laneHeight + (activeTiers.length - 1) * laneGap;
 
     /* Lane geometry — compute once, reuse for both lane render and
        arrow path computation. */
@@ -240,10 +245,13 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
     return (
       <div mix={wrap}>
         <div mix={meta}>
-          <span>Architecture · {activeTiers.length} tier{activeTiers.length === 1 ? '' : 's'}</span>
+          <span>
+            Architecture · {activeTiers.length} tier{activeTiers.length === 1 ? '' : 's'}
+          </span>
           <span mix={metaCount}>
             {totalCrossEdges} cross-tier edge{totalCrossEdges === 1 ? '' : 's'}
-            {intraEdges.length > 0 && ` · ${intraEdges.reduce((s, e) => s + e.count, 0)} intra-tier`}
+            {intraEdges.length > 0 &&
+              ` · ${intraEdges.reduce((s, e) => s + e.count, 0)} intra-tier`}
           </span>
         </div>
         <svg
@@ -301,7 +309,9 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                   mix={[laneGroup, css({ '--row': String(i) })]}
                   data-tier={tier}
                 >
-                  <title>{TIER_LABEL[tier]} — {count} file{count === 1 ? '' : 's'}</title>
+                  <title>
+                    {TIER_LABEL[tier]} — {count} file{count === 1 ? '' : 's'}
+                  </title>
                   <rect
                     class="lane-bg"
                     x={padding}
@@ -318,7 +328,9 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={padding + 16}
                     y={y + 24}
                     fill="var(--fg-faint)"
-                    font-size="9" letter-spacing="0.14em" mix={css({ textTransform: 'uppercase' })}
+                    font-size="9"
+                    letter-spacing="0.14em"
+                    mix={css({ textTransform: 'uppercase' })}
                   >
                     {TIER_LABEL[tier]}
                   </text>
@@ -326,16 +338,13 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={padding + 16}
                     y={y + 60}
                     fill="var(--fg)"
-                    font-size="28" font-family="var(--font-display, var(--font-body))" mix={css({ fontVariantNumeric: 'tabular-nums' })}
+                    font-size="28"
+                    font-family="var(--font-display, var(--font-body))"
+                    mix={css({ fontVariantNumeric: 'tabular-nums' })}
                   >
                     {count}
                   </text>
-                  <text
-                    x={padding + 16}
-                    y={y + 80}
-                    fill="var(--fg-faint)"
-                    font-size="10"
-                  >
+                  <text x={padding + 16} y={y + 80} fill="var(--fg-faint)" font-size="10">
                     file{count === 1 ? '' : 's'}
                   </text>
 
@@ -346,7 +355,8 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                       x={padding + labelColumnWidth + 12}
                       y={y + 22 + k * 18}
                       fill="var(--fg-muted)"
-                      font-size="11" font-family="var(--font-mono)"
+                      font-size="11"
+                      font-family="var(--font-mono)"
                     >
                       <title>{p}</title>
                       {shortPath(p)}
@@ -357,7 +367,8 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                       x={padding + labelColumnWidth + 12}
                       y={y + 22 + samples.length * 18}
                       fill="var(--fg-faint)"
-                      font-size="10" letter-spacing="0.06em"
+                      font-size="10"
+                      letter-spacing="0.06em"
                     >
                       + {count - samples.length} more
                     </text>
@@ -378,7 +389,9 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
               const midI = ((tierIndex.get(edge.from) ?? 0) + (tierIndex.get(edge.to) ?? 0)) / 2;
               const labelY = padding + midI * (laneHeight + laneGap) + laneHeight / 2;
               const laneRightX = padding + labelColumnWidth + detailColumnWidth;
-              const span = Math.abs((tierIndex.get(edge.from) ?? 0) - (tierIndex.get(edge.to) ?? 0));
+              const span = Math.abs(
+                (tierIndex.get(edge.from) ?? 0) - (tierIndex.get(edge.to) ?? 0),
+              );
               const labelX = laneRightX + Math.min(arrowGutter - 12, 12 + span * 12) + 6;
               return (
                 <g key={idx}>
@@ -397,7 +410,8 @@ export function SwimlanesDiagram(handle: Handle<SwimlanesDiagramProps>) {
                     x={labelX}
                     y={labelY + 3}
                     fill="var(--fg-faint)"
-                    font-size="10" mix={css({ fontVariantNumeric: 'tabular-nums' })}
+                    font-size="10"
+                    mix={css({ fontVariantNumeric: 'tabular-nums' })}
                   >
                     {edge.count}
                   </text>

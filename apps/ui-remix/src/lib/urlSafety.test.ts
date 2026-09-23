@@ -20,9 +20,9 @@ describe('safeHref', () => {
   });
 
   it('neutralizes javascript: (any casing) to #', () => {
-    expect(safeHref("javascript:alert(1)")).toBe('#');
-    expect(safeHref("JavaScript:alert(1)")).toBe('#');
-    expect(safeHref("JAVASCRIPT:document.cookie")).toBe('#');
+    expect(safeHref('javascript:alert(1)')).toBe('#');
+    expect(safeHref('JavaScript:alert(1)')).toBe('#');
+    expect(safeHref('JAVASCRIPT:document.cookie')).toBe('#');
   });
 
   it('neutralizes data:, vbscript:, file: to #', () => {
@@ -63,7 +63,16 @@ describe('isDangerousScheme', () => {
   });
 
   it('does not flag navigational or relative URLs', () => {
-    for (const u of ['https://x', 'http://x', 'mailto:a@b', 'tel:+1', '/files', '#x', '../y', '//cdn/x']) {
+    for (const u of [
+      'https://x',
+      'http://x',
+      'mailto:a@b',
+      'tel:+1',
+      '/files',
+      '#x',
+      '../y',
+      '//cdn/x',
+    ]) {
       expect(isDangerousScheme(u)).toBe(false);
     }
   });

@@ -14,7 +14,14 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-05-01T00:00:00Z',
-    project: { name: 'test', root: '/test', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'test',
+      root: '/test',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -39,7 +46,18 @@ function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
       health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
     },
     stack: [],
-    tree: { id: 'root', name: 'root', path: '.', kind: 'directory', language: null, loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [] },
+    tree: {
+      id: 'root',
+      name: 'root',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
+    },
     graph: { nodes: [], edges: [], cycles: [] },
     activity: [],
     risks: [],
@@ -58,13 +76,22 @@ describe('humanToViz — basic shape', () => {
     expect(v.tree).toBeDefined();
     expect(v.edges).toBeDefined();
     expect(v.entryPoints).toBeDefined();
-    expect(v.routes).toBeDefined();   // regression: v0.2 dropped this
+    expect(v.routes).toBeDefined(); // regression: v0.2 dropped this
     expect(v.risks).toBeDefined();
   });
 
   it('passes project.name + frameworks through unchanged', () => {
     const v = humanToViz(
-      makeAgent({ project: { name: 'fr-school', root: '/x', languages: [], frameworks: ['React', 'Vite'], entryPoints: [], monorepo: null } }),
+      makeAgent({
+        project: {
+          name: 'fr-school',
+          root: '/x',
+          languages: [],
+          frameworks: ['React', 'Vite'],
+          entryPoints: [],
+          monorepo: null,
+        },
+      }),
       makeHuman(),
     );
     expect(v.project.name).toBe('fr-school');
@@ -76,8 +103,20 @@ describe('humanToViz — routes pipeline (regression)', () => {
   it('passes agent.routes through to viz.routes', () => {
     const agent = makeAgent({
       routes: [
-        { framework: 'remix', method: 'GET', path: '/', handlerFile: 'src/routes/_index.tsx', handlerSymbol: 'default' },
-        { framework: 'express', method: 'POST', path: '/api/login', handlerFile: 'server.ts', handlerSymbol: null },
+        {
+          framework: 'remix',
+          method: 'GET',
+          path: '/',
+          handlerFile: 'src/routes/_index.tsx',
+          handlerSymbol: 'default',
+        },
+        {
+          framework: 'express',
+          method: 'POST',
+          path: '/api/login',
+          handlerFile: 'server.ts',
+          handlerSymbol: null,
+        },
       ],
     });
     const v = humanToViz(agent, makeHuman());
@@ -97,26 +136,67 @@ describe('humanToViz — description fallback (regression)', () => {
     // v0.2.1 fix: previously fell back to oneLiner when intent was
     // empty, causing the Overview hero to render the same sentence
     // twice (once as headline, once as dek).
-    const v = humanToViz(makeAgent(), makeHuman({
-      summary: { oneLiner: 'A test app', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } },
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'A test app',
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     expect(v.summary.description).toBe('');
     expect(v.summary.oneLiner).toBe('A test app');
   });
 
   it('uses intent as description when provided', () => {
-    const v = humanToViz(makeAgent(), makeHuman({
-      summary: { oneLiner: 'A short one', intent: 'A longer story about the project.', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } },
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'A short one',
+          intent: 'A longer story about the project.',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     expect(v.summary.description).toBe('A longer story about the project.');
   });
 });
 
 describe('humanToViz — tree builder', () => {
   it('produces a tree node with the project name at root', () => {
-    const v = humanToViz(makeAgent({ project: { name: 'my-app', root: '.', languages: [], frameworks: [], entryPoints: [], monorepo: null } }), makeHuman({
-      tree: { id: 'root', name: 'my-app', path: '.', kind: 'directory', language: null, loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [] },
-    }));
+    const v = humanToViz(
+      makeAgent({
+        project: {
+          name: 'my-app',
+          root: '.',
+          languages: [],
+          frameworks: [],
+          entryPoints: [],
+          monorepo: null,
+        },
+      }),
+      makeHuman({
+        tree: {
+          id: 'root',
+          name: 'my-app',
+          path: '.',
+          kind: 'directory',
+          language: null,
+          loc: 0,
+          tokenCost: 0,
+          bundleSizeGzip: null,
+          status: 'ok',
+          children: [],
+        },
+      }),
+    );
     expect(v.tree.name).toBe('my-app');
   });
 
@@ -133,19 +213,40 @@ describe('humanToViz — tree builder', () => {
 
 describe('humanToViz — risk shape passthrough', () => {
   it('preserves severity/category/rule/message and includes file/line when present', () => {
-    const v = humanToViz(makeAgent(), makeHuman({
-      risks: [
-        { severity: 'high', category: 'secret', rule: 'aws-access-key', message: 'Found AWS key', file: 'src/cfg.ts', line: 5 },
-      ],
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        risks: [
+          {
+            severity: 'high',
+            category: 'secret',
+            rule: 'aws-access-key',
+            message: 'Found AWS key',
+            file: 'src/cfg.ts',
+            line: 5,
+          },
+        ],
+      }),
+    );
     expect(v.risks).toHaveLength(1);
-    expect(v.risks[0]).toMatchObject({ severity: 'high', category: 'secret', rule: 'aws-access-key', file: 'src/cfg.ts', line: 5 });
+    expect(v.risks[0]).toMatchObject({
+      severity: 'high',
+      category: 'secret',
+      rule: 'aws-access-key',
+      file: 'src/cfg.ts',
+      line: 5,
+    });
   });
 
   it('omits file/line when not provided (no undefined leak)', () => {
-    const v = humanToViz(makeAgent(), makeHuman({
-      risks: [{ severity: 'low', category: 'license', rule: 'no-license', message: 'Add a license' }],
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        risks: [
+          { severity: 'low', category: 'license', rule: 'no-license', message: 'Add a license' },
+        ],
+      }),
+    );
     expect(v.risks[0]).toMatchObject({ severity: 'low', category: 'license' });
     expect((v.risks[0] as any).file).toBeUndefined();
   });
@@ -153,11 +254,26 @@ describe('humanToViz — risk shape passthrough', () => {
 
 describe('humanToViz — entryPoints passthrough', () => {
   it('maps human entryPoints to viz shape', () => {
-    const v = humanToViz(makeAgent(), makeHuman({
-      summary: { oneLiner: 'x', intent: '', capabilities: [], entryPoints: [
-        { label: 'npm run dev', kind: 'cli-command', path: 'npm run dev', handlerFile: '', description: null },
-      ], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } },
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'x',
+          intent: '',
+          capabilities: [],
+          entryPoints: [
+            {
+              label: 'npm run dev',
+              kind: 'cli-command',
+              path: 'npm run dev',
+              handlerFile: '',
+              description: null,
+            },
+          ],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     expect(v.entryPoints[0]).toMatchObject({ label: 'npm run dev', path: 'npm run dev' });
   });
 });
@@ -167,17 +283,64 @@ describe('humanToViz — capabilities head fallback (regression)', () => {
     // Bug fix: when a capability had no " — " separator, head was
     // undefined and the schema rejected it. Fallback to the whole
     // capability string.
-    const v = humanToViz(makeAgent(), makeHuman({
-      summary: { oneLiner: 'x', intent: '', capabilities: ['Renders a React UI'], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } },
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'x',
+          intent: '',
+          capabilities: ['Renders a React UI'],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     expect(v.summary.capabilities[0]?.head).toBe('Renders a React UI');
   });
 
   it('splits "head — sub" into separate fields', () => {
-    const v = humanToViz(makeAgent(), makeHuman({
-      summary: { oneLiner: 'x', intent: '', capabilities: ['Renders a UI — using React 19'], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } },
-    }));
+    const v = humanToViz(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'x',
+          intent: '',
+          capabilities: ['Renders a UI — using React 19'],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     expect(v.summary.capabilities[0]?.head).toBe('Renders a UI');
     expect(v.summary.capabilities[0]?.sub).toBe('using React 19');
+  });
+});
+
+/* v0.3.11 — the Worktrees tab reads `dataset.git`. Dropping this passthrough
+   would blank the tab with no other test failing, so pin it here. */
+describe('humanToViz — git topology passthrough (v0.3.11)', () => {
+  const topology = {
+    scannedAt: '2026-09-06T00:00:00Z',
+    repoRoot: 'D:/repo',
+    currentPath: 'D:/repo',
+    defaultBranch: 'main',
+    originDefault: 'origin/main',
+    remotes: [{ name: 'origin', url: null }],
+    remoteRefsAgeDays: 1,
+    stashes: 0,
+    worktrees: [],
+    branches: [],
+    gaps: [],
+    requestsCoverage: 'full',
+    elapsedMs: 7,
+  } as NonNullable<AgentArtifact['git']>;
+
+  it('omits `git` entirely when the analyzer collected no topology', () => {
+    expect('git' in humanToViz(makeAgent(), makeHuman())).toBe(false);
+  });
+
+  it('passes agent.git through untouched when present', () => {
+    const v = humanToViz(makeAgent({ git: topology }), makeHuman());
+    expect(v.git).toEqual(topology);
   });
 });

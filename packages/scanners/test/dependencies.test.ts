@@ -229,14 +229,16 @@ describe('flattenManifests — dedupe + provenance', () => {
       {
         path: 'a/package.json',
         ecosystem: 'npm' as const,
-        name: null, version: null,
+        name: null,
+        version: null,
         dependencies: { react: '17.0.0' },
         devDependencies: {},
       },
       {
         path: 'b/package.json',
         ecosystem: 'npm' as const,
-        name: null, version: null,
+        name: null,
+        version: null,
         dependencies: { react: '18.0.0' },
         devDependencies: {},
       },
@@ -248,13 +250,16 @@ describe('flattenManifests — dedupe + provenance', () => {
   });
 
   it('walks both deps and devDeps', () => {
-    const manifests = [{
-      path: 'package.json',
-      ecosystem: 'npm' as const,
-      name: null, version: null,
-      dependencies: { express: '4.0.0' },
-      devDependencies: { vitest: '4.0.0' },
-    }];
+    const manifests = [
+      {
+        path: 'package.json',
+        ecosystem: 'npm' as const,
+        name: null,
+        version: null,
+        dependencies: { express: '4.0.0' },
+        devDependencies: { vitest: '4.0.0' },
+      },
+    ];
     const flat = flattenManifests(manifests);
     expect(flat.map((e) => e.name).sort()).toEqual(['express', 'vitest']);
   });

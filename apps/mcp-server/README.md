@@ -1,4 +1,4 @@
-# @factstack/mcp-server *(v0.2)*
+# @factstack/mcp-server _(v0.2)_
 
 stdio Model Context Protocol server. Exposes the FACTS analyzer's artifacts as tools + resources for AI coding agents (Claude Desktop, Cursor, Claude Code, Continue, etc.).
 
@@ -18,22 +18,22 @@ The server logs status to stderr; the JSON-RPC protocol runs on stdin/stdout.
 
 ## Tools
 
-| Name | Input | What it does |
-|---|---|---|
-| `analyze` | `{}` | Run a full analysis; refresh the in-memory cache + write `.facts/`. |
-| `query_graph` | `{ verb, path?, filter?, limit?, depth? }` | Verbs: `callers` (path required), `imports` (path required, optional `depth`), `cycles`, `orphans`. Returns `{ verb, target?, count, results }`. Returns a structured `{ ok: false, issues: [...] }` for missing required args. |
-| `get_outline` | `{ path }` | Return the symbol outline for a single file. Pre-extracted declarations from the cache when present, falls back to live extraction. |
-| `list_risks` | `{ severity?, category? }` | Filter scanner findings by severity (`info|low|medium|high|critical`) or category (`secret|license|broken-import|cycle|stale|...`). |
-| `reanalyze_file` | `{ path? }` | **DEPRECATED v0.2.** Stubs to a full analyze. True per-file incremental lands with v0.3 SQLite index. |
+| Name             | Input                                      | What it does                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `analyze`        | `{}`                                       | Run a full analysis; refresh the in-memory cache + write `.facts/`.                                                                                                                                                             |
+| `query_graph`    | `{ verb, path?, filter?, limit?, depth? }` | Verbs: `callers` (path required), `imports` (path required, optional `depth`), `cycles`, `orphans`. Returns `{ verb, target?, count, results }`. Returns a structured `{ ok: false, issues: [...] }` for missing required args. |
+| `get_outline`    | `{ path }`                                 | Return the symbol outline for a single file. Pre-extracted declarations from the cache when present, falls back to live extraction.                                                                                             |
+| `list_risks`     | `{ severity?, category? }`                 | Filter scanner findings by severity (`info\|low\|medium\|high\|critical`) or category (`secret\|license\|broken-import\|cycle\|stale\|...`).                                                                                    |
+| `reanalyze_file` | `{ path? }`                                | **DEPRECATED v0.2.** Stubs to a full analyze. True per-file incremental lands with v0.3 SQLite index.                                                                                                                           |
 
 ## Resources
 
-| URI | mimeType | Contents |
-|---|---|---|
-| `facts://project` | application/json | Project meta + stats + health. |
-| `facts://graph` | application/json | Full dependency graph (nodes, edges, cycles, callers). |
-| `facts://routes` | application/json | Detected routes (Next.js, Remix, Express, FastAPI, Flask, Django). |
-| `facts://risks` | application/json | All scanner findings. |
+| URI                   | mimeType         | Contents                                                                  |
+| --------------------- | ---------------- | ------------------------------------------------------------------------- |
+| `facts://project`     | application/json | Project meta + stats + health.                                            |
+| `facts://graph`       | application/json | Full dependency graph (nodes, edges, cycles, callers).                    |
+| `facts://routes`      | application/json | Detected routes (Next.js, Remix, Express, FastAPI, Flask, Django).        |
+| `facts://risks`       | application/json | All scanner findings.                                                     |
 | `facts://file/{path}` | application/json | Per-file `FileOutline`. URI-encode the path; `./` and `\` are normalized. |
 
 The parametric file resource is advertised via the `resources/templates/list` extension (resourceTemplates capability).

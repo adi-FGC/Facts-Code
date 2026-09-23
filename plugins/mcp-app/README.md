@@ -1,4 +1,4 @@
-# @factstack/mcp-app *(v0.6 stub)*
+# @factstack/mcp-app _(v0.6 stub)_
 
 **Not built in v0.1.** Reserved for the MCP App surface — a bundled MCP app + skills package that a good AI agent can enable via plugin/skill to get full FACTS functionality.
 

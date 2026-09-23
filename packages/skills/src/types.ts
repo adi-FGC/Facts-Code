@@ -178,7 +178,8 @@ export const CAPS = {
  * skill teaches the 80% path; full tool list lives in the MCP server
  * description that the client already shows.
  */
-export const ONBOARDING_SEQUENCE: readonly ShippedMcpToolName[] = MCP_TOOL_CATALOG
-  .filter((t) => t.onboardingOrder !== undefined)
+export const ONBOARDING_SEQUENCE: readonly ShippedMcpToolName[] = MCP_TOOL_CATALOG.filter(
+  (t) => t.onboardingOrder !== undefined,
+)
   .sort((a, b) => (a.onboardingOrder ?? 0) - (b.onboardingOrder ?? 0))
   .map((t) => t.name);

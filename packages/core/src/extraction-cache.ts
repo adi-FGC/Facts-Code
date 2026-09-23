@@ -130,14 +130,21 @@ export function extractFile(text: string, ext: string, wantRefs: boolean): FileE
       ...s,
       startLine: s.startLine + fm.lineOffset,
       endLine: s.endLine + fm.lineOffset,
-      ...(s.children ? { children: s.children.map((c) => ({
-        ...c,
-        startLine: c.startLine + fm.lineOffset,
-        endLine: c.endLine + fm.lineOffset,
-      })) } : {}),
+      ...(s.children
+        ? {
+            children: s.children.map((c) => ({
+              ...c,
+              startLine: c.startLine + fm.lineOffset,
+              endLine: c.endLine + fm.lineOffset,
+            })),
+          }
+        : {}),
     }));
     const refs = wantRefs
-      ? extractSymbolRefs(fm.source, '.ts', parsed).map((r) => ({ ...r, line: r.line + fm.lineOffset }))
+      ? extractSymbolRefs(fm.source, '.ts', parsed).map((r) => ({
+          ...r,
+          line: r.line + fm.lineOffset,
+        }))
       : [];
     const envReads = extractEnvVars(fm.source, '.ts', parsed).map((r) => ({
       ...r,

@@ -44,7 +44,11 @@ test.describe('OpenModal — Choose folder', () => {
     /* Simulate a browser with no FSA at all → chooseFolder() routes
        straight to the hidden <input webkitdirectory>. */
     await page.addInitScript(() => {
-      try { delete (window as { showDirectoryPicker?: unknown }).showDirectoryPicker; } catch { /* noop */ }
+      try {
+        delete (window as { showDirectoryPicker?: unknown }).showDirectoryPicker;
+      } catch {
+        /* noop */
+      }
     });
     await openModal(page);
     const chooserPromise = page.waitForEvent('filechooser', { timeout: 5_000 });

@@ -198,9 +198,7 @@ describe('renderCiReport — vulnerability changes', () => {
     /* This is the "GitHub re-classified an advisory" case. The shift
      * surfaces real posture change even though no IDs entered or
      * left the set. */
-    const out = renderCiReport(
-      makeDiff({ vulns: { new: [], fixed: [], severityShift: 3 } }),
-    );
+    const out = renderCiReport(makeDiff({ vulns: { new: [], fixed: [], severityShift: 3 } }));
     expect(out).toContain('Severity reclassification');
     expect(out).toContain('+3');
   });
@@ -208,11 +206,9 @@ describe('renderCiReport — vulnerability changes', () => {
   it('caps vuln ID lists at VULN_LIST_CAP with "N more" footer', () => {
     /* 25 new vulns: 20 shown + "5 more" footer. */
     const newIds = Array.from({ length: 25 }, (_, i) => `GHSA-${i.toString().padStart(2, '0')}`);
-    const out = renderCiReport(
-      makeDiff({ vulns: { new: newIds, fixed: [], severityShift: 100 } }),
-    );
-    expect(out).toContain('`GHSA-19`');             // 20th item shown
-    expect(out).not.toContain('`GHSA-20`');         // 21st item suppressed
+    const out = renderCiReport(makeDiff({ vulns: { new: newIds, fixed: [], severityShift: 100 } }));
+    expect(out).toContain('`GHSA-19`'); // 20th item shown
+    expect(out).not.toContain('`GHSA-20`'); // 21st item suppressed
     expect(out).toContain('…5 more');
   });
 });
@@ -263,9 +259,9 @@ describe('renderCiReport — file changes', () => {
       tokenDelta: 30 - i, // descending so order is deterministic + caller-pre-sorted
     }));
     const out = renderCiReport(makeDiff({ files: { added: [], removed: [], changed } }));
-    expect(out).toContain('`f00.ts`');               // first item
-    expect(out).toContain('`f24.ts`');               // 25th item shown
-    expect(out).not.toContain('`f25.ts`');           // 26th suppressed
+    expect(out).toContain('`f00.ts`'); // first item
+    expect(out).toContain('`f24.ts`'); // 25th item shown
+    expect(out).not.toContain('`f25.ts`'); // 26th suppressed
     expect(out).toContain('…5 more');
   });
 

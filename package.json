@@ -25,18 +25,22 @@
     "typecheck": "turbo run typecheck",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "format:md": "prettier --write \"**/*.{md,json,yaml,yml}\"",
-    "format:md:check": "prettier --check \"**/*.{md,json,yaml,yml}\"",
+    "format:md": "prettier --write \"**/*.md\"",
+    "format:md:check": "prettier --check \"**/*.md\"",
     "changeset": "changeset",
     "release": "changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.10.0",
+    "eslint-plugin-boundaries": "^7.2.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.67.0",
     "prettier": "^3.8.3",
     "turbo": "^2.9.15",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^4.1.11"
   }
 }

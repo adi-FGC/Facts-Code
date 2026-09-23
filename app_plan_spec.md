@@ -12,34 +12,34 @@ FACTS produces two artifacts from one analysis pass: an AI-agent-optimized codeb
 
 ### Shipped
 
-| Component | Status | Evidence |
-|---|---|---|
-| Monorepo scaffold | ✅ | pnpm + Turborepo, 13 packages + 6 apps + 1 plugin, ESLint boundaries enforced |
-| `@factstack/spec` | ✅ | Real Zod schemas for `agent.json` / `human.json`, `FactsFS` interface, MCP resource/tool surface |
-| `@factstack/fs-node` | ✅ | Node `FactsFS` implementation |
-| `@factstack/fs-memory` | ✅ | In-memory `FactsFS` for tests |
-| `@factstack/walker` | ✅ | gitignore-aware + `.factsignore/.cursorignore` stacked, symlink loop detection, binary sniff, 1 MB cap |
-| `@factstack/scanners` | ✅ | languages (23 ext→lang), TODO/FIXME harvester (kind + line + text), secrets (9 rules + entropy gate + redacted previews), frameworks (≈ 45 dep→framework), tiktoken approximation |
-| `@factstack/emit` | ✅ | Artifact writer with Zod validation, gzip helper, auto-add `.facts/` to `.gitignore` |
-| `@factstack/core` | ✅ | Pipeline orchestration (isomorphic) + tree rollup |
-| `apps/cli` (`factstack`) | ✅ | Commander binary, `--json` machine mode, progress bar, `doctor` subcommand, pretty TTY summary |
-| HTML prototype | ✅ | Standalone `prototype/index.html` w/ inline JSON; editorial aesthetic landed (see §6) |
+| Component                | Status | Evidence                                                                                                                                                                          |
+| ------------------------ | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Monorepo scaffold        | ✅     | pnpm + Turborepo, 13 packages + 6 apps + 1 plugin, ESLint boundaries enforced                                                                                                     |
+| `@factstack/spec`        | ✅     | Real Zod schemas for `agent.json` / `human.json`, `FactsFS` interface, MCP resource/tool surface                                                                                  |
+| `@factstack/fs-node`     | ✅     | Node `FactsFS` implementation                                                                                                                                                     |
+| `@factstack/fs-memory`   | ✅     | In-memory `FactsFS` for tests                                                                                                                                                     |
+| `@factstack/walker`      | ✅     | gitignore-aware + `.factsignore/.cursorignore` stacked, symlink loop detection, binary sniff, 1 MB cap                                                                            |
+| `@factstack/scanners`    | ✅     | languages (23 ext→lang), TODO/FIXME harvester (kind + line + text), secrets (9 rules + entropy gate + redacted previews), frameworks (≈ 45 dep→framework), tiktoken approximation |
+| `@factstack/emit`        | ✅     | Artifact writer with Zod validation, gzip helper, auto-add `.facts/` to `.gitignore`                                                                                              |
+| `@factstack/core`        | ✅     | Pipeline orchestration (isomorphic) + tree rollup                                                                                                                                 |
+| `apps/cli` (`factstack`) | ✅     | Commander binary, `--json` machine mode, progress bar, `doctor` subcommand, pretty TTY summary                                                                                    |
+| HTML prototype           | ✅     | Standalone `prototype/index.html` w/ inline JSON; editorial aesthetic landed (see §6)                                                                                             |
 
 ### Deferred to v0.2
 
-| Component | Why it moved |
-|---|---|
+| Component                               | Why it moved                                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@factstack/parsers` (tree-sitter WASM) | v0.1 pipeline emits valid `FileOutline` without AST — good enough to ship the CLI now; parsers unlock `imports`, `exports`, `declarations`, `routes` |
-| `@factstack/extractors` | Downstream of parsers |
-| `@factstack/graph` | Needs extractor output to build real import edges; icicle view works with folder rollup alone |
-| `.facts/index.db` via `node:sqlite` | JSON artifacts cover the v0.1 surface; SQLite unlocks fast incremental queries in `watch` mode |
-| `apps/ui-remix` | Prototype proved the design; the React/Vite port is the next surface |
-| `factstack ui / export / watch` | CLI verbs pending the UI app and incremental scanner |
+| `@factstack/extractors`                 | Downstream of parsers                                                                                                                                |
+| `@factstack/graph`                      | Needs extractor output to build real import edges; icicle view works with folder rollup alone                                                        |
+| `.facts/index.db` via `node:sqlite`     | JSON artifacts cover the v0.1 surface; SQLite unlocks fast incremental queries in `watch` mode                                                       |
+| `apps/ui-remix`                         | Prototype proved the design; the React/Vite port is the next surface                                                                                 |
+| `factstack ui / export / watch`         | CLI verbs pending the UI app and incremental scanner                                                                                                 |
 
 ### Verified against this repo (2026-04-19)
 
 ```
-FACTS · analyzing D:\dev\ai agents\claude\factstack
+FACTS · analyzing ./factstack
   files        103
   LOC          18.7K
   tokens       206.7K (cl100k approx)
@@ -61,6 +61,7 @@ You are building an analyzer that bridges a gap confirmed by competitive researc
 The product must feel trustworthy enough for a CTO or investor to open without a developer present, yet expose enough structure for an AI coding agent to operate on a large codebase without re-reading every file. The same analysis feeds both.
 
 Primary constraints:
+
 - **Runtime**: Node-first TypeScript stack, structured so that the same core powers a CLI, npm global, VS Code/Antigravity extension, Chrome extension, web app with cloud sync, and an MCP app with skills.
 - **MVP scope (v0.1)**: scan, gitignore-aware walk, emit dual artifacts, local WebUI with file tree + icicle graph + per-file outline. No emulation, no test generation, no code-review engine in v0.1.
 - **UI**: Vite 8 + React 19 + React Router v7 + Remix 3 utility modules. See §10 risk #5 for the Remix 3 reality-check.
@@ -81,6 +82,7 @@ Primary constraints:
 ## 2.5 Locked architectural constraints (enforced in CI)
 
 **C1 — Chrome extension / WASM-only analyzer ⇒ isomorphic core.** ✅ Upheld.
+
 - `packages/core` and every package it transitively depends on (`spec`, `walker`, `scanners`, `graph`, `extractors`, `parsers`) must not import Node built-ins (`fs`, `path`, `os`, `worker_threads`, `child_process`) directly.
 - All I/O is injected via `FactsFS`. Same for gzip (core takes a `gzip?: (text: string) => number` callback; CLI passes `node:zlib`).
 - `packages/fs-node` + `packages/fs-memory` ship today; `packages/fs-browser` (File System Access API + GitHub REST) is reserved for v0.4 with zero changes to core.
@@ -88,6 +90,7 @@ Primary constraints:
 - Enforced via `eslint.config.mjs` with `eslint-plugin-boundaries` + a `no-restricted-imports` rule banning `node:*` from core's dependency closure. CI fails on violation.
 
 **C2 — Web app + MCP server + cloud sync ⇒ artifact discipline.** ✅ Upheld.
+
 - `spec` schemas are versioned (`$schema`, `factsVersion`) and backward-compatible via additive-only changes within a major.
 - `@factstack/emit` runs every artifact through `AgentArtifactSchema.parse` + `HumanArtifactSchema.parse` before disk write. Shipped.
 - Artifacts are size-bounded conceptually (cap + chunked overflow) — enforcement lands when artifacts exceed 5 MB in a real project.
@@ -96,6 +99,7 @@ Primary constraints:
 - CLI machine-invocable mode (`factstack --json`) ✅ shipped.
 
 **C3 — VS Code / Antigravity extension ⇒ webview-ready UI.** Pending `apps/ui-remix`.
+
 - Two Vite build targets:
   1. **Dev / server mode** (`vite --port 3000`): full app with live re-analyze endpoint.
   2. **Static mode** (`vite build --mode static`): pure client-side SPA, data hydrated from embedded `human.json` + `agent.json`. Used by `factstack export` and by VS Code webviews.
@@ -105,17 +109,17 @@ Primary constraints:
 
 **Package dependency rules** (enforced):
 
-| Layer | May import from |
-|---|---|
-| `spec` | nothing |
-| `fs-*` | `spec` |
-| `parsers` | `spec` |
-| `extractors` | `spec`, `parsers` |
-| `graph`, `scanners` | `spec`, `extractors` |
-| `core` | `spec`, `graph`, `scanners`, `extractors`, `walker` (not `fs-*`) |
-| `emit` | everything above + Node built-ins allowed |
-| `apps/cli` | `emit`, `fs-node`, `core` |
-| `apps/ui-remix` | `spec`, `ui-theme` only |
+| Layer               | May import from                                                  |
+| ------------------- | ---------------------------------------------------------------- |
+| `spec`              | nothing                                                          |
+| `fs-*`              | `spec`                                                           |
+| `parsers`           | `spec`                                                           |
+| `extractors`        | `spec`, `parsers`                                                |
+| `graph`, `scanners` | `spec`, `extractors`                                             |
+| `core`              | `spec`, `graph`, `scanners`, `extractors`, `walker` (not `fs-*`) |
+| `emit`              | everything above + Node built-ins allowed                        |
+| `apps/cli`          | `emit`, `fs-node`, `core`                                        |
+| `apps/ui-remix`     | `spec`, `ui-theme` only                                          |
 
 ---
 
@@ -201,7 +205,7 @@ Routes detection v0.2 scope: Next.js `app/` + `pages/`, Remix `routes/`, Express
 1. **Dependency graph**: nodes = files/modules/packages, edges = imports. Cycles flagged.
 2. **Outline graph**: hierarchical — project ▸ package ▸ file ▸ symbol.
 
-**Prototype graph today** is a **token-distribution icicle** built from folder rollup, *not* a force-directed node-link — because without real import edges, a force graph would be fiction. The icicle surfaces "where does our token budget go?" which the real dependency graph can layer on top of in v0.2.
+**Prototype graph today** is a **token-distribution icicle** built from folder rollup, _not_ a force-directed node-link — because without real import edges, a force graph would be fiction. The icicle surfaces "where does our token budget go?" which the real dependency graph can layer on top of in v0.2.
 
 Both persisted in `.facts/index.db` via **`node:sqlite`** (Node 22+ built-in) once v0.2 lands. JSON artifacts are generated views on top.
 
@@ -246,7 +250,7 @@ The original plan specified "liquid-glass everywhere." Two audit rounds flagged 
 - **Urbanist** for nav, chips, tabs, big numbers.
 - **Inter** body (with a **Google Sans** opt-in via Config — noted as proprietary).
 - **JetBrains Mono** for paths, line numbers, tabular data.
-- **Prose with data inline** instead of hero-metric cards: *"The codebase is 103.2K tokens across 49 files, fitting within 200K agent context (52% full). Roughly 32% of that budget lives in YAML..."*
+- **Prose with data inline** instead of hero-metric cards: _"The codebase is 103.2K tokens across 49 files, fitting within 200K agent context (52% full). Roughly 32% of that budget lives in YAML..."_
 - **Hairline rules** (1 px `--hairline`) as section breaks instead of card borders.
 - **Glass reserved for chrome only**: top nav, LHS tree panel, RHS local-tab bar, status bar, mobile drawer. Content sits on a flat `.surface` class (solid tinted bg + subtle border).
 - **Warm paper base** `oklch(99% 0.005 95)` light / `oklch(13% 0.02 250)` midnight dark. Pure white/black eliminated.
@@ -349,17 +353,17 @@ Stacked on gitignore. Supported by the walker today.
 
 ## 9. Roadmap — six surfaces, additive
 
-| Version | Surface | Status | Target |
-|---|---|---|---|
-| v0.1.0-alpha | CLI (analyze + doctor) + prototype UI | ✅ landed | now |
-| v0.1.0 | `apps/ui-remix` (Vite + React 19 + React Router v7) | 📍 next | +1–2 wk |
-| v0.1.1 | Parsers (web-tree-sitter) + extractors (TS/Python) + real dependency graph | 📍 | +2 wk |
-| v0.1.2 | SQLite index, licenses, git-history scanner, watch mode, `ui`/`export` CLI | 📍 | +1 wk |
-| v0.2 | npm global publish w/ changesets | 📍 | +1 wk |
-| v0.3 | VS Code / Antigravity extension | 📍 | 6 wk |
-| v0.4 | Chrome extension (WASM analyzer) | 📍 | 6 wk |
-| v0.5 | Web app + cloud + MCP server | 📍 | 12 wk |
-| v0.6 | MCP app + skills bundle | 📍 | 6 wk |
+| Version      | Surface                                                                    | Status    | Target  |
+| ------------ | -------------------------------------------------------------------------- | --------- | ------- |
+| v0.1.0-alpha | CLI (analyze + doctor) + prototype UI                                      | ✅ landed | now     |
+| v0.1.0       | `apps/ui-remix` (Vite + React 19 + React Router v7)                        | 📍 next   | +1–2 wk |
+| v0.1.1       | Parsers (web-tree-sitter) + extractors (TS/Python) + real dependency graph | 📍        | +2 wk   |
+| v0.1.2       | SQLite index, licenses, git-history scanner, watch mode, `ui`/`export` CLI | 📍        | +1 wk   |
+| v0.2         | npm global publish w/ changesets                                           | 📍        | +1 wk   |
+| v0.3         | VS Code / Antigravity extension                                            | 📍        | 6 wk    |
+| v0.4         | Chrome extension (WASM analyzer)                                           | 📍        | 6 wk    |
+| v0.5         | Web app + cloud + MCP server                                               | 📍        | 12 wk   |
+| v0.6         | MCP app + skills bundle                                                    | 📍        | 6 wk    |
 
 ---
 
@@ -367,7 +371,7 @@ Stacked on gitignore. Supported by the walker today.
 
 1. **Secrets in artifacts** ✅ — redacted previews only, `.facts/` auto-gitignored.
 2. **Privacy for CXO audience** — default local-only; cloud opt-in with granular scopes (metadata, not source). Lands in v0.5.
-3. **License & IP scanning** 📍 v0.2 — SPDX + copyleft flagging is *the* headline feature for investor due-diligence.
+3. **License & IP scanning** 📍 v0.2 — SPDX + copyleft flagging is _the_ headline feature for investor due-diligence.
 4. **Supply-chain risk** 📍 v0.2+ — dependency-age + maintainer-status via npm/PyPI metadata fetches.
 5. **Remix 3 reality (verified April 2026)** — Remix 3 is published as a single bare `remix` npm package (`remix@3.0.0-alpha.4`, `next` dist-tag), NOT as `@remix-run/*` scoped packages. Remix 3 is a **library, not a framework CLI**: no `remix-serve`, no `remix vite:dev`, no file-based routing. Ships ~60 utility modules (`fetch-router`, `auth-middleware`, `data-schema`, `file-storage`, `compress-middleware`). For the React UI: **Vite 8 + @vitejs/plugin-react + React 19 + React Router v7.14.1** (Remix team's React-side successor) + **Remix 3 modules as utilities** where they fit. Business logic in `packages/*` stays framework-free.
 6. **"Trust" gap for non-technical audience** ✅ — every chip/badge clickable → source evidence.
@@ -523,31 +527,31 @@ Stacked on gitignore. Supported by the walker today.
 
 ## 18. Tooling choices (locked)
 
-| Concern | Choice | Why |
-|---|---|---|
-| Package manager | pnpm 10 | ✅ Workspace support, strict peer deps |
-| Task runner | Turborepo | ✅ Incremental, cacheable |
-| Linter | **oxlint** | ✅ 50–100× faster than ESLint |
-| Formatter | **oxfmt** | ✅ Same codebase as oxlint |
-| Boundaries | `eslint-plugin-boundaries` (thin ESLint layer) | ✅ Enforces C1 + package layers |
-| Parser (analyzer) | web-tree-sitter (WASM) | 📍 v0.2 — isomorphic, cross-platform, no native compile |
-| SQLite | `node:sqlite` (Node 22+ built-in) | 📍 v0.2 — zero native compile, no node-gyp |
-| Bundler (UI) | Vite 8 | 📍 React 19 + plugin-react 6 + Lightning CSS |
-| CSS polyfills | Lightning CSS (via Vite) | 📍 `dvw`, `light-dark()`, nesting, `color-mix` |
-| UI framework | React 19 + React Router v7.14.1 | 📍 Remix team's React-side continuation |
-| Remix 3 | `remix@3.0.0-alpha.4` as utility modules | 📍 Web-standards helpers alongside React stack |
-| Animation | Framer Motion + native View Transition API | ✅ Prototype; carries to ui-remix |
-| Graph viz | `@xyflow/react` | 📍 v0.2 (force-directed layer atop icicle) |
-| Tree viz | `react-arborist` | 📍 v0.2 (prototype is hand-rolled) |
-| Code highlight | Shiki | 📍 v0.2 (Files Preview tab) |
-| Icons (UI) | lucide-react | ✅ |
-| Display serif | **Fraunces** (variable, OFL, opsz + ital) | ✅ H1 + italic dek |
-| Display sans | Urbanist (variable, OFL) | ✅ Nav, chips, tabs, numerics |
-| Body sans | Inter (OFL) default / Google Sans opt-in (proprietary; noted) | ✅ |
-| Code mono | JetBrains Mono (OFL, tabular) | ✅ |
-| Token cost | tiktoken (cl100k_base) | 📍 v0.2 — swap from `/3.5` approx |
-| Testing | Playwright + axe-core | 📍 v0.1 final |
-| Releases | Changesets | 📍 v0.2 — publish workflow |
+| Concern           | Choice                                                        | Why                                                     |
+| ----------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| Package manager   | pnpm 10                                                       | ✅ Workspace support, strict peer deps                  |
+| Task runner       | Turborepo                                                     | ✅ Incremental, cacheable                               |
+| Linter            | **oxlint**                                                    | ✅ 50–100× faster than ESLint                           |
+| Formatter         | **oxfmt**                                                     | ✅ Same codebase as oxlint                              |
+| Boundaries        | `eslint-plugin-boundaries` (thin ESLint layer)                | ✅ Enforces C1 + package layers                         |
+| Parser (analyzer) | web-tree-sitter (WASM)                                        | 📍 v0.2 — isomorphic, cross-platform, no native compile |
+| SQLite            | `node:sqlite` (Node 22+ built-in)                             | 📍 v0.2 — zero native compile, no node-gyp              |
+| Bundler (UI)      | Vite 8                                                        | 📍 React 19 + plugin-react 6 + Lightning CSS            |
+| CSS polyfills     | Lightning CSS (via Vite)                                      | 📍 `dvw`, `light-dark()`, nesting, `color-mix`          |
+| UI framework      | React 19 + React Router v7.14.1                               | 📍 Remix team's React-side continuation                 |
+| Remix 3           | `remix@3.0.0-alpha.4` as utility modules                      | 📍 Web-standards helpers alongside React stack          |
+| Animation         | Framer Motion + native View Transition API                    | ✅ Prototype; carries to ui-remix                       |
+| Graph viz         | `@xyflow/react`                                               | 📍 v0.2 (force-directed layer atop icicle)              |
+| Tree viz          | `react-arborist`                                              | 📍 v0.2 (prototype is hand-rolled)                      |
+| Code highlight    | Shiki                                                         | 📍 v0.2 (Files Preview tab)                             |
+| Icons (UI)        | lucide-react                                                  | ✅                                                      |
+| Display serif     | **Fraunces** (variable, OFL, opsz + ital)                     | ✅ H1 + italic dek                                      |
+| Display sans      | Urbanist (variable, OFL)                                      | ✅ Nav, chips, tabs, numerics                           |
+| Body sans         | Inter (OFL) default / Google Sans opt-in (proprietary; noted) | ✅                                                      |
+| Code mono         | JetBrains Mono (OFL, tabular)                                 | ✅                                                      |
+| Token cost        | tiktoken (cl100k_base)                                        | 📍 v0.2 — swap from `/3.5` approx                       |
+| Testing           | Playwright + axe-core                                         | 📍 v0.1 final                                           |
+| Releases          | Changesets                                                    | 📍 v0.2 — publish workflow                              |
 
 ---
 

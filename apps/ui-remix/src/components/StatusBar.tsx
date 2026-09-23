@@ -58,11 +58,14 @@ export function StatusBar(handle: Handle<StatusBarProps>) {
     // Glass is reserved for floating/elevated surfaces per design_spec.md §2.
     return (
       <footer role="contentinfo" mix={wrap}>
-        <span mix={k}>files</span><span mix={v}>{fmt(s.files)}</span>
+        <span mix={k}>files</span>
+        <span mix={v}>{fmt(s.files)}</span>
         <span aria-hidden="true" mix={sep} />
-        <span mix={k}>loc</span><span mix={v}>{fmt(s.loc)}</span>
+        <span mix={k}>loc</span>
+        <span mix={v}>{fmt(s.loc)}</span>
         <span aria-hidden="true" mix={sep} />
-        <span mix={k}>tokens</span><span mix={v}>{fmt(s.tokens)}</span>
+        <span mix={k}>tokens</span>
+        <span mix={v}>{fmt(s.tokens)}</span>
         <span mix={css({ flex: '1' })} />
         <span mix={k}>broken</span>
         <span mix={h.broken > 0 ? danger : v}>{fmt(h.broken)}</span>

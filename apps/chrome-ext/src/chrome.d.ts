@@ -39,7 +39,9 @@ interface ChromeNS {
     query(info: ChromeTabsQueryInfo): Promise<ChromeTab[]>;
     get(tabId: number): Promise<ChromeTab>;
     onActivated: ChromeEvent<(info: { tabId: number; windowId: number }) => void>;
-    onUpdated: ChromeEvent<(tabId: number, change: { url?: string; status?: string }, tab: ChromeTab) => void>;
+    onUpdated: ChromeEvent<
+      (tabId: number, change: { url?: string; status?: string }, tab: ChromeTab) => void
+    >;
   };
   sidePanel?: {
     setPanelBehavior(opts: { openPanelOnActionClick: boolean }): Promise<void>;

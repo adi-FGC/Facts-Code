@@ -23,7 +23,13 @@
  * fallback, not the import edge; dynamic dispatch is never inferred.
  */
 
-import type { FileOutline, Symbol as SymbolDecl, SymbolNode, SymbolEdge, Confidence } from '@factstack/spec';
+import type {
+  FileOutline,
+  Symbol as SymbolDecl,
+  SymbolNode,
+  SymbolEdge,
+  Confidence,
+} from '@factstack/spec';
 import { symbolId } from '@factstack/spec';
 import type { RawRef } from '@factstack/extractors';
 
@@ -66,7 +72,10 @@ function enclosing(nodes: readonly SymbolNode[], line: number): SymbolNode | und
   let best: SymbolNode | undefined;
   for (const n of nodes) {
     if (line < n.startLine || line > n.endLine) continue;
-    if (!best) { best = n; continue; }
+    if (!best) {
+      best = n;
+      continue;
+    }
     const span = n.endLine - n.startLine;
     const bestSpan = best.endLine - best.startLine;
     if (span < bestSpan || (span === bestSpan && n.startLine > best.startLine)) best = n;
@@ -74,7 +83,8 @@ function enclosing(nodes: readonly SymbolNode[], line: number): SymbolNode | und
   return best;
 }
 
-const byIdAsc = (a: { id: string }, b: { id: string }): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+const byIdAsc = (a: { id: string }, b: { id: string }): number =>
+  a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
 /** Path-shape predicate for "this is test/fixture code, not application code."
  *  Inlined to keep @factstack/graph dependency-free (mirrors the helper in
@@ -82,7 +92,10 @@ const byIdAsc = (a: { id: string }, b: { id: string }): number => (a.id < b.id ?
  *  analyzer, so no backslash handling is needed here. */
 function isTestPath(p: string): boolean {
   const n = p.toLowerCase();
-  if (/(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)) return true;
+  if (
+    /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)
+  )
+    return true;
   return /\.(test|spec)\.[a-z]+$/.test(n);
 }
 
@@ -111,7 +124,8 @@ export function buildSymbolGraph(
   const byName = new Map<string, SymbolNode[]>();
   for (const n of allNodes) {
     const arr = byName.get(n.name);
-    if (arr) arr.push(n); else byName.set(n.name, [n]);
+    if (arr) arr.push(n);
+    else byName.set(n.name, [n]);
   }
   for (const arr of byName.values()) arr.sort(byIdAsc);
 
@@ -121,9 +135,11 @@ export function buildSymbolGraph(
     const m = new Map<string, SymbolNode[]>();
     for (const n of nodes) {
       const a = m.get(n.name);
-      if (a) a.push(n); else m.set(n.name, [n]);
+      if (a) a.push(n);
+      else m.set(n.name, [n]);
     }
-    for (const a of m.values()) a.sort((x, y) => x.startLine - y.startLine || (x.id < y.id ? -1 : 1));
+    for (const a of m.values())
+      a.sort((x, y) => x.startLine - y.startLine || (x.id < y.id ? -1 : 1));
     fileNameIndex.set(path, m);
   }
 
@@ -140,7 +156,8 @@ export function buildSymbolGraph(
 
   // 2. Resolve refs → edges (dedup by from|to|kind, keep the strongest) ----
   const edges = new Map<string, SymbolEdge>();
-  const weight = (e: SymbolEdge): number => rank(e.confidence) * 100 + Math.round((e.confidenceScore ?? 1) * 100);
+  const weight = (e: SymbolEdge): number =>
+    rank(e.confidence) * 100 + Math.round((e.confidenceScore ?? 1) * 100);
 
   for (const o of outlines) {
     const refs = refsByFile.get(o.path);
@@ -165,16 +182,27 @@ export function buildSymbolGraph(
         const targetFile = importTargets?.get(ref.name);
         const viaImport = targetFile ? fileNameIndex.get(targetFile)?.get(ref.name) : undefined;
         if (viaImport && viaImport.length) {
-          to = viaImport[0]; confidence = 'inferred'; score = 0.9;
+          to = viaImport[0];
+          confidence = 'inferred';
+          score = 0.9;
         } else {
           // F2 precision: exclude test/fixture files from the name-collision
           // fallback. A source ref resolving into a test helper (e.g. a local
           // `node` var matching a `node()` fixture builder) is almost always a
           // false edge; genuine test↔test refs resolve via the import path
           // above, not this fallback.
-          const others = (byName.get(ref.name) ?? []).filter((c) => c.path !== o.path && !isTestPath(c.path));
-          if (others.length === 1) { to = others[0]; confidence = 'inferred'; score = 0.7; }
-          else if (others.length > 1) { to = others[0]; confidence = 'ambiguous'; score = 0.4; }
+          const others = (byName.get(ref.name) ?? []).filter(
+            (c) => c.path !== o.path && !isTestPath(c.path),
+          );
+          if (others.length === 1) {
+            to = others[0];
+            confidence = 'inferred';
+            score = 0.7;
+          } else if (others.length > 1) {
+            to = others[0];
+            confidence = 'ambiguous';
+            score = 0.4;
+          }
         }
       }
 

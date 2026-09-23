@@ -48,9 +48,7 @@ test.describe('command palette', () => {
      * role="option" items, wired to the combobox input via
      * aria-controls/aria-activedescendant — so we assert on the option
      * role, the navigable semantics a screen reader actually exposes. */
-    await expect(
-      page.getByRole('option', { name: /vulnerabilities/i }).first(),
-    ).toBeVisible();
+    await expect(page.getByRole('option', { name: /vulnerabilities/i }).first()).toBeVisible();
   });
 
   test('Escape closes the palette', async ({ page }) => {
@@ -69,9 +67,7 @@ test.describe('command palette', () => {
      * keypress → palette filters → Enter → pushState → URL change. */
     await page.keyboard.press('Enter');
     await page.waitForURL('**/about');
-    await expect(
-      page.getByRole('heading', { name: 'FACTS — Fun AI Coding Tools.' }),
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'FACTS — Fun AI Coding Tools.' })).toBeVisible();
   });
 
   test('exposes results as an ARIA listbox with virtual focus tracking', async ({ page }) => {

@@ -28,9 +28,12 @@ export interface EnvCheck {
 }
 
 function detectBrowser(): string {
-  const nav = typeof navigator !== 'undefined'
-    ? navigator as Navigator & { userAgentData?: { brands?: Array<{ brand: string; version: string }> } }
-    : null;
+  const nav =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & {
+          userAgentData?: { brands?: Array<{ brand: string; version: string }> };
+        })
+      : null;
   const brands = nav?.userAgentData?.brands?.map((b) => b.brand).join(' ') ?? '';
   const ua = nav?.userAgent ?? '';
   const haystack = `${brands} ${ua}`;
@@ -42,14 +45,15 @@ function detectBrowser(): string {
 }
 
 function detectOS(): string {
-  const nav = typeof navigator !== 'undefined'
-    ? navigator as Navigator & {
-        userAgentData?: { platform?: string };
-        userAgent?: string;
-        platform?: string;
-        maxTouchPoints?: number;
-      }
-    : null;
+  const nav =
+    typeof navigator !== 'undefined'
+      ? (navigator as Navigator & {
+          userAgentData?: { platform?: string };
+          userAgent?: string;
+          platform?: string;
+          maxTouchPoints?: number;
+        })
+      : null;
   const platform = nav?.userAgentData?.platform || nav?.platform || '';
   const ua = nav?.userAgent || '';
   const raw = `${platform} ${ua}`;
@@ -95,9 +99,10 @@ export async function computeEnvChecks(
     id: 'runtime',
     label: `OS · ${os}`,
     status: os === 'Unknown OS' ? 'warn' : 'ok',
-    detail: os === 'Unknown OS'
-      ? `${browser}; OS was not exposed by this browser.`
-      : `${browser} on ${os}.`,
+    detail:
+      os === 'Unknown OS'
+        ? `${browser}; OS was not exposed by this browser.`
+        : `${browser} on ${os}.`,
   });
 
   const hasFolderInput = hasDirectoryInput();
@@ -112,14 +117,16 @@ export async function computeEnvChecks(
 
   /* File System Access API — capability, not permission. Either the
         browser exposes the picker or it doesn't. No grant path. */
-  const hasFsa = typeof (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker === 'function';
+  const hasFsa =
+    typeof (globalThis as unknown as { showDirectoryPicker?: unknown }).showDirectoryPicker ===
+    'function';
   out.push({
     id: 'fsa',
     label: 'File System Access',
     status: hasFsa ? 'ok' : 'fail',
     detail: hasFsa
       ? 'Browser supports picking local directories.'
-      : 'Your browser doesn\'t expose showDirectoryPicker. Use Chrome, Edge, or Safari 15.2+.',
+      : "Your browser doesn't expose showDirectoryPicker. Use Chrome, Edge, or Safari 15.2+.",
   });
 
   /* 2. Persistent storage — IDB recents survive browser cleanup pressure
@@ -140,13 +147,15 @@ export async function computeEnvChecks(
         detail: persisted
           ? 'Recent projects survive browser restarts.'
           : 'Recents may be evicted under storage pressure. Optional — granting helps recents stick.',
-        ...(persisted ? {} : {
-          grant: async () => {
-            if (typeof storage.persist === 'function') {
-              await storage.persist();
-            }
-          },
-        }),
+        ...(persisted
+          ? {}
+          : {
+              grant: async () => {
+                if (typeof storage.persist === 'function') {
+                  await storage.persist();
+                }
+              },
+            }),
       });
     } catch {
       /* Probe failed — skip the row. Don't surface a fake warning for
@@ -171,11 +180,14 @@ export async function computeEnvChecks(
           id: 'read',
           label: `Read access · ${handle.name}`,
           status: read === 'granted' ? 'ok' : 'fail',
-          detail: read === 'granted'
-            ? 'Analyzer can walk the directory.'
-            : 'Browser revoked read access. Re-pick the folder to restore it.',
+          detail:
+            read === 'granted'
+              ? 'Analyzer can walk the directory.'
+              : 'Browser revoked read access. Re-pick the folder to restore it.',
         });
-      } catch { /* skip silently */ }
+      } catch {
+        /* skip silently */
+      }
 
       try {
         const write = await perm.queryPermission({ mode: 'readwrite' });
@@ -183,16 +195,21 @@ export async function computeEnvChecks(
           id: 'write',
           label: `Write access · ${handle.name}`,
           status: write === 'granted' ? 'ok' : 'warn',
-          detail: write === 'granted'
-            ? 'Save writes .facts/ without prompting.'
-            : 'Save will request write permission when you click it. Click Grant to do it now.',
-          ...(write === 'granted' || typeof perm.requestPermission !== 'function' ? {} : {
-            grant: async () => {
-              await perm.requestPermission!({ mode: 'readwrite' });
-            },
-          }),
+          detail:
+            write === 'granted'
+              ? 'Save writes .facts/ without prompting.'
+              : 'Save will request write permission when you click it. Click Grant to do it now.',
+          ...(write === 'granted' || typeof perm.requestPermission !== 'function'
+            ? {}
+            : {
+                grant: async () => {
+                  await perm.requestPermission!({ mode: 'readwrite' });
+                },
+              }),
         });
-      } catch { /* skip silently */ }
+      } catch {
+        /* skip silently */
+      }
     }
   }
 

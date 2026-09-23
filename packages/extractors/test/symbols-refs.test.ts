@@ -12,9 +12,7 @@ import { extractSymbolRefs, countRefsByName, type RawRef } from '../src/symbols-
 describe('extractSymbolRefs — call sites', () => {
   it('detects a direct call: foo()', () => {
     const refs = extractSymbolRefs('foo();', '.ts');
-    expect(refs).toEqual<RawRef[]>([
-      { name: 'foo', line: 1, kind: 'call', heuristic: false },
-    ]);
+    expect(refs).toEqual<RawRef[]>([{ name: 'foo', line: 1, kind: 'call', heuristic: false }]);
   });
 
   it('detects a method-style call: x.foo() — records the root', () => {
@@ -25,7 +23,12 @@ describe('extractSymbolRefs — call sites', () => {
 
   it('detects multiple distinct calls in one expression', () => {
     const refs = extractSymbolRefs('a(b(c()));', '.ts');
-    expect(refs.filter((r) => r.kind === 'call').map((r) => r.name).sort()).toEqual(['a', 'b', 'c']);
+    expect(
+      refs
+        .filter((r) => r.kind === 'call')
+        .map((r) => r.name)
+        .sort(),
+    ).toEqual(['a', 'b', 'c']);
   });
 
   it('does NOT count the function being declared as a call to itself', () => {
@@ -36,27 +39,18 @@ describe('extractSymbolRefs — call sites', () => {
 
 describe('extractSymbolRefs — JSX components', () => {
   it('detects <Component /> as a jsx ref', () => {
-    const refs = extractSymbolRefs(
-      'const x = <MyComponent />;',
-      '.tsx',
-    );
+    const refs = extractSymbolRefs('const x = <MyComponent />;', '.tsx');
     const jsxRefs = refs.filter((r) => r.kind === 'jsx');
     expect(jsxRefs).toEqual([{ name: 'MyComponent', line: 1, kind: 'jsx', heuristic: false }]);
   });
 
   it('does NOT count lowercase HTML elements as refs', () => {
-    const refs = extractSymbolRefs(
-      'const x = <div><span /></div>;',
-      '.tsx',
-    );
+    const refs = extractSymbolRefs('const x = <div><span /></div>;', '.tsx');
     expect(refs.filter((r) => r.kind === 'jsx')).toEqual([]);
   });
 
   it('counts both component and its prop usage', () => {
-    const refs = extractSymbolRefs(
-      'const x = <MyComponent value={otherVar} />;',
-      '.tsx',
-    );
+    const refs = extractSymbolRefs('const x = <MyComponent value={otherVar} />;', '.tsx');
     expect(refs.filter((r) => r.name === 'MyComponent').length).toBeGreaterThan(0);
     expect(refs.filter((r) => r.name === 'otherVar').length).toBeGreaterThan(0);
   });
@@ -64,19 +58,13 @@ describe('extractSymbolRefs — JSX components', () => {
 
 describe('extractSymbolRefs — TypeScript type references', () => {
   it('detects : SomeType as a type-ref', () => {
-    const refs = extractSymbolRefs(
-      'function f(x: User): void {}',
-      '.ts',
-    );
+    const refs = extractSymbolRefs('function f(x: User): void {}', '.ts');
     const typeRefs = refs.filter((r) => r.kind === 'type-ref');
     expect(typeRefs.find((r) => r.name === 'User')).toBeDefined();
   });
 
   it('detects generic type args', () => {
-    const refs = extractSymbolRefs(
-      'const xs: Array<User> = [];',
-      '.ts',
-    );
+    const refs = extractSymbolRefs('const xs: Array<User> = [];', '.ts');
     const typeRefs = refs.filter((r) => r.kind === 'type-ref');
     expect(typeRefs.map((r) => r.name).sort()).toEqual(['Array', 'User']);
   });
@@ -91,10 +79,7 @@ describe('extractSymbolRefs — skip set', () => {
   });
 
   it('skips object property keys (not shorthand)', () => {
-    const refs = extractSymbolRefs(
-      'const obj = { foo: someVar };',
-      '.ts',
-    );
+    const refs = extractSymbolRefs('const obj = { foo: someVar };', '.ts');
     /* `foo` is a key — should NOT appear as a ref. `someVar` should. */
     expect(refs.find((r) => r.name === 'foo')).toBeUndefined();
     expect(refs.find((r) => r.name === 'someVar')).toBeDefined();
@@ -125,10 +110,7 @@ describe('extractSymbolRefs — dedupe', () => {
   });
 
   it('counts one ref when the same call appears on consecutive lines', () => {
-    const refs = extractSymbolRefs(
-      'foo();\nfoo();',
-      '.ts',
-    );
+    const refs = extractSymbolRefs('foo();\nfoo();', '.ts');
     const callRefs = refs.filter((r) => r.name === 'foo' && r.kind === 'call');
     expect(callRefs.length).toBe(2); // different lines, both kept
   });
@@ -149,10 +131,7 @@ describe('countRefsByName', () => {
 
 describe('extractSymbolRefs — output shape', () => {
   it('sorts deterministically by line then kind then name', () => {
-    const refs = extractSymbolRefs(
-      'foo();\nbar();\n<MyComp />\nfoo();',
-      '.tsx',
-    );
+    const refs = extractSymbolRefs('foo();\nbar();\n<MyComp />\nfoo();', '.tsx');
     const lines = refs.map((r) => r.line);
     const sorted = [...lines].sort((a, b) => a - b);
     expect(lines).toEqual(sorted);

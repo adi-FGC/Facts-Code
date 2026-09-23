@@ -31,8 +31,18 @@ export function Security(handle: Handle<SecurityProps>) {
       ariaLabel="Security view"
       views={[
         { key: 'risks', label: 'Risks', path: '/risks', render: (d) => <Risks data={d} /> },
-        { key: 'secrets', label: 'Secrets', path: '/credentials', render: (d) => <Credentials data={d} /> },
-        { key: 'vulns', label: 'Vulnerabilities', path: '/vulnerabilities', render: (d) => <Vulnerabilities data={d} /> },
+        {
+          key: 'secrets',
+          label: 'Secrets',
+          path: '/credentials',
+          render: (d) => <Credentials data={d} />,
+        },
+        {
+          key: 'vulns',
+          label: 'Vulnerabilities',
+          path: '/vulnerabilities',
+          render: (d) => <Vulnerabilities data={d} />,
+        },
       ]}
     />
   );

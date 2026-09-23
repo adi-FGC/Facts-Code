@@ -42,7 +42,13 @@ describe('buildContextStore (F9)', () => {
   it('a task closed by a later event drops off the open list', () => {
     const events = [
       contextRecordEvent({ kind: 'task', key: 't1', text: 'ship F9', timestamp: ts(1) }),
-      contextRecordEvent({ kind: 'task', key: 't1', text: 'ship F9', status: 'accepted', timestamp: ts(5) }),
+      contextRecordEvent({
+        kind: 'task',
+        key: 't1',
+        text: 'ship F9',
+        status: 'accepted',
+        timestamp: ts(5),
+      }),
     ];
     expect(buildContextStore(events).tasks).toHaveLength(0);
   });
@@ -57,7 +63,9 @@ describe('buildContextStore (F9)', () => {
       contextRecordEvent({ kind: 'task', text: 'x', timestamp: ts(1) }),
       contextRecordEvent({ kind: 'decision', text: 'y', timestamp: ts(2) }),
     ];
-    expect(JSON.stringify(buildContextStore(events))).toBe(JSON.stringify(buildContextStore(events)));
+    expect(JSON.stringify(buildContextStore(events))).toBe(
+      JSON.stringify(buildContextStore(events)),
+    );
   });
 });
 
@@ -72,12 +80,16 @@ describe('recentSessionEntities (F9)', () => {
   });
 
   it('respects the cap', () => {
-    const events = [sessionActionEvent({ action: 'served', entities: ['a', 'b', 'c', 'd'], timestamp: ts(1) })];
+    const events = [
+      sessionActionEvent({ action: 'served', entities: ['a', 'b', 'c', 'd'], timestamp: ts(1) }),
+    ];
     expect(recentSessionEntities(events, 2)).toEqual(['a', 'b']);
   });
 
   it('ignores non-session events', () => {
-    const events = [contextRecordEvent({ kind: 'decision', text: 'd', entities: ['x.ts'], timestamp: ts(1) })];
+    const events = [
+      contextRecordEvent({ kind: 'decision', text: 'd', entities: ['x.ts'], timestamp: ts(1) }),
+    ];
     expect(recentSessionEntities(events)).toEqual([]);
   });
 });
@@ -95,16 +107,25 @@ describe('resolveCloseTarget (F9)', () => {
   ]);
 
   it('matches an open task by explicit key', () => {
-    expect(resolveCloseTarget(store, 'task', 'mykey', 'whatever')).toEqual({ key: 'mykey', matched: true });
+    expect(resolveCloseTarget(store, 'task', 'mykey', 'whatever')).toEqual({
+      key: 'mykey',
+      matched: true,
+    });
   });
 
-  it('adopts the keyed record\'s key when only the text matches — close actually closes', () => {
+  it("adopts the keyed record's key when only the text matches — close actually closes", () => {
     const target = resolveCloseTarget(store, 'task', undefined, 'do the thing');
     expect(target).toEqual({ key: 'mykey', matched: true });
     // End-to-end: a close event with the adopted key empties the open list.
     const after = buildContextStore([
       contextRecordEvent({ kind: 'task', key: 'mykey', text: 'do the thing', timestamp: ts(1) }),
-      contextRecordEvent({ kind: 'task', key: target.key!, text: 'do the thing', status: 'accepted', timestamp: ts(5) }),
+      contextRecordEvent({
+        kind: 'task',
+        key: target.key!,
+        text: 'do the thing',
+        status: 'accepted',
+        timestamp: ts(5),
+      }),
     ]);
     expect(after.tasks).toHaveLength(0);
   });
@@ -127,7 +148,7 @@ describe('resolveCloseTarget (F9)', () => {
  * finding: identical repeated serves must not grow the log one line per call).
  */
 describe('lastServedEntities (F9)', () => {
-  it('returns the MOST RECENT served event\'s entities', () => {
+  it("returns the MOST RECENT served event's entities", () => {
     const events = [
       sessionActionEvent({ action: 'served', entities: ['a.ts'], timestamp: ts(1) }),
       sessionActionEvent({ action: 'served', entities: ['b.ts', 'c.ts'], timestamp: ts(3) }),
@@ -137,6 +158,10 @@ describe('lastServedEntities (F9)', () => {
   });
 
   it('is empty when no served event exists', () => {
-    expect(lastServedEntities([sessionActionEvent({ action: 'read', entities: ['a.ts'], timestamp: ts(1) })])).toEqual([]);
+    expect(
+      lastServedEntities([
+        sessionActionEvent({ action: 'read', entities: ['a.ts'], timestamp: ts(1) }),
+      ]),
+    ).toEqual([]);
   });
 });

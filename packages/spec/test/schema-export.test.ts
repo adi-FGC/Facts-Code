@@ -10,11 +10,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  agentJsonSchema,
-  humanJsonSchema,
-  jsonSchemaByKind,
-} from '../src/schema-export.js';
+import { agentJsonSchema, humanJsonSchema, jsonSchemaByKind } from '../src/schema-export.js';
 
 describe('agentJsonSchema', () => {
   it('returns an object with properties (or definitions/$ref)', () => {

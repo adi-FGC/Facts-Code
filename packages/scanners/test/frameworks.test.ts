@@ -1,33 +1,48 @@
 import { describe, expect, it } from 'vitest';
-import { scanFrameworksFromPackageJson, scanFrameworksFromRequirements, mergeFrameworks } from '../src/frameworks.js';
+import {
+  scanFrameworksFromPackageJson,
+  scanFrameworksFromRequirements,
+  mergeFrameworks,
+} from '../src/frameworks.js';
 
 describe('scanFrameworksFromPackageJson', () => {
   it('detects React from dependencies', () => {
-    const out = scanFrameworksFromPackageJson(JSON.stringify({
-      name: 'app', dependencies: { react: '^19.0.0' },
-    }));
+    const out = scanFrameworksFromPackageJson(
+      JSON.stringify({
+        name: 'app',
+        dependencies: { react: '^19.0.0' },
+      }),
+    );
     expect(out.frameworks).toContain('React');
   });
 
   it('detects multiple frameworks from a real-world package shape', () => {
-    const out = scanFrameworksFromPackageJson(JSON.stringify({
-      name: 'app',
-      dependencies: { react: '^19', vite: '^7', tailwindcss: '^3', '@reduxjs/toolkit': '^2' },
-    }));
+    const out = scanFrameworksFromPackageJson(
+      JSON.stringify({
+        name: 'app',
+        dependencies: { react: '^19', vite: '^7', tailwindcss: '^3', '@reduxjs/toolkit': '^2' },
+      }),
+    );
     expect(out.frameworks).toEqual(expect.arrayContaining(['React', 'Vite', 'Tailwind CSS']));
   });
 
   it('returns scripts from package.json', () => {
-    const out = scanFrameworksFromPackageJson(JSON.stringify({
-      name: 'app', scripts: { dev: 'vite', build: 'vite build' },
-    }));
+    const out = scanFrameworksFromPackageJson(
+      JSON.stringify({
+        name: 'app',
+        scripts: { dev: 'vite', build: 'vite build' },
+      }),
+    );
     expect(out.scripts).toEqual({ dev: 'vite', build: 'vite build' });
   });
 
   it('handles devDependencies too', () => {
-    const out = scanFrameworksFromPackageJson(JSON.stringify({
-      name: 'app', devDependencies: { typescript: '^5' },
-    }));
+    const out = scanFrameworksFromPackageJson(
+      JSON.stringify({
+        name: 'app',
+        devDependencies: { typescript: '^5' },
+      }),
+    );
     expect(out.frameworks).toContain('TypeScript');
   });
 
@@ -70,9 +85,16 @@ describe('scanFrameworksFromRequirements (Python)', () => {
 
 describe('mergeFrameworks', () => {
   it('dedupes across lists', () => {
-    expect(mergeFrameworks([['React', 'Vite'], ['React', 'Tailwind CSS']]))
-      .toEqual(expect.arrayContaining(['React', 'Vite', 'Tailwind CSS']));
-    const r = mergeFrameworks([['React', 'Vite'], ['React', 'Tailwind CSS']]);
+    expect(
+      mergeFrameworks([
+        ['React', 'Vite'],
+        ['React', 'Tailwind CSS'],
+      ]),
+    ).toEqual(expect.arrayContaining(['React', 'Vite', 'Tailwind CSS']));
+    const r = mergeFrameworks([
+      ['React', 'Vite'],
+      ['React', 'Tailwind CSS'],
+    ]);
     expect(r.filter((x) => x === 'React')).toHaveLength(1);
   });
 

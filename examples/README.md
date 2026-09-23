@@ -13,6 +13,7 @@ Without these, regressions would ship silently because the UI would still look f
 - `pnpm-monorepo/` — multi-package workspace; tests graph partitioning.
 
 Each fixture ships with:
+
 - A real (but small) codebase.
 - A committed `expected/agent.json` golden file.
 - A committed `expected/human.json` golden file.

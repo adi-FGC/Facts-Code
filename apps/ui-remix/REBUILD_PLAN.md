@@ -6,6 +6,7 @@
 > of re-litigating them.
 >
 > **Companion docs**:
+>
 > - [`design_spec.md`](../../design_spec.md) — full design spec (liquid-glass, breakpoints, motion)
 > - [`app_spec.md`](../../app_spec.md) — product spec (audience, use cases)
 > - [`TASKS.md`](./TASKS.md) — what's ported, what's still ahead
@@ -18,15 +19,15 @@
 > with terminal-tinted data. Bloomberg Terminal redesigned by the
 > Financial Times.
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Display | **Fraunces** variable (optical sizing 9–144, weight 500–800) | Real editorial gravitas. Not Inter, not Geist. |
-| Body sans | **Mona Sans** variable | Distinctive without precious. Avoids AI-default Inter (explicitly named in the frontend-design DON'T list). |
-| Mono | **JetBrains Mono** variable + ss01/cv03 axes | Variable axis lets weight do the lifting on data. |
-| Accent | **Safety orange** `oklch(64% 0.17 50)` light / `oklch(74% 0.15 50)` dark | Construction-sign hue. Says *"this is real work, look at the risk."* Never AI cyan/purple. |
-| Palette | Warm-tinted OKLCH neutrals at hue 65° (light), 250° (dark) — **not inverted** | Subconscious cohesion via consistent hue bias. |
-| Surfaces | **Borders only** — zero drop shadows | Drop-shadow rounded rectangles ARE the AI tell. Eliminate them. |
-| Glass | Top nav (Header) ONLY | Per `design_spec.md` §2 — chrome, not content. StatusBar is NOT glass. |
+| Decision  | Choice                                                                        | Rationale                                                                                                   |
+| --------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Display   | **Fraunces** variable (optical sizing 9–144, weight 500–800)                  | Real editorial gravitas. Not Inter, not Geist.                                                              |
+| Body sans | **Mona Sans** variable                                                        | Distinctive without precious. Avoids AI-default Inter (explicitly named in the frontend-design DON'T list). |
+| Mono      | **JetBrains Mono** variable + ss01/cv03 axes                                  | Variable axis lets weight do the lifting on data.                                                           |
+| Accent    | **Safety orange** `oklch(64% 0.17 50)` light / `oklch(74% 0.15 50)` dark      | Construction-sign hue. Says _"this is real work, look at the risk."_ Never AI cyan/purple.                  |
+| Palette   | Warm-tinted OKLCH neutrals at hue 65° (light), 250° (dark) — **not inverted** | Subconscious cohesion via consistent hue bias.                                                              |
+| Surfaces  | **Borders only** — zero drop shadows                                          | Drop-shadow rounded rectangles ARE the AI tell. Eliminate them.                                             |
+| Glass     | Top nav (Header) ONLY                                                         | Per `design_spec.md` §2 — chrome, not content. StatusBar is NOT glass.                                      |
 
 ### Five visual signatures
 
@@ -78,18 +79,18 @@ Styles are `mix={css({...})}` per element. Globals in
 
 ### 2.3 Primitive library (`apps/ui-remix/src/ui/`)
 
-| Primitive | Responsibility |
-|---|---|
-| `MonoNum` | Wraps every numeric stat — tabular-nums + lining-nums + ss01/cv03 + variable weight |
-| `Section` | Hairline-topped, optional label + display title + children. Replaces "card with header bar." |
-| `LabelNumber` + `LabelNumberRow` | The FT/Bloomberg label/number pair pattern. Hairline-divided columns. `numberStyle` matches `MonoNum`'s feature axes exactly. |
-| `RuledTable` + `RuledRow` + `RuledCell` | Hairline-divided table cells via CSS Grid. No row borders, no row backgrounds. |
-| `ContentWithMargin` + `MarginColumn` | Broadsheet two-column layout. Margin collapses below 1280px via grid template change — pure CSS, no JS. |
-| `FootnoteChip` | Annotation block: label + value + optional aside. Colored 2px left rule by `tone`. |
-| `StatusChip` | Short colored bar + tracked uppercase mono label. No fill, no rounded box. |
-| `RiskRow` | Severity bar + message + meta + optional redacted preview. Hairline-divided. |
-| `Sparkline` | Inline SVG mini-chart for History only. ~50 lines, no chart lib. Justified per anti-slop rule because the series carries real meaning. |
-| `NumberedNav` | Broadsheet-style tab row with classified-document numbering. Active section's number burns accent + adds underline rule. Porting tabs get a `°` footnote-style marker. |
+| Primitive                               | Responsibility                                                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MonoNum`                               | Wraps every numeric stat — tabular-nums + lining-nums + ss01/cv03 + variable weight                                                                                    |
+| `Section`                               | Hairline-topped, optional label + display title + children. Replaces "card with header bar."                                                                           |
+| `LabelNumber` + `LabelNumberRow`        | The FT/Bloomberg label/number pair pattern. Hairline-divided columns. `numberStyle` matches `MonoNum`'s feature axes exactly.                                          |
+| `RuledTable` + `RuledRow` + `RuledCell` | Hairline-divided table cells via CSS Grid. No row borders, no row backgrounds.                                                                                         |
+| `ContentWithMargin` + `MarginColumn`    | Broadsheet two-column layout. Margin collapses below 1280px via grid template change — pure CSS, no JS.                                                                |
+| `FootnoteChip`                          | Annotation block: label + value + optional aside. Colored 2px left rule by `tone`.                                                                                     |
+| `StatusChip`                            | Short colored bar + tracked uppercase mono label. No fill, no rounded box.                                                                                             |
+| `RiskRow`                               | Severity bar + message + meta + optional redacted preview. Hairline-divided.                                                                                           |
+| `Sparkline`                             | Inline SVG mini-chart for History only. ~50 lines, no chart lib. Justified per anti-slop rule because the series carries real meaning.                                 |
+| `NumberedNav`                           | Broadsheet-style tab row with classified-document numbering. Active section's number burns accent + adds underline rule. Porting tabs get a `°` footnote-style marker. |
 
 **Lock-in flag**: `Sparkline` rendering is intentionally trivial (no
 markers, no axes, no tooltips). If trends earn richer interaction,
@@ -124,12 +125,14 @@ and `MarginColumn` chips fall into the body flow.
 ### 2.5 Anti-slop guardrails
 
 Active:
+
 - **Bundle gate** — `apps/ui-remix/scripts/check-bundle-size.mjs` runs after every build. Caps: JS 150 KB raw / 50 KB gzip · CSS 24 KB raw / 8 KB gzip. Bumping the caps requires a deliberate commit. Current envelope: 101 KB JS / 31 KB gzip · 9 KB CSS / 2.6 KB gzip.
 - **Glass surface restriction** — `.glass` class is reserved for chrome (currently only `Header`). Documented in `glass.css`. If a content component pulls it in, the inset meniscus + `contain: paint` collide with content sizing.
 - **No `box-shadow`** anywhere outside `glass.css`. The inset meniscus is the entire shadow budget.
 - **Every numeric must wrap in `MonoNum` or use a `mono`-classed element with tabular-nums.** `LabelNumber.numberStyle` is kept feature-axis aligned with `MonoNum` so both render identically.
 
 Future (in TASKS.md):
+
 - Stylelint rule: flag `box-shadow` outside `packages/ui-theme/src/glass.css`.
 - Stylelint rule: flag `border-radius` > 8px unless selector includes `.pill`.
 - Visual regression via Playwright snapshots at 390px / 1280px / 3840px.
@@ -155,12 +158,12 @@ this is a branch (`apps-remix3`), not a series of merge-to-main PRs.
 
 ## 4. What the reviewer caught
 
-| # | Severity | Issue | Fix |
-|---|---|---|---|
-| 1 | Critical | `StatusBar` had `class="glass"` — colophon is content-adjacent, not chrome; `wrap` CSS already set `background: var(--bg)` collision; `contain: paint` clipped scrollbar bleed | Removed `class="glass"` |
-| 2 | Critical | `prefers-color-scheme: dark` only set `color-scheme: dark` — didn't apply any dark tokens. CSP-blocked / sandboxed contexts rendered in light on dark systems | Duplicated full dark-token block under the `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) }` branch |
-| 3 | Important | `NumberedNav` reads `location.pathname` directly inside the render closure | **Deferred.** Architecture intentionally re-renders the entire App on every nav event from `main.tsx` (via `popstate` + `factstack:nav` listeners that call `root.render(<App />)`). Verified working live. The reviewer's SSR concern doesn't apply since this is CSR-only by design. |
-| 4 | Important | `LabelNumber.numberStyle` had `tabular-nums` but was missing the `ss01/cv03` `font-feature-settings` that `MonoNum` sets — values rendered through `value` prop got different optical treatment than values wrapped in `<MonoNum>` | Folded `fontFeatureSettings: '"ss01", "cv03"'` into `numberStyle` |
+| #   | Severity  | Issue                                                                                                                                                                                                                              | Fix                                                                                                                                                                                                                                                                                    |
+| --- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Critical  | `StatusBar` had `class="glass"` — colophon is content-adjacent, not chrome; `wrap` CSS already set `background: var(--bg)` collision; `contain: paint` clipped scrollbar bleed                                                     | Removed `class="glass"`                                                                                                                                                                                                                                                                |
+| 2   | Critical  | `prefers-color-scheme: dark` only set `color-scheme: dark` — didn't apply any dark tokens. CSP-blocked / sandboxed contexts rendered in light on dark systems                                                                      | Duplicated full dark-token block under the `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) }` branch                                                                                                                                                            |
+| 3   | Important | `NumberedNav` reads `location.pathname` directly inside the render closure                                                                                                                                                         | **Deferred.** Architecture intentionally re-renders the entire App on every nav event from `main.tsx` (via `popstate` + `factstack:nav` listeners that call `root.render(<App />)`). Verified working live. The reviewer's SSR concern doesn't apply since this is CSR-only by design. |
+| 4   | Important | `LabelNumber.numberStyle` had `tabular-nums` but was missing the `ss01/cv03` `font-feature-settings` that `MonoNum` sets — values rendered through `value` prop got different optical treatment than values wrapped in `<MonoNum>` | Folded `fontFeatureSettings: '"ss01", "cv03"'` into `numberStyle`                                                                                                                                                                                                                      |
 
 ---
 

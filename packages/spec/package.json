@@ -16,7 +16,9 @@
     "./mcp": "./src/mcp.ts",
     "./routes": "./src/routes.ts",
     "./review": "./src/review.ts",
-    "./mcp-catalog": "./src/mcp-catalog.ts"
+    "./mcp-catalog": "./src/mcp-catalog.ts",
+    "./review-severity": "./src/review-severity.ts",
+    "./git": "./src/git.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -32,6 +34,6 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^5.6.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   }
 }

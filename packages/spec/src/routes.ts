@@ -14,7 +14,7 @@
  * the UI's routes.ts imports `ROUTE_CATALOG` from here and derives its
  * `TABS` / `ICON_TABS` hrefs from it, so the two can't drift.
  *
- * 11 routes total: 9 numbered nav tabs + 2 right-side icon destinations
+ * 12 routes total: 10 numbered nav tabs + 2 right-side icon destinations
  * (Config gear, About ?↔!). Order matches the UI's tablist.
  */
 
@@ -25,7 +25,7 @@ export interface RouteMeta {
   label: string;
 }
 
-/** The 9 numbered nav tabs, in display order. */
+/** The 10 numbered nav tabs, in display order. */
 export const ROUTE_CATALOG: readonly RouteMeta[] = [
   { path: '/', label: 'Overview' },
   { path: '/architecture', label: 'Architecture' },
@@ -36,6 +36,8 @@ export const ROUTE_CATALOG: readonly RouteMeta[] = [
   { path: '/security', label: 'Security' },
   { path: '/tests', label: 'Tests' },
   { path: '/history', label: 'History' },
+  /* v0.3.11 — worktrees, branches, request dates, commit + deploy readiness. */
+  { path: '/worktrees', label: 'Worktrees' },
   /* Right-side icon destinations — reachable by URL + the header
      ConfigIcon / AboutIcon, but not part of the numbered nav. */
   { path: '/config', label: 'Config' },

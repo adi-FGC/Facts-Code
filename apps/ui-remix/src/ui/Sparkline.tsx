@@ -61,7 +61,7 @@ export function Sparkline(handle: Handle<SparklineProps>) {
         return `${x.toFixed(1)},${y.toFixed(1)}`;
       })
       .join(' ');
-    const area = `${points} ${(width).toFixed(1)},${height} 0,${height}`;
+    const area = `${points} ${width.toFixed(1)},${height} 0,${height}`;
     return (
       <svg
         viewBox={`0 0 ${width} ${height}`}
@@ -72,7 +72,14 @@ export function Sparkline(handle: Handle<SparklineProps>) {
         mix={css({ display: 'inline-block', verticalAlign: 'middle', overflow: 'visible' })}
       >
         <polygon points={area} fill={color} fillOpacity="0.12" />
-        <polyline points={points} fill="none" stroke={color} strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.25"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
     );
   };

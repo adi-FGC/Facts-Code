@@ -11,7 +11,15 @@
  * artifact lives alongside (not instead of) agent.json + human.json.
  */
 
-import type { AgentArtifact, DependencyManifest, DocFile, HumanArtifact, StyleAudit, Vulnerability } from '@factstack/spec';
+import type {
+  AgentArtifact,
+  DependencyManifest,
+  DocFile,
+  HumanArtifact,
+  StyleAudit,
+  Vulnerability,
+  GitTopology,
+} from '@factstack/spec';
 import { byCodeUnit } from '@factstack/spec';
 
 export interface VizLanguage {
@@ -48,7 +56,14 @@ export interface VizTreeNode {
   path: string;
   files: VizFile[];
   children: VizTreeNode[];
-  rollup?: { size: number; gzip: number; tokens: number; files: number; loc: number; todos: number };
+  rollup?: {
+    size: number;
+    gzip: number;
+    tokens: number;
+    files: number;
+    loc: number;
+    todos: number;
+  };
 }
 
 export interface VizSnapshot {
@@ -97,7 +112,13 @@ export interface VizArtifact {
    * Empty array (not absent) when no routes were detected, so the UI
    * can render the empty state without an `if (routes)` guard.
    */
-  routes: Array<{ framework: string; method: string | null; path: string; handlerFile: string; handlerSymbol: string | null }>;
+  routes: Array<{
+    framework: string;
+    method: string | null;
+    path: string;
+    handlerFile: string;
+    handlerSymbol: string | null;
+  }>;
   risks: Array<{
     severity: string;
     category: string;
@@ -123,12 +144,24 @@ export interface VizArtifact {
       reads: Array<{
         file: string;
         line: number;
-        access: 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown';
+        access:
+          | 'process.env'
+          | 'import.meta.env'
+          | 'os.getenv'
+          | 'os.environ'
+          | 'destructure'
+          | 'unknown';
         defaultValue: string | null;
       }>;
       defaults: string[];
       primaryAccess:
-        | 'process.env' | 'import.meta.env' | 'os.getenv' | 'os.environ' | 'destructure' | 'unknown' | null;
+        | 'process.env'
+        | 'import.meta.env'
+        | 'os.getenv'
+        | 'os.environ'
+        | 'destructure'
+        | 'unknown'
+        | null;
     }>;
     schemas: unknown[];
   };
@@ -138,50 +171,88 @@ export interface VizArtifact {
    *  single source of truth — no shape drift between artifact and viz. */
   dependencyManifests: DependencyManifest[];
   vulnerabilities: Vulnerability[];
+  /** v0.11 metadata of the last `scan-vulns` run. Without it an empty
+   *  vulnerabilities list is indistinguishable from "never scanned". */
+  vulnerabilityScan?: AgentArtifact['vulnerabilityScan'];
   /** v0.8 — flagged documentation files with parsed structure + capped raw
    *  content. Always present (empty array when no docs were detected). */
   docs: DocFile[];
   /** v0.8 — CSS / styling audit of the scanned project. Absent when the
    *  project has no stylesheet sources. */
   styles?: StyleAudit;
+  /** v0.3.11 — worktrees / branches / readiness for the Worktrees tab.
+   *  Absent when the project is not a git repo or the adapter didn't
+   *  collect it. */
+  git?: GitTopology;
 }
 
 /** Language-brand colors mirror the ones used by the prototype scan.mjs. */
 const LANG_COLORS: Record<string, string> = {
   typescript: '#3178c6',
   javascript: '#f7df1e',
-  python:     '#3776ab',
-  json:       '#cbd5e1',
-  yaml:       '#cb171e',
-  toml:       '#9c4221',
-  markdown:   '#60a5fa',
-  html:       '#e34f26',
-  css:        '#1572b6',
-  scss:       '#c6538c',
-  svg:        '#ffb13b',
-  go:         '#00add8',
-  rust:       '#dea584',
-  java:       '#b07219',
-  kotlin:     '#a97bff',
-  swift:      '#f05138',
-  csharp:     '#178600',
-  php:        '#4f5d95',
-  ruby:       '#701516',
+  python: '#3776ab',
+  json: '#cbd5e1',
+  yaml: '#cb171e',
+  toml: '#9c4221',
+  markdown: '#60a5fa',
+  html: '#e34f26',
+  css: '#1572b6',
+  scss: '#c6538c',
+  svg: '#ffb13b',
+  go: '#00add8',
+  rust: '#dea584',
+  java: '#b07219',
+  kotlin: '#a97bff',
+  swift: '#f05138',
+  csharp: '#178600',
+  php: '#4f5d95',
+  ruby: '#701516',
 };
 
 const LANG_TAGS: Record<string, string> = {
-  typescript: 'TS', javascript: 'JS', python: 'PY', json: 'JSON', yaml: 'YAML',
-  toml: 'TOML', markdown: 'MD', html: 'HTML', css: 'CSS', scss: 'SCSS',
-  svg: 'SVG', go: 'GO', rust: 'RS', java: 'JAVA', kotlin: 'KT', swift: 'SWIFT',
-  csharp: 'CS', php: 'PHP', ruby: 'RB', other: '?',
+  typescript: 'TS',
+  javascript: 'JS',
+  python: 'PY',
+  json: 'JSON',
+  yaml: 'YAML',
+  toml: 'TOML',
+  markdown: 'MD',
+  html: 'HTML',
+  css: 'CSS',
+  scss: 'SCSS',
+  svg: 'SVG',
+  go: 'GO',
+  rust: 'RS',
+  java: 'JAVA',
+  kotlin: 'KT',
+  swift: 'SWIFT',
+  csharp: 'CS',
+  php: 'PHP',
+  ruby: 'RB',
+  other: '?',
 };
 
 const LANG_LABELS: Record<string, string> = {
-  typescript: 'TypeScript', javascript: 'JavaScript', python: 'Python',
-  json: 'JSON', yaml: 'YAML', toml: 'TOML', markdown: 'Markdown',
-  html: 'HTML', css: 'CSS', scss: 'SCSS', svg: 'SVG', go: 'Go',
-  rust: 'Rust', java: 'Java', kotlin: 'Kotlin', swift: 'Swift',
-  csharp: 'C#', php: 'PHP', ruby: 'Ruby', other: 'Other',
+  typescript: 'TypeScript',
+  javascript: 'JavaScript',
+  python: 'Python',
+  json: 'JSON',
+  yaml: 'YAML',
+  toml: 'TOML',
+  markdown: 'Markdown',
+  html: 'HTML',
+  css: 'CSS',
+  scss: 'SCSS',
+  svg: 'SVG',
+  go: 'Go',
+  rust: 'Rust',
+  java: 'Java',
+  kotlin: 'Kotlin',
+  swift: 'Swift',
+  csharp: 'C#',
+  php: 'PHP',
+  ruby: 'Ruby',
+  other: 'Other',
 };
 
 function langInfo(id: string | null): VizFile['language'] {
@@ -236,16 +307,36 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
   const tree = toVizTree(human.tree, fileMetaByPath, todosByPath);
 
   // Rollup (post-order) — the prototype reads `rollup` on every directory.
-  (function roll(n: VizTreeNode): { size: number; gzip: number; tokens: number; files: number; loc: number; todos: number } {
-    let size = 0, gzip = 0, tokens = 0, files = 0, loc = 0, todos = 0;
+  (function roll(n: VizTreeNode): {
+    size: number;
+    gzip: number;
+    tokens: number;
+    files: number;
+    loc: number;
+    todos: number;
+  } {
+    let size = 0,
+      gzip = 0,
+      tokens = 0,
+      files = 0,
+      loc = 0,
+      todos = 0;
     for (const f of n.files) {
-      size += f.size; gzip += f.gzip ?? 0; tokens += f.tokens; files++;
-      loc += f.loc; todos += f.todos;
+      size += f.size;
+      gzip += f.gzip ?? 0;
+      tokens += f.tokens;
+      files++;
+      loc += f.loc;
+      todos += f.todos;
     }
     for (const c of n.children) {
       const r = roll(c);
-      size += r.size; gzip += r.gzip; tokens += r.tokens;
-      files += r.files; loc += r.loc; todos += r.todos;
+      size += r.size;
+      gzip += r.gzip;
+      tokens += r.tokens;
+      files += r.files;
+      loc += r.loc;
+      todos += r.todos;
       c.rollup = r;
     }
     return { size, gzip, tokens, files, loc, todos };
@@ -341,8 +432,10 @@ export function humanToViz(agent: AgentArtifact, human: HumanArtifact): VizArtif
        vulns" rather than treating absence as "scan didn't run." */
     dependencyManifests: agent.dependencyManifests,
     vulnerabilities: agent.vulnerabilities,
+    ...(agent.vulnerabilityScan ? { vulnerabilityScan: agent.vulnerabilityScan } : {}),
     docs: agent.docs ?? [],
     ...(agent.styles ? { styles: agent.styles } : {}),
+    ...(agent.git ? { git: agent.git } : {}),
   };
 }
 
@@ -378,13 +471,19 @@ function toVizTree(
         tokens: child.tokenCost,
         todos: todosByPath.get(child.path)?.length ?? 0,
         todoEntries: todosByPath.get(child.path) ?? [],
-        status: (child.status === 'parse_error' ? 'parse_error' : child.status) as VizFile['status'],
+        status: (child.status === 'parse_error'
+          ? 'parse_error'
+          : child.status) as VizFile['status'],
         mtime: meta?.lastModifiedMs ?? 0,
         /* v0.3.8 — pass through reading time + top contributors when
            the analyzer produced them. The Files detail view + the
            tree-row tooltip both consume these fields. */
-        ...(typeof meta?.readingMinutes === 'number' ? { readingMinutes: meta.readingMinutes } : {}),
-        ...(meta?.topContributors && meta.topContributors.length > 0 ? { topContributors: meta.topContributors } : {}),
+        ...(typeof meta?.readingMinutes === 'number'
+          ? { readingMinutes: meta.readingMinutes }
+          : {}),
+        ...(meta?.topContributors && meta.topContributors.length > 0
+          ? { topContributors: meta.topContributors }
+          : {}),
       });
     }
   }

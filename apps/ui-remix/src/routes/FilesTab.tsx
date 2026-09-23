@@ -27,7 +27,12 @@ export function FilesTab(handle: Handle<FilesTabProps>) {
       ariaLabel="Files view"
       views={[
         { key: 'files', label: 'Files', path: '/files', render: (d) => <Files data={d} /> },
-        { key: 'packages', label: 'Packages', path: '/library', render: (d) => <Library data={d} /> },
+        {
+          key: 'packages',
+          label: 'Packages',
+          path: '/library',
+          render: (d) => <Library data={d} />,
+        },
       ]}
     />
   );

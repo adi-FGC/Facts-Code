@@ -61,8 +61,16 @@ function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
     },
     stack: [],
     tree: {
-      id: 'root', name: 'demo', path: '.', kind: 'directory', language: null,
-      loc: 0, tokenCost: 0, bundleSizeGzip: null, status: 'ok', children: [],
+      id: 'root',
+      name: 'demo',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
     },
     graph: { nodes: [], edges: [], cycles: [] },
     activity: [],
@@ -74,12 +82,23 @@ function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
 
 function file(path: string, lang: string, loc: number, tokens: number) {
   return {
-    path, language: lang, loc, bytes: loc * 30,
-    bundleSize: null, tokenCost: tokens,
-    imports: [], exports: [], declarations: [],
-    routes: [], components: [], tests: [], todos: [],
-    complexity: { cyclomatic: 1, cognitive: 1 }, status: 'ok' as const,
-    lastModifiedMs: null, churnScore: null,
+    path,
+    language: lang,
+    loc,
+    bytes: loc * 30,
+    bundleSize: null,
+    tokenCost: tokens,
+    imports: [],
+    exports: [],
+    declarations: [],
+    routes: [],
+    components: [],
+    tests: [],
+    todos: [],
+    complexity: { cyclomatic: 1, cognitive: 1 },
+    status: 'ok' as const,
+    lastModifiedMs: null,
+    churnScore: null,
   };
 }
 
@@ -90,40 +109,53 @@ function file(path: string, lang: string, loc: number, tokens: number) {
 describe('buildMemory — edge-confidence summary (F1)', () => {
   function withEdges(edges: Array<Record<string, unknown>>): AgentArtifact {
     return makeAgent({
-      graph: { nodes: [{ id: 'a.ts' }, { id: 'b.ts' }], edges, cycles: [] } as unknown as AgentArtifact['graph'],
+      graph: {
+        nodes: [{ id: 'a.ts' }, { id: 'b.ts' }],
+        edges,
+        cycles: [],
+      } as unknown as AgentArtifact['graph'],
     });
   }
 
   it('omits the Edge confidence line when every edge is extracted', () => {
-    const out = buildMemory(withEdges([
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
-      { from: 'b.ts', to: 'a.ts', kind: 'import', confidence: 'extracted' },
-    ]), makeHuman());
+    const out = buildMemory(
+      withEdges([
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'b.ts', to: 'a.ts', kind: 'import', confidence: 'extracted' },
+      ]),
+      makeHuman(),
+    );
     expect(out).not.toContain('Edge confidence');
   });
 
   it('omits it for pre-F1 artifacts (missing confidence ⇒ treated as extracted)', () => {
-    const out = buildMemory(withEdges([
-      { from: 'a.ts', to: 'b.ts', kind: 'import' },
-    ]), makeHuman());
+    const out = buildMemory(withEdges([{ from: 'a.ts', to: 'b.ts', kind: 'import' }]), makeHuman());
     expect(out).not.toContain('Edge confidence');
   });
 
   it('shows counts + a "to verify" total once any edge is inferred/ambiguous', () => {
-    const out = buildMemory(withEdges([
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
-    ]), makeHuman());
-    expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred · 2 ambiguous _(3 to verify)_');
+    const out = buildMemory(
+      withEdges([
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'ambiguous' },
+      ]),
+      makeHuman(),
+    );
+    expect(out).toContain(
+      '- **Edge confidence**: 1 extracted · 1 inferred · 2 ambiguous _(3 to verify)_',
+    );
   });
 
   it('drops zero-count buckets from the breakdown', () => {
-    const out = buildMemory(withEdges([
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
-      { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
-    ]), makeHuman());
+    const out = buildMemory(
+      withEdges([
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'a.ts', to: 'b.ts', kind: 'import', confidence: 'inferred' },
+      ]),
+      makeHuman(),
+    );
     expect(out).toContain('- **Edge confidence**: 1 extracted · 1 inferred _(1 to verify)_');
     expect(out).not.toContain('ambiguous');
   });
@@ -135,12 +167,35 @@ describe('buildMemory — edge-confidence summary (F1)', () => {
 
 describe('buildMemory — section presence + ordering', () => {
   it('starts with the project name as a level-1 heading', () => {
-    const out = buildMemory(makeAgent({ project: { name: 'fr-school', root: '/x', languages: [], frameworks: [], entryPoints: [], monorepo: null } }), makeHuman());
+    const out = buildMemory(
+      makeAgent({
+        project: {
+          name: 'fr-school',
+          root: '/x',
+          languages: [],
+          frameworks: [],
+          entryPoints: [],
+          monorepo: null,
+        },
+      }),
+      makeHuman(),
+    );
     expect(out.split('\n')[0]).toBe('# fr-school');
   });
 
   it('puts the oneLiner in a blockquote on line 3', () => {
-    const out = buildMemory(makeAgent(), makeHuman({ summary: { oneLiner: 'A booking platform.', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } } }));
+    const out = buildMemory(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: 'A booking platform.',
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     const lines = out.split('\n');
     expect(lines[2]).toBe('> A booking platform.');
   });
@@ -157,30 +212,75 @@ describe('buildMemory — section presence + ordering', () => {
     // Build a fixture that EXERCISES every section so all headings appear.
     const out = buildMemory(
       makeAgent({
-        project: { name: 'demo', root: '/demo', languages: ['typescript'], frameworks: ['React'], entryPoints: ['src/index.ts'], monorepo: null },
-        files: [file('src/index.ts', 'typescript', 100, 1000), file('src/util.ts', 'typescript', 50, 500)],
-        graph: { nodes: [{ id: 'src/index.ts' }, { id: 'src/util.ts' }], edges: [{ from: 'src/util.ts', to: 'src/index.ts', kind: 'import' }], cycles: [] },
-        routes: [{ framework: 'remix', method: 'GET', path: '/', handlerFile: 'src/routes/_index.tsx', handlerSymbol: 'default' }],
+        project: {
+          name: 'demo',
+          root: '/demo',
+          languages: ['typescript'],
+          frameworks: ['React'],
+          entryPoints: ['src/index.ts'],
+          monorepo: null,
+        },
+        files: [
+          file('src/index.ts', 'typescript', 100, 1000),
+          file('src/util.ts', 'typescript', 50, 500),
+        ],
+        graph: {
+          nodes: [{ id: 'src/index.ts' }, { id: 'src/util.ts' }],
+          edges: [{ from: 'src/util.ts', to: 'src/index.ts', kind: 'import' }],
+          cycles: [],
+        },
+        routes: [
+          {
+            framework: 'remix',
+            method: 'GET',
+            path: '/',
+            handlerFile: 'src/routes/_index.tsx',
+            handlerSymbol: 'default',
+          },
+        ],
         capabilities: ['Renders a React UI'],
-        risks: [{ severity: 'high', category: 'secret', rule: 'aws', file: 'src/cfg.ts', line: 5, message: 'Possible AWS access key' }],
+        risks: [
+          {
+            severity: 'high',
+            category: 'secret',
+            rule: 'aws',
+            file: 'src/cfg.ts',
+            line: 5,
+            message: 'Possible AWS access key',
+          },
+        ],
         stats: { loc: 150, fileCount: 2, packageCount: 1, totalTokenCost: 1500 },
       }),
       makeHuman({
-        activity: [{ file: 'src/index.ts', lastModifiedMs: 1714000000000, churnScore: 3, authorCount: 2 }],
+        activity: [
+          { file: 'src/index.ts', lastModifiedMs: 1714000000000, churnScore: 3, authorCount: 2 },
+        ],
       }),
     );
-    const order = ['## At a glance', '## Capabilities', '## Entry points', '## Routes', '## Key files', '## Open risks', '## Recently active files', '## How to read this codebase'];
+    const order = [
+      '## At a glance',
+      '## Capabilities',
+      '## Entry points',
+      '## Routes',
+      '## Key files',
+      '## Open risks',
+      '## Recently active files',
+      '## How to read this codebase',
+    ];
     let cursor = 0;
     for (const heading of order) {
       const ix = out.indexOf(heading, cursor);
-      if (ix < 0) throw new Error(`section "${heading}" missing or out of order; previous cursor=${cursor}`);
+      if (ix < 0)
+        throw new Error(`section "${heading}" missing or out of order; previous cursor=${cursor}`);
       cursor = ix;
     }
   });
 
   it('ends with a stable schema-version footer', () => {
     const out = buildMemory(makeAgent(), makeHuman());
-    expect(out.trimEnd().endsWith(`<!-- factstack-memory schema=${MEMORY_SCHEMA_VERSION} -->`)).toBe(true);
+    expect(
+      out.trimEnd().endsWith(`<!-- factstack-memory schema=${MEMORY_SCHEMA_VERSION} -->`),
+    ).toBe(true);
   });
 });
 
@@ -227,7 +327,16 @@ describe('buildMemory — content correctness', () => {
   it('caps frameworks at 8', () => {
     const fws = Array.from({ length: 12 }, (_, i) => `Framework${i + 1}`);
     const out = buildMemory(
-      makeAgent({ project: { name: 'x', root: '/x', languages: [], frameworks: fws, entryPoints: [], monorepo: null } }),
+      makeAgent({
+        project: {
+          name: 'x',
+          root: '/x',
+          languages: [],
+          frameworks: fws,
+          entryPoints: [],
+          monorepo: null,
+        },
+      }),
       makeHuman(),
     );
     // First 8 present, 9th absent.
@@ -252,7 +361,21 @@ describe('buildMemory — content correctness', () => {
   it('uses the human.summary.health.headline verbatim', () => {
     const out = buildMemory(
       makeAgent(),
-      makeHuman({ summary: { oneLiner: 'x', intent: '', capabilities: [], entryPoints: [], health: { broken: 3, stale: 2, todos: 47, secrets: 0, headline: '3 broken · 47 TODOs · clean on secrets' } } }),
+      makeHuman({
+        summary: {
+          oneLiner: 'x',
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: {
+            broken: 3,
+            stale: 2,
+            todos: 47,
+            secrets: 0,
+            headline: '3 broken · 47 TODOs · clean on secrets',
+          },
+        },
+      }),
     );
     expect(out).toContain('3 broken · 47 TODOs · clean on secrets');
   });
@@ -261,10 +384,28 @@ describe('buildMemory — content correctness', () => {
     const out = buildMemory(
       makeAgent({
         routes: [
-          { framework: 'remix',   method: 'GET',  path: '/users',        handlerFile: 'a', handlerSymbol: null },
-          { framework: 'express', method: 'POST', path: '/api/login',    handlerFile: 'b', handlerSymbol: null },
-          { framework: 'remix',   method: 'GET',  path: '/',             handlerFile: 'c', handlerSymbol: null },
-          { framework: 'express', method: 'GET',  path: '/api/health',   handlerFile: 'd', handlerSymbol: null },
+          {
+            framework: 'remix',
+            method: 'GET',
+            path: '/users',
+            handlerFile: 'a',
+            handlerSymbol: null,
+          },
+          {
+            framework: 'express',
+            method: 'POST',
+            path: '/api/login',
+            handlerFile: 'b',
+            handlerSymbol: null,
+          },
+          { framework: 'remix', method: 'GET', path: '/', handlerFile: 'c', handlerSymbol: null },
+          {
+            framework: 'express',
+            method: 'GET',
+            path: '/api/health',
+            handlerFile: 'd',
+            handlerSymbol: null,
+          },
         ],
       }),
       makeHuman(),
@@ -343,9 +484,9 @@ describe('buildMemory — content correctness', () => {
     const ixA = out.indexOf('`a.ts`');
     const ixB = out.indexOf('`b.ts`');
     expect(ixA).toBeGreaterThan(0);
-    expect(ixA).toBeLessThan(ixB);                 // importance beats in-degree
-    expect(out).toContain('importance 1');         // the score is surfaced
-    expect(out).toMatch(/PageRank/);               // descriptor switched to importance wording
+    expect(ixA).toBeLessThan(ixB); // importance beats in-degree
+    expect(out).toContain('importance 1'); // the score is surfaced
+    expect(out).toMatch(/PageRank/); // descriptor switched to importance wording
   });
 
   it('F5: Modules section lists communities named by their most-important member', () => {
@@ -396,10 +537,30 @@ describe('buildMemory — content correctness', () => {
     const out = buildMemory(
       makeAgent({
         risks: [
-          { severity: 'low',      category: 'license',       rule: 'no-license', message: 'add a license' },
-          { severity: 'medium',   category: 'broken-import', rule: 'unresolved', file: 'x.ts', message: 'unresolved' },
-          { severity: 'high',     category: 'secret',        rule: 'aws',        file: 'y.ts', line: 3, message: 'AWS key' },
-          { severity: 'critical', category: 'secret',        rule: 'stripe',     file: 'z.ts', line: 1, message: 'Stripe key' },
+          { severity: 'low', category: 'license', rule: 'no-license', message: 'add a license' },
+          {
+            severity: 'medium',
+            category: 'broken-import',
+            rule: 'unresolved',
+            file: 'x.ts',
+            message: 'unresolved',
+          },
+          {
+            severity: 'high',
+            category: 'secret',
+            rule: 'aws',
+            file: 'y.ts',
+            line: 3,
+            message: 'AWS key',
+          },
+          {
+            severity: 'critical',
+            category: 'secret',
+            rule: 'stripe',
+            file: 'z.ts',
+            line: 1,
+            message: 'Stripe key',
+          },
         ],
       }),
       makeHuman(),
@@ -440,7 +601,14 @@ describe('buildMemory — content correctness', () => {
   it('"How to read this codebase" tour uses the first entry point', () => {
     const out = buildMemory(
       makeAgent({
-        project: { name: 'x', root: '/x', languages: [], frameworks: [], entryPoints: ['src/main.tsx', 'src/cli.ts'], monorepo: null },
+        project: {
+          name: 'x',
+          root: '/x',
+          languages: [],
+          frameworks: [],
+          entryPoints: ['src/main.tsx', 'src/cli.ts'],
+          monorepo: null,
+        },
         files: [file('package.json', 'json', 10, 100), file('src/main.tsx', 'typescript', 50, 500)],
       }),
       makeHuman(),
@@ -451,7 +619,18 @@ describe('buildMemory — content correctness', () => {
 
   it('truncates very long oneLiners with an ellipsis (no markdown injection)', () => {
     const long = 'x '.repeat(300); // 600 chars
-    const out = buildMemory(makeAgent(), makeHuman({ summary: { oneLiner: long, intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } } }));
+    const out = buildMemory(
+      makeAgent(),
+      makeHuman({
+        summary: {
+          oneLiner: long,
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
+    );
     const blockquote = out.split('\n').find((l) => l.startsWith('> ')) || '';
     // Cap at 280 chars (twitter-ish) including ellipsis.
     expect(blockquote.length).toBeLessThanOrEqual(284); // 280 + "> "
@@ -466,7 +645,14 @@ describe('buildMemory — content correctness', () => {
 describe('buildMemory — determinism', () => {
   it('returns byte-identical output across calls with the same input', () => {
     const a = makeAgent({
-      project: { name: 'demo', root: '/demo', languages: ['typescript'], frameworks: ['React'], entryPoints: ['src/index.ts'], monorepo: null },
+      project: {
+        name: 'demo',
+        root: '/demo',
+        languages: ['typescript'],
+        frameworks: ['React'],
+        entryPoints: ['src/index.ts'],
+        monorepo: null,
+      },
       files: [file('src/index.ts', 'typescript', 100, 1000)],
       capabilities: ['Renders a UI'],
       stats: { loc: 100, fileCount: 1, packageCount: 1, totalTokenCost: 1000 },
@@ -481,7 +667,9 @@ describe('buildMemory — determinism', () => {
     const a = makeAgent({
       files: [file('a.ts', 'typescript', 10, 100)],
       capabilities: ['cap1', 'cap2'],
-      risks: [{ severity: 'high', category: 'secret', rule: 'r', file: 'a.ts', line: 1, message: 'm' }],
+      risks: [
+        { severity: 'high', category: 'secret', rule: 'r', file: 'a.ts', line: 1, message: 'm' },
+      ],
     });
     const h = makeHuman();
     const aBefore = JSON.stringify(a);
@@ -496,7 +684,10 @@ describe('buildMemory — determinism', () => {
     // Date.now to throw — if buildMemory calls it, the test fails.
     const origNow = Date.now;
     let called = false;
-    Date.now = () => { called = true; return 0; };
+    Date.now = () => {
+      called = true;
+      return 0;
+    };
     try {
       buildMemory(makeAgent(), makeHuman());
     } finally {
@@ -517,17 +708,34 @@ describe('buildMemory — length budgets', () => {
   });
 
   it('large fixture (200 files, 30 frameworks, 50 risks) stays under 10 KB', () => {
-    const files = Array.from({ length: 200 }, (_, i) => file(`src/f${i}.ts`, 'typescript', 50, 500));
+    const files = Array.from({ length: 200 }, (_, i) =>
+      file(`src/f${i}.ts`, 'typescript', 50, 500),
+    );
     const fws = Array.from({ length: 30 }, (_, i) => `FW${i}`);
     const risks = Array.from({ length: 50 }, (_, i) => ({
-      severity: 'high' as const, category: 'secret' as const, rule: 'r', file: `f${i}.ts`, line: i, message: `m${i}`,
+      severity: 'high' as const,
+      category: 'secret' as const,
+      rule: 'r',
+      file: `f${i}.ts`,
+      line: i,
+      message: `m${i}`,
     }));
     const activity = Array.from({ length: 30 }, (_, i) => ({
-      file: `src/f${i}.ts`, lastModifiedMs: 1714000000000 + i, churnScore: 1, authorCount: 1,
+      file: `src/f${i}.ts`,
+      lastModifiedMs: 1714000000000 + i,
+      churnScore: 1,
+      authorCount: 1,
     }));
     const out = buildMemory(
       makeAgent({
-        project: { name: 'big', root: '/big', languages: [], frameworks: fws, entryPoints: [], monorepo: null },
+        project: {
+          name: 'big',
+          root: '/big',
+          languages: [],
+          frameworks: fws,
+          entryPoints: [],
+          monorepo: null,
+        },
         files,
         risks,
         stats: { loc: 10000, fileCount: 200, packageCount: 1, totalTokenCost: 100000 },
@@ -583,7 +791,15 @@ describe('buildMemory — edge cases', () => {
   it('escapes backticks in oneLiner so blockquote stays well-formed', () => {
     const out = buildMemory(
       makeAgent(),
-      makeHuman({ summary: { oneLiner: 'A `code-heavy` description with `markdown`', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } } }),
+      makeHuman({
+        summary: {
+          oneLiner: 'A `code-heavy` description with `markdown`',
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
     );
     // The blockquote line should still start with "> " and contain the
     // text — backticks are kept (they're meaningful); the test guards
@@ -597,7 +813,15 @@ describe('buildMemory — edge cases', () => {
   it('rejects oneLiner with embedded newlines (collapses to single line)', () => {
     const out = buildMemory(
       makeAgent(),
-      makeHuman({ summary: { oneLiner: 'Line one\nLine two\nLine three', intent: '', capabilities: [], entryPoints: [], health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' } } }),
+      makeHuman({
+        summary: {
+          oneLiner: 'Line one\nLine two\nLine three',
+          intent: '',
+          capabilities: [],
+          entryPoints: [],
+          health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: 'clean' },
+        },
+      }),
     );
     const bqLines = out.split('\n').filter((l) => l.startsWith('> '));
     // Exactly one blockquote line — newlines in the oneLiner are
@@ -639,8 +863,18 @@ describe('buildMemory — edge cases', () => {
 describe('buildMemory — Working context (F9)', () => {
   const T = '2026-06-09T00:0';
   const store = buildContextStore([
-    contextRecordEvent({ kind: 'decision', key: 'db', text: 'use postgres for the store', timestamp: `${T}1:00.000Z` }),
-    contextRecordEvent({ kind: 'task', key: 't1', text: 'ship F9 session memory', timestamp: `${T}2:00.000Z` }),
+    contextRecordEvent({
+      kind: 'decision',
+      key: 'db',
+      text: 'use postgres for the store',
+      timestamp: `${T}1:00.000Z`,
+    }),
+    contextRecordEvent({
+      kind: 'task',
+      key: 't1',
+      text: 'ship F9 session memory',
+      timestamp: `${T}2:00.000Z`,
+    }),
   ]);
 
   it('renders open tasks + recent decisions when a context store is supplied', () => {
@@ -652,7 +886,9 @@ describe('buildMemory — Working context (F9)', () => {
   });
 
   it('omits the section entirely when the store is empty', () => {
-    const out = buildMemory(makeAgent(), makeHuman(), { contextStore: { decisions: [], tasks: [], openQuestions: [] } });
+    const out = buildMemory(makeAgent(), makeHuman(), {
+      contextStore: { decisions: [], tasks: [], openQuestions: [] },
+    });
     expect(out).not.toContain('## Working context');
   });
 
@@ -667,7 +903,12 @@ describe('buildMemory — Working context (F9)', () => {
   it('escapes markdown-injection chars in agent-supplied working-context text (SEC-MEM)', () => {
     const injection = 'see [click me](https://evil.example) and `rm -rf` and <img src=x>';
     const store = buildContextStore([
-      contextRecordEvent({ kind: 'task', key: 'x', text: injection, timestamp: '2026-06-09T00:01:00.000Z' }),
+      contextRecordEvent({
+        kind: 'task',
+        key: 'x',
+        text: injection,
+        timestamp: '2026-06-09T00:01:00.000Z',
+      }),
     ]);
     const out = buildMemory(makeAgent(), makeHuman(), { contextStore: store });
     // The dangerous constructs are neutralized (escaped), not live.

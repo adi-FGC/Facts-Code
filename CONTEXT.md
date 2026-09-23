@@ -39,6 +39,7 @@ ordered by which Node features they're allowed to use:
 ## Read tier — established vocabulary
 
 ### `FactsFS`
+
 Pure interface for "where files are read from." Defined in
 `packages/spec/src/fs.ts`. Methods: `readFile`, `readText`, `readDir`,
 `stat`, `readlink`, `normalize`, `join`. Implemented by `NodeFS`,
@@ -57,6 +58,7 @@ running on.
 > mirroring the read-tier `FactsFS` pattern.
 
 ### `FileWriter`
+
 Pure interface for "where artifacts land." Lives in
 `packages/spec/src/file-writer.ts` (alongside `FactsFS`). Minimum
 viable methods:
@@ -71,9 +73,11 @@ The orchestrator consumes only this interface; adapters supply the
 I/O. Symmetric with `FactsFS` at the read tier.
 
 ### `writeArtifactsTo(writer, agent, human, options?)`
+
 The orchestrator. Lives in `packages/emit/pure/`. Pure — no I/O of
 its own, delegates everything to the `FileWriter` it's given.
 Responsibilities:
+
 - Validate `agent` + `human` against their Zod schemas
 - Compute the file plan (which sidecar files to emit per options)
 - Write each file via the `FileWriter`
@@ -83,12 +87,14 @@ The `To` suffix signals "the next argument is the destination" —
 same idiom as `Array.from`, `Buffer.from`, `pipeTo`.
 
 ### `NodeFileWriter`
+
 `FileWriter` implementation backed by `node:fs/promises`. Lives in
 `packages/emit/src/node-writer.ts`. Used by the Node shim
 `writeArtifacts(opts)` which also performs Node-specific extras
 (gitignore append) around the orchestrator call.
 
 ### `FsaFileWriter`
+
 `FileWriter` implementation backed by the File System Access API
 (`FileSystemDirectoryHandle` + `FileSystemWritableFileStream`). Lives
 in `packages/emit-browser/src/fsa-writer.ts`. Used by the browser
@@ -96,6 +102,7 @@ shim `writeBrowserArtifacts(opts)`.
 
 **macOS write-defense layer (2026-05-25)**: every `writeText` does a
 three-step ritual the Node adapter doesn't need:
+
 1. **Write BufferSource, not string** — WebKit pre-17.x and some FSA
    polyfills silently wrote 0 bytes when given a raw string. Uint8Array
    is the universally-tested path.
@@ -115,12 +122,14 @@ Adapter-specific extras stay on the adapter side per the architectural
 principle below — none of this leaks into the orchestrator.
 
 ### `writeArtifacts` (Node shim)
+
 Thin top-level export from `packages/emit/`. Constructs a
 `NodeFileWriter`, calls `writeArtifactsTo`, runs
 `ensureGitignoreEntry('.facts/')`. ~20 LOC. Backward-compatible
 surface for existing CLI callers.
 
 ### `writeBrowserArtifacts` (browser shim)
+
 Thin top-level export from `packages/emit-browser/`. Constructs an
 `FsaFileWriter` (after upgrading the directory handle to readwrite
 permission), calls `writeArtifactsTo`. Backward-compatible surface
@@ -129,6 +138,7 @@ for the in-browser scan flow.
 ## F8 diff-chain — vocabulary introduced 2026-06-16
 
 ### `agent.diff.pack`
+
 The incremental sidecar artifact. When a previous `agent.pack` exists,
 `writeArtifactsTo` additionally writes this: the row-level delta from
 that prior master to the new one. It is a **best-effort accelerator,
@@ -137,12 +147,13 @@ master that every existing consumer reads directly. A consumer that
 already holds the prior master applies this small diff instead of
 re-reading the whole pack. Absent on the first run; lives under
 `.facts/` (gitignored), so it never enters commits or determinism
-checks. The win scales with the *kind* of change: a pure content edit
+checks. The win scales with the _kind_ of change: a pure content edit
 is tiny (~2% of the master), but adding/removing files ripples PageRank
 `importance` across the `nodeMetrics`/`top` rows, so structural change
 diffs are larger (~27% dogfooded on FACTS itself).
 
 ### diff-chain (depth-1)
+
 The design: each diff applies onto the **immediately preceding master**,
 never onto another diff. So a consumer applies at most one diff to reach
 current state, and there is no growing chain, no manifest, and no
@@ -152,6 +163,7 @@ the encoder already stamped on the master), which the consumer verifies
 before applying — a mismatch means "stale master, read the full pack."
 
 ### `prevPackBody` (orchestrator option)
+
 The shim-threaded prior master. The `FileWriter` interface was
 deliberately **not** given a `readText` method; instead each shim
 (`writeArtifacts` Node, `writeBrowserArtifacts` browser) pre-reads
@@ -162,6 +174,7 @@ decodes, carries a trailer, and shares the new master's schema — any
 failure skips the diff and leaves the master authoritative.
 
 ### `computeDiff` / `applyChain` / `encodeIncremental` (factspack)
+
 The pure isomorphic primitives the orchestrator composes.
 `computeDiff(prevDecoded, nextDecoded)` returns the per-table
 added/deleted rows (omitting unchanged tables); `encodeIncremental`
@@ -170,6 +183,7 @@ diffs[])` reconstructs the row set (content, not order). Defined in
 `packages/factspack/src/chain.ts` + `encode.ts`; INV1-pure.
 
 ### `sync_pack` (MCP tool — the F8 consumer)
+
 The reader half of the diff-chain. An agent passes `have` (the 12-hex
 sha256 of the master it currently holds) and gets back the smallest
 correct response as a JSON envelope `{ status, sha, pack? }`:
@@ -195,6 +209,7 @@ one-step-behind caller).
 > not just the UI tier.
 
 ### `dependencyManifests[]` (on `agent.json`)
+
 Always-populated array of `DependencyManifest` entries — one per
 detected package.json (today) or pyproject.toml / Cargo.toml /
 go.mod / pom.xml / Gemfile (detected, not yet parsed). Each entry
@@ -203,6 +218,7 @@ Schema lives in `packages/spec/src/agent.ts`. Defaults to `[]` for
 pre-v0.6 artifacts.
 
 ### `vulnerabilities[]` (on `agent.json`)
+
 CVE / GHSA findings keyed back to the dep that triggered them.
 **Empty by default** — `analyze` never makes network calls (constraint
 C1). Populated by the opt-in `factstack scan-vulns` subcommand which
@@ -211,6 +227,7 @@ queries OSV.dev and writes findings back. Schema lives alongside
 first, falls back to live OSV query when empty.
 
 ### `scanDependencyManifest(path, text)`
+
 Pure scanner in `packages/scanners/src/dependencies.ts`. Detects
 ecosystem from basename in O(1); for npm, fully parses + merges
 `dependencies` / `devDependencies` / `peerDependencies` /
@@ -220,6 +237,7 @@ Called inline from the analyzer's main scan loop in
 `packages/core/src/index.ts`.
 
 ### `queryOsvBatch(queries, options)`
+
 Shared OSV.dev client in `packages/scanners/src/vulnerabilities.ts`.
 Two-stage protocol (batch IDs → per-vuln detail). Pluggable
 `CacheStore` interface — UI passes `localStorageCache` (6h TTL),
@@ -227,6 +245,7 @@ CLI passes `noopCache` for now. Isomorphic: uses `fetch` + minimal
 narrow type declarations rather than DOM lib.
 
 ### `factstack scan-vulns [target]`
+
 CLI subcommand in `apps/cli/src/cli.ts`. Reads `.facts/agent.json`,
 flattens dep manifests, normalizes versions, queries OSV in batch,
 converts results to canonical `Vulnerability[]`, persists back via
@@ -235,6 +254,7 @@ analyze first, then scan-vulns explicitly. Network-touching step is
 deliberately separate so `analyze` stays C1-pure.
 
 ### MCP tools `list_credentials` + `list_vulnerabilities`
+
 In `apps/mcp-server/src/server.ts`. `list_credentials` filters
 `agent.risks` to category=secret. `list_vulnerabilities` returns
 `agent.vulnerabilities` with optional severity/ecosystem/package
@@ -242,6 +262,91 @@ filters. When `lastChecked` is null, surfaces a hint that
 `scan-vulns` hasn't been run.
 
 ---
+
+## Git topology tier — vocabulary introduced 2026-09-06
+
+**Checkout** — any working directory of the repo. Four **kinds**:
+`main` (the primary one), `linked` (`git worktree add`, may live
+outside the repo root), `nested` (a separate repo found inside the
+tree), `junction` (a symlink/junction inside the tree pointing at a
+repo elsewhere). Only `main`/`linked` are judged against this repo’s
+default branch; the other two are `external` and judged on their own
+history.
+
+**Deploy line** — `origin/<default>`, the ref a deploy is cut from.
+Every "merged" verdict means _contained in the deploy line_, never
+"merged into my local default" — that weaker state has its own value,
+`merged-local`, because a push of the default is all that stands in
+the way. Same distinction reledger draws; the wording is deliberate.
+
+**Integration** vs **publish** — two independent axes, never collapsed.
+Integration answers _is this work on the deploy line_ (`default` /
+`merged` / `merged-local` / `unmerged` / `external` / `unknown`);
+publish answers _does the remote have these commits_ (`pushed` /
+`ahead` / `behind` / `diverged` / `no-upstream` / `upstream-gone` /
+`no-remote` / `detached`). A branch can be merged but unpushed, or
+pushed but unmerged.
+
+**Readiness** — the two questions a person actually asks, each a closed
+enum plus prose reasons. `readiness.commit` is about the working tree
+(`nothing` / `ready` / `partial` / `unstaged` / `blocked`);
+`readiness.deploy` is about the deploy line, resolved in a fixed order
+(`blocked` → `needs-push` → `needs-merge` → `no-target` → `ready`) so a
+dirty tree can never read "ready". Both are derived from local refs
+ONLY: no fetch, no CI query, no network.
+
+**Feature** — a thing a checkout carries, from one of three sources:
+a unique `commit` subject, a `request` (the first real prompt of an
+agent session that ran in that directory), or the `branch` name.
+Request text is UNTRUSTED DATA and is redacted + capped before storage.
+
+**Request record** — who asked for the work and when, recovered from
+Claude Code / Codex transcripts under the user’s home dir. `via: cwd`
+is strong evidence (the session ran there); `via: slot` is weaker (the
+worktree slot name matched) and is labelled as such wherever it shows.
+
+**Gap** — a named thing the collector could NOT see, with a one-move
+fix (`no-upstream`, `no-request-record`, `stale-remote-refs`, `no-ci`,
+…). Gaps are first-class output, not an error path: they are how the
+surface stays honest about the confidence of its own verdicts.
+
+---
+
+## Host ignore tier — vocabulary introduced 2026-09-15
+
+### `extraIgnore` (walk / analyze option)
+
+Ignore rules, in `.gitignore` syntax, that do **not** come from the tree being
+analyzed. Applied at the walk root, before the repository's own ignore files.
+The walker is isomorphic and may only read inside the FactsFS root, so anything
+git hides from **outside** the repository has to be injected here.
+
+### `gitGlobalExcludes(root)` (@factstack/fs-node)
+
+The Node-side lookup that fills `extraIgnore`: git's `core.excludesFile`
+followed by `.git/info/exclude`. Faithful to git on the corners that decide
+whether a file leaks or vanishes — a configured-but-missing file means _no_
+global excludes, a relative path resolves against the repository, and outside a
+git repository there are no rules at all. The CLI and the MCP server call it;
+the browser scanner cannot (no filesystem outside the picked folder), so a
+browser scan may list a file the CLI hides.
+
+### `PERSONAL_IGNORE` (@factstack/walker)
+
+A short built-in list of per-developer agent files —
+`.claude/settings.local.json`, `CLAUDE.local.md`,
+`.cursor/rules/*.local.mdc` — excluded at any depth even when no rules are
+injected. They are one developer's machine state, and an artifact is routinely
+published. Precedence is deliberate: injected rules are applied _first_, so a
+stray `!` in someone's global excludes cannot re-admit them, while the
+repository's own `.gitignore` / `.factsignore` is applied _last_ and can still
+re-include a path the project deliberately tracks.
+
+**Why it exists.** Analyzing a worktree listed `.claude/settings.local.json` —
+a file git ignores through the user's global excludes — in an artifact that is
+baked into a public site. Only the filename reached the bake, never the
+contents, but the file set of a shared artifact must not depend on one
+developer's machine.
 
 ## Architectural principles (not for re-litigation)
 

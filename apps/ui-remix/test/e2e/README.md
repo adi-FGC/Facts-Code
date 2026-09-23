@@ -38,22 +38,22 @@ The test runner serves the **built** output from `apps/ui-remix/dist/`, NOT the 
 
 If your tests fail with one of these symptoms, **rebuild first**:
 
-| Symptom | Likely root cause | Fix |
-| --- | --- | --- |
-| Console error: `scheduleUpdate not implemented` | Old build pre-dating the `@remix-run/ui` pnpm patch | `pnpm -F @factstack/ui-remix build` |
-| `waitForReady` throws "dataset failed to load — ErrorScreen" | Old build with placeholder `__INLINE_FACTSTACK_JSON__` un-substituted | `pnpm -F @factstack/ui-remix build` (runs `inject-data.mjs`) |
-| Test asserts on H1 wording that doesn't match | Wording changed in source but `dist/` hasn't been rebuilt | `pnpm -F @factstack/ui-remix build` |
-| All tests pass locally, all fail on CI | CI has no `dist/` cached + builds aren't part of the test command | The `webServer: 'pnpm build && pnpm start'` config handles this; ensure you didn't override |
+| Symptom                                                      | Likely root cause                                                     | Fix                                                                                         |
+| ------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Console error: `scheduleUpdate not implemented`              | Old build pre-dating the `@remix-run/ui` pnpm patch                   | `pnpm -F @factstack/ui-remix build`                                                         |
+| `waitForReady` throws "dataset failed to load — ErrorScreen" | Old build with placeholder `__INLINE_FACTSTACK_JSON__` un-substituted | `pnpm -F @factstack/ui-remix build` (runs `inject-data.mjs`)                                |
+| Test asserts on H1 wording that doesn't match                | Wording changed in source but `dist/` hasn't been rebuilt             | `pnpm -F @factstack/ui-remix build`                                                         |
+| All tests pass locally, all fail on CI                       | CI has no `dist/` cached + builds aren't part of the test command     | The `webServer: 'pnpm build && pnpm start'` config handles this; ensure you didn't override |
 
 The `webServer` config does run `pnpm build` automatically when starting from scratch — but if you ran `pnpm start` in another terminal first (which triggers `reuseExistingServer`), the build step is skipped. **Killing that background server forces Playwright to do the build itself.**
 
 ## What's covered
 
-| Spec | What it tests |
-| --- | --- |
-| `smoke.spec.ts` | All 13 routes: page loads, no console errors, the editorial H1 (or its empty-state variant) renders. Plus cross-route invariants: shell landmarks survive, tab navigation updates the URL. |
-| `vulnerabilities.spec.ts` | The Vulnerabilities form interaction: scan button enable state, manifest-row click populates textarea. The actual OSV scan path is marked `test.fixme` pending a stub-vs-live decision (see the comment block in the spec). |
-| `interactions.spec.ts` | Stateful controls the smoke suite can't reach: command palette (⌘K open / filter / Escape / Enter-navigate), Config theme + density switching (asserts `html[data-theme]` / `html[data-density]` actually applied, + localStorage persistence across reload), Flow view-mode tab switching, Library sort radio. |
+| Spec                      | What it tests                                                                                                                                                                                                                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `smoke.spec.ts`           | All 13 routes: page loads, no console errors, the editorial H1 (or its empty-state variant) renders. Plus cross-route invariants: shell landmarks survive, tab navigation updates the URL.                                                                                                                      |
+| `vulnerabilities.spec.ts` | The Vulnerabilities form interaction: scan button enable state, manifest-row click populates textarea. The actual OSV scan path is marked `test.fixme` pending a stub-vs-live decision (see the comment block in the spec).                                                                                     |
+| `interactions.spec.ts`    | Stateful controls the smoke suite can't reach: command palette (⌘K open / filter / Escape / Enter-navigate), Config theme + density switching (asserts `html[data-theme]` / `html[data-density]` actually applied, + localStorage persistence across reload), Flow view-mode tab switching, Library sort radio. |
 
 ## Adding a new route
 

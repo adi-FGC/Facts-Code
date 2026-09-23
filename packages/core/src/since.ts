@@ -116,7 +116,7 @@ export function sinceFromMtime(current: AgentArtifact, since: string): SinceRepo
       tokenCost: f.tokenCost,
       status: f.status,
       lastModified: toIso(f.lastModifiedMs),
-      kind: 'modified',  // can't distinguish without a baseline
+      kind: 'modified', // can't distinguish without a baseline
     });
     tokenCostInWindow += f.tokenCost;
     declarationsAdded += f.declarations.length;
@@ -155,14 +155,20 @@ function risksKey(r: Risk): string {
   // (rule, file, line, message-prefix-32) is a stable-enough key
   // to identify a risk across two runs without false matches when
   // the same rule fires on two different lines of the same file.
-  return [r.rule, r.file ?? '', r.line ?? '', (r.messageTechnical ?? r.message).slice(0, 32)].join('|');
+  return [r.rule, r.file ?? '', r.line ?? '', (r.messageTechnical ?? r.message).slice(0, 32)].join(
+    '|',
+  );
 }
 
 function routeKey(r: RouteDecl): string {
   return `${r.framework}|${r.method ?? ''}|${r.path}|${r.handlerFile}`;
 }
 
-export function sinceFromBaseline(current: AgentArtifact, prior: AgentArtifact, since: string): SinceReport {
+export function sinceFromBaseline(
+  current: AgentArtifact,
+  prior: AgentArtifact,
+  since: string,
+): SinceReport {
   const sinceMs = Date.parse(since);
   if (!Number.isFinite(sinceMs)) {
     // DET-2: pure tier — derive the stamp from the input artifact, never the
@@ -270,13 +276,18 @@ export function sinceFromBaseline(current: AgentArtifact, prior: AgentArtifact, 
 
 /** Top-level convenience that picks the right mode based on whether
  *  a baseline was supplied. */
-export function since(current: AgentArtifact, sinceTs: string, baseline?: AgentArtifact): SinceReport {
+export function since(
+  current: AgentArtifact,
+  sinceTs: string,
+  baseline?: AgentArtifact,
+): SinceReport {
   // A baseline only supports a file-level diff if it actually carries files[].
   // Rolled-up "stats only" snapshots (what the MCP server writes on every boot)
   // omit it; guarding here keeps sinceFromBaseline's `prior.files.map(...)` from
   // throwing a TypeError for any caller that hands us a fileless artifact — we
   // degrade to mtime-only mode instead of crashing. (The MCP server also asks
   // readLatestSnapshot for requireFull=true; this is the defense-in-depth layer.)
-  if (baseline && Array.isArray(baseline.files)) return sinceFromBaseline(current, baseline, sinceTs);
+  if (baseline && Array.isArray(baseline.files))
+    return sinceFromBaseline(current, baseline, sinceTs);
   return sinceFromMtime(current, sinceTs);
 }

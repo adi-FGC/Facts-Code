@@ -23,41 +23,41 @@
   for combined style + event mixins.
 - **Routing**: typed via `remix/route-pattern`. SPA mount uses a
   custom `navigate()` helper (`src/lib/navigate.ts`) that pushState's
-  + dispatches `factstack:nav`; `main.tsx` listens for that and
-  `popstate` and re-renders the App. ~30 lines total.
+  - dispatches `factstack:nav`; `main.tsx` listens for that and
+    `popstate` and re-renders the App. ~30 lines total.
 - **Build**: Vite 8 with `jsx: 'automatic'` + `jsxImportSource:
-  '@remix-run/ui'`. No React plugin, no React deps.
+'@remix-run/ui'`. No React plugin, no React deps.
 
 ## What's ported
 
-| Tab | Route | File | Notes |
-|---|---|---|---|
-| Overview | `/` | `src/routes/Overview.tsx` | Hero + Stack chips + frameworks + capabilities. Done. |
-| Risks | `/risks` | `src/routes/Risks.tsx` | Severity-grouped findings + "nothing to flag" empty state. Done. |
-| History | `/history` | `src/routes/History.tsx` | Snapshot-trends table + empty state. Done. |
+| Tab      | Route      | File                      | Notes                                                            |
+| -------- | ---------- | ------------------------- | ---------------------------------------------------------------- |
+| Overview | `/`        | `src/routes/Overview.tsx` | Hero + Stack chips + frameworks + capabilities. Done.            |
+| Risks    | `/risks`   | `src/routes/Risks.tsx`    | Severity-grouped findings + "nothing to flag" empty state. Done. |
+| History  | `/history` | `src/routes/History.tsx`  | Snapshot-trends table + empty state. Done.                       |
 
 ## What's stubbed (porting from legacy)
 
-| Tab | Route | Stub | Legacy reference |
-|---|---|---|---|
-| Graph | `/graph` | `routes/GraphRoute.tsx` | Force-directed dependency graph. Legacy uses xyflow (React); needs a React-free swap (d3-force + SVG, or cytoscape.js). |
-| DAG | `/dag` | `routes/Dag.tsx` | Layered top-down view of the same edges. Same blocker as Graph. |
-| Files | `/files` | `routes/Files.tsx` | Tree-driven file outline + preview. Legacy uses react-arborist; needs a React-free tree primitive or a hand-rolled recursive component. |
-| Library | `/library` | `routes/Library.tsx` | Symbol-level browse. Largely a list-rendering tab; data is in `agent.json`, render is straightforward. |
-| Routes | `/routes` | `routes/RoutesTab.tsx` | Entry-points list + API endpoints with framework chips. Data already in `Dataset.entryPoints` + `Dataset.routes`. |
-| Tests | `/tests` | `routes/Tests.tsx` | Coverage panel — mostly v0.3.7 + v0.4.12 features. Stub fine until those land. |
-| About | `/about` | `routes/About.tsx` | Static markdown content. |
-| Config | `/config` | `routes/Config.tsx` | Theme toggle, font slider, GitHub PAT, Supabase config. |
+| Tab     | Route      | Stub                    | Legacy reference                                                                                                                        |
+| ------- | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Graph   | `/graph`   | `routes/GraphRoute.tsx` | Force-directed dependency graph. Legacy uses xyflow (React); needs a React-free swap (d3-force + SVG, or cytoscape.js).                 |
+| DAG     | `/dag`     | `routes/Dag.tsx`        | Layered top-down view of the same edges. Same blocker as Graph.                                                                         |
+| Files   | `/files`   | `routes/Files.tsx`      | Tree-driven file outline + preview. Legacy uses react-arborist; needs a React-free tree primitive or a hand-rolled recursive component. |
+| Library | `/library` | `routes/Library.tsx`    | Symbol-level browse. Largely a list-rendering tab; data is in `agent.json`, render is straightforward.                                  |
+| Routes  | `/routes`  | `routes/RoutesTab.tsx`  | Entry-points list + API endpoints with framework chips. Data already in `Dataset.entryPoints` + `Dataset.routes`.                       |
+| Tests   | `/tests`   | `routes/Tests.tsx`      | Coverage panel — mostly v0.3.7 + v0.4.12 features. Stub fine until those land.                                                          |
+| About   | `/about`   | `routes/About.tsx`      | Static markdown content.                                                                                                                |
+| Config  | `/config`  | `routes/Config.tsx`     | Theme toggle, font slider, GitHub PAT, Supabase config.                                                                                 |
 
 ## What's been ADDED in the new app
 
-| Feature | File | Notes |
-|---|---|---|
-| Typed route catalog | `src/lib/routes.ts` | `remix/route-pattern` instances; single source of truth shared by App + Header. |
-| Porting-aware Header | `src/components/Header.tsx` | Tabs flagged `ported: false` show a small amber dot. |
-| Stub component | `src/components/PortFromLegacy.tsx` | Shared placeholder with a deep link back to the legacy demo at the same `#tab=name`. |
-| SPA navigation | `src/lib/navigate.ts` | `navigate(href)` + `linkClick` global delegation; ~50 lines, no router lib. |
-| Build-time data injection | `scripts/inject-data.mjs` | Bakes `legacy/prototype/data/factstack.json` into `dist/index.html`. Idempotent. |
+| Feature                   | File                                | Notes                                                                                |
+| ------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| Typed route catalog       | `src/lib/routes.ts`                 | `remix/route-pattern` instances; single source of truth shared by App + Header.      |
+| Porting-aware Header      | `src/components/Header.tsx`         | Tabs flagged `ported: false` show a small amber dot.                                 |
+| Stub component            | `src/components/PortFromLegacy.tsx` | Shared placeholder with a deep link back to the legacy demo at the same `#tab=name`. |
+| SPA navigation            | `src/lib/navigate.ts`               | `navigate(href)` + `linkClick` global delegation; ~50 lines, no router lib.          |
+| Build-time data injection | `scripts/inject-data.mjs`           | Bakes `legacy/prototype/data/factstack.json` into `dist/index.html`. Idempotent.     |
 
 ## Substantive work still ahead (beyond stub→full ports)
 
@@ -65,9 +65,9 @@ App-level features the legacy prototype has and this app doesn't:
 
 1. **GitHub source flow + Supabase persistence** — port from
    `legacy/prototype/index.html` (the `FACTSTACK_GH_API_START` block
-   + the Supabase loader + scan modal + cache-first deep links).
-   Most of it is browser-platform code that lifts cleanly into
-   Remix v3 components.
+   - the Supabase loader + scan modal + cache-first deep links).
+     Most of it is browser-platform code that lifts cleanly into
+     Remix v3 components.
 2. **Live re-analyze** — Header should expose a Re-analyze button when
    served by `factstack ui` (proxy to `/api/reanalyze`). Hidden in
    static mode. The `linkClick` handler can be expanded to a typed
@@ -89,15 +89,15 @@ App-level features the legacy prototype has and this app doesn't:
 
 ## Where Remix v3 modules already pull weight
 
-| Use case | Remix module | Status |
-|---|---|---|
-| Typed URL catalog | `remix/route-pattern` | Live in `lib/routes.ts` |
-| JSX runtime | `@remix-run/ui` (auto) | Live everywhere |
-| CSS-in-JSX | `@remix-run/ui#css` | Live everywhere via `mix={css({...})}` |
-| Event mixins | `@remix-run/ui#on` | Reserved for per-element handlers when needed; currently using global click delegation in `main.tsx` |
-| Future API server | `remix/fetch-router` + `remix/node-fetch-server` | Reserved for `factstack ui` server |
-| Future cookies | `remix/cookie` | Reserved for theme + session persistence |
-| Future config validation | `remix/data-schema` | Reserved; pairs with @factstack/spec's Zod schemas |
+| Use case                 | Remix module                                     | Status                                                                                               |
+| ------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Typed URL catalog        | `remix/route-pattern`                            | Live in `lib/routes.ts`                                                                              |
+| JSX runtime              | `@remix-run/ui` (auto)                           | Live everywhere                                                                                      |
+| CSS-in-JSX               | `@remix-run/ui#css`                              | Live everywhere via `mix={css({...})}`                                                               |
+| Event mixins             | `@remix-run/ui#on`                               | Reserved for per-element handlers when needed; currently using global click delegation in `main.tsx` |
+| Future API server        | `remix/fetch-router` + `remix/node-fetch-server` | Reserved for `factstack ui` server                                                                   |
+| Future cookies           | `remix/cookie`                                   | Reserved for theme + session persistence                                                             |
+| Future config validation | `remix/data-schema`                              | Reserved; pairs with @factstack/spec's Zod schemas                                                   |
 
 ## Build + run
 

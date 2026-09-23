@@ -28,10 +28,18 @@ if (!existsSync(fbPath)) {
 }
 
 const text = readFileSync(fbPath, 'utf8');
-const KEYS = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId', 'measurementId'];
+const KEYS = [
+  'apiKey',
+  'authDomain',
+  'projectId',
+  'storageBucket',
+  'messagingSenderId',
+  'appId',
+  'measurementId',
+];
 const cfg = {};
 for (const k of KEYS) {
-  const m = text.match(new RegExp(k + "\\s*:\\s*['\"]([^'\"]+)['\"]"));
+  const m = text.match(new RegExp(k + '\\s*:\\s*[\'"]([^\'"]+)[\'"]'));
   if (m) cfg[k] = m[1];
 }
 if (!cfg.apiKey || !cfg.projectId) {
@@ -39,4 +47,6 @@ if (!cfg.apiKey || !cfg.projectId) {
   process.exit(1);
 }
 writeFileSync(outPath, JSON.stringify(cfg));
-console.log(`[gen-fb-config] wrote dist/mcp-auth-config.json (${Object.keys(cfg).length} fields, projectId=${cfg.projectId}).`);
+console.log(
+  `[gen-fb-config] wrote dist/mcp-auth-config.json (${Object.keys(cfg).length} fields, projectId=${cfg.projectId}).`,
+);

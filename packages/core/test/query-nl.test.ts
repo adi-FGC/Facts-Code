@@ -9,14 +9,35 @@ import type { AgentArtifact, SymbolNode, SymbolEdge } from '@factstack/spec';
  */
 
 function sym(id: string, path: string, name: string, kind: string, s: number): SymbolNode {
-  return { id, path, name, kind: kind as SymbolNode['kind'], startLine: s, endLine: s + 2, exported: true };
+  return {
+    id,
+    path,
+    name,
+    kind: kind as SymbolNode['kind'],
+    startLine: s,
+    endLine: s + 2,
+    exported: true,
+  };
 }
 function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
   return {
-    $schema: 'x', factsVersion: '0.1.0', generatedAt: '2026-06-08T00:00:00Z',
-    project: { name: 't', root: '/t', languages: [], frameworks: [], entryPoints: [], monorepo: null },
-    files: [], graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], ...graph },
-    routes: [], scripts: {}, capabilities: [], risks: [],
+    $schema: 'x',
+    factsVersion: '0.1.0',
+    generatedAt: '2026-06-08T00:00:00Z',
+    project: {
+      name: 't',
+      root: '/t',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
+    files: [],
+    graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], ...graph },
+    routes: [],
+    scripts: {},
+    capabilities: [],
+    risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
   } as AgentArtifact;
 }
@@ -36,7 +57,13 @@ const agent = makeArtifact({
     sym('src/login.ts#doLogin@4', 'src/login.ts', 'doLogin', 'function', 4),
   ],
   symbolEdges: [
-    { from: 'src/login.ts#doLogin@4', to: 'src/auth.ts#buildMemory@10', kind: 'call', confidence: 'inferred', confidenceScore: 0.9 } as SymbolEdge,
+    {
+      from: 'src/login.ts#doLogin@4',
+      to: 'src/auth.ts#buildMemory@10',
+      kind: 'call',
+      confidence: 'inferred',
+      confidenceScore: 0.9,
+    } as SymbolEdge,
   ],
 });
 

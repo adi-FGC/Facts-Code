@@ -42,7 +42,7 @@
 
 ## 2. State snapshot (as of 2026-07-02)
 
-- **Worktree:** `.claude/worktrees/serene-wiles-8da646`, branch `cc/serene-wiles-8da646`. Nothing committed this arc.
+- **Worktree:** a linked worktree on branch `cc/serene-wiles-8da646`. Nothing committed this arc.
 - **Unit suite** (`pnpm test`): 688 pass, **9 fail + 1 todo — intentional test-first RED**:
   - `tests/scoring-format-options.test.ts` — WS0/WS2 contract (mini-set `gamesPerSet`, deciding-set `match_tiebreak_10`, scoped relaxation). 9 RED + 1 todo (mini-set TB rule, open product question).
   - `tests/scoring-live.test.ts` — WS3 contract; fails at import until `src/lib/scoring/live.ts` exists.

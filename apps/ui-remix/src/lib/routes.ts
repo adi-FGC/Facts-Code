@@ -6,16 +6,19 @@
  * for href generation. Same data structure feeds the Header tablist
  * and the App's route table.
  *
- * v0.9 IA consolidation — 14 tabs collapsed to 7 numbered tabs + 2
- * right-side icon routes:
+ * v0.9 IA consolidation collapsed 14 tabs into a numbered nav + 2
+ * right-side icon routes. The nav is 10 tabs today:
  *
  *   01 Overview      (+ token-economics ROI panel)
  *   02 Architecture  ← Graph + Flow + Routes   (SubViewTabs)
- *   03 Files         ← Files + Library/Packages (SubViewTabs)
- *   04 Review        (Change Verdict)
- *   05 Security      ← Risks + Credentials + Vulnerabilities (SubViewTabs)
- *   06 Tests
- *   07 History
+ *   03 Modules       (F5 graph analytics)
+ *   04 Files         ← Files + Library/Packages (SubViewTabs)
+ *   05 Docs
+ *   06 Review        (Change Verdict)
+ *   07 Security      ← Risks + Credentials + Vulnerabilities (SubViewTabs)
+ *   08 Tests
+ *   09 History
+ *   10 Worktrees     (v0.3.11 — worktrees, branches, commit/deploy readiness)
  *   ⚙  Config        (right-side rotating-gear icon, not numbered)
  *   ?  About         (right-side ?↔! icon, not numbered)
  *
@@ -26,7 +29,10 @@
  */
 import { RoutePattern } from 'remix/route-pattern';
 import { createHref } from 'remix/route-pattern/href';
-import { ROUTE_CATALOG } from '@factstack/spec';
+/* Subpath, not the barrel: the barrel re-exports every zod schema and a
+   newer bundler stopped tree-shaking them out of the entry chunk (+55 KB raw
+   on first paint). `@factstack/spec/routes` is zod-free by construction. */
+import { ROUTE_CATALOG } from '@factstack/spec/routes';
 
 /**
  * The label+path list is sourced from `ROUTE_CATALOG` in `@factstack/spec`
@@ -43,9 +49,11 @@ function labelFor(path: string): string {
   const label = LABEL_BY_PATH.get(path);
   if (!label) {
     // A tab pattern with no catalog entry is a drift bug — fail loud in
-    // dev rather than render a blank tab. (All 11 patterns below have an
+    // dev rather than render a blank tab. (All 12 patterns below have an
     // entry; this guards future additions.)
-    throw new Error(`routes.ts: no ROUTE_CATALOG label for "${path}" — add it to packages/spec/src/routes.ts.`);
+    throw new Error(
+      `routes.ts: no ROUTE_CATALOG label for "${path}" — add it to packages/spec/src/routes.ts.`,
+    );
   }
   return label;
 }
@@ -60,6 +68,7 @@ export const tabPatterns = {
   security: RoutePattern.parse('/security'),
   tests: RoutePattern.parse('/tests'),
   history: RoutePattern.parse('/history'),
+  worktrees: RoutePattern.parse('/worktrees'),
   /* Meta destinations — reachable by URL and by the right-side header
      icons (ConfigIcon / AboutIcon), but NOT part of the numbered nav. */
   config: RoutePattern.parse('/config'),
@@ -80,7 +89,7 @@ export interface TabMeta {
   ported: boolean;
 }
 
-/** The numbered nav — 9 primary tabs. Config + About are rendered as
+/** The numbered nav — 10 primary tabs. Config + About are rendered as
  *  right-side icons by the Header, not here. */
 /** Build a TabMeta from a pattern key. Href comes from the RoutePattern
  *  machinery; label comes from ROUTE_CATALOG (the single source of truth
@@ -100,13 +109,11 @@ export const TABS: readonly TabMeta[] = [
   tab('security'),
   tab('tests'),
   tab('history'),
+  tab('worktrees'),
 ] as const;
 
 /** Right-side icon destinations (Config gear, About ?↔!). */
-export const ICON_TABS: readonly TabMeta[] = [
-  tab('config'),
-  tab('about'),
-] as const;
+export const ICON_TABS: readonly TabMeta[] = [tab('config'), tab('about')] as const;
 
 /**
  * Aliases: retired URLs → the tab that now hosts them. SubViewTabs uses

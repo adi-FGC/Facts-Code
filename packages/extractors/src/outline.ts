@@ -11,10 +11,17 @@
 import { parseJS, type ParsedFile } from './parse.js';
 
 export type OutlineKind =
-  | 'function' | 'method' | 'arrow-function'
-  | 'class' | 'interface' | 'type' | 'enum'
-  | 'variable' | 'property'
-  | 'import' | 'export'
+  | 'function'
+  | 'method'
+  | 'arrow-function'
+  | 'class'
+  | 'interface'
+  | 'type'
+  | 'enum'
+  | 'variable'
+  | 'property'
+  | 'import'
+  | 'export'
   | 'region';
 
 export interface OutlineNode {
@@ -28,7 +35,11 @@ export interface OutlineNode {
 
 const JS_EXTS = new Set(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts']);
 
-export function extractOutline(source: string, ext: string, parsed?: ParsedFile | null): OutlineNode[] {
+export function extractOutline(
+  source: string,
+  ext: string,
+  parsed?: ParsedFile | null,
+): OutlineNode[] {
   const e = ext.toLowerCase();
   if (JS_EXTS.has(e)) return extractJsOutline(source, e, parsed);
   if (e === '.py' || e === '.pyi') return extractPythonOutline(source);
@@ -50,7 +61,11 @@ function extractJsOutline(source: string, ext: string, parsed?: ParsedFile | nul
 
   for (const node of body) {
     const n = peelExport(node);
-    const isExport = node && (node.type === 'ExportNamedDeclaration' || node.type === 'ExportDefaultDeclaration' || node.type === 'ExportAllDeclaration');
+    const isExport =
+      node &&
+      (node.type === 'ExportNamedDeclaration' ||
+        node.type === 'ExportDefaultDeclaration' ||
+        node.type === 'ExportAllDeclaration');
     const ol = declToOutline(n, isExport, source);
     if (ol) out.push(ol);
   }
@@ -80,7 +95,14 @@ function declToOutline(n: any, isExport: boolean, source: string): OutlineNode |
         kind: 'function',
         line,
         endLine,
-        signature: prefix + 'function ' + n.id.name + '(' + paramsToString(n.params) + ')' + returnTypeString(n),
+        signature:
+          prefix +
+          'function ' +
+          n.id.name +
+          '(' +
+          paramsToString(n.params) +
+          ')' +
+          returnTypeString(n),
       };
     case 'ClassDeclaration':
       if (!n.id?.name) return null;
@@ -93,19 +115,39 @@ function declToOutline(n: any, isExport: boolean, source: string): OutlineNode |
         children: classMembers(n),
       };
     case 'TSInterfaceDeclaration':
-      return { name: n.id.name, kind: 'interface', line, endLine, signature: prefix + 'interface ' + n.id.name };
+      return {
+        name: n.id.name,
+        kind: 'interface',
+        line,
+        endLine,
+        signature: prefix + 'interface ' + n.id.name,
+      };
     case 'TSTypeAliasDeclaration':
-      return { name: n.id.name, kind: 'type', line, endLine, signature: prefix + 'type ' + n.id.name };
+      return {
+        name: n.id.name,
+        kind: 'type',
+        line,
+        endLine,
+        signature: prefix + 'type ' + n.id.name,
+      };
     case 'TSEnumDeclaration':
-      return { name: n.id.name, kind: 'enum', line, endLine, signature: prefix + 'enum ' + n.id.name };
+      return {
+        name: n.id.name,
+        kind: 'enum',
+        line,
+        endLine,
+        signature: prefix + 'enum ' + n.id.name,
+      };
     case 'VariableDeclaration': {
       const kindKw = n.kind || 'var';
-      const names = (n.declarations || []).map((d: unknown) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const decl = d as any;
-        if (decl.id?.type === 'Identifier') return decl.id.name;
-        return null;
-      }).filter(Boolean);
+      const names = (n.declarations || [])
+        .map((d: unknown) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const decl = d as any;
+          if (decl.id?.type === 'Identifier') return decl.id.name;
+          return null;
+        })
+        .filter(Boolean);
       if (!names.length) return null;
       // If there's exactly one declarator AND it's an arrow/function expr,
       // promote to function kind.
@@ -120,7 +162,16 @@ function declToOutline(n: any, isExport: boolean, source: string): OutlineNode |
             endLine,
             // Surface `async` in the signature; the OutlineKind enum
             // doesn't split async/sync, it's captured here as prose.
-            signature: prefix + kindKw + ' ' + d.id.name + ' = ' + (init.async ? 'async ' : '') + '(' + paramsToString(init.params) + ') =>',
+            signature:
+              prefix +
+              kindKw +
+              ' ' +
+              d.id.name +
+              ' = ' +
+              (init.async ? 'async ' : '') +
+              '(' +
+              paramsToString(init.params) +
+              ') =>',
           };
         }
       }
@@ -166,7 +217,13 @@ function classMembers(cls: any): OutlineNode[] {
         kind: 'method',
         line,
         endLine,
-        signature: (m.static ? 'static ' : '') + name + '(' + paramsToString(m.params) + ')' + returnTypeString(m),
+        signature:
+          (m.static ? 'static ' : '') +
+          name +
+          '(' +
+          paramsToString(m.params) +
+          ')' +
+          returnTypeString(m),
       });
     } else if (m.type === 'ClassProperty' || m.type === 'PropertyDefinition') {
       out.push({
@@ -247,7 +304,10 @@ function extractPythonOutline(source: string): OutlineNode[] {
         for (const ch of src) {
           if (ch === '(') paren++;
           else if (ch === ')') {
-            if (paren === 0) { reachedClose = true; break scan; }
+            if (paren === 0) {
+              reachedClose = true;
+              break scan;
+            }
             paren--;
           }
           collected += ch;
@@ -261,7 +321,13 @@ function extractPythonOutline(source: string): OutlineNode[] {
         name: defName,
         kind: stack.length ? 'method' : 'function',
         line: i + 1,
-        signature: (defOpen[1] ? 'async ' : '') + 'def ' + defName + '(' + collected.replace(/\s+/g, ' ').trim() + ')',
+        signature:
+          (defOpen[1] ? 'async ' : '') +
+          'def ' +
+          defName +
+          '(' +
+          collected.replace(/\s+/g, ' ').trim() +
+          ')',
       };
       const top = stack[stack.length - 1];
       if (top) {

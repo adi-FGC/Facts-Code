@@ -44,7 +44,14 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-05-01T00:00:00Z',
-    project: { name: 'demo', root: '.', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 'demo',
+      root: '.',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [],
     graph: { nodes: [], edges: [], cycles: [] },
     routes: [],
@@ -57,7 +64,11 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
 }
 
 /** Convenience: build an edge object with a default `import` kind. */
-function edge(from: string, to: string, kind: 'import' | 'type-import' | 'dynamic-import' = 'import') {
+function edge(
+  from: string,
+  to: string,
+  kind: 'import' | 'type-import' | 'dynamic-import' = 'import',
+) {
   return { from, to, kind };
 }
 
@@ -127,9 +138,7 @@ describe('shortPath', () => {
   });
 
   it('normalizes Windows separators', () => {
-    expect(shortPath('apps\\ui-remix\\src\\routes\\About.tsx')).toBe(
-      'apps/ui-remix/…/About.tsx',
-    );
+    expect(shortPath('apps\\ui-remix\\src\\routes\\About.tsx')).toBe('apps/ui-remix/…/About.tsx');
   });
 });
 
@@ -393,7 +402,9 @@ describe('buildHubDiagram', () => {
     /* loadArtifacts.ts should appear EXACTLY ONCE as a node — and
      * that one appearance should be the hub variant with the
      * importers count. */
-    const nodeLines = out.split('\n').filter((l) => l.includes('n_apps_ui_remix_src_lib_loadArtifacts_ts['));
+    const nodeLines = out
+      .split('\n')
+      .filter((l) => l.includes('n_apps_ui_remix_src_lib_loadArtifacts_ts['));
     expect(nodeLines).toHaveLength(1);
     expect(nodeLines[0]).toContain('↪ 2 importers');
   });
@@ -522,11 +533,7 @@ describe('buildFocalDiagram', () => {
     const agent = makeAgent({
       graph: {
         nodes: [],
-        edges: [
-          edge('z.ts', 'focus.ts'),
-          edge('a.ts', 'focus.ts'),
-          edge('m.ts', 'a.ts'),
-        ],
+        edges: [edge('z.ts', 'focus.ts'), edge('a.ts', 'focus.ts'), edge('m.ts', 'a.ts')],
         cycles: [],
       },
     });
@@ -564,9 +571,7 @@ describe('buildDiagram dispatcher', () => {
   });
 
   it('throws a clear error when focal is requested without focus', () => {
-    expect(() => buildDiagram(makeAgent(), { view: 'focal' })).toThrow(
-      /opts.focus is required/,
-    );
+    expect(() => buildDiagram(makeAgent(), { view: 'focal' })).toThrow(/opts.focus is required/);
   });
 });
 
@@ -587,8 +592,7 @@ describe('Mermaid output invariants (cross-renderer)', () => {
     },
     {
       name: 'focal',
-      build: (a: AgentArtifact) =>
-        buildDiagram(a, { view: 'focal', focus: 'focus.ts' }),
+      build: (a: AgentArtifact) => buildDiagram(a, { view: 'focal', focus: 'focus.ts' }),
     },
   ];
 

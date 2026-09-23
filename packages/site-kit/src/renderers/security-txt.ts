@@ -21,7 +21,9 @@ const SECURITY_ADVISORIES_URL = 'https://github.com/adi-FGC/Facts-Code/security/
 function oneYearLater(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) {
-    throw new Error(`security-txt: generatedAt is not a valid ISO-8601 date: ${JSON.stringify(iso)}`);
+    throw new Error(
+      `security-txt: generatedAt is not a valid ISO-8601 date: ${JSON.stringify(iso)}`,
+    );
   }
   // setUTCFullYear(+1) on a Feb-29 build rolls to Mar-1 next year (JS clamps the
   // nonexistent date) — a harmless ≤1-day drift on the Expires field.

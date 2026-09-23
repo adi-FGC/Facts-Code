@@ -4,6 +4,9 @@
  *
  * Rules:
  *   - Respects .gitignore + .dockerignore + .cursorignore + .aiignore + .factsignore
+ *   - Respects rules the host injects via `extraIgnore` (the CLI passes git's
+ *     global excludes + .git/info/exclude), plus a small built-in list of
+ *     per-developer agent files that git hides from outside the repo
  *     (stacked hierarchically; deeper files can override with `!` patterns).
  *   - Always excludes: node_modules, dist, build, .next, .turbo, .cache,
  *     __pycache__, .venv, .git, vendor, target, coverage, .pnpm-store,
@@ -23,14 +26,26 @@
 import * as ignoreModule from 'ignore';
 import type { Ignore } from 'ignore';
 import { byCodeUnit } from '@factstack/spec';
-const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default
-  ?? (ignoreModule as unknown as () => Ignore)) as () => Ignore;
+const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default ??
+  (ignoreModule as unknown as () => Ignore)) as () => Ignore;
 import type { Dirent, FactsFS } from '@factstack/spec';
 
 const ALWAYS_EXCLUDE = new Set([
-  'node_modules', 'dist', 'build', '.next', '.turbo', '.cache',
-  '__pycache__', '.venv', '.git', 'vendor', 'target', 'coverage',
-  '.pnpm-store', '.vscode', '.idea',
+  'node_modules',
+  'dist',
+  'build',
+  '.next',
+  '.turbo',
+  '.cache',
+  '__pycache__',
+  '.venv',
+  '.git',
+  'vendor',
+  'target',
+  'coverage',
+  '.pnpm-store',
+  '.vscode',
+  '.idea',
   /* FACTS's OWN output dir — never analyze our artifacts. Hard-excluded (not
      just via the .gitignore entry analyze writes) so a re-analyze is correct
      even before that entry exists, and so the F8 cache.db + its sqlite
@@ -42,7 +57,9 @@ const ALWAYS_EXCLUDE = new Set([
      .playwright-mcp/ polluted the "other" tier without contributing
      any signal. Same category as .turbo and .cache: produced by
      tooling, not authored. */
-  '.playwright-mcp', 'playwright-report', 'test-results',
+  '.playwright-mcp',
+  'playwright-report',
+  'test-results',
 ]);
 
 /**
@@ -51,10 +68,7 @@ const ALWAYS_EXCLUDE = new Set([
  * list, framework detection. The walker drops these before any further
  * processing; downstream consumers (UI, MCP, query) never see them.
  */
-const ALWAYS_EXCLUDE_SUFFIXES = [
-  '.tsbuildinfo',
-  '.tsbuildinfo.json',
-];
+const ALWAYS_EXCLUDE_SUFFIXES = ['.tsbuildinfo', '.tsbuildinfo.json'];
 
 function isNoiseArtifact(name: string): boolean {
   const lower = name.toLowerCase();
@@ -62,6 +76,22 @@ function isNoiseArtifact(name: string): boolean {
 }
 
 const IGNORE_FILES = ['.gitignore', '.dockerignore', '.cursorignore', '.aiignore', '.factsignore'];
+
+/**
+ * Ignore rules applied at the root of every walk (v0.3.12).
+ *
+ * These are files a coding agent writes for ONE developer and that git does
+ * not track — conventionally through the user's GLOBAL excludes file, which
+ * lives outside the repository and which this package cannot read (it must
+ * stay isomorphic). Analyzing them put a machine-specific path into the file
+ * list of a public artifact, so they are excluded by name here and the host
+ * can inject the real global excludes via `extraIgnore`.
+ */
+const PERSONAL_IGNORE = [
+  '**/.claude/settings.local.json', // Claude Code per-developer settings (hooks, permissions)
+  'CLAUDE.local.md', // Claude Code per-developer memory (unanchored: any depth)
+  '**/.cursor/rules/*.local.mdc',
+];
 
 /** Pause before the single read retry — long enough for an editor save or
  *  AV scan to release the file, short enough to be invisible on the rare
@@ -81,6 +111,13 @@ export interface WalkOptions {
   skipGit?: boolean;
   /** Follow symlinks. Default false; loops are never followed regardless. */
   followSymlinks?: boolean;
+  /** Extra .gitignore-syntax rules applied at the root, in addition to the
+   *  ignore files found in the tree. The Node host passes git's global
+   *  excludes file (`core.excludesFile`) here: it usually holds the personal
+   *  agent/editor files a repository deliberately does not track, and this
+   *  package cannot read outside the FactsFS root. Rules are relative to the
+   *  walk root, exactly like a root `.gitignore`. */
+  extraIgnore?: string[];
 }
 
 export interface WalkedFile {
@@ -104,6 +141,17 @@ export interface WalkedFile {
   skippedReason: 'binary' | 'too_large' | 'read_error' | null;
 }
 
+/** True when `dir` holds a `.git` entry — file (linked worktree,
+ *  submodule) or directory (nested clone). A stat that throws means no. */
+async function isOtherCheckout(fs: FactsFS, dir: string): Promise<boolean> {
+  try {
+    await fs.stat(fs.join(dir, '.git'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function* walk(
   fs: FactsFS,
   root: string = '.',
@@ -112,10 +160,26 @@ export async function* walk(
   const maxFileSize = opts.maxFileSize ?? 1024 * 1024;
   const followSymlinks = opts.followSymlinks ?? false;
   const skipGit = opts.skipGit ?? true;
+  const extraIgnore = opts.extraIgnore ?? [];
   const rootNorm = fs.normalize(root);
   const visited = new Set<string>();
 
-  yield* walkDir(fs, rootNorm, rootNorm, ignore(), visited, { maxFileSize, followSymlinks, skipGit });
+  /* Root-level rules, in precedence order (gitignore is last-match-wins):
+     1. the host's injected rules — git's global excludes, which may legitimately
+        re-include something with `!`;
+     2. PERSONAL_IGNORE — after them, so a stray `!` in a machine's global
+        excludes can never re-admit an agent's per-developer file into an
+        artifact that gets published;
+     3. the repository's own ignore files, added per directory in walkDir —
+        last, so a project that deliberately TRACKS one of these paths can still
+        re-include it with `!` in .gitignore / .factsignore. */
+  const rootIgnore = ignore().add(parseIgnore([...extraIgnore, ...PERSONAL_IGNORE].join('\n')));
+
+  yield* walkDir(fs, rootNorm, rootNorm, rootIgnore, visited, {
+    maxFileSize,
+    followSymlinks,
+    skipGit,
+  });
 }
 
 async function* walkDir(
@@ -124,7 +188,9 @@ async function* walkDir(
   current: string,
   parentIgnore: ReturnType<typeof ignore>,
   visited: Set<string>,
-  opts: Required<WalkOptions>,
+  /* Rules travel in `parentIgnore`, never in opts: walkDir must not be able
+     to re-seed them per directory (it would change their anchoring). */
+  opts: Required<Omit<WalkOptions, 'extraIgnore'>>,
 ): AsyncIterable<WalkedFile> {
   // Compose ignore patterns at this level by appending any local ignore files.
   const localIgnore = ignore().add(parentIgnore as unknown as string[]);
@@ -176,6 +242,14 @@ async function* walkDir(
     if (entry.isDirectory) {
       if (visited.has(entry.path)) continue;
       visited.add(entry.path);
+      /* v0.3.11 — a directory that carries its own `.git` (a linked worktree
+         has a .git FILE, a nested clone a .git DIR) is a different checkout,
+         not part of this project. Descending into it double-counted every
+         file and, on the public demo, surfaced a stale worktree copy's test
+         fixtures as this repo's "secrets". The Worktrees tab reports these
+         checkouts on purpose; the file walk must not swallow them. Root is
+         exempt (its .git is the project's own). */
+      if (opts.skipGit && (await isOtherCheckout(fs, entry.path))) continue;
       yield* walkDir(fs, base, entry.path, localIgnore, visited, opts);
       continue;
     }
@@ -198,7 +272,10 @@ async function* walkDir(
       // through to `read_error` so downstream NEVER records the file as
       // read-but-empty.
       text = await new Promise<string | null>((resolve) =>
-        setTimeout(() => fs.readText(entry.path).then(resolve, () => resolve(null)), READ_RETRY_DELAY_MS),
+        setTimeout(
+          () => fs.readText(entry.path).then(resolve, () => resolve(null)),
+          READ_RETRY_DELAY_MS,
+        ),
       );
       if (text == null) {
         yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'read_error');

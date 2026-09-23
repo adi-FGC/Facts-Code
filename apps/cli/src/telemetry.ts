@@ -74,7 +74,14 @@ export interface TelemetryOptions {
 }
 
 function defaultMetrics(): TelemetryMetrics {
-  return { firstSeenAt: null, lastSeenAt: null, events: {}, durationsMs: [], fileCounts: [], errors: {} };
+  return {
+    firstSeenAt: null,
+    lastSeenAt: null,
+    events: {},
+    durationsMs: [],
+    fileCounts: [],
+    errors: {},
+  };
 }
 function defaultState(): TelemetryState {
   return { installId: null, optedIn: false, optedInAt: null, firstRunSeen: false };
@@ -85,7 +92,10 @@ function defaultState(): TelemetryState {
  * configured URL. Factored out so the privacy-critical decision is unit-
  * tested in isolation.
  */
-export function shouldSendRemote(state: TelemetryState, remoteUrl: string | null | undefined): boolean {
+export function shouldSendRemote(
+  state: TelemetryState,
+  remoteUrl: string | null | undefined,
+): boolean {
   return state.optedIn === true && typeof remoteUrl === 'string' && remoteUrl.length > 0;
 }
 
@@ -111,7 +121,7 @@ export function createTelemetry(opts: TelemetryOptions = {}): Telemetry {
   const remoteUrl =
     opts.remoteUrl !== undefined ? opts.remoteUrl : (process.env.FACTSTACK_TELEMETRY_URL ?? null);
   const fetchFn: RemoteFetch | undefined =
-    opts.fetch ?? ((globalThis as { fetch?: RemoteFetch }).fetch);
+    opts.fetch ?? (globalThis as { fetch?: RemoteFetch }).fetch;
   const now = opts.now ?? (() => new Date().toISOString());
   const uuid = opts.uuid ?? (() => randomUUID());
 
@@ -236,5 +246,14 @@ export function createTelemetry(opts: TelemetryOptions = {}): Telemetry {
     }
   }
 
-  return { dir, recordEvent, loadMetrics, loadState, setOptedIn, dismissFirstRun, exportData, reset };
+  return {
+    dir,
+    recordEvent,
+    loadMetrics,
+    loadState,
+    setOptedIn,
+    dismissFirstRun,
+    exportData,
+    reset,
+  };
 }

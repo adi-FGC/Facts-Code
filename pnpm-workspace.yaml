@@ -1,9 +1,10 @@
 packages:
-  - "packages/*"
-  - "apps/*"
-  - "plugins/*"
-  - "examples/*"
-  - "prototype"
+  - 'packages/*'
+  - 'apps/*'
+  - 'plugins/*'
+  - 'examples/*'
+  - 'prototype'
+  - 'legacy/prototype'
 
 allowBuilds:
   esbuild: true

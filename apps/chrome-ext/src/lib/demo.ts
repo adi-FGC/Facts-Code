@@ -13,7 +13,13 @@ export async function loadDemo(): Promise<LoadedDataset> {
   const dataset = (await res.json()) as Dataset;
   // The cast is a promise, not a proof — validate the load-bearing shape the
   // routes dereference (tree/project/stats) before handing it to the UI.
-  if (!dataset || typeof dataset !== 'object' || !dataset.tree || !dataset.project || !dataset.stats) {
+  if (
+    !dataset ||
+    typeof dataset !== 'object' ||
+    !dataset.tree ||
+    !dataset.project ||
+    !dataset.stats
+  ) {
     throw new Error('Demo dataset is malformed.');
   }
   return {

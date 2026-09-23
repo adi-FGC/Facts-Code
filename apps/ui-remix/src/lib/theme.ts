@@ -20,22 +20,24 @@ export function readStoredTheme(): Theme {
     const v = localStorage.getItem(THEME_STORE_KEY);
     if (v === 'light' || v === 'dark') return v;
     return 'system';
-  } catch { return 'system'; }
+  } catch {
+    return 'system';
+  }
 }
 
 export function persistTheme(t: Theme): void {
   try {
     if (t === 'system') localStorage.removeItem(THEME_STORE_KEY);
     else localStorage.setItem(THEME_STORE_KEY, t);
-  } catch { /* private mode — silently no-op */ }
+  } catch {
+    /* private mode — silently no-op */
+  }
 }
 
 export function applyTheme(t: Theme): 'light' | 'dark' {
   const html = document.documentElement;
   const effective: 'light' | 'dark' =
-    t === 'system'
-      ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-      : t;
+    t === 'system' ? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') : t;
   html.dataset.theme = effective;
   html.style.colorScheme = effective;
   return effective;

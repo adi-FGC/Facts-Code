@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  deriveLicenseRisks,
-  scanFileLicense,
-  scanManifestLicense,
-} from '../src/licenses.js';
+import { deriveLicenseRisks, scanFileLicense, scanManifestLicense } from '../src/licenses.js';
 
 describe('scanFileLicense', () => {
   it('reads SPDX headers', () => {

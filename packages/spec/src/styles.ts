@@ -102,7 +102,11 @@ export const StyleAuditSchema = z.object({
    *  "BEM", "CSS-in-JS", "Bootstrap", "Sass"). */
   paradigms: z.array(z.string()).default([]),
   tooling: StyleToolingSchema.default({
-    lightningcss: false, postcss: false, autoprefixer: false, sass: false, tailwind: false,
+    lightningcss: false,
+    postcss: false,
+    autoprefixer: false,
+    sass: false,
+    tailwind: false,
   }),
   findings: z.array(StyleFindingSchema).default([]),
 });

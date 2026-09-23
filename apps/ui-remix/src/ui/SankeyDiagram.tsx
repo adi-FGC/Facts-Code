@@ -137,10 +137,22 @@ export function SankeyDiagram(handle: Handle<SankeyDiagramProps>) {
                   >
                     <title>{`${n.label} · ${formatValue(n.value)}`}</title>
                   </rect>
-                  <text mix={nodeLabel} x={labelX} y={midY - 1} text-anchor={anchor} dominant-baseline="middle">
+                  <text
+                    mix={nodeLabel}
+                    x={labelX}
+                    y={midY - 1}
+                    text-anchor={anchor}
+                    dominant-baseline="middle"
+                  >
                     {n.label}
                   </text>
-                  <text mix={nodeValue} x={labelX} y={midY + 11} text-anchor={anchor} dominant-baseline="middle">
+                  <text
+                    mix={nodeValue}
+                    x={labelX}
+                    y={midY + 11}
+                    text-anchor={anchor}
+                    dominant-baseline="middle"
+                  >
                     {formatValue(n.value)}
                   </text>
                 </g>

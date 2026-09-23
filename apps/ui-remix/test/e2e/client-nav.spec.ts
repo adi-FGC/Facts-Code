@@ -29,6 +29,7 @@ const PRIMARY_TABS = [
   'Security',
   'Tests',
   'History',
+  'Worktrees',
   'Overview',
 ] as const;
 

@@ -1,8 +1,9 @@
-# @factstack/fs-browser *(v0.4 stub)*
+# @factstack/fs-browser _(v0.4 stub)_
 
 **Not built in v0.1.** Reserved for the Chrome-extension / web-app surface in v0.4+.
 
 Will implement the `FactsFS` interface from `@factstack/spec` using:
+
 - File System Access API for local directories (web app, v0.5).
 - GitHub REST API for public repos browsed from the Chrome extension (v0.4).
 

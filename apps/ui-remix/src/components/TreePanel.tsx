@@ -180,7 +180,9 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
 
   // Re-render when the URL changes so the active file highlight follows
   // the page. We listen to popstate + the in-app `factstack:nav` event.
-  const rerender = () => { void handle.update(); };
+  const rerender = () => {
+    void handle.update();
+  };
   window.addEventListener('popstate', rerender);
   window.addEventListener('factstack:nav', rerender);
   handle.signal.addEventListener('abort', () => {
@@ -198,7 +200,11 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
      pre-flattened so the parent <ul> can list them top-down without
      wrapping each subtree in nested ul/li (which would multiply the
      hairline borders into a busy ladder). */
-  function renderNode(node: DatasetTreeNode, depth: number, activePath: string | null): JSX.Element[] {
+  function renderNode(
+    node: DatasetTreeNode,
+    depth: number,
+    activePath: string | null,
+  ): JSX.Element[] {
     const out: JSX.Element[] = [];
     // Directories first, alphabetically — gives the tree its FS-like
     // ordering instead of "everything jumbled by token weight".
@@ -231,7 +237,9 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
               on('click', () => toggle(d.path)),
             ]}
           >
-            <span aria-hidden="true" mix={marker}>{isOpen ? '▾' : '▸'}</span>
+            <span aria-hidden="true" mix={marker}>
+              {isOpen ? '▾' : '▸'}
+            </span>
             <span mix={nameCell}>{d.name}</span>
             <span mix={sizeCell}>{sizeStr}</span>
           </button>
@@ -268,7 +276,9 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
               css({ paddingInlineStart: indent }),
             ]}
           >
-            <span aria-hidden="true" mix={marker}>·</span>
+            <span aria-hidden="true" mix={marker}>
+              ·
+            </span>
             <span mix={nameCell}>{f.name}</span>
             <span mix={sizeCell}>{fmtBytes(f.size)}</span>
           </a>
@@ -304,7 +314,8 @@ export function TreePanel(handle: Handle<TreePanelProps>) {
         <div mix={head}>
           <span>{data.project.name}</span>
           <span>
-            {data.stats.files} <span mix={css({ color: 'var(--fg-faint)', marginLeft: '4px' })}>files</span>
+            {data.stats.files}{' '}
+            <span mix={css({ color: 'var(--fg-faint)', marginLeft: '4px' })}>files</span>
           </span>
         </div>
         <ul mix={tree}>{allRows}</ul>

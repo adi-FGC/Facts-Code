@@ -20,7 +20,12 @@ import { decode } from '../src/decode.js';
 import { computeDiff, applyChain } from '../src/chain.js';
 import type { DecodedPack, DecodedTable, PackHeader, PackRow, PackTable } from '../src/types.js';
 
-const HEADER: PackHeader = { producer: 'factstack/0.3.10', schema: 'agent-v1', snapshotId: 's', rowCount: null };
+const HEADER: PackHeader = {
+  producer: 'factstack/0.3.10',
+  schema: 'agent-v1',
+  snapshotId: 's',
+  rowCount: null,
+};
 
 /** Encode then decode a baseline table-set → a DecodedPack we can diff. */
 function pack(tables: PackTable[]): DecodedPack {
@@ -28,7 +33,10 @@ function pack(tables: PackTable[]): DecodedPack {
 }
 /** Content compare ignoring row order (rows are a set). */
 function rowsByKey(rows: PackRow[]): string {
-  return [...rows].map((r) => JSON.stringify(r)).sort().join('\n');
+  return [...rows]
+    .map((r) => JSON.stringify(r))
+    .sort()
+    .join('\n');
 }
 function tableContent(p: DecodedPack, name: string): string {
   const t = p.tables.get(name);
@@ -36,8 +44,28 @@ function tableContent(p: DecodedPack, name: string): string {
 }
 
 describe('computeDiff — add / remove / update / unchanged by column-1 PK', () => {
-  const prev = pack([{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '10'], ['b.ts', '20'], ['c.ts', '30']] }]);
-  const next = pack([{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '10'], ['b.ts', '99'], ['d.ts', '40']] }]);
+  const prev = pack([
+    {
+      name: 'files',
+      columns: [{ name: 'path' }, { name: 'loc' }],
+      rows: [
+        ['a.ts', '10'],
+        ['b.ts', '20'],
+        ['c.ts', '30'],
+      ],
+    },
+  ]);
+  const next = pack([
+    {
+      name: 'files',
+      columns: [{ name: 'path' }, { name: 'loc' }],
+      rows: [
+        ['a.ts', '10'],
+        ['b.ts', '99'],
+        ['d.ts', '40'],
+      ],
+    },
+  ]);
   const diff = computeDiff(prev, next);
 
   it('emits exactly one changed table', () => {
@@ -88,7 +116,9 @@ describe('computeDiff — DI-2: a new EMPTY table still propagates through the c
     expect(sym).toBeDefined(); // before DI-2 a zero-row new table was dropped
     expect(sym!.addedRows).toEqual([]);
     // round-trips through the wire: encode the diff, decode strict, apply onto prev
-    const diffDec = decode(encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: diff }));
+    const diffDec = decode(
+      encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: diff }),
+    );
     const rebuilt = applyChain(prev, [diffDec]);
     expect(rebuilt.has('symbols')).toBe(true);
     expect(rebuilt.get('symbols')!.rows).toEqual([]);
@@ -98,17 +128,54 @@ describe('computeDiff — DI-2: a new EMPTY table still propagates through the c
 describe('full chain round-trip — master + encoded diff, applied, equals next', () => {
   it('encodeIncremental(computeDiff(...)) decodes strict and applyChain reconstructs next', () => {
     const prev = pack([
-      { name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '10'], ['b.ts', '20'], ['c.ts', '30']] },
-      { name: 'symbols', columns: [{ name: 'id' }, { name: 'name' }], rows: [['a#f@1', 'f'], ['b#g@2', 'g']] },
+      {
+        name: 'files',
+        columns: [{ name: 'path' }, { name: 'loc' }],
+        rows: [
+          ['a.ts', '10'],
+          ['b.ts', '20'],
+          ['c.ts', '30'],
+        ],
+      },
+      {
+        name: 'symbols',
+        columns: [{ name: 'id' }, { name: 'name' }],
+        rows: [
+          ['a#f@1', 'f'],
+          ['b#g@2', 'g'],
+        ],
+      },
     ]);
     const next = pack([
-      { name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '10'], ['b.ts', '99'], ['d.ts', '40']] },
-      { name: 'symbols', columns: [{ name: 'id' }, { name: 'name' }], rows: [['a#f@1', 'f'], ['c#h@3', 'h']] },
+      {
+        name: 'files',
+        columns: [{ name: 'path' }, { name: 'loc' }],
+        rows: [
+          ['a.ts', '10'],
+          ['b.ts', '99'],
+          ['d.ts', '40'],
+        ],
+      },
+      {
+        name: 'symbols',
+        columns: [{ name: 'id' }, { name: 'name' }],
+        rows: [
+          ['a#f@1', 'f'],
+          ['c#h@3', 'h'],
+        ],
+      },
     ]);
     const incTables = computeDiff(prev, next);
     const masterSha = prev.trailer!.sha256;
     const diffText = encodeIncremental({
-      header: { ...HEADER, snapshotId: 'next', rowCount: 0, seq: 2, parent: masterSha, kind: 'diff' },
+      header: {
+        ...HEADER,
+        snapshotId: 'next',
+        rowCount: 0,
+        seq: 2,
+        parent: masterSha,
+        kind: 'diff',
+      },
       tables: incTables,
     });
     const diffDec = decode(diffText); // strict by default — proves the diff contract holds
@@ -124,11 +191,41 @@ describe('full chain round-trip — master + encoded diff, applied, equals next'
 
 describe('applyChain — multi-diff sequence', () => {
   it('master → d1 → d2 reconstructs the final state', () => {
-    const s0 = pack([{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '1']] }]);
-    const s1 = pack([{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '1'], ['b.ts', '2']] }]);
-    const s2 = pack([{ name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['b.ts', '22'], ['c.ts', '3']] }]);
-    const d1 = decode(encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: computeDiff(s0, s1) }));
-    const d2 = decode(encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: computeDiff(s1, s2) }));
+    const s0 = pack([
+      { name: 'files', columns: [{ name: 'path' }, { name: 'loc' }], rows: [['a.ts', '1']] },
+    ]);
+    const s1 = pack([
+      {
+        name: 'files',
+        columns: [{ name: 'path' }, { name: 'loc' }],
+        rows: [
+          ['a.ts', '1'],
+          ['b.ts', '2'],
+        ],
+      },
+    ]);
+    const s2 = pack([
+      {
+        name: 'files',
+        columns: [{ name: 'path' }, { name: 'loc' }],
+        rows: [
+          ['b.ts', '22'],
+          ['c.ts', '3'],
+        ],
+      },
+    ]);
+    const d1 = decode(
+      encodeIncremental({
+        header: { ...HEADER, rowCount: 0, kind: 'diff' },
+        tables: computeDiff(s0, s1),
+      }),
+    );
+    const d2 = decode(
+      encodeIncremental({
+        header: { ...HEADER, rowCount: 0, kind: 'diff' },
+        tables: computeDiff(s1, s2),
+      }),
+    );
     const rebuilt = applyChain(s0, [d1, d2]);
     expect(rowsByKey([...rebuilt.get('files')!.rows])).toBe(tableContent(s2, 'files'));
   });
@@ -145,9 +242,18 @@ describe('computeDiff — identical states produce an empty diff', () => {
 /** Build a DecodedPack directly so a guard can be hit with cells (null PK,
  *  duplicate PK) the encoder would otherwise normalize — these test
  *  computeDiff's contract checks in isolation. */
-function raw(tables: { name: string; columns: { name: string }[]; rows: PackRow[] }[]): DecodedPack {
+function raw(
+  tables: { name: string; columns: { name: string }[]; rows: PackRow[] }[],
+): DecodedPack {
   const m = new Map<string, DecodedTable>();
-  for (const t of tables) m.set(t.name, { name: t.name, columns: t.columns, rows: t.rows, addedRows: [], deletedIds: [] });
+  for (const t of tables)
+    m.set(t.name, {
+      name: t.name,
+      columns: t.columns,
+      rows: t.rows,
+      addedRows: [],
+      deletedIds: [],
+    });
   return { header: HEADER, tables: m, meta: [] };
 }
 
@@ -159,13 +265,31 @@ describe('computeDiff — contract guards throw (a sound diff needs a unique, no
     expect(() => computeDiff(prev, next)).toThrow(/null primary key/);
   });
   it('throws on a duplicate primary key in prev', () => {
-    const prev = raw([{ name: 'files', columns: files, rows: [['a.ts', '1'], ['a.ts', '2']] }]);
+    const prev = raw([
+      {
+        name: 'files',
+        columns: files,
+        rows: [
+          ['a.ts', '1'],
+          ['a.ts', '2'],
+        ],
+      },
+    ]);
     const next = raw([{ name: 'files', columns: files, rows: [['a.ts', '1']] }]);
     expect(() => computeDiff(prev, next)).toThrow(/duplicate primary key/);
   });
   it('throws on a duplicate primary key in next', () => {
     const prev = raw([{ name: 'files', columns: files, rows: [['a.ts', '1']] }]);
-    const next = raw([{ name: 'files', columns: files, rows: [['a.ts', '1'], ['a.ts', '2']] }]);
+    const next = raw([
+      {
+        name: 'files',
+        columns: files,
+        rows: [
+          ['a.ts', '1'],
+          ['a.ts', '2'],
+        ],
+      },
+    ]);
     expect(() => computeDiff(prev, next)).toThrow(/duplicate primary key/);
   });
 });
@@ -177,7 +301,12 @@ describe('applyChain — a dropped table leaves a documented empty residue', () 
       { name: 'gone', columns: [{ name: 'path' }], rows: [['x.ts']] },
     ]);
     const next = pack([{ name: 'files', columns: [{ name: 'path' }], rows: [['a.ts']] }]);
-    const diff = decode(encodeIncremental({ header: { ...HEADER, rowCount: 0, kind: 'diff' }, tables: computeDiff(prev, next) }));
+    const diff = decode(
+      encodeIncremental({
+        header: { ...HEADER, rowCount: 0, kind: 'diff' },
+        tables: computeDiff(prev, next),
+      }),
+    );
     const rebuilt = applyChain(prev, [diff]);
     // Documented limitation (see chain.ts): the dropped table survives as an
     // EMPTY residue rather than vanishing...

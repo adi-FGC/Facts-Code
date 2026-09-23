@@ -211,7 +211,11 @@ export function parseHcl(source: string): ParsedHcl {
   }
 
   const declared = new Set(blocks.map((b) => `${b.type}.${b.name}`));
-  const resources: HclResource[] = blocks.map((b) => ({ type: b.type, name: b.name, line: b.line }));
+  const resources: HclResource[] = blocks.map((b) => ({
+    type: b.type,
+    name: b.name,
+    line: b.line,
+  }));
 
   // ── Pass 2: resource→resource references inside each block body ──
   const dependencies: HclDependency[] = [];

@@ -67,46 +67,65 @@ export function LayerSummary(handle: Handle<LayerSummaryProps>) {
   return () => {
     const { byLayer, maxLayer } = handle.props;
     return (
-    <RuledTable minWidth="28rem" cols="60px auto auto auto minmax(0, 1fr)">
-      <RuledRow header>
-        <RuledCell header align="right">Layer</RuledCell>
-        <RuledCell header align="right">Files</RuledCell>
-        <RuledCell header align="right">Lines</RuledCell>
-        <RuledCell header align="right">Tokens</RuledCell>
-        <RuledCell header>Sample</RuledCell>
-      </RuledRow>
-      {Array.from({ length: maxLayer + 1 }, (_, L) => {
-        const files = byLayer.get(L) ?? [];
-        const loc = files.reduce((s, f) => s + f.loc, 0);
-        const tokens = files.reduce((s, f) => s + f.tokens, 0);
-        /* Three sample names sorted by token weight — gives the reader
+      <RuledTable minWidth="28rem" cols="60px auto auto auto minmax(0, 1fr)">
+        <RuledRow header>
+          <RuledCell header align="right">
+            Layer
+          </RuledCell>
+          <RuledCell header align="right">
+            Files
+          </RuledCell>
+          <RuledCell header align="right">
+            Lines
+          </RuledCell>
+          <RuledCell header align="right">
+            Tokens
+          </RuledCell>
+          <RuledCell header>Sample</RuledCell>
+        </RuledRow>
+        {Array.from({ length: maxLayer + 1 }, (_, L) => {
+          const files = byLayer.get(L) ?? [];
+          const loc = files.reduce((s, f) => s + f.loc, 0);
+          const tokens = files.reduce((s, f) => s + f.tokens, 0);
+          /* Three sample names sorted by token weight — gives the reader
            a foothold without dumping the whole layer. */
-        const sample = files.slice().sort((a, b) => b.tokens - a.tokens).slice(0, 3);
-        return (
-          <RuledRow key={L}>
-            <RuledCell mono align="right">L{L}</RuledCell>
-            <RuledCell mono align="right">{fmt(files.length)}</RuledCell>
-            <RuledCell mono align="right">{fmt(loc)}</RuledCell>
-            <RuledCell mono align="right">{fmt(tokens)}</RuledCell>
-            <RuledCell>
-              {sample.map((f, i) => {
-                const { name, dir } = splitDirAndName(f.path);
-                return (
-                  <span key={f.path}>
-                    <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>{name}</a>
-                    {dir && <span mix={dirText}> · {dir}</span>}
-                    {i < sample.length - 1 && <span mix={sep}>·</span>}
-                  </span>
-                );
-              })}
-              {files.length > 3 && (
-                <span mix={moreText}>+ {files.length - 3} more</span>
-              )}
-            </RuledCell>
-          </RuledRow>
-        );
-      })}
-    </RuledTable>
+          const sample = files
+            .slice()
+            .sort((a, b) => b.tokens - a.tokens)
+            .slice(0, 3);
+          return (
+            <RuledRow key={L}>
+              <RuledCell mono align="right">
+                L{L}
+              </RuledCell>
+              <RuledCell mono align="right">
+                {fmt(files.length)}
+              </RuledCell>
+              <RuledCell mono align="right">
+                {fmt(loc)}
+              </RuledCell>
+              <RuledCell mono align="right">
+                {fmt(tokens)}
+              </RuledCell>
+              <RuledCell>
+                {sample.map((f, i) => {
+                  const { name, dir } = splitDirAndName(f.path);
+                  return (
+                    <span key={f.path}>
+                      <a href={`/files?p=${encodeURIComponent(f.path)}`} mix={fileLink}>
+                        {name}
+                      </a>
+                      {dir && <span mix={dirText}> · {dir}</span>}
+                      {i < sample.length - 1 && <span mix={sep}>·</span>}
+                    </span>
+                  );
+                })}
+                {files.length > 3 && <span mix={moreText}>+ {files.length - 3} more</span>}
+              </RuledCell>
+            </RuledRow>
+          );
+        })}
+      </RuledTable>
     );
   };
 }

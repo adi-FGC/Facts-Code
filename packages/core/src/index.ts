@@ -158,25 +158,40 @@ export {
   type SinceFileSummary,
 } from './since.js';
 import { inferIntent } from '@factstack/intent';
-import type { ProjectMeta } from '@factstack/spec';
+import type { GitTopology, ProjectMeta } from '@factstack/spec';
 
 export interface AnalyzeOptions {
   /** Project root path (FactsFS-relative). */
   root?: string;
   /** Override the project name (default: last path segment of root). */
   projectName?: string;
+  /** Extra .gitignore-syntax rules for the walk, relative to the root. The
+   *  CLI passes git's global excludes file so an agent's personal, untracked
+   *  files (e.g. `.claude/settings.local.json`) never enter the artifact.
+   *  See @factstack/fs-node's `gitGlobalExcludes()`. */
+  extraIgnore?: string[];
   /** Compute gzip bundle size per file. Callback is injected so this package
    *  stays isomorphic; the CLI passes a node:zlib-based impl. */
   gzip?: (text: string) => number;
   /** Pre-mined git stats keyed by project-relative path. Isomorphic core
    *  never shells out to git; the CLI injects this map via @factstack/fs-node's
    *  mineGitStats() helper. v0.3.8 added topContributors to the shape. */
-  gitStats?: Map<string, {
-    lastModifiedMs: number;
-    churnScore: number;
-    authorCount: number;
-    topContributors?: Array<{ email: string; name: string; commits: number; lastTouchedMs: number }>;
-  }> | undefined;
+  gitStats?:
+    | Map<
+        string,
+        {
+          lastModifiedMs: number;
+          churnScore: number;
+          authorCount: number;
+          topContributors?: Array<{
+            email: string;
+            name: string;
+            commits: number;
+            lastTouchedMs: number;
+          }>;
+        }
+      >
+    | undefined;
   /** Called with percent-complete (0–1) and the file being processed. */
   onProgress?: ((pct: number, file: string) => void) | undefined;
   /** F2 — build the symbol-level graph (call/reference edges). Off by default
@@ -190,6 +205,12 @@ export interface AnalyzeOptions {
    *  run (INV2). Omit for the pre-F8 path; the browser build omits it (INV7).
    *  The Node CLI passes @factstack/emit's sqlite-backed store. */
   extractionCache?: ExtractionCache | undefined;
+  /** v0.3.11 - worktree/branch topology mined Node-side by
+   *  @factstack/fs-node mineGitTopology(). Core stays isomorphic and
+   *  never shells out; when omitted (or null: not a git repo) the
+   *  artifact simply lacks agent.git and the Worktrees tab shows its
+   *  empty state. */
+  git?: GitTopology | null | undefined;
 }
 
 export interface AnalysisResult {
@@ -201,6 +222,19 @@ export interface AnalysisResult {
     filesSkipped: number;
     elapsedMs: number;
   };
+}
+
+/** Test / fixture locations by convention: a `test`, `tests`, `__tests__`,
+ *  `__mocks__`, `fixtures` or `testdata` directory segment, or a
+ *  `*.test.*` / `*.spec.*` file name. Heuristic by design — a real credential
+ *  committed under test/ is still listed, just not scored as exposed. */
+export function isTestFixturePath(p: string): boolean {
+  const u = p.replace(/\\/g, '/');
+  return (
+    /(^|\/)(test|tests|__tests__|__mocks__|__fixtures__|fixtures|fixture|testdata|test-data)\//i.test(
+      u,
+    ) || /\.(test|spec)\.[cm]?[jt]sx?$/i.test(u)
+  );
 }
 
 export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<AnalysisResult> {
@@ -259,7 +293,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
   // We don't know the total ahead of time, so progress is unknown-duration.
   const files: WalkedFile[] = [];
-  for await (const f of walk(fs, rootPath)) files.push(f);
+  for await (const f of walk(fs, rootPath, { extraIgnore: opts.extraIgnore ?? [] })) files.push(f);
 
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
@@ -288,16 +322,19 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
           category: 'read-error',
           rule: f.skippedReason === 'read_error' ? 'read-error' : 'binary-source',
           file: f.path,
-          message: f.skippedReason === 'read_error'
-            ? `File could not be read (${f.size} bytes on disk; failed after retry) — loc/tokens are unknown, not 0.`
-            : `Source file sniffed as binary (frequent NUL bytes — unusual encoding such as UTF-16?) — loc/tokens are unknown, not 0.`,
+          message:
+            f.skippedReason === 'read_error'
+              ? `File could not be read (${f.size} bytes on disk; failed after retry) — loc/tokens are unknown, not 0.`
+              : `Source file sniffed as binary (frequent NUL bytes — unusual encoding such as UTF-16?) — loc/tokens are unknown, not 0.`,
         });
       }
       // Still record the file so the tree contains it. An unread file is
       // marked `read_error` — NEVER `ok` — because a non-empty file shown
       // as `ok` with loc 0 reads as "this file is empty" to consumers
       // (an agent concluded exactly that from a misread pack row).
-      outlines.push(minimalOutline(f, f.skippedReason === 'read_error' || binarySource ? 'read_error' : 'ok'));
+      outlines.push(
+        minimalOutline(f, f.skippedReason === 'read_error' || binarySource ? 'read_error' : 'ok'),
+      );
       continue;
     }
 
@@ -326,9 +363,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     // v0.8 — collect CSS sources for the styling audit.
     const cssOrig = cssOrigin(f.path, f.ext);
     if (cssOrig) {
-      const cssText = cssOrig === 'html-style' || cssOrig === 'sfc-style'
-        ? extractStyleBlocks(text)
-        : text;
+      const cssText =
+        cssOrig === 'html-style' || cssOrig === 'sfc-style' ? extractStyleBlocks(text) : text;
       if (cssText.trim()) cssSources.push({ path: f.path, css: cssText, origin: cssOrig });
     }
 
@@ -351,14 +387,24 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (manifest) dependencyManifests.push(manifest);
 
     if (lang) {
+      /* v0.3.11 — a token-shaped string inside a test or fixture file is a
+         fixture until proven otherwise: scanner tests, redaction tests and
+         sample data all carry them on purpose. Still REPORTED (category
+         'secret', so the Credentials view lists it and a human can check),
+         but at `low` severity, and health.ts counts only high/critical
+         secrets as "exposed" — otherwise this repo's own test suite dragged
+         the public demo to an F. */
+      const fixture = isTestFixturePath(f.path);
       for (const s of scanSecrets(f.path, text)) {
         secrets.push({
-          severity: 'high',
+          severity: fixture ? 'low' : 'high',
           category: 'secret',
           rule: s.ruleId,
           file: s.file,
           line: s.line,
-          message: `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
+          message: fixture
+            ? `${s.ruleLabel}-shaped value in a test/fixture file (entropy ${s.entropy}). Verify it is a fixture, not a real credential.`
+            : `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
           preview: s.preview,
         });
       }
@@ -394,14 +440,20 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
           if (typeof j.description === 'string' && j.description.trim()) {
             pkgDescription = j.description.trim();
           }
-        } catch { /* malformed package.json — silent */ }
+        } catch {
+          /* malformed package.json — silent */
+        }
       }
     } else if (f.name === 'requirements.txt') {
       frameworksFromManifests.push(scanFrameworksFromRequirements(text));
     } else if ((f.name === 'pyproject.toml' || f.name === 'Cargo.toml') && f.dir === '') {
       const lic = scanManifestLicense(text, f.name);
       if (lic && !projectLicense) projectLicense = lic;
-    } else if (f.dir === '' && readmeOneLiner == null && /^README(\.md|\.markdown|\.txt)?$/i.test(f.name)) {
+    } else if (
+      f.dir === '' &&
+      readmeOneLiner == null &&
+      /^README(\.md|\.markdown|\.txt)?$/i.test(f.name)
+    ) {
       // Root-level README first prose sentence. Extract the first non-empty
       // paragraph that isn't a heading, badge line, or HTML — usually the
       // project's tagline. Capped to 240 chars to avoid pulling in giant
@@ -443,14 +495,12 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       language: lang?.id ?? 'other',
       loc: f.loc,
       bytes: f.size,
-      bundleSize: gzip != null
-        ? { raw: f.size, minified: text.length, gzipped: gzip }
-        : null,
+      bundleSize: gzip != null ? { raw: f.size, minified: text.length, gzipped: gzip } : null,
       tokenCost: tokens,
       imports: (importsByFile.get(f.path) ?? []).map((r) => ({
         source: r.specifier,
-        resolved: null,          // backfilled after the resolver runs
-        specifiers: r.names,     // F2 — local binding names drive symbol-graph import resolution
+        resolved: null, // backfilled after the resolver runs
+        specifiers: r.names, // F2 — local binding names drive symbol-graph import resolution
         isTypeOnly: r.kind === 'type-import',
       })),
       /* v0.3.9 — derive exports from declarations.filter(s => s.exported).
@@ -476,11 +526,18 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         endLine: s.endLine,
         exported: s.exported,
         ...(s.docstring ? { docstring: s.docstring } : {}),
-        ...(s.children ? { children: s.children.map((c) => ({
-          name: c.name, kind: c.kind, startLine: c.startLine,
-          endLine: c.endLine, exported: c.exported,
-          ...(c.docstring ? { docstring: c.docstring } : {}),
-        })) } : {}),
+        ...(s.children
+          ? {
+              children: s.children.map((c) => ({
+                name: c.name,
+                kind: c.kind,
+                startLine: c.startLine,
+                endLine: c.endLine,
+                exported: c.exported,
+                ...(c.docstring ? { docstring: c.docstring } : {}),
+              })),
+            }
+          : {}),
       })),
       // TodoSchema requires authoredAt (nullable). v0.2's git miner
       // populates per-FILE churn + mtime, but not per-TODO blame (which
@@ -593,7 +650,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
-      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, outline.path, resolverCtx)) continue;
+      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, outline.path, resolverCtx))
+        continue;
       // The walker excludes dist/build/etc., so an import into build output
       // is unresolvable HERE while perfectly valid after a build. Probe the
       // real filesystem before diagnosing: "dependency removed or path
@@ -640,12 +698,20 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   }
 
   // Project meta
-  const languageTally = new Map<string, { id: string; label: string; loc: number; tokens: number; files: number; iconColor: string }>();
+  const languageTally = new Map<
+    string,
+    { id: string; label: string; loc: number; tokens: number; files: number; iconColor: string }
+  >();
   for (const o of outlines) {
     const lang = detectLanguage(extOf(o.path));
     if (!lang) continue;
     const cur = languageTally.get(lang.id) ?? {
-      id: lang.id, label: lang.label, loc: 0, tokens: 0, files: 0, iconColor: '',
+      id: lang.id,
+      label: lang.label,
+      loc: 0,
+      tokens: 0,
+      files: 0,
+      iconColor: '',
     };
     cur.loc += o.loc;
     cur.tokens += o.tokenCost;
@@ -666,7 +732,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     root: rootPath,
     languages: languages.map((l) => l.label),
     frameworks,
-    entryPoints: synthesizeEntryPoints(frameworks, scriptsFromPkgJson, dedupeRoutes(detectedRoutes)),
+    entryPoints: synthesizeEntryPoints(
+      frameworks,
+      scriptsFromPkgJson,
+      dedupeRoutes(detectedRoutes),
+    ),
     monorepo: detectMonorepo(outlines),
     gitAvailable,
   };
@@ -740,6 +810,8 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     docs,
     rationale,
     ...(styleAudit ? { styles: styleAudit } : {}),
+    /* v0.3.11 — worktrees / branches / readiness, adapter-collected. */
+    ...(opts.git ? { git: opts.git } : {}),
   };
 
   // Build human artifact (dashboard).
@@ -845,7 +917,8 @@ function isCompressibleExt(ext: string): boolean {
  *  some of these (`*.tsbuildinfo`); this catches the rest by basename. */
 function isActivityNoise(p: string): boolean {
   const last = p.toLowerCase().split('/').pop() || '';
-  if (last === 'pnpm-lock.yaml' || last === 'package-lock.json' || last === 'yarn.lock') return true;
+  if (last === 'pnpm-lock.yaml' || last === 'package-lock.json' || last === 'yarn.lock')
+    return true;
   if (last === '.gitignore' || last === '.gitattributes' || last === '.editorconfig') return true;
   return false;
 }
@@ -913,7 +986,11 @@ function resolveIfLocal(source: string, importerPath: string, ctx: ResolverConte
 /** True iff a specifier looks like something that SHOULD resolve to a project
  *  file — either relative, or a known workspace name. External packages are
  *  allowed to "resolve to null" without becoming a risk. */
-function isProjectLocalSpecifier(source: string, importerPath: string, ctx: ResolverContext): boolean {
+function isProjectLocalSpecifier(
+  source: string,
+  importerPath: string,
+  ctx: ResolverContext,
+): boolean {
   if (source.startsWith('./') || source.startsWith('../')) return true;
   for (const ws of ctx.workspaces.values()) {
     if (source === ws.name || source.startsWith(ws.name + '/')) return true;
@@ -929,7 +1006,8 @@ function isProjectLocalSpecifier(source: string, importerPath: string, ctx: Reso
     if (!aliasInScope(rule, importerPath)) continue;
     if (rule.wildcard) {
       if (source.length < rule.prefix.length + rule.suffix.length) continue;
-      if (source.startsWith(rule.prefix) && (rule.suffix === '' || source.endsWith(rule.suffix))) return true;
+      if (source.startsWith(rule.prefix) && (rule.suffix === '' || source.endsWith(rule.suffix)))
+        return true;
     } else if (source === rule.prefix) {
       return true;
     }
@@ -1004,14 +1082,21 @@ function inferCapabilities(frameworks: string[], files: FileOutline[]): string[]
   const caps: string[] = [];
   if (frameworks.includes('React')) caps.push('Renders a React web UI');
   if (frameworks.includes('Next.js')) caps.push('Serves Next.js routes');
-  if (frameworks.includes('Express') || frameworks.includes('Hono') || frameworks.includes('Koa')) caps.push('Serves an HTTP API');
-  if (frameworks.includes('FastAPI') || frameworks.includes('Django') || frameworks.includes('Flask')) caps.push('Serves a Python web API');
+  if (frameworks.includes('Express') || frameworks.includes('Hono') || frameworks.includes('Koa'))
+    caps.push('Serves an HTTP API');
+  if (
+    frameworks.includes('FastAPI') ||
+    frameworks.includes('Django') ||
+    frameworks.includes('Flask')
+  )
+    caps.push('Serves a Python web API');
   if (frameworks.includes('Turborepo')) caps.push('Organised as a Turborepo monorepo');
   if (frameworks.includes('Vite')) caps.push('Built with Vite');
   if (frameworks.includes('Tailwind CSS')) caps.push('Styled with Tailwind CSS');
   if (frameworks.includes('Zod')) caps.push('Validates data with Zod schemas');
   if (frameworks.includes('Stripe')) caps.push('Integrates Stripe');
-  if (files.some((f) => f.path.includes('eslint.config'))) caps.push('Lints with a modern ESLint flat config');
+  if (files.some((f) => f.path.includes('eslint.config')))
+    caps.push('Lints with a modern ESLint flat config');
   return caps;
 }
 
@@ -1078,7 +1163,10 @@ function extractReadmeFirstSentence(md: string): string | null {
     const trimmed = line.trim();
     if (!trimmed) continue;
     // Code fences open/close — skip everything inside.
-    if (/^```/.test(trimmed)) { inFence = !inFence; continue; }
+    if (/^```/.test(trimmed)) {
+      inFence = !inFence;
+      continue;
+    }
     if (inFence) continue;
     // ATX heading (# ...), HR rules, blockquotes, list items, badges,
     // raw HTML, or setext underline lines.
@@ -1086,9 +1174,9 @@ function extractReadmeFirstSentence(md: string): string | null {
     if (/^[-=]{3,}\s*$/.test(trimmed)) continue;
     if (/^[-*+]\s/.test(trimmed)) continue;
     if (/^\d+\.\s/.test(trimmed)) continue;
-    if (/^!\[/.test(trimmed)) continue;            // image-only line (badges)
-    if (/^<[a-zA-Z!]/.test(trimmed)) continue;     // raw HTML
-    if (/^\[!\[/.test(trimmed)) continue;          // linked badges [![...]
+    if (/^!\[/.test(trimmed)) continue; // image-only line (badges)
+    if (/^<[a-zA-Z!]/.test(trimmed)) continue; // raw HTML
+    if (/^\[!\[/.test(trimmed)) continue; // linked badges [![...]
     // Strip the leading `> ` of a blockquote — README authors often
     // put the project's tagline in a blockquote right under the title
     // (the GitHub convention). The content of that blockquote IS the
@@ -1138,8 +1226,7 @@ function findFirstSentence(line: string): string {
         // we keep going. Anything longer than 2 letters is probably
         // a real sentence end.
         const before = line.slice(Math.max(0, i - 4), i);
-        const isAbbrev = /(?:^|[\s.])[A-Za-z]\.[A-Za-z]?$/.test(before)
-          || /\d$/.test(before);
+        const isAbbrev = /(?:^|[\s.])[A-Za-z]\.[A-Za-z]?$/.test(before) || /\d$/.test(before);
         if (!isAbbrev) {
           return line.slice(0, i + 1).trim();
         }
@@ -1153,11 +1240,13 @@ function findFirstSentence(line: string): string {
 
 function countPackages(outlines: FileOutline[]): number {
   // Every package.json beyond root denotes a workspace package.
-  return outlines.filter((o) => o.path.endsWith('package.json') && o.path !== 'package.json').length;
+  return outlines.filter((o) => o.path.endsWith('package.json') && o.path !== 'package.json')
+    .length;
 }
 
 function detectMonorepo(outlines: FileOutline[]): ProjectMeta['monorepo'] {
-  if (outlines.some((o) => o.path === 'pnpm-workspace.yaml')) return { manager: 'pnpm', workspaces: [] };
+  if (outlines.some((o) => o.path === 'pnpm-workspace.yaml'))
+    return { manager: 'pnpm', workspaces: [] };
   if (outlines.some((o) => o.path === 'turbo.json')) return { manager: 'turbo', workspaces: [] };
   if (outlines.some((o) => o.path === 'nx.json')) return { manager: 'nx', workspaces: [] };
   if (outlines.some((o) => o.path === 'lerna.json')) return { manager: 'lerna', workspaces: [] };
@@ -1185,13 +1274,19 @@ function synthesizeEntryPoints(
   if (scripts['start']) out.push('npm run start');
   if (scripts['build']) out.push('npm run build');
   if (scripts['test']) out.push('npm run test');
-  if (frameworks.includes('Vite') || frameworks.includes('Next.js') || frameworks.includes('Remix')) {
+  if (
+    frameworks.includes('Vite') ||
+    frameworks.includes('Next.js') ||
+    frameworks.includes('Remix')
+  ) {
     out.push('http://localhost:3000');
   }
   return out;
 }
 
-function classifyEntryPoint(p: string): 'http-route' | 'page' | 'screen' | 'cli-command' | 'event-handler' {
+function classifyEntryPoint(
+  p: string,
+): 'http-route' | 'page' | 'screen' | 'cli-command' | 'event-handler' {
   if (p.startsWith('http')) return 'page';
   if (p.startsWith('/')) return 'http-route';
   return 'cli-command';
@@ -1269,10 +1364,14 @@ function buildHumanTree(outlines: FileOutline[], rootName: string): HumanArtifac
     if (n.kind === 'file') {
       return { loc: n.loc, tok: n.tokenCost, gzip: n.bundleSizeGzip ?? 0 };
     }
-    let loc = 0, tok = 0, gzip = 0;
+    let loc = 0,
+      tok = 0,
+      gzip = 0;
     for (const c of n.children ?? []) {
       const r = roll(c);
-      loc += r.loc; tok += r.tok; gzip += r.gzip;
+      loc += r.loc;
+      tok += r.tok;
+      gzip += r.gzip;
     }
     n.loc = loc;
     n.tokenCost = tok;
@@ -1326,11 +1425,16 @@ function aggregateEnvVars(perFile: Map<string, EnvVarRead[]>): AgentArtifact['co
     if (maxCount / reads.length < 0.75) primaryAccess = null;
     envVars.push({
       name,
-      reads: reads.map((r) => ({ file: r.file, line: r.line, access: r.access, defaultValue: r.defaultValue })),
+      reads: reads.map((r) => ({
+        file: r.file,
+        line: r.line,
+        access: r.access,
+        defaultValue: r.defaultValue,
+      })),
       defaults,
       primaryAccess,
     });
   }
-  envVars.sort((a, b) => (b.reads.length - a.reads.length) || (a.name < b.name ? -1 : 1));
+  envVars.sort((a, b) => b.reads.length - a.reads.length || (a.name < b.name ? -1 : 1));
   return { envVars, schemas: [] };
 }

@@ -26,16 +26,16 @@ the facts-open line never used it — its agent surface is plain JSON.
 
 ## What ships today
 
-| Surface | Command | What it does |
-|---|---|---|
-| **Analyze** | `factstack analyze [path]` | Walks the project, extracts JS/TS imports + symbols + routes + license headers + secrets, builds the dependency graph, mines git history, writes `.facts/agent.json` + `.facts/human.json` + a snapshot. |
-| **WebUI** | `factstack ui [path]` | Serves the editorial dashboard at `http://localhost:4747`. Re-analyze button, live source preview, graph view, file outline. |
-| **Watch** | `factstack watch [path]` | UI + chokidar file-watcher + Server-Sent Events. Edits trigger re-analysis (500ms debounce); UI tree rows pulse. |
-| **Diff** | `factstack diff [snapA] [snapB]` | Compare two analyses. Zero args = current vs latest snapshot. One arg = current vs named snapshot. Two args = explicit snapshots. |
-| **Query** | `factstack query <verb> [target]` | Structured graph queries: `callers <path>`, `imports <path>`, `cycles`, `orphans`. |
-| **Export** | `factstack export [path]` | Self-contained HTML report (no server needed). |
-| **Doctor** | `factstack doctor` | Verifies Node version + `node:sqlite` availability. |
-| **MCP server** | `factstack-mcp --root <path>` | stdio MCP server exposing 5 tools + 5 resources for AI agents. |
+| Surface        | Command                           | What it does                                                                                                                                                                                             |
+| -------------- | --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Analyze**    | `factstack analyze [path]`        | Walks the project, extracts JS/TS imports + symbols + routes + license headers + secrets, builds the dependency graph, mines git history, writes `.facts/agent.json` + `.facts/human.json` + a snapshot. |
+| **WebUI**      | `factstack ui [path]`             | Serves the editorial dashboard at `http://localhost:4747`. Re-analyze button, live source preview, graph view, file outline.                                                                             |
+| **Watch**      | `factstack watch [path]`          | UI + chokidar file-watcher + Server-Sent Events. Edits trigger re-analysis (500ms debounce); UI tree rows pulse.                                                                                         |
+| **Diff**       | `factstack diff [snapA] [snapB]`  | Compare two analyses. Zero args = current vs latest snapshot. One arg = current vs named snapshot. Two args = explicit snapshots.                                                                        |
+| **Query**      | `factstack query <verb> [target]` | Structured graph queries: `callers <path>`, `imports <path>`, `cycles`, `orphans`.                                                                                                                       |
+| **Export**     | `factstack export [path]`         | Self-contained HTML report (no server needed).                                                                                                                                                           |
+| **Doctor**     | `factstack doctor`                | Verifies Node version + `node:sqlite` availability.                                                                                                                                                      |
+| **MCP server** | `factstack-mcp --root <path>`     | stdio MCP server exposing 5 tools + 5 resources for AI agents.                                                                                                                                           |
 
 All commands accept `--json` for machine-invocable output. `--json` is also a top-level flag (`factstack --json analyze .`).
 
@@ -127,11 +127,12 @@ The brief is **deterministic** (same input → byte-identical output) and **sect
 ## Routes             grouped by framework, alphabetical
 ## Key files          highest in-degree (most-imported = hubs)
 ## Open risks         severity high/critical only
+## Worktrees          every checkout: branch, integration, dirt, readiness
 ## Recently active    top 5 from git mtime
 ## How to read this codebase   5-step deterministic tour
 ```
 
-Sections with no content are omitted entirely (keeps the artifact small). Caps applied per section: 8 frameworks, 8 risks, 5 active files, 6 routes per framework, 6 capabilities, 3 languages.
+Sections with no content are omitted entirely (keeps the artifact small). Caps applied per section: 8 frameworks, 8 risks, 5 active files, 6 routes per framework, 6 capabilities, 3 languages, 8 worktrees.
 
 Read it via the MCP `read_memory` tool, the file directly, or paste it into an agent prompt. Schema version: `factstack-memory.v1`.
 
@@ -190,6 +191,7 @@ To save GitHub-repo analyses so visitors share a cache instead of each re-scanni
 The anon key is **publishable by design** — Supabase's RLS controls write access. No secrets land in the browser.
 
 Storage layout:
+
 ```
 factstack-analyses/
   vercel/next.js/
@@ -219,7 +221,7 @@ factstack/
 ├── packages/
 │   ├── spec/          # Zod schemas, MCP tool/resource catalog, FactsFS interface
 │   ├── walker/        # Gitignore-aware walker, takes a FactsFS
-│   ├── fs-node/       # Node fs implementation + git history miner
+│   ├── fs-node/       # Node fs impl + git history miner + worktree topology
 │   ├── fs-memory/     # In-memory FactsFS (for tests)
 │   ├── fs-browser/    # v0.4 stub (browser FactsFS via File System Access API)
 │   ├── parsers/       # web-tree-sitter WASM grammar registry (v0.3)
@@ -249,15 +251,18 @@ factstack/
 ## Architectural constraints (enforced via ESLint boundaries)
 
 ### C1 · Isomorphic core
+
 Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`, `graph`, `scanners`) imports zero Node built-ins. I/O flows through the `FactsFS` interface. The Chrome extension (v0.4) will inject a browser FactsFS without touching core.
 
 ### C2 · Artifact discipline
+
 - Schemas in `packages/spec` are versioned (`$schema`, `factsVersion`) and additive-only within a major.
 - Artifacts target ≤ 5 MB (agent.json) / ≤ 2 MB (human.json) — overflow chunking lands with the SQLite index in v0.3.
 - Artifacts never contain raw secrets — scanners redact before serialization.
 - The MCP tool/resource catalog (`packages/spec/src/mcp.ts`) is the single source of truth shared by CLI + MCP server.
 
 ### C3 · Webview-ready UI
+
 `apps/ui-remix` builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON). Used by `factstack export` and the future VS Code webview. CSP-clean — no inline scripts, no third-party CDN runtime deps.
 
 ---
@@ -266,31 +271,31 @@ Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`,
 
 Enforced via `eslint-plugin-boundaries`:
 
-| Layer | May import from |
-|---|---|
-| `spec` | nothing |
-| `fs-*` | `spec` |
-| `parsers` | `spec` |
-| `extractors` | `spec`, `parsers` |
-| `graph`, `scanners` | `spec`, `extractors` |
-| `core` | `spec`, `graph`, `scanners`, `extractors` (not `fs-*`) |
-| `emit` | everything above + Node built-ins allowed |
-| `apps/cli` | `spec`, `core`, `emit`, `fs-node`, `extractors` |
-| `apps/mcp-server` | `spec`, `core`, `emit`, `fs-node`, `extractors` |
-| `apps/ui-remix` | `spec`, `ui-theme` only |
+| Layer               | May import from                                        |
+| ------------------- | ------------------------------------------------------ |
+| `spec`              | nothing                                                |
+| `fs-*`              | `spec`                                                 |
+| `parsers`           | `spec`                                                 |
+| `extractors`        | `spec`, `parsers`                                      |
+| `graph`, `scanners` | `spec`, `extractors`                                   |
+| `core`              | `spec`, `graph`, `scanners`, `extractors` (not `fs-*`) |
+| `emit`              | everything above + Node built-ins allowed              |
+| `apps/cli`          | `spec`, `core`, `emit`, `fs-node`, `extractors`        |
+| `apps/mcp-server`   | `spec`, `core`, `emit`, `fs-node`, `extractors`        |
+| `apps/ui-remix`     | `spec`, `ui-theme` only                                |
 
 ---
 
 ## Roadmap
 
-| Version | Surface | Status |
-|---|---|---|
-| v0.1 | CLI + emit + JS/TS imports + WebUI prototype | **shipped** |
-| v0.2 | Symbols + call graph + MCP server + watch + diff + query | **shipped** |
-| v0.3 | VS Code / Antigravity extension + SQLite index + tree-sitter Python + per-TODO git blame + per-file incremental re-analyze | next |
-| v0.4 | Chrome extension (WASM analyzer) | planned |
-| v0.5 | Web app + cloud + MCP HTTP/SSE transport | planned |
-| v0.6 | MCP app + skills bundle | planned |
+| Version | Surface                                                                                                                    | Status      |
+| ------- | -------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| v0.1    | CLI + emit + JS/TS imports + WebUI prototype                                                                               | **shipped** |
+| v0.2    | Symbols + call graph + MCP server + watch + diff + query                                                                   | **shipped** |
+| v0.3    | VS Code / Antigravity extension + SQLite index + tree-sitter Python + per-TODO git blame + per-file incremental re-analyze | next        |
+| v0.4    | Chrome extension (WASM analyzer)                                                                                           | planned     |
+| v0.5    | Web app + cloud + MCP HTTP/SSE transport                                                                                   | planned     |
+| v0.6    | MCP app + skills bundle                                                                                                    | planned     |
 
 ---
 

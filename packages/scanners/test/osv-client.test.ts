@@ -24,7 +24,12 @@ afterEach(() => vi.unstubAllGlobals());
 function stubFetch(batch: string[][], details: Record<string, Partial<OsvVuln> | 'fail'> = {}) {
   const fn = async (url: string) => {
     if (url.includes('/querybatch')) {
-      return { ok: true, status: 200, statusText: 'OK', json: async () => ({ results: batch.map((ids) => ({ vulns: ids.map((id) => ({ id })) })) }) };
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => ({ results: batch.map((ids) => ({ vulns: ids.map((id) => ({ id })) })) }),
+      };
     }
     const id = decodeURIComponent(url.split('/v1/vulns/')[1] ?? '');
     const d = details[id];
@@ -60,10 +65,15 @@ describe('queryOsvBatch', () => {
 
   it('serves a cache hit without fetching', async () => {
     const store = new Map<string, ReturnType<typeof Object>>();
-    const cache = { get: (k: string) => (store.get(k) as never) ?? null, set: (k: string, v: never) => void store.set(k, v) };
+    const cache = {
+      get: (k: string) => (store.get(k) as never) ?? null,
+      set: (k: string, v: never) => void store.set(k, v),
+    };
     stubFetch([['GHSA-1']], { 'GHSA-1': { summary: 'first' } });
     await queryOsvBatch([q('lodash')], { cache });
-    vi.stubGlobal('fetch', () => { throw new Error('should not fetch on cache hit'); });
+    vi.stubGlobal('fetch', () => {
+      throw new Error('should not fetch on cache hit');
+    });
     const res = await queryOsvBatch([q('lodash')], { cache });
     expect(res[0]!.vulns[0]).toMatchObject({ id: 'GHSA-1' });
   });
@@ -71,11 +81,20 @@ describe('queryOsvBatch', () => {
 
 describe('bucketSeverity', () => {
   it('reads a CVSS vector with C:H/I:H/A:H as critical', () => {
-    expect(bucketSeverity({ id: 'x', severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H' }] } as OsvVuln)).toBe('critical');
+    expect(
+      bucketSeverity({
+        id: 'x',
+        severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H' }],
+      } as OsvVuln),
+    ).toBe('critical');
   });
   it('falls back to database_specific severity', () => {
-    expect(bucketSeverity({ id: 'x', database_specific: { severity: 'HIGH' } } as OsvVuln)).toBe('high');
-    expect(bucketSeverity({ id: 'x', database_specific: { severity: 'MODERATE' } } as OsvVuln)).toBe('medium');
+    expect(bucketSeverity({ id: 'x', database_specific: { severity: 'HIGH' } } as OsvVuln)).toBe(
+      'high',
+    );
+    expect(
+      bucketSeverity({ id: 'x', database_specific: { severity: 'MODERATE' } } as OsvVuln),
+    ).toBe('medium');
   });
   it('returns unknown with no severity signal', () => {
     expect(bucketSeverity({ id: 'x' } as OsvVuln)).toBe('unknown');
@@ -84,22 +103,47 @@ describe('bucketSeverity', () => {
 
 describe('pickFixedVersion', () => {
   it('returns the first fixed event', () => {
-    expect(pickFixedVersion({ id: 'x', affected: [{ ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.3' }] }] }] } as OsvVuln)).toBe('1.2.3');
+    expect(
+      pickFixedVersion({
+        id: 'x',
+        affected: [{ ranges: [{ events: [{ introduced: '0' }, { fixed: '1.2.3' }] }] }],
+      } as OsvVuln),
+    ).toBe('1.2.3');
   });
   it('returns null when no fixed event exists', () => {
-    expect(pickFixedVersion({ id: 'x', affected: [{ ranges: [{ events: [{ introduced: '0' }] }] }] } as OsvVuln)).toBeNull();
+    expect(
+      pickFixedVersion({
+        id: 'x',
+        affected: [{ ranges: [{ events: [{ introduced: '0' }] }] }],
+      } as OsvVuln),
+    ).toBeNull();
   });
 });
 
 describe('pickAdvisoryUrl — SEC-1 scheme allowlist', () => {
   it('prefers an http(s) ADVISORY reference', () => {
-    expect(pickAdvisoryUrl({ id: 'x', references: [{ type: 'ADVISORY', url: 'https://example.test/a' }] } as OsvVuln)).toBe('https://example.test/a');
+    expect(
+      pickAdvisoryUrl({
+        id: 'x',
+        references: [{ type: 'ADVISORY', url: 'https://example.test/a' }],
+      } as OsvVuln),
+    ).toBe('https://example.test/a');
   });
   it('rejects a javascript: URL and falls back to osv.dev', () => {
-    expect(pickAdvisoryUrl({ id: 'CVE-1', references: [{ type: 'ADVISORY', url: 'javascript:alert(1)' }] } as OsvVuln)).toBe('https://osv.dev/vulnerability/CVE-1');
+    expect(
+      pickAdvisoryUrl({
+        id: 'CVE-1',
+        references: [{ type: 'ADVISORY', url: 'javascript:alert(1)' }],
+      } as OsvVuln),
+    ).toBe('https://osv.dev/vulnerability/CVE-1');
   });
   it('rejects a data: URL and falls back to osv.dev', () => {
-    expect(pickAdvisoryUrl({ id: 'CVE-3', references: [{ type: 'ADVISORY', url: 'data:text/html,<script>1</script>' }] } as OsvVuln)).toBe('https://osv.dev/vulnerability/CVE-3');
+    expect(
+      pickAdvisoryUrl({
+        id: 'CVE-3',
+        references: [{ type: 'ADVISORY', url: 'data:text/html,<script>1</script>' }],
+      } as OsvVuln),
+    ).toBe('https://osv.dev/vulnerability/CVE-3');
   });
   it('falls back to osv.dev when no references exist', () => {
     expect(pickAdvisoryUrl({ id: 'CVE-2' } as OsvVuln)).toBe('https://osv.dev/vulnerability/CVE-2');
@@ -108,12 +152,24 @@ describe('pickAdvisoryUrl — SEC-1 scheme allowlist', () => {
 
 describe('osvResultsToVulnerabilities', () => {
   it('maps fields and skips clean (empty-vulns) results', () => {
-    const out = osvResultsToVulnerabilities([
-      { query: { ...q('lodash'), manifestPath: 'package.json' }, vulns: [{ id: 'GHSA-1', summary: 's', database_specific: { severity: 'HIGH' } }] },
-      { query: q('react'), vulns: [] },
-    ], 123);
+    const out = osvResultsToVulnerabilities(
+      [
+        {
+          query: { ...q('lodash'), manifestPath: 'package.json' },
+          vulns: [{ id: 'GHSA-1', summary: 's', database_specific: { severity: 'HIGH' } }],
+        },
+        { query: q('react'), vulns: [] },
+      ],
+      123,
+    );
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ id: 'GHSA-1', package: 'lodash', severity: 'high', lastChecked: 123, manifestPath: 'package.json' });
+    expect(out[0]).toMatchObject({
+      id: 'GHSA-1',
+      package: 'lodash',
+      severity: 'high',
+      lastChecked: 123,
+      manifestPath: 'package.json',
+    });
   });
 });
 

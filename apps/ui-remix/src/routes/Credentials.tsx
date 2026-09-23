@@ -53,24 +53,71 @@ interface RuleRef {
   rotateUrl: string | null;
 }
 const SECRET_RULES: readonly RuleRef[] = [
-  { id: 'aws-access-key',     label: 'AWS access key ID',     pattern: 'AKIA + 16 alnum',           notes: 'IAM static access keys; gated on Shannon entropy ≥ 3.2.',
-    rotateUrl: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey' },
-  { id: 'aws-secret-key',     label: 'AWS secret access key', pattern: '40 base64-ish near `secret`/`key`', notes: 'Lexical proximity heuristic; gated on entropy ≥ 4.0.',
-    rotateUrl: 'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey' },
-  { id: 'google-api-key',     label: 'Google API key',        pattern: 'AIza + 35 alnum/_-',        notes: 'Maps/Cloud APIs; entropy ≥ 3.5.',
-    rotateUrl: 'https://console.cloud.google.com/apis/credentials' },
-  { id: 'stripe-secret-key',  label: 'Stripe secret key',     pattern: 'sk_live_ / sk_test_ + 24+', notes: 'Server-side keys only; publishable pk_ keys ignored.',
-    rotateUrl: 'https://dashboard.stripe.com/apikeys' },
-  { id: 'slack-token',        label: 'Slack token',           pattern: 'xox[baprs]- prefix',        notes: 'All Slack token classes (bot/app/user/refresh/scoped).',
-    rotateUrl: 'https://api.slack.com/authentication/token-types#rotation' },
-  { id: 'github-token',       label: 'GitHub token',          pattern: 'gh[pousr]_ + 36+',          notes: 'PAT, OAuth, server-to-server, user-to-server, refresh.',
-    rotateUrl: 'https://github.com/settings/tokens' },
-  { id: 'openai-api-key',     label: 'OpenAI API key',        pattern: 'sk- + 20+',                 notes: 'High-entropy gate (3.5) to filter test strings.',
-    rotateUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic-api-key',  label: 'Anthropic API key',     pattern: 'sk-ant- + 20+',             notes: 'High-entropy gate (3.5).',
-    rotateUrl: 'https://console.anthropic.com/settings/keys' },
-  { id: 'private-key-header', label: 'Private key block',     pattern: '-----BEGIN ... PRIVATE KEY-----', notes: 'RSA, OpenSSH, DSA, EC, PGP — header alone is the signal.',
-    rotateUrl: null },
+  {
+    id: 'aws-access-key',
+    label: 'AWS access key ID',
+    pattern: 'AKIA + 16 alnum',
+    notes: 'IAM static access keys; gated on Shannon entropy ≥ 3.2.',
+    rotateUrl:
+      'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey',
+  },
+  {
+    id: 'aws-secret-key',
+    label: 'AWS secret access key',
+    pattern: '40 base64-ish near `secret`/`key`',
+    notes: 'Lexical proximity heuristic; gated on entropy ≥ 4.0.',
+    rotateUrl:
+      'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey',
+  },
+  {
+    id: 'google-api-key',
+    label: 'Google API key',
+    pattern: 'AIza + 35 alnum/_-',
+    notes: 'Maps/Cloud APIs; entropy ≥ 3.5.',
+    rotateUrl: 'https://console.cloud.google.com/apis/credentials',
+  },
+  {
+    id: 'stripe-secret-key',
+    label: 'Stripe secret key',
+    pattern: 'sk_live_ / sk_test_ + 24+',
+    notes: 'Server-side keys only; publishable pk_ keys ignored.',
+    rotateUrl: 'https://dashboard.stripe.com/apikeys',
+  },
+  {
+    id: 'slack-token',
+    label: 'Slack token',
+    pattern: 'xox[baprs]- prefix',
+    notes: 'All Slack token classes (bot/app/user/refresh/scoped).',
+    rotateUrl: 'https://api.slack.com/authentication/token-types#rotation',
+  },
+  {
+    id: 'github-token',
+    label: 'GitHub token',
+    pattern: 'gh[pousr]_ + 36+',
+    notes: 'PAT, OAuth, server-to-server, user-to-server, refresh.',
+    rotateUrl: 'https://github.com/settings/tokens',
+  },
+  {
+    id: 'openai-api-key',
+    label: 'OpenAI API key',
+    pattern: 'sk- + 20+',
+    notes: 'High-entropy gate (3.5) to filter test strings.',
+    rotateUrl: 'https://platform.openai.com/api-keys',
+  },
+  {
+    id: 'anthropic-api-key',
+    label: 'Anthropic API key',
+    pattern: 'sk-ant- + 20+',
+    notes: 'High-entropy gate (3.5).',
+    rotateUrl: 'https://console.anthropic.com/settings/keys',
+  },
+  {
+    id: 'private-key-header',
+    label: 'Private key block',
+    pattern: '-----BEGIN ... PRIVATE KEY-----',
+    notes: 'RSA, OpenSSH, DSA, EC, PGP — header alone is the signal.',
+    rotateUrl: null,
+  },
 ];
 
 const kicker = css({
@@ -193,13 +240,20 @@ export function Credentials(handle: Handle<CredentialsProps>) {
           {SECRET_RULES.map((r) => (
             <>
               <span mix={ruleLabel}>{r.label}</span>
-              <span mix={rulePattern} title={r.pattern}>{r.pattern}</span>
+              <span mix={rulePattern} title={r.pattern}>
+                {r.pattern}
+              </span>
               <span mix={ruleNotes}>
                 {r.notes}
                 {r.rotateUrl && (
                   <>
                     <br />
-                    <a href={r.rotateUrl} target="_blank" rel="noopener noreferrer" mix={rotateLink}>
+                    <a
+                      href={r.rotateUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      mix={rotateLink}
+                    >
                       Rotate at provider →
                     </a>
                   </>
@@ -218,10 +272,9 @@ export function Credentials(handle: Handle<CredentialsProps>) {
             <div mix={kicker}>Credentials · 0 leaked</div>
             <h1 mix={headline}>Nothing leaked.</h1>
             <p mix={lede}>
-              The secrets scanner ran the patterns below across every file
-              walked in this analysis. Zero matches met the entropy threshold.
-              The next analysis will re-check; if a real secret lands in a
-              commit, this page will be the first place it surfaces.
+              The secrets scanner ran the patterns below across every file walked in this analysis.
+              Zero matches met the entropy threshold. The next analysis will re-check; if a real
+              secret lands in a commit, this page will be the first place it surfaces.
             </p>
             {ruleRef}
           </div>
@@ -246,18 +299,20 @@ export function Credentials(handle: Handle<CredentialsProps>) {
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
-          <div mix={kicker}>Credentials · {findings.length} {findings.length === 1 ? 'leak' : 'leaks'}</div>
+          <div mix={kicker}>
+            Credentials · {findings.length} {findings.length === 1 ? 'leak' : 'leaks'}
+          </div>
           <h1 mix={headline}>Rotate these now.</h1>
           <p mix={lede}>
-            Every match below is a high-confidence secret pattern that cleared
-            the entropy threshold. Treat each one as exposed: rotate the
-            credential at its source, then remove or invalidate the leaked copy.
+            Every match below is a high-confidence secret pattern that cleared the entropy
+            threshold. Treat each one as exposed: rotate the credential at its source, then remove
+            or invalidate the leaked copy.
           </p>
           <LabelNumberRow>
             <LabelNumber label="Critical" value={counts.critical ?? 0} />
-            <LabelNumber label="High"     value={counts.high     ?? 0} />
-            <LabelNumber label="Medium"   value={counts.medium   ?? 0} />
-            <LabelNumber label="Low"      value={counts.low      ?? 0} last />
+            <LabelNumber label="High" value={counts.high ?? 0} />
+            <LabelNumber label="Medium" value={counts.medium ?? 0} />
+            <LabelNumber label="Low" value={counts.low ?? 0} last />
           </LabelNumberRow>
 
           {SEV_ORDER.filter((s) => bySev.has(s)).map((sev) => (
@@ -284,7 +339,8 @@ export function Credentials(handle: Handle<CredentialsProps>) {
             {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}
           </FootnoteChip>
           <FootnoteChip label="Action" tone="danger">
-            {findings.length} item{findings.length === 1 ? '' : 's'} need rotation. Click each row for file + line.
+            {findings.length} item{findings.length === 1 ? '' : 's'} need rotation. Click each row
+            for file + line.
           </FootnoteChip>
           <FootnoteChip label="Safety" aside="enforced in @factstack/scanners">
             Findings never include the raw secret — only redacted previews.

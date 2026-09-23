@@ -13,8 +13,24 @@ export interface DependencyGraph {
   // `callers` is optional and populated by `buildCallerIndex` after the
   // graph is built. `importance`/`community` are populated by `computeMetrics`
   // (F5). All three mirror the `GraphNodeSchema` shape in @factstack/spec.
-  nodes: Array<{ id: string; path: string; language: string; loc: number; tokenCost: number; status: FileOutline['status']; callers?: string[]; importance?: number; community?: number }>;
-  edges: Array<{ from: string; to: string; kind: 'import' | 'dynamic-import' | 'type-import'; confidence: Confidence; confidenceScore?: number }>;
+  nodes: Array<{
+    id: string;
+    path: string;
+    language: string;
+    loc: number;
+    tokenCost: number;
+    status: FileOutline['status'];
+    callers?: string[];
+    importance?: number;
+    community?: number;
+  }>;
+  edges: Array<{
+    from: string;
+    to: string;
+    kind: 'import' | 'dynamic-import' | 'type-import';
+    confidence: Confidence;
+    confidenceScore?: number;
+  }>;
   cycles: string[][];
 }
 
@@ -33,17 +49,19 @@ export function buildDependencyGraph(
   }));
 
   const edges: DependencyGraph['edges'] = [];
-  const seen = new Set<string>();      // dedupe by `from|to|kind`
+  const seen = new Set<string>(); // dedupe by `from|to|kind`
 
   for (const [from, imports] of importsByFile) {
     for (const imp of imports) {
       const to = resolveSpecifier(imp.specifier, from, ctx);
-      if (!to) continue;                 // external or unresolved
-      if (to === from) continue;         // self-loop
+      if (!to) continue; // external or unresolved
+      if (to === from) continue; // self-loop
       const kind: DependencyGraph['edges'][number]['kind'] =
-        imp.kind === 'dynamic-import' ? 'dynamic-import'
-        : imp.kind === 'type-import' ? 'type-import'
-        : 'import';
+        imp.kind === 'dynamic-import'
+          ? 'dynamic-import'
+          : imp.kind === 'type-import'
+            ? 'type-import'
+            : 'import';
       const key = from + '|' + to + '|' + kind;
       if (seen.has(key)) continue;
       seen.add(key);
@@ -56,7 +74,7 @@ export function buildDependencyGraph(
   // Cycle detection via iterative DFS — node-ids → adjacency
   const adj = new Map<string, string[]>();
   for (const e of edges) {
-    if (e.kind === 'type-import') continue;     // type-only imports aren't runtime cycles
+    if (e.kind === 'type-import') continue; // type-only imports aren't runtime cycles
     const list = adj.get(e.from) ?? [];
     list.push(e.to);
     adj.set(e.from, list);

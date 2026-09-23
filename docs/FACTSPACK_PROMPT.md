@@ -1,4 +1,4 @@
 # FactsPack — LLM prompt (paste-ready)
 
 > **Moved.** The canonical paste-ready prompt now lives in the dedicated pack folder:
-> `D:\dev\ai agents\facts-pack\FACTSPACK_PROMPT.md`
+> `FACTSPACK_PROMPT.md` in the facts.pack repository (github.com/O0AM/facts.pack).

@@ -14,7 +14,15 @@ const SNAP = '2026-06-09T00:00:00Z';
 
 /** A graph file node: importance + tokenCost are what the ranker/budget read. */
 function fnode(path: string, importance: number, tokenCost: number) {
-  return { id: path, path, language: 'typescript', loc: 50, tokenCost, status: 'ok' as const, importance };
+  return {
+    id: path,
+    path,
+    language: 'typescript',
+    loc: 50,
+    tokenCost,
+    status: 'ok' as const,
+    importance,
+  };
 }
 
 /** A files[] entry: churnScore (recency) + loc/tokenCost (symbol estimate). */
@@ -51,7 +59,14 @@ function makeAgent(over: Partial<AgentArtifact['graph']> = {}): AgentArtifact {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: SNAP,
-    project: { name: 't', root: '/t', languages: [], frameworks: [], entryPoints: [], monorepo: null },
+    project: {
+      name: 't',
+      root: '/t',
+      languages: [],
+      frameworks: [],
+      entryPoints: [],
+      monorepo: null,
+    },
     files: [
       foutline('src/auth.ts', 5, 300),
       foutline('src/user.ts', 2, 200),
@@ -127,7 +142,11 @@ describe('assembleContext (F4)', () => {
 
   it('explicit seeds are sacred — kept even over budget', () => {
     // db(400) + util(100) = 500 ≫ budget 50, but explicit seeds are never dropped.
-    const r = assembleContext(makeAgent(), { query: 'nothing', seeds: ['src/db.ts', 'src/util.ts'], budgetTokens: 50 });
+    const r = assembleContext(makeAgent(), {
+      query: 'nothing',
+      seeds: ['src/db.ts', 'src/util.ts'],
+      budgetTokens: 50,
+    });
     const ids = r.items.map((i) => i.id);
     expect(ids).toContain('src/db.ts');
     expect(ids).toContain('src/util.ts');
@@ -159,7 +178,13 @@ describe('assembleContext (F4)', () => {
     expect(r.items.length).toBeGreaterThan(0); // brief is non-empty even without importance
     // No importance to rank by → fallback selects source files in path order;
     // all five source files become seeds (capped at COLD_START_FILES=10).
-    expect(r.seeds).toEqual(['src/auth.ts', 'src/db.ts', 'src/unrelated.ts', 'src/user.ts', 'src/util.ts']);
+    expect(r.seeds).toEqual([
+      'src/auth.ts',
+      'src/db.ts',
+      'src/unrelated.ts',
+      'src/user.ts',
+      'src/util.ts',
+    ]);
   });
 
   it('is deterministic — identical inputs yield a byte-identical result', () => {
@@ -176,7 +201,11 @@ describe('assembleContext (F4)', () => {
   });
 
   it('accepts explicit seeds and unions them with query-derived ones', () => {
-    const r = assembleContext(makeAgent(), { query: 'nothing', seeds: ['src/db.ts'], budgetTokens: 100_000 });
+    const r = assembleContext(makeAgent(), {
+      query: 'nothing',
+      seeds: ['src/db.ts'],
+      budgetTokens: 100_000,
+    });
     expect(r.seeds).toContain('src/db.ts');
     expect(r.coldStart).toBe(false); // an explicit seed resolved → not cold
   });
@@ -192,7 +221,11 @@ describe('assembleContext (F4)', () => {
 
   it('recentEntities give a session-recency bonus that lifts an anchor (F9)', () => {
     const base = assembleContext(makeAgent(), { query: 'user', budgetTokens: 100_000 });
-    const boosted = assembleContext(makeAgent(), { query: 'user', budgetTokens: 100_000, recentEntities: ['src/db.ts'] });
+    const boosted = assembleContext(makeAgent(), {
+      query: 'user',
+      budgetTokens: 100_000,
+      recentEntities: ['src/db.ts'],
+    });
     const dbBase = base.items.find((i) => i.id === 'src/db.ts')!.score;
     const dbBoost = boosted.items.find((i) => i.id === 'src/db.ts')!.score;
     expect(dbBoost).toBeGreaterThan(dbBase);

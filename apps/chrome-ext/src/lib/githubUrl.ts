@@ -10,9 +10,26 @@ export interface RepoRef {
 
 /* Top-level github.com paths that are NOT repos — don't offer to "analyze" them. */
 const RESERVED_OWNERS = new Set([
-  'orgs', 'marketplace', 'sponsors', 'settings', 'notifications', 'explore',
-  'topics', 'collections', 'features', 'about', 'pricing', 'login', 'join',
-  'new', 'apps', 'organizations', 'account', 'dashboard', 'search', 'codespaces',
+  'orgs',
+  'marketplace',
+  'sponsors',
+  'settings',
+  'notifications',
+  'explore',
+  'topics',
+  'collections',
+  'features',
+  'about',
+  'pricing',
+  'login',
+  'join',
+  'new',
+  'apps',
+  'organizations',
+  'account',
+  'dashboard',
+  'search',
+  'codespaces',
 ]);
 
 /** Parse a full github.com URL. Returns null for non-repo pages. */

@@ -47,7 +47,10 @@ export function extractPythonImports(source: string): RawImport[] {
       if (importMatch && importMatch[1]) {
         const tail = importMatch[1].replace(/#.*$/, '').trim();
         for (const part of tail.split(',')) {
-          const mod = part.trim().split(/\s+as\s+/)[0]?.trim();
+          const mod = part
+            .trim()
+            .split(/\s+as\s+/)[0]
+            ?.trim();
           if (mod && /^[.\w][.\w]*$/.test(mod)) record(mod, 'import', i + 1);
         }
         continue;

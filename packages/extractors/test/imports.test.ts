@@ -86,7 +86,9 @@ describe('extractPythonImports', () => {
       """import bogus_in_docstring"""
       importlib.import_module('dyn.mod')
     `;
-    const specs = extractPythonImports(src).map((r) => r.specifier).sort();
+    const specs = extractPythonImports(src)
+      .map((r) => r.specifier)
+      .sort();
     expect(specs).toEqual(['..utils', 'dyn.mod', 'os', 'pathlib', 'pkg.subpkg', 'sys']);
   });
 

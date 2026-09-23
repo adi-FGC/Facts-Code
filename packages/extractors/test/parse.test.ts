@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { isParseable, parseJS, walkAst } from '../src/parse.js';
 
 describe('isParseable', () => {
-  it.each(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'])('returns true for %s', (ext) => {
-    expect(isParseable(ext)).toBe(true);
-  });
+  it.each(['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts'])(
+    'returns true for %s',
+    (ext) => {
+      expect(isParseable(ext)).toBe(true);
+    },
+  );
 
   it.each(['.py', '.go', '.rs', '.txt', '.json', '.md', ''])('returns false for %s', (ext) => {
     expect(isParseable(ext)).toBe(false);
@@ -49,14 +52,18 @@ describe('walkAst', () => {
   it('visits every node in the AST', () => {
     const r = parseJS(`const x = 1; function f() {}`, '.ts')!;
     let count = 0;
-    walkAst(r.ast, () => { count++; });
+    walkAst(r.ast, () => {
+      count++;
+    });
     expect(count).toBeGreaterThan(0);
   });
 
   it('skips loc/start/end/range fields (avoids infinite recursion)', () => {
     const r = parseJS(`const x = 1;`, '.ts')!;
     const visited: string[] = [];
-    walkAst(r.ast, (n: any) => { if (n?.type) visited.push(n.type); });
+    walkAst(r.ast, (n: any) => {
+      if (n?.type) visited.push(n.type);
+    });
     expect(visited).toContain('VariableDeclaration');
   });
 });

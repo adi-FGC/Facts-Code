@@ -53,7 +53,12 @@ describe('buildSqlEntities', () => {
     const { entities, entityEdges } = buildSqlEntities([{ path: 'db/schema.sql', text: SQL }]);
     expect(entities.map((e) => e.id).sort()).toEqual(['db:public.orgs', 'db:public.users']);
     expect(entityEdges).toContainEqual(
-      expect.objectContaining({ from: 'db:public.users', to: 'db:public.orgs', kind: 'fk', confidence: 'extracted' }),
+      expect.objectContaining({
+        from: 'db:public.users',
+        to: 'db:public.orgs',
+        kind: 'fk',
+        confidence: 'extracted',
+      }),
     );
     const users = entities.find((e) => e.id === 'db:public.users')!;
     expect(users.modality).toBe('sql');
@@ -66,7 +71,11 @@ describe('buildIacEntities', () => {
     const { entities, entityEdges } = buildIacEntities([{ path: 'infra/main.tf', text: TF }]);
     expect(entities.map((e) => e.id).sort()).toEqual(['tf:aws_subnet.app', 'tf:aws_vpc.main']);
     expect(entityEdges).toContainEqual(
-      expect.objectContaining({ from: 'tf:aws_subnet.app', to: 'tf:aws_vpc.main', kind: 'depends-on' }),
+      expect.objectContaining({
+        from: 'tf:aws_subnet.app',
+        to: 'tf:aws_vpc.main',
+        kind: 'depends-on',
+      }),
     );
   });
 });
@@ -86,7 +95,12 @@ describe('buildDocEntities', () => {
     });
     const { entityEdges } = buildDocEntities([doc], ['src/db.ts', 'docs/data-model.md'], dataInfra);
     expect(entityEdges).toContainEqual(
-      expect.objectContaining({ from: 'doc:docs/data-model.md', to: 'src/db.ts', kind: 'documents', confidence: 'extracted' }),
+      expect.objectContaining({
+        from: 'doc:docs/data-model.md',
+        to: 'src/db.ts',
+        kind: 'documents',
+        confidence: 'extracted',
+      }),
     );
   });
 
@@ -127,7 +141,11 @@ describe('buildDocEntities', () => {
     });
     const { entityEdges } = buildDocEntities([doc], ['src/db.ts'], dataInfra);
     expect(entityEdges).toContainEqual(
-      expect.objectContaining({ from: 'doc:docs/data-model.md', to: 'src/db.ts', kind: 'documents' }),
+      expect.objectContaining({
+        from: 'doc:docs/data-model.md',
+        to: 'src/db.ts',
+        kind: 'documents',
+      }),
     );
   });
 
@@ -181,7 +199,11 @@ describe('buildEntities (whole-stack, DoD)', () => {
     const queue = [docId];
     while (queue.length) {
       const n = queue.shift()!;
-      for (const m of adj.get(n) ?? []) if (!seen.has(m)) { seen.add(m); queue.push(m); }
+      for (const m of adj.get(n) ?? [])
+        if (!seen.has(m)) {
+          seen.add(m);
+          queue.push(m);
+        }
     }
     // One connected component spanning all three modalities, reached from the doc:
     expect(seen.has('src/db.ts')).toBe(true); // app code (via link)

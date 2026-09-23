@@ -41,24 +41,42 @@ function renderLlmsTxt(reg: SiteRegistry): string {
   // origin served this file (Netlify or Cloudflare).
   lines.push('## Fetch the analysis (works in any chat, no install)');
   lines.push('');
-  lines.push(`- [${reg.data.summary}](${reg.data.summary}) — start here: a few-KB digest (project, stack, health grade, top risks, entry points, counts).`);
-  lines.push(`- [${reg.data.dataset}](${reg.data.dataset}) — the complete analysis (~2 MB JSON): dependency graph, routes, risks, docs, history.`);
-  lines.push(`- [${reg.data.pack}](${reg.data.pack}) — the same data as a compact line-oriented pack (~80% smaller than the JSON).`);
+  lines.push(
+    `- [${reg.data.summary}](${reg.data.summary}) — start here: a few-KB digest (project, stack, health grade, top risks, entry points, counts).`,
+  );
+  lines.push(
+    `- [${reg.data.dataset}](${reg.data.dataset}) — the complete analysis (~2 MB JSON): dependency graph, routes, risks, docs, history.`,
+  );
+  lines.push(
+    `- [${reg.data.pack}](${reg.data.pack}) — the same data as a compact line-oriented pack (~80% smaller than the JSON).`,
+  );
   lines.push('');
 
   lines.push('## Drive it from a coding agent (CLI + MCP)');
   lines.push('');
   if (reg.cli.published || reg.mcp.published) {
-    lines.push(`- **CLI**: \`${reg.cli.command}\` — the \`${reg.cli.binName}\` binary (analyze · ui · query · export).`);
-    lines.push(`- **MCP server**: \`${mcpCmd(reg)}\` — the \`${reg.mcp.binName}\` stdio server exposing ${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources.`);
+    lines.push(
+      `- **CLI**: \`${reg.cli.command}\` — the \`${reg.cli.binName}\` binary (analyze · ui · query · export).`,
+    );
+    lines.push(
+      `- **MCP server**: \`${mcpCmd(reg)}\` — the \`${reg.mcp.binName}\` stdio server exposing ${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources.`,
+    );
   } else {
     // Honest gating: the packages are NOT on npm yet, so don't hand a chatbot a
     // command that 404s. State the pending npm path + the working clone path.
-    lines.push(`- The \`${reg.cli.publishedPackage}\` CLI and \`${reg.mcp.publishedPackage}\` MCP server are **not on npm yet**. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\` (${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources).`);
-    lines.push(`- Today, run them from a clone of the repo: \`npx tsx apps/cli/src/cli.ts\` and \`npx tsx apps/mcp-server/src/server.ts\`.`);
+    lines.push(
+      `- The \`${reg.cli.publishedPackage}\` CLI and \`${reg.mcp.publishedPackage}\` MCP server are **not on npm yet**. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\` (${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources).`,
+    );
+    lines.push(
+      `- Today, run them from a clone of the repo: \`npx tsx apps/cli/src/cli.ts\` and \`npx tsx apps/mcp-server/src/server.ts\`.`,
+    );
   }
   if (reg.mcp.onboardingSequence.length) {
-    lines.push(`- **First-contact tool order**: ` + reg.mcp.onboardingSequence.map((n) => `\`${n}\``).join(' → ') + '.');
+    lines.push(
+      `- **First-contact tool order**: ` +
+        reg.mcp.onboardingSequence.map((n) => `\`${n}\``).join(' → ') +
+        '.',
+    );
   }
   lines.push('');
 
@@ -66,7 +84,9 @@ function renderLlmsTxt(reg: SiteRegistry): string {
   lines.push('');
   lines.push('- [/llms-full.txt](/llms-full.txt) — full tool + resource reference.');
   lines.push('- [/.well-known/mcp.json](/.well-known/mcp.json) — machine-readable MCP manifest.');
-  lines.push('- [Dashboard](/) — interactive browser UI (requires JavaScript; use the fetch endpoints above for data).');
+  lines.push(
+    '- [Dashboard](/) — interactive browser UI (requires JavaScript; use the fetch endpoints above for data).',
+  );
   lines.push('');
 
   return lines.join('\n');
@@ -83,8 +103,12 @@ function renderLlmsFullTxt(reg: SiteRegistry): string {
 
   lines.push('## Fetch the analysis (no install, works in any chat)');
   lines.push('');
-  lines.push(`- ${reg.data.summary} — small digest (project, stack, health, top risks, entry points, counts).`);
-  lines.push(`- ${reg.data.dataset} — the complete analysis (~2 MB JSON). Top-level keys: project, summary, stats, tree, edges, cycles, nodeMetrics, entryPoints, routes, risks, config, dependencyManifests, vulnerabilities, docs, styles, history.`);
+  lines.push(
+    `- ${reg.data.summary} — small digest (project, stack, health, top risks, entry points, counts).`,
+  );
+  lines.push(
+    `- ${reg.data.dataset} — the complete analysis (~2 MB JSON). Top-level keys: project, summary, stats, tree, edges, cycles, nodeMetrics, entryPoints, routes, risks, config, dependencyManifests, vulnerabilities, docs, styles, history.`,
+  );
   lines.push(`- ${reg.data.pack} — the same analysis as a compact line-oriented pack.`);
   lines.push('');
 
@@ -94,8 +118,12 @@ function renderLlmsFullTxt(reg: SiteRegistry): string {
     lines.push(`- CLI: \`${reg.cli.command}\` (published as \`${reg.cli.publishedPackage}\`)`);
     lines.push(`- MCP (stdio): \`${mcpCmd(reg)}\` (published as \`${reg.mcp.publishedPackage}\`)`);
   } else {
-    lines.push(`- \`${reg.cli.publishedPackage}\` (CLI) and \`${reg.mcp.publishedPackage}\` (MCP server) are NOT yet on npm. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\`.`);
-    lines.push(`- Today, run from a repo clone: \`npx tsx apps/cli/src/cli.ts\` (CLI) and \`npx tsx apps/mcp-server/src/server.ts\` (MCP stdio).`);
+    lines.push(
+      `- \`${reg.cli.publishedPackage}\` (CLI) and \`${reg.mcp.publishedPackage}\` (MCP server) are NOT yet on npm. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\`.`,
+    );
+    lines.push(
+      `- Today, run from a repo clone: \`npx tsx apps/cli/src/cli.ts\` (CLI) and \`npx tsx apps/mcp-server/src/server.ts\` (MCP stdio).`,
+    );
   }
   lines.push('');
 
@@ -108,7 +136,9 @@ function renderLlmsFullTxt(reg: SiteRegistry): string {
     lines.push('');
     lines.push(`- Input: ${inputShape(tool)}`);
     if (tool.onboardingOrder !== undefined) {
-      lines.push(`- Onboarding step ${tool.onboardingOrder}${tool.onboardingNote ? ` — ${tool.onboardingNote}` : ''}`);
+      lines.push(
+        `- Onboarding step ${tool.onboardingOrder}${tool.onboardingNote ? ` — ${tool.onboardingNote}` : ''}`,
+      );
     }
     lines.push('');
   }
@@ -122,7 +152,9 @@ function renderLlmsFullTxt(reg: SiteRegistry): string {
 
   lines.push(`## Web routes (${reg.routes.length}) — browser UI, JavaScript required`);
   lines.push('');
-  lines.push('These are client-rendered SPA pages: a raw fetch of any of them returns the same JS shell, not readable content. For DATA, use the fetch endpoints at the top of this file.');
+  lines.push(
+    'These are client-rendered SPA pages: a raw fetch of any of them returns the same JS shell, not readable content. For DATA, use the fetch endpoints at the top of this file.',
+  );
   lines.push('');
   for (const route of reg.routes) {
     lines.push(`- ${route.label}: ${route.path}`);

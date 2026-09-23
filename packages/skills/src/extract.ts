@@ -32,10 +32,7 @@ import {
   type SkillSpec,
 } from './types.js';
 
-export function agentToSkillSpec(
-  agent: AgentArtifact,
-  human: HumanArtifact,
-): SkillSpec {
+export function agentToSkillSpec(agent: AgentArtifact, human: HumanArtifact): SkillSpec {
   return {
     name: agent.project.name,
     intent: pickIntent(human),
@@ -99,12 +96,14 @@ function topImportedFiles(agent: AgentArtifact, limit: number): SkillKeyFile[] {
   for (const e of agent.graph?.edges ?? []) {
     inDegree.set(e.to, (inDegree.get(e.to) ?? 0) + 1);
   }
-  return [...inDegree.entries()]
-    .filter(([, n]) => n > 0)
-    // DI-1: code-unit (not locale) for INV2 byte-determinism
-    .sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
-    .slice(0, limit)
-    .map(([path, n]) => ({ path, inDegree: n }));
+  return (
+    [...inDegree.entries()]
+      .filter(([, n]) => n > 0)
+      // DI-1: code-unit (not locale) for INV2 byte-determinism
+      .sort((a, b) => b[1] - a[1] || byCodeUnit(a[0], b[0]))
+      .slice(0, limit)
+      .map(([path, n]) => ({ path, inDegree: n }))
+  );
 }
 
 /** Routes sorted by framework then path. Caps total count regardless
@@ -135,12 +134,10 @@ function pickOpenRisks(agent: AgentArtifact, limit: number): SkillRisk[] {
   const filtered = (agent.risks ?? []).filter(
     (r): r is Risk => r != null && (r.severity === 'high' || r.severity === 'critical'),
   );
-  return filtered
-    .slice(0, limit)
-    .map((r) => ({
-      severity: r.severity,
-      category: r.category,
-      message: r.message,
-      ...(r.file ? { file: r.file } : {}),
-    }));
+  return filtered.slice(0, limit).map((r) => ({
+    severity: r.severity,
+    category: r.category,
+    message: r.message,
+    ...(r.file ? { file: r.file } : {}),
+  }));
 }

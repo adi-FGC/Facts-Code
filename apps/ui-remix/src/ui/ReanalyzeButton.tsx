@@ -46,7 +46,8 @@ const btn = css({
   font: 'inherit',
   letterSpacing: 'inherit',
   textTransform: 'inherit',
-  transition: 'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
+  transition:
+    'color var(--dur-quick) var(--ease-out-quart), background var(--dur-quick) var(--ease-out-quart)',
   '&:hover:not(:disabled)': {
     color: 'var(--accent)',
     background: 'var(--accent-soft)',
@@ -101,10 +102,13 @@ const progressBar = css({
    <style> tag injected on first render. */
 const KEYFRAMES_ID = 'reanalyze-keyframes';
 function ensureKeyframes() {
-  adoptCss(KEYFRAMES_ID, `
+  adoptCss(
+    KEYFRAMES_ID,
+    `
     @keyframes reanalyze-pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.35 } }
     @keyframes reanalyze-sweep { 0% { left: -30% } 100% { left: 100% } }
-  `);
+  `,
+  );
 }
 
 export function ReanalyzeButton(handle: Handle) {
@@ -166,16 +170,10 @@ export function ReanalyzeButton(handle: Handle) {
     if (state === 'static') return null;
     const isDisabled = state === 'running';
     const dotMix =
-      state === 'running' ? [dot, dotRunning] :
-      state === 'error'   ? [dot, dotError]  : [dot];
+      state === 'running' ? [dot, dotRunning] : state === 'error' ? [dot, dotError] : [dot];
     const label =
-      state === 'running' ? 'Analyzing' :
-      state === 'error'   ? `Error · retry` :
-                            'Re-analyze';
-    const title =
-      state === 'error'
-        ? `Last error: ${lastError}`
-        : 'Run the analyzer again';
+      state === 'running' ? 'Analyzing' : state === 'error' ? `Error · retry` : 'Re-analyze';
+    const title = state === 'error' ? `Last error: ${lastError}` : 'Run the analyzer again';
 
     return (
       <div mix={wrap}>

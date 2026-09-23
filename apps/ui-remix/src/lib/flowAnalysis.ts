@@ -43,57 +43,67 @@
  * (response, callback, event emit).
  */
 export type Tier =
-  | 'entry'    // CLI bins, top-level dev-server bootstrap, build entrypoints
-  | 'ui'       // React/Vue/Astro components, pages, views
-  | 'route'    // HTTP route handlers (Express/FastAPI/Remix routes)
-  | 'handler'  // Service layer: business logic invoked by routes
-  | 'data'     // Schemas, models, DB layer, type definitions
+  | 'entry' // CLI bins, top-level dev-server bootstrap, build entrypoints
+  | 'ui' // React/Vue/Astro components, pages, views
+  | 'route' // HTTP route handlers (Express/FastAPI/Remix routes)
+  | 'handler' // Service layer: business logic invoked by routes
+  | 'data' // Schemas, models, DB layer, type definitions
   | 'external' // Network boundary: outbound API clients, fetch wrappers
-  | 'lib'      // Internal utilities, helpers, framework-agnostic libs
-  | 'config'   // Manifest files, build config, env loaders
-  | 'test'     // Test files and fixtures
-  | 'docs'     // v0.4.6 — Markdown documentation. RallyPro had 140 .md
-               // files landing in 'other' (40% of all files); breaking
-               // them into a separate tier keeps the swimlane signal
-               // honest while still surfacing documentation as a tier
-               // (good projects have it, bad projects don't).
-  | 'other';   // Fallback bucket
+  | 'lib' // Internal utilities, helpers, framework-agnostic libs
+  | 'config' // Manifest files, build config, env loaders
+  | 'test' // Test files and fixtures
+  | 'docs' // v0.4.6 — Markdown documentation. RallyPro had 140 .md
+  // files landing in 'other' (40% of all files); breaking
+  // them into a separate tier keeps the swimlane signal
+  // honest while still surfacing documentation as a tier
+  // (good projects have it, bad projects don't).
+  | 'other'; // Fallback bucket
 
 /** Display order — swimlane top-to-bottom. Docs sits between Test and
  *  Other because it's an intentional category but not part of the
  *  runtime data flow. */
 export const TIER_ORDER: readonly Tier[] = [
-  'entry', 'ui', 'route', 'handler', 'data', 'external', 'lib', 'config', 'test', 'docs', 'other',
+  'entry',
+  'ui',
+  'route',
+  'handler',
+  'data',
+  'external',
+  'lib',
+  'config',
+  'test',
+  'docs',
+  'other',
 ] as const;
 
 /** Editorial labels for each tier. */
 export const TIER_LABEL: Record<Tier, string> = {
-  entry:    'Entry points',
-  ui:       'UI · views',
-  route:    'Routes · handlers',
-  handler:  'Services · logic',
-  data:     'Data · schemas',
+  entry: 'Entry points',
+  ui: 'UI · views',
+  route: 'Routes · handlers',
+  handler: 'Services · logic',
+  data: 'Data · schemas',
   external: 'External · boundary',
-  lib:      'Library · utilities',
-  config:   'Config · manifest',
-  test:     'Tests',
-  docs:     'Docs · markdown',
-  other:    'Other',
+  lib: 'Library · utilities',
+  config: 'Config · manifest',
+  test: 'Tests',
+  docs: 'Docs · markdown',
+  other: 'Other',
 };
 
 /** Editorial one-line descriptions — power the FootnoteChip tooltips. */
 export const TIER_DESCRIPTION: Record<Tier, string> = {
-  entry:    'Where execution starts — CLI bins, dev-server bootstrap, top-level routes.',
-  ui:       'User-facing surfaces: components, pages, views.',
-  route:    'HTTP route registration: maps URLs to handlers.',
-  handler:  'Business logic — the code routes call into to do real work.',
-  data:     'Data shape: schemas, models, DB layer, type definitions.',
+  entry: 'Where execution starts — CLI bins, dev-server bootstrap, top-level routes.',
+  ui: 'User-facing surfaces: components, pages, views.',
+  route: 'HTTP route registration: maps URLs to handlers.',
+  handler: 'Business logic — the code routes call into to do real work.',
+  data: 'Data shape: schemas, models, DB layer, type definitions.',
   external: 'Outbound network: API clients, fetch wrappers, SDK calls.',
-  lib:      'Internal utilities. Framework-agnostic, no business semantics.',
-  config:   'Build, runtime, and environment configuration.',
-  test:     'Test files and fixtures.',
-  docs:     'Markdown documentation — READMEs, specs, ADRs, runbooks.',
-  other:    'Everything that didn\'t match a more specific tier.',
+  lib: 'Internal utilities. Framework-agnostic, no business semantics.',
+  config: 'Build, runtime, and environment configuration.',
+  test: 'Test files and fixtures.',
+  docs: 'Markdown documentation — READMEs, specs, ADRs, runbooks.',
+  other: "Everything that didn't match a more specific tier.",
 };
 
 /**
@@ -108,11 +118,29 @@ export const TIER_DESCRIPTION: Record<Tier, string> = {
  * would misrepresent the architecture.
  */
 const FLOW_IGNORE_EXTS = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.avif',
+  '.ico',
   '.svg', // could be UI in some projects (icons), but rarely imported
-  '.woff', '.woff2', '.ttf', '.otf', '.eot',
-  '.mp3', '.mp4', '.webm', '.wav', '.ogg',
-  '.pdf', '.zip', '.tar', '.gz', '.7z',
+  '.woff',
+  '.woff2',
+  '.ttf',
+  '.otf',
+  '.eot',
+  '.mp3',
+  '.mp4',
+  '.webm',
+  '.wav',
+  '.ogg',
+  '.pdf',
+  '.zip',
+  '.tar',
+  '.gz',
+  '.7z',
   '.lock', // pnpm-lock.yaml is JSON-encoded so it matches .yaml, not this
 ]);
 
@@ -184,32 +212,36 @@ export interface FlowInputs {
  */
 const PATH_RULES: ReadonlyArray<readonly [Tier, RegExp, number]> = [
   // Tests — filename and directory signals
-  ['test',    /\.(?:test|spec)\.[jt]sx?$/i, 3],
-  ['test',    /(?:^|\/)(?:__tests__|tests?|spec)\//, 2],
+  ['test', /\.(?:test|spec)\.[jt]sx?$/i, 3],
+  ['test', /(?:^|\/)(?:__tests__|tests?|spec)\//, 2],
 
   // Config — filename signals for config files, dir for config folders
-  ['config',  /(?:^|\/)(?:vite|webpack|rollup|tsconfig|tsconfig\.\w+|next|remix|astro|nuxt|svelte|tailwind|postcss|eslint|prettier|babel|jest|vitest|playwright|stylelint)\.config\.[cm]?[jt]sx?$/i, 3],
-  ['config',  /(?:^|\/)(?:turbo|nx|lerna|rush|pnpm-workspace|package|tsconfig)\.json$/i, 3],
-  ['config',  /^(?:\.env|\.env\..+|\.gitignore|\.prettierrc|\.eslintrc.*)$/i, 3],
-  ['config',  /(?:^|\/)config(?:s)?\//, 2],
+  [
+    'config',
+    /(?:^|\/)(?:vite|webpack|rollup|tsconfig|tsconfig\.\w+|next|remix|astro|nuxt|svelte|tailwind|postcss|eslint|prettier|babel|jest|vitest|playwright|stylelint)\.config\.[cm]?[jt]sx?$/i,
+    3,
+  ],
+  ['config', /(?:^|\/)(?:turbo|nx|lerna|rush|pnpm-workspace|package|tsconfig)\.json$/i, 3],
+  ['config', /^(?:\.env|\.env\..+|\.gitignore|\.prettierrc|\.eslintrc.*)$/i, 3],
+  ['config', /(?:^|\/)config(?:s)?\//, 2],
 
   // Data — explicit filename suffixes are the strongest signal.
   // .sql files are data by extension alone (migrations, seeds).
-  ['data',    /\.(?:schema|model|entity|dto|types?)\.[jt]sx?$/i, 3],
-  ['data',    /\.sql$/i, 3],
-  ['data',    /(?:^|\/)(?:schemas?|models?|entities|types|prisma|migrations?)\//, 2],
-  ['data',    /(?:^|\/)(?:db|database|repository|repositories)\//, 2],
-  ['data',    /(?:^|\/)dao\//, 2],
-  ['data',    /(?:^|\/)supabase\//, 2],
+  ['data', /\.(?:schema|model|entity|dto|types?)\.[jt]sx?$/i, 3],
+  ['data', /\.sql$/i, 3],
+  ['data', /(?:^|\/)(?:schemas?|models?|entities|types|prisma|migrations?)\//, 2],
+  ['data', /(?:^|\/)(?:db|database|repository|repositories)\//, 2],
+  ['data', /(?:^|\/)dao\//, 2],
+  ['data', /(?:^|\/)supabase\//, 2],
 
   // Routes — file conventions (Next.js + Astro) are strong signals.
   // The bare /api/ rule is deliberately gone: it fires on test files
   // and api-helper utilities, double-counting noise on top of the
   // explicit Layer-1 route-handler signal which is reliable on its own.
-  ['route',   /(?:^|\/)(?:app|pages)\/.*\/(?:page|route|layout)\.[jt]sx?$/i, 3],
-  ['route',   /(?:^|\/)(?:app|pages)\/api\//, 3],
-  ['route',   /(?:^|\/)pages\/.+\.astro$/i, 3],
-  ['route',   /(?:^|\/)routes\//, 2],
+  ['route', /(?:^|\/)(?:app|pages)\/.*\/(?:page|route|layout)\.[jt]sx?$/i, 3],
+  ['route', /(?:^|\/)(?:app|pages)\/api\//, 3],
+  ['route', /(?:^|\/)pages\/.+\.astro$/i, 3],
+  ['route', /(?:^|\/)routes\//, 2],
 
   // External — filename `*.client.ts` is explicit; dir is weaker
   ['external', /\.client\.[jt]sx?$/i, 3],
@@ -221,29 +253,33 @@ const PATH_RULES: ReadonlyArray<readonly [Tier, RegExp, number]> = [
 
   // UI — dir signals + the JSX/Vue/Svelte/Astro extension as weak evidence.
   // Astro and Svelte are treated identically to React/Vue here.
-  ['ui',      /(?:^|\/)(?:components?|views?|pages?|screens?|widgets?|islands?)\//, 2],
-  ['ui',      /\.(?:tsx|jsx|vue|svelte|astro)$/i, 1],
+  ['ui', /(?:^|\/)(?:components?|views?|pages?|screens?|widgets?|islands?)\//, 2],
+  ['ui', /\.(?:tsx|jsx|vue|svelte|astro)$/i, 1],
 
   // Lib — dir signals only
-  ['lib',     /(?:^|\/)(?:lib|libs|utils?|helpers?|shared|common)\//, 2],
+  ['lib', /(?:^|\/)(?:lib|libs|utils?|helpers?|shared|common)\//, 2],
 
   // Entry — only ROOT-level main/index/bin/cli or files inside /bin/.
   // The previous `(?:^|\/)index\.[jt]sx?$` rule fired on every barrel
   // file (`src/store/index.ts`, `src/lib/auth/index.ts` …) and produced
   // false-positive entry-tier counts. Anchor to root + /bin/.
-  ['entry',   /^(?:main|index|bin|cli)\.[jt]sx?$/i, 2],
-  ['entry',   /(?:^|\/)bin\//, 2],
+  ['entry', /^(?:main|index|bin|cli)\.[jt]sx?$/i, 2],
+  ['entry', /(?:^|\/)bin\//, 2],
 
   // Docs — markdown files plus the conventional READMEs and CHANGELOGs.
   // Filename match is the only signal — directory placement doesn't
   // matter (docs live everywhere: root, /docs/, alongside source).
-  ['docs',    /\.(?:md|mdx|markdown)$/i, 3],
-  ['docs',    /^(?:README|CHANGELOG|CONTRIBUTING|LICENSE|NOTICE|AUTHORS|HISTORY)(?:\.\w+)?$/i, 3],
+  ['docs', /\.(?:md|mdx|markdown)$/i, 3],
+  ['docs', /^(?:README|CHANGELOG|CONTRIBUTING|LICENSE|NOTICE|AUTHORS|HISTORY)(?:\.\w+)?$/i, 3],
 
   // Config catch-all: lockfiles + common root files that didn't match
   // the earlier explicit rules. Lower weight so the explicit config
   // rules above still win when they fire.
-  ['config',  /^(?:pnpm-lock\.yaml|yarn\.lock|package-lock\.json|deno\.lock|netlify\.toml|vercel\.json|render\.yaml)$/i, 3],
+  [
+    'config',
+    /^(?:pnpm-lock\.yaml|yarn\.lock|package-lock\.json|deno\.lock|netlify\.toml|vercel\.json|render\.yaml)$/i,
+    3,
+  ],
 ];
 
 /**
@@ -307,7 +343,13 @@ export function classifyFile(
  * in the entry tier so the swimlane diagram has a visual origin.
  */
 const FRAMEWORKS_THAT_OWN_BOOT = new Set([
-  'Astro', 'Next.js', 'Remix', 'Nuxt', 'SvelteKit', 'Gatsby', 'Vue Router',
+  'Astro',
+  'Next.js',
+  'Remix',
+  'Nuxt',
+  'SvelteKit',
+  'Gatsby',
+  'Vue Router',
 ]);
 
 /** Synthetic file id for the virtual entry node. Prefixed with `__`
@@ -382,7 +424,9 @@ export interface FlowResult {
  */
 export function analyzeFlow(input: FlowInputs): FlowResult {
   const routeHandlerSet = new Set<string>(input.routes.map((r) => r.handlerFile).filter(Boolean));
-  const entryHandlerSet = new Set<string>(input.entryPoints.map((e) => e.handlerFile).filter(Boolean));
+  const entryHandlerSet = new Set<string>(
+    input.entryPoints.map((e) => e.handlerFile).filter(Boolean),
+  );
 
   /* Per-file classification + degree. Assets (images, fonts, archives)
      are filtered out entirely — they don't carry runtime data flow, so
@@ -433,7 +477,7 @@ export function analyzeFlow(input: FlowInputs): FlowResult {
        around. */
     const candidates = Array.from(routeHandlerSet)
       .filter((p) => files.has(p))
-      .sort((a, b) => (files.get(b)!.inDegree) - (files.get(a)!.inDegree))
+      .sort((a, b) => files.get(b)!.inDegree - files.get(a)!.inDegree)
       .slice(0, 5);
     for (const target of candidates) {
       validEdges.push({ from: VIRTUAL_BOOT_ID, to: target });
@@ -524,7 +568,9 @@ function enumerateFlowPaths(
     if (!existing || c.weight > existing.weight) best.set(key, c);
   }
   /* Rank by weight desc; keep top 5. */
-  return Array.from(best.values()).sort((a, b) => b.weight - a.weight).slice(0, 5);
+  return Array.from(best.values())
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 5);
 }
 
 /** Pick top-N files in a tier by total degree (in + out). */
@@ -537,7 +583,7 @@ function sampleFilesForTier(
   for (const f of files.values()) {
     if (f.tier === tier) inTier.push(f);
   }
-  inTier.sort((a, b) => (b.inDegree + b.outDegree) - (a.inDegree + a.outDegree));
+  inTier.sort((a, b) => b.inDegree + b.outDegree - (a.inDegree + a.outDegree));
   return inTier.slice(0, limit).map((f) => f.path);
 }
 
@@ -560,7 +606,10 @@ function buildEntityInventory(
     /* Pick top-3 referrers by their own total degree — gives the
        reader the most-central callers, not just an arbitrary three. */
     const ranked = refs
-      .map((p) => ({ path: p, deg: (files.get(p)?.inDegree ?? 0) + (files.get(p)?.outDegree ?? 0) }))
+      .map((p) => ({
+        path: p,
+        deg: (files.get(p)?.inDegree ?? 0) + (files.get(p)?.outDegree ?? 0),
+      }))
       .sort((a, b) => b.deg - a.deg)
       .slice(0, 3)
       .map((x) => x.path);

@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  buildHeatmap,
-  capHeatmap,
-  moduleLeaf,
-  moduleOf,
-  topLevelFolder,
-} from './graphAnalysis.ts';
+import { buildHeatmap, capHeatmap, moduleLeaf, moduleOf, topLevelFolder } from './graphAnalysis.ts';
 
 describe('moduleOf', () => {
   it('buckets a monorepo file by its workspace package, not the top-level dir', () => {
@@ -102,12 +96,7 @@ describe('buildHeatmap granularity', () => {
 });
 
 describe('capHeatmap', () => {
-  const files = [
-    { path: 'a/x.ts' },
-    { path: 'b/x.ts' },
-    { path: 'c/x.ts' },
-    { path: 'd/x.ts' },
-  ];
+  const files = [{ path: 'a/x.ts' }, { path: 'b/x.ts' }, { path: 'c/x.ts' }, { path: 'd/x.ts' }];
   // a is the hub (in+out to everyone); d is the weakest (one edge).
   const edges = [
     { from: 'a/x.ts', to: 'b/x.ts' },
