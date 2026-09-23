@@ -22,6 +22,10 @@ import {
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'facts-tel-'));
 }
+/* Dozens of sequential file-backed recordEvent calls. Well inside 5 s on a
+   developer machine; not on a loaded Windows CI runner (real read-modify-
+   write of metrics.json per event), so these get an explicit budget. */
+const LOOP_TIMEOUT_MS = 30_000;
 const state = (over: Partial<TelemetryState> = {}): TelemetryState => ({
   installId: 'x',
   optedIn: true,
@@ -107,20 +111,24 @@ describe('the per-event ring', () => {
     }
   });
 
-  it('stays bounded, keeping the NEWEST events rather than the oldest', async () => {
-    const dir = tempDir();
-    try {
-      const t = createTelemetry({ dir, remoteUrl: null });
-      for (let i = 0; i < 60; i++)
-        await t.recordEvent('analyze.complete', { surface: 'cli', durationMs: i });
-      const recent = (await t.loadMetrics()).recent;
-      expect(recent).toHaveLength(50);
-      expect(recent[0]!.durationMs).toBe(10); // the first 10 were evicted
-      expect(recent.at(-1)!.durationMs).toBe(59); // the latest survives
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  it(
+    'stays bounded, keeping the NEWEST events rather than the oldest',
+    async () => {
+      const dir = tempDir();
+      try {
+        const t = createTelemetry({ dir, remoteUrl: null });
+        for (let i = 0; i < 60; i++)
+          await t.recordEvent('analyze.complete', { surface: 'cli', durationMs: i });
+        const recent = (await t.loadMetrics()).recent;
+        expect(recent).toHaveLength(50);
+        expect(recent[0]!.durationMs).toBe(10); // the first 10 were evicted
+        expect(recent.at(-1)!.durationMs).toBe(59); // the latest survives
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    LOOP_TIMEOUT_MS,
+  );
 
   it('survives a metrics file written before the ring existed', async () => {
     const dir = tempDir();
@@ -178,21 +186,25 @@ describe('createTelemetry — local metrics', () => {
     }
   });
 
-  it('caps duration/file-count samples at 100 (count stays uncapped)', async () => {
-    const dir = tempDir();
-    try {
-      const t = createTelemetry({ dir, remoteUrl: null });
-      for (let i = 0; i < 130; i++)
-        await t.recordEvent('analyze.complete', { durationMs: i, fileCount: i });
-      const m = await t.loadMetrics();
-      expect(m.durationsMs).toHaveLength(100);
-      expect(m.fileCounts).toHaveLength(100);
-      expect(m.durationsMs[0]).toBe(30); // oldest 30 shifted out
-      expect(m.events['analyze.complete']).toBe(130);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+  it(
+    'caps duration/file-count samples at 100 (count stays uncapped)',
+    async () => {
+      const dir = tempDir();
+      try {
+        const t = createTelemetry({ dir, remoteUrl: null });
+        for (let i = 0; i < 130; i++)
+          await t.recordEvent('analyze.complete', { durationMs: i, fileCount: i });
+        const m = await t.loadMetrics();
+        expect(m.durationsMs).toHaveLength(100);
+        expect(m.fileCounts).toHaveLength(100);
+        expect(m.durationsMs[0]).toBe(30); // oldest 30 shifted out
+        expect(m.events['analyze.complete']).toBe(130);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    LOOP_TIMEOUT_MS,
+  );
 
   it('generates a stable installId across calls', async () => {
     const dir = tempDir();
