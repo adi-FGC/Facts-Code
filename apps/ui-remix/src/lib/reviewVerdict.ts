@@ -18,7 +18,7 @@
  * drift from the CLI (`factstack review`) and MCP (`review_change`) verdict.
  */
 
-import type { ChangeFinding, ReviewSeverity } from '@factstack/spec';
+import type { ChangeFinding, FindingSeverity, ReviewSeverity } from '@factstack/spec';
 import {
   rollupSeverity,
   vulnFindingSeverity,
@@ -28,8 +28,10 @@ import {
   HOTSPOT_LOW,
   HOTSPOT_MEDIUM,
 } from '@factstack/spec/review-severity'; // zod-free subpath: keeps the schemas out of first paint
+import { isGradedVulnerability, VULN_LABEL_TEXT } from '@factstack/scanners';
 import { tarjanSCC, findCycles } from './graphAnalysis.ts';
 import type { Dataset } from './loadArtifacts.ts';
+import { splitSecrets } from './secretClass.ts';
 
 export interface Delta {
   before: number;
@@ -46,15 +48,24 @@ export interface ReviewBaseline {
   todos: number;
 }
 
+/** A verdict finding. `graded: false` marks one that is listed but never
+ *  counted toward the level (possible secrets, dev / transitive advisories): the page shows
+ *  "not graded" where a graded finding shows its severity, so its `low`
+ *  placeholder (the schema has no "none") never reads as a grade. UI-side
+ *  until ChangeFinding itself carries the field (spec, INV4 additive). */
+export type ReviewFinding = ChangeFinding & { graded?: false };
+
 export interface ReviewVerdict {
   severity: ReviewSeverity;
   headline: string;
   generatedAt: string;
   baseline: ReviewBaseline | null;
-  findings: ChangeFinding[];
+  findings: ReviewFinding[];
   /** Current structural posture (independent of any baseline). */
   posture: {
     secrets: number;
+    /** Distinct graded advisory ids (dev / transitive-only ones are listed,
+     *  not counted). */
     vulnerabilities: number;
     cycles: number;
     /** Most transitively-depended-on file + its reach (blast radius). */
@@ -137,17 +148,35 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
   const cycles = findCycles(sccs, forward);
   const hub = topHub(reverse);
 
-  /* analyze() emits secrets in test/fixture paths at `low` and keeps them out
-     of the grade; mirror that here so a fixture never reads as "exposed —
-     rotate before shipping", while still surfacing it as its own finding. */
-  const secretRisks = data.risks.filter((r) => r.category === 'secret');
-  const secrets = secretRisks.filter((r) => r.severity !== 'low').length;
-  const fixtureSecrets = secretRisks.length - secrets;
-  const vulns = data.vulnerabilities ?? [];
+  /* analyze() emits secrets in test/fixture paths at `low` and generic
+     "possible secret" hits at `info`, and keeps both out of the grade; mirror
+     that here so neither reads as "exposed — rotate before shipping", while
+     each still surfaces as its own finding. */
+  const split = splitSecrets(data.risks);
+  const secrets = split.exposed.length;
+  const fixtureSecrets = split.fixture.length;
+  const possibleSecrets = split.possible.length;
+  /* Owner call (2026-09-24), the rule core review.ts applies: only direct
+     runtime advisories are graded (the shared isGradedVulnerability; a legacy
+     row with no scope is direct). An id with ANY graded row is graded, at the
+     worst severity among those rows — one advisory can hit a direct dep in
+     one manifest and a dev dep in another. An advisory reached only through
+     dev or transitive dependencies is listed in its own finding, added after
+     the roll-up so it never sets the verdict level. */
+  const gradedSev = new Map<string, FindingSeverity>();
+  for (const v of data.vulnerabilities ?? []) {
+    if (!isGradedVulnerability(v)) continue;
+    const s = vulnFindingSeverity(String(v.severity));
+    const prev = gradedSev.get(v.id);
+    if (!prev || rank(s) > rank(prev)) gradedSev.set(v.id, s);
+  }
+  const vulnIds = [...new Set((data.vulnerabilities ?? []).map((v) => v.id))];
+  const gradedIds = vulnIds.filter((id) => gradedSev.has(id));
+  const ungradedIds = vulnIds.filter((id) => !gradedSev.has(id));
   const risksNow = data.risks.length;
   const todosNow = data.summary.health.todos;
 
-  const findings: ChangeFinding[] = [];
+  const findings: ReviewFinding[] = [];
 
   if (secrets > 0) {
     findings.push({
@@ -168,18 +197,19 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
     });
   }
 
-  if (vulns.length > 0) {
-    let worst: ReviewSeverity = 'low';
-    for (const v of vulns) {
-      const s = vulnFindingSeverity(String(v.severity));
+  if (gradedIds.length > 0) {
+    let worst: FindingSeverity = 'low';
+    for (const id of gradedIds) {
+      const s = gradedSev.get(id) ?? 'low';
       if (rank(s) > rank(worst)) worst = s;
     }
+    const n = gradedIds.length;
     findings.push({
       kind: 'vulnerability',
       severity: worst,
-      title: `${vulns.length} known vulnerabilit${vulns.length === 1 ? 'y' : 'ies'}`,
+      title: `${n} known vulnerabilit${n === 1 ? 'y' : 'ies'}`,
       detail: `Dependency advisories matched against the project manifests (worst severity: ${worst}).`,
-      evidence: { count: vulns.length, ids: vulns.slice(0, 8).map((v) => v.id) },
+      evidence: { count: n, ids: gradedIds.slice(0, 8) },
     });
   }
 
@@ -225,6 +255,31 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
   }
 
   const severity = rollupSeverity(findings);
+  /* Listed after the roll-up, at the lowest finding severity (the schema has
+     no "none") and marked `graded: false`: shown, never counted toward the
+     level, and never displayed as a LOW grade. Possible secrets are "shown
+     but never graded" (secretClass.ts), as are dev/transitive advisories. */
+  if (possibleSecrets > 0) {
+    findings.push({
+      kind: 'secret',
+      severity: 'low',
+      graded: false,
+      title: `${possibleSecrets} possible secret${possibleSecrets === 1 ? '' : 's'}, not graded`,
+      detail: `${possibleSecrets} generic match(es) (a password=, a connection URL, a secret-named field) — listed under Security → Secrets, not counted as exposed. Check whether each is a real credential.`,
+      evidence: { count: possibleSecrets },
+    });
+  }
+  if (ungradedIds.length > 0) {
+    const m = ungradedIds.length;
+    findings.push({
+      kind: 'vulnerability',
+      severity: 'low',
+      graded: false,
+      title: `${m} dev/transitive advisor${m === 1 ? 'y' : 'ies'} (${VULN_LABEL_TEXT.notGraded})`,
+      detail: `Advisories reached only through dev or transitive dependencies — listed under Security → Vulnerabilities; they do not raise the verdict.`,
+      evidence: { count: m, ids: ungradedIds.slice(0, 8) },
+    });
+  }
 
   return {
     severity,
@@ -234,7 +289,7 @@ export function buildReviewVerdict(data: Dataset, baseline: ReviewBaseline | nul
     findings,
     posture: {
       secrets,
-      vulnerabilities: vulns.length,
+      vulnerabilities: gradedIds.length,
       cycles: cycles.length,
       topHub: hub,
     },
@@ -257,7 +312,7 @@ function formatAt(at: string): string {
 
 function buildHeadline(
   severity: ReviewSeverity,
-  findings: ChangeFinding[],
+  findings: ReviewFinding[],
   trend: ReviewVerdict['trend'],
 ): string {
   if (findings.length === 0) {

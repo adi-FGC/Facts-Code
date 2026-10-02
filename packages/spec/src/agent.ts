@@ -6,7 +6,7 @@
  * agent.jsonl (one FileOutline per line).
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 import { GitTopologySchema } from './git.js';
 import { DocFileSchema } from './docs.js';
 import { StyleAuditSchema } from './styles.js';
@@ -42,7 +42,12 @@ export const SymbolSchema = z.object({
   endLine: z.number().int().nonnegative(),
   exported: z.boolean(),
   docstring: z.string().optional(),
-  children: z.array(z.lazy((): z.ZodTypeAny => SymbolSchema)).optional(),
+  /* zod 4's recursive form: a getter, so `children` infers as Symbol[]
+     (the zod 3 `z.lazy((): ZodTypeAny => …)` form typed it any[] in v3 and
+     unknown[] in v4). */
+  get children() {
+    return z.array(SymbolSchema).optional();
+  },
 });
 export type Symbol = z.infer<typeof SymbolSchema>;
 
@@ -344,6 +349,15 @@ export const RiskSchema = z.object({
   messageTechnical: z.string().optional(),
   /** Redacted preview — raw secret values MUST NOT appear here. */
   preview: z.string().optional(),
+  /** Graded secret findings only: a one-way digest of the matched value (the
+   *  first 12 hex chars of SHA-256 over rule id + value; a private key's
+   *  header + key material), so a diff tells a swapped key from a moved one.
+   *  Hex only, never the value. Absent on ungraded "possible" matches, other
+   *  categories and pre-fingerprint artifacts (INV4: additive + optional). */
+  fingerprint: z
+    .string()
+    .regex(/^[0-9a-f]{12,64}$/)
+    .optional(),
 });
 export type Risk = z.infer<typeof RiskSchema>;
 
@@ -368,6 +382,10 @@ export const ProjectMetaSchema = z.object({
    * false. Read this before drawing conclusions about "stable" files.
    */
   gitAvailable: z.boolean().optional(),
+  /** Whole-scan caveats with no per-file marker, e.g. "GitHub returned a
+   *  truncated tree: some files were not scanned". Plain sentences, no file
+   *  contents. Absent when the scan was complete. Optional (INV4). */
+  scanWarnings: z.array(z.string()).optional(),
 });
 export type ProjectMeta = z.infer<typeof ProjectMetaSchema>;
 
@@ -473,8 +491,25 @@ export const DependencyManifestSchema = z.object({
    *  whether to scan them — most CI gates include them since they
    *  ship in tarballs and run during build. */
   devDependencies: z.record(z.string(), z.string()).default({}),
+  /** Declared dep key → the version the lockfile says is INSTALLED (from
+   *  @factstack/scanners' attachResolvedVersions). The CVE scan queries these
+   *  instead of a range's lower bound. Absent when no lockfile covers the
+   *  manifest. Optional + additive (INV4). */
+  resolved: z.record(z.string(), z.string()).optional(),
 });
 export type DependencyManifest = z.infer<typeof DependencyManifestSchema>;
+
+/** How a vulnerable package is reached. `direct` runtime deps are graded;
+ *  `dev` and `transitive` findings are shown but not graded (owner call).
+ *  Source of truth; @factstack/scanners derives its `DependencyScope` from it. */
+export const DependencyScopeSchema = z.enum(['direct', 'dev', 'transitive']);
+
+/** Where a queried version came from: `lockfile` = what is installed;
+ *  `declared-range` = the manifest range's lower bound, not resolved from a
+ *  lockfile, so the installed version may differ — surfaces label it
+ *  "declared range". Source of truth; @factstack/scanners derives its
+ *  `VersionSource` from it. */
+export const VersionSourceSchema = z.enum(['lockfile', 'declared-range']);
 
 export const VulnerabilitySeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'unknown']);
 export type VulnerabilitySeverity = z.infer<typeof VulnerabilitySeveritySchema>;
@@ -509,6 +544,12 @@ export const VulnerabilitySchema = z.object({
   /** Path of the manifest where the dep was declared. Lets the UI
    *  group findings by manifest in monorepos. */
   manifestPath: z.string(),
+  /** How the package is reached (direct / dev / transitive). Only `direct`
+   *  findings are graded. Absent on rows written before labelling (INV4). */
+  scope: DependencyScopeSchema.optional(),
+  /** Whether `installedVersion` came from a lockfile or is a declared range's
+   *  lower bound ("declared range"). Absent on unlabelled rows (INV4). */
+  versionSource: VersionSourceSchema.optional(),
 });
 export type Vulnerability = z.infer<typeof VulnerabilitySchema>;
 
@@ -542,6 +583,13 @@ export const VulnerabilityScanSchema = z.object({
    *  some severities may read 'unknown' purely from fetch failure, not truth.
    *  Optional + additive (INV4): older artifacts simply omit it. */
   detailsFailed: z.number().int().nonnegative().optional(),
+  /** Project-relative lockfiles the scan resolved installed versions from.
+   *  Empty/absent = every version was a declared range. Optional (INV4). */
+  lockfiles: z.array(z.string()).optional(),
+  /** Dependencies added or changed while OSV.dev was answering, so absent from
+   *  this scan. Present and > 0 means the scan is NOT a verified-clean answer
+   *  for every current dependency. Optional + additive (INV4). */
+  unscanned: z.number().int().nonnegative().optional(),
 });
 export type VulnerabilityScan = z.infer<typeof VulnerabilityScanSchema>;
 
@@ -558,6 +606,11 @@ export const AgentArtifactSchema = z.object({
   scripts: z.record(z.string(), z.string()),
   capabilities: z.array(z.string()),
   risks: z.array(RiskSchema),
+  /** Revision of the graded secret rules (and fingerprint scheme) that
+   *  produced risks[] — @factstack/scanners SECRET_RULES_REV. A review grades
+   *  secret deltas only when base and head carry the same revision. Absent on
+   *  pre-fingerprint artifacts (INV4: additive + optional). */
+  secretRulesRev: z.string().optional(),
   stats: StatsSchema,
   /** v0.3.6 — env-var inventory. Optional for backward-compat with
    *  pre-v0.3.6 artifacts; renderers fall back to "no config data" when

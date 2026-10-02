@@ -201,15 +201,23 @@ export function fsaBrowserFS(handle: FileSystemDirectoryHandle): FactsFS {
   return new FsaBrowserFS(handle);
 }
 
+/* Folder-input picks (<input webkitdirectory>) — lazy, real byte sizes. */
+export { FileListFS, type FileListEntry } from './file-list.js';
+export { browserRepoName } from './repo-name.js';
+
 /* Re-export the GitHub-fetch entry so callers can grab both surfaces
  * from one import line. */
 export {
   fetchGitHubToMemory,
   parseRepoSpec,
   ghFriendlyError,
+  GitHubMemoryFS,
   GH_TEXT_EXTS,
   GH_EXCLUDE_DIRS,
+  GH_LOCKFILE_NAMES,
   GH_FETCH_CONCURRENCY,
+  GH_TRUNCATED_WARNING,
   type GitHubFetchSpec,
+  type GitHubFetchReport,
   type FetchProgress,
 } from './github.js';

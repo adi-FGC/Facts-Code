@@ -56,6 +56,30 @@ describe('scanFrameworksFromPackageJson', () => {
     const out = scanFrameworksFromPackageJson('');
     expect(out.frameworks).toEqual([]);
   });
+
+  // SCN-05 — `null` threw "Cannot read properties of null" and aborted analyze.
+  it('never throws on valid JSON that is not a package object', () => {
+    for (const text of [
+      'null',
+      '[]',
+      '"x"',
+      '42',
+      'true',
+      '{"dependencies":null,"devDependencies":[],"peerDependencies":"x","scripts":"x"}',
+    ]) {
+      expect(scanFrameworksFromPackageJson(text), text).toEqual({ frameworks: [], scripts: {} });
+    }
+  });
+
+  it('keeps only string-valued scripts', () => {
+    const out = scanFrameworksFromPackageJson(
+      JSON.stringify({
+        scripts: { dev: 'vite', bad: 1, nested: { a: 'b' } },
+        dependencies: { vite: '^7' },
+      }),
+    );
+    expect(out).toEqual({ frameworks: ['Vite'], scripts: { dev: 'vite' } });
+  });
 });
 
 describe('scanFrameworksFromRequirements (Python)', () => {
@@ -80,6 +104,28 @@ describe('scanFrameworksFromRequirements (Python)', () => {
 
   it('skips comments + blank lines', () => {
     expect(scanFrameworksFromRequirements('# requirements\n\nflask\n')).toContain('Flask');
+  });
+
+  // SCN-18 — extras, env markers, spaced versions and `@ url` specs kept the
+  // suffix in the name, so FastAPI's documented `fastapi[standard]` was missed.
+  it('strips extras, markers, spaced versions and direct-URL specs', () => {
+    const req = [
+      'fastapi[standard]==0.115.0',
+      'Django[argon2]>=5',
+      'flask ; python_version >= "3.8"',
+      'express == 1.0',
+      'hono @ https://example.com/hono-1.0.whl',
+      '-r base.txt',
+      '--hash=sha256:abc',
+      '-e git+https://example.com/koa.git#egg=koa',
+    ].join('\n');
+    expect(scanFrameworksFromRequirements(req)).toEqual([
+      'Django',
+      'Express',
+      'FastAPI',
+      'Flask',
+      'Hono',
+    ]);
   });
 });
 

@@ -19,7 +19,7 @@
  * to paste into an LLM system prompt is in `docs/FACTSPACK_PROMPT.md`.
  */
 
-export { encode, encodeIncremental, PackEncodeError } from './encode.js';
+export { encode, encodeIncremental, mapLiteralDashes, PackEncodeError } from './encode.js';
 export { decode, decodeStrict, decodeLegacy, PackDecodeError } from './decode.js';
 export { computeDiff, applyChain, type AppliedTable } from './chain.js';
 export { escapeCell, unescapeCell, PackEscapeError } from './escape.js';

@@ -63,6 +63,33 @@ describe('vulnSeveritySankey', () => {
     expect(sevNodes).toEqual(['Critical', 'Unknown']); // high/medium/low absent, order preserved
   });
 
+  /* The page counts a dev-only critical under "Not graded"; the
+     diagram drew it from a red "Critical" node beside "Critical 0". */
+  it('flows listed-only (not graded) rows from a neutral "Not graded" node', () => {
+    const vulns: VulnFlowInput[] = [
+      {
+        ecosystem: 'npm',
+        package: 'a',
+        installedVersion: '1',
+        severity: 'critical',
+        graded: false,
+      },
+      { ecosystem: 'npm', package: 'b', installedVersion: '1', severity: 'high', graded: false },
+      { ecosystem: 'npm', package: 'c', installedVersion: '1', severity: 'medium' },
+    ];
+    const { nodes, links } = vulnSeveritySankey(vulns);
+    const sevNodes = nodes.filter((n) => n.column === 0);
+    expect(sevNodes.map((n) => n.label)).toEqual(['Medium', 'Not graded']);
+    expect(sevNodes[1]!.color).toBe('var(--fg-faint)');
+    expect(links.filter((l) => l.source === 'sev:ungraded').map((l) => l.target)).toEqual([
+      'pkg:npm|a@1',
+      'pkg:npm|b@1',
+    ]);
+    expect(links.some((l) => l.source === 'sev:critical' || l.source === 'sev:high')).toBe(false);
+    // Still one package node per (package, version) group.
+    expect(pkgNodes(vulns)).toHaveLength(distinctPackages(vulns));
+  });
+
   it('returns empty for no vulnerabilities', () => {
     const out = vulnSeveritySankey([]);
     expect(out.nodes).toEqual([]);

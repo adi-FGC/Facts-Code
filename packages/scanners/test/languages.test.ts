@@ -30,6 +30,17 @@ describe('detectLanguage', () => {
     expect(detectLanguage('.md')?.id).toBe('markdown');
   });
 
+  // SCN-06 — .mts/.cts had no entry, so extraction (gated on a language)
+  // skipped them; .astro had none, so the Astro route branch never ran.
+  it('knows ESM/CJS TypeScript, Python stubs and single-file components', () => {
+    expect(detectLanguage('.mts')?.id).toBe('typescript');
+    expect(detectLanguage('.CTS')?.id).toBe('typescript');
+    expect(detectLanguage('.pyi')?.id).toBe('python');
+    expect(detectLanguage('.astro')?.id).toBe('astro');
+    expect(detectLanguage('.vue')?.id).toBe('vue');
+    expect(detectLanguage('.svelte')?.id).toBe('svelte');
+  });
+
   it('exports EXT_LANG with required shape per entry', () => {
     for (const [ext, info] of Object.entries(EXT_LANG)) {
       expect(ext.startsWith('.')).toBe(true);

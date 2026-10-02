@@ -1,14 +1,22 @@
 # Cloudflare Pages cache + security headers. Mirrors netlify.toml so the two
 # hosts behave identically.
 #
+# Cloudflare applies EVERY matching rule, in file order, and APPENDS a header
+# an earlier rule already set — it does not replace it. A later block that
+# needs a different value for a header `/*` sets must first detach it with
+# `! Header-Name`. scripts/lib/cf-headers.mjs models this and
+# check-bundle-size.mjs fails the build when a path would get a header twice.
+#
 # HTML (incl. the inline-baked dataset in index.html) must revalidate every
 # load so a fresh `factstack analyze` + redeploy ships instantly. Hashed assets
 # under /assets/ are content-addressed (index-<hash>.js) so they're immutable.
+# Cloudflare serves clean URLs (`/`, `/review`), which `/*.html` never matches:
+# generate-discovery.mjs appends one rule per SPA route to dist/_headers.
 /*.html
-  # must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
-  # returning visitor paint from cache in the same second while the browser
-  # checks for a newer bake in the background.
-  Cache-Control: public, max-age=0, must-revalidate, stale-while-revalidate=604800
+  # must-revalidate keeps a redeploy instant. No stale-while-revalidate: next
+  # to must-revalidate it never applies, and a stale page would ask for the
+  # previous deploy's /assets/* hashes (lib/cf-headers.mjs HTML_CACHE_CONTROL).
+  Cache-Control: public, max-age=0, must-revalidate
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 # Self-hosted woff2 (src/styles/fonts.css). Content never changes under a
@@ -24,6 +32,15 @@
   Content-Type: application/manifest+json
 /data/*
   Cache-Control: public, max-age=0, must-revalidate
+# The dataset sections index.html preloads when a build splits them
+# (performance#5; `inject-data.mjs --split-sections`, off by default). Content-
+# addressed (<name>.<sha256-12>.json, scripts/lib/dataset-sections.mjs), so a name never
+# gets new bytes: immutable, like /assets/*. A page still open across a
+# redeploy then reads its own sections instead of a newer deploy's. The detach
+# drops the /data/* value above, which Cloudflare would otherwise append.
+/data/sections/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -50,16 +67,27 @@
 # Scoped CSP for the MCP Google sign-in page ONLY — it loads the Firebase SDK
 # from gstatic + runs the Google popup + POSTs the token to the local loopback.
 # Kept separate so the main app CSP above stays strict. Must stay byte-equal to
-# the /mcp-auth.html block in netlify.toml — check-bundle-size.mjs now enforces
-# that (and that every /mcp-auth* block carries the identical scoped policy).
+# the /mcp-auth and /mcp-auth.html blocks in netlify.toml — check-bundle-size.mjs
+# enforces that every /mcp-auth* block carries the identical scoped policy.
 #
 # TWO keys on purpose: Cloudflare Pages serves clean URLs — it 308-redirects
 # `/mcp-auth.html` → `/mcp-auth` and applies headers to the SERVED path, so the
 # `.html` rule alone never matches on CF and the page falls back to the strict
-# main CSP (Firebase SDK from gstatic gets blocked). Netlify serves `.html`
-# verbatim. Keying BOTH paths to the same scoped CSP makes the sign-in page work
-# identically on both hosts regardless of each host's URL rewriting.
+# main CSP (Firebase SDK from gstatic gets blocked).
+#
+# These blocks govern CLOUDFLARE only. Netlify applies this file too, but under
+# netlify.toml, and for the same header a later rule replaces an earlier one —
+# so netlify.toml's `/*` CSP overrides both blocks here. netlify.toml therefore
+# keys /mcp-auth and /mcp-auth.html itself, below its `/*`
+# (scripts/lib/netlify-headers.mjs models this; seen live 2026-09-24).
+#
+# `! Content-Security-Policy` first: `/*` above also matches these paths, and
+# without the detach Cloudflare sends BOTH policies — the browser enforces the
+# strict one too, blocks the gstatic import and the page never signs in (seen
+# live 2026-09-24). These blocks must stay BELOW `/*` for the detach to apply.
 /mcp-auth.html
+  ! Content-Security-Policy
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com
 /mcp-auth
+  ! Content-Security-Policy
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com

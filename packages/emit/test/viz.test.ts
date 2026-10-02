@@ -23,14 +23,26 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
     ...overrides,
-  } as AgentArtifact;
+  };
 }
 
 function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
@@ -58,12 +70,20 @@ function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
       status: 'ok',
       children: [],
     },
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     activity: [],
     risks: [],
     glossary: [],
     ...overrides,
-  } as HumanArtifact;
+  };
 }
 
 describe('humanToViz — basic shape', () => {
@@ -248,7 +268,8 @@ describe('humanToViz — risk shape passthrough', () => {
       }),
     );
     expect(v.risks[0]).toMatchObject({ severity: 'low', category: 'license' });
-    expect((v.risks[0] as any).file).toBeUndefined();
+    // Absent, not an undefined-valued key.
+    expect(v.risks[0]).not.toHaveProperty('file');
   });
 });
 

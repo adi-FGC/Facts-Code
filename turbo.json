@@ -1,11 +1,16 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
-  "globalDependencies": ["bench/expected.json"],
+  "globalDependencies": ["bench/expected.json", "scripts/lib/**"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**", ".remix/**", "build/**"]
+    },
+    "@factstack/cli#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**", ".remix/**", "build/**"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/legacy/prototype/index.html"]
     },
     "dev": {
       "cache": false,
@@ -14,6 +19,20 @@
     "test": {
       "dependsOn": ["^build"],
       "outputs": ["coverage/**"]
+    },
+    "@factstack/cli#test": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/legacy/prototype/index.html"]
+    },
+    "test:cov": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"]
+    },
+    "@factstack/cli#test:cov": {
+      "dependsOn": ["^build"],
+      "outputs": ["coverage/**"],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/legacy/prototype/index.html"]
     },
     "lint": {
       "outputs": []

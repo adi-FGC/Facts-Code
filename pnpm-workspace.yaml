@@ -7,6 +7,9 @@ packages:
   - 'legacy/prototype'
 
 allowBuilds:
+  # @tailwindcss/cli's file watcher (only used by --watch); its prebuilt
+  # platform binary covers the one-shot builds, so no install script runs.
+  '@parcel/watcher': false
   esbuild: true
 
 minimumReleaseAgeExclude:
@@ -33,6 +36,13 @@ minimumReleaseAgeExclude:
 
 patchedDependencies:
   '@remix-run/ui@0.5.0': patches/@remix-run__ui@0.5.0.patch
+
+overrides:
+  # GHSA-g7r4-m6w7-qqqr (esbuild dev server reads arbitrary files on Windows,
+  # >=0.27.3 <0.28.1). vite 8 already accepts ^0.28; only remix's own
+  # @remix-run/test caps it at ^0.27.1, and this repo never runs that runner
+  # (tests are vitest). Drop this once remix ships a release that allows 0.28.
+  'esbuild@<0.28.1': '^0.28.2'
 
 # scheduleUpdate queue-fix: @remix-run/ui throws 'scheduleUpdate not
 # implemented' when a component calls handle.update() synchronously from its

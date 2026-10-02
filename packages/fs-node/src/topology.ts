@@ -24,15 +24,24 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type {
-  AgentRequest,
-  Branch,
-  CommitSummary,
-  GitTopology,
-  TopologyGap,
-  Worktree,
-  WorktreeFeature,
+import {
+  GitTopologySchema,
+  type AgentRequest,
+  type Branch,
+  type CommitSummary,
+  type GitTopology,
+  type TopologyGap,
+  type Worktree,
+  type WorktreeFeature,
 } from '@factstack/spec';
+import { readCacheFile, refsFingerprint, writeCacheFile } from './git-cache.js';
+import {
+  GIT_PLUMBING_TIMEOUT_MS,
+  GIT_TIMEOUT_MS,
+  SAFE_GIT_ARGS,
+  filterOverrides,
+  gitEnv,
+} from './git-safe.js';
 
 export interface TopologyOptions {
   /** Read agent session transcripts under the home dir to attach request
@@ -53,6 +62,19 @@ export interface TopologyOptions {
   /** Wall-clock budget for transcript reading. Default 4000 ms; when
    *  exceeded, `requestsCoverage` is `partial`. */
   requestBudgetMs?: number | undefined;
+  /**
+   * Persist the mined topology to `file` (e.g. `.facts/topology-cache.json`),
+   * keyed by a fingerprint of the repo's refs, HEADs and worktree list. With
+   * `reuse`, a matching copy younger than `maxAgeMs` (default 10 min) is
+   * returned with NO git spawn — the per-edit `--minimal` hook path, where
+   * re-mining git on every edit was over half of each run. Any ref move
+   * (commit, checkout, fetch, push, branch/worktree/stash change) re-mines at
+   * once; working-tree dirt (edits, staging) refreshes only on a re-mine or
+   * when the copy ages out. Every call without `reuse` refreshes the file.
+   */
+  cache?: { file: string; reuse?: boolean | undefined; maxAgeMs?: number | undefined } | undefined;
+  /** @internal Tests only: false forces the per-branch `rev-list` path. */
+  batchAheadBehind?: boolean | undefined;
 }
 
 const US = '\x1f';
@@ -105,49 +127,9 @@ const realKey = (p: string): string => {
   }
 };
 
-/* Every git spawn goes through these. Two hazards this closes:
- *
- *   1. CONFIG-DRIVEN EXECUTION. We shell git INSIDE repos we do not own —
- *      nested repos and junction targets found by scanNested — and git runs
- *      `core.fsmonitor` as a shell command during `git status`, straight from
- *      that repo's .git/config. `-c` overrides beat every config level, so
- *      pinning fsmonitor/hooksPath makes a hostile checked-in .git/config inert.
- *      (Global/system config is deliberately NOT dropped: `safe.directory`
- *      lives there and dropping it would break legitimate scans.)
- *   2. INHERITED GIT ENV. When analyze runs from a git hook, GIT_DIR /
- *      GIT_INDEX_FILE / GIT_WORK_TREE point at the hook's repo and would
- *      hijack every `cwd`-scoped call we make for OTHER worktrees. Strip them.
- */
-const SAFE_GIT_ARGS = [
-  '--no-optional-locks',
-  '-c',
-  'core.fsmonitor=false',
-  '-c',
-  `core.hooksPath=${os.devNull}`,
-];
-const INHERITED_GIT_ENV = [
-  'GIT_DIR',
-  'GIT_INDEX_FILE',
-  'GIT_WORK_TREE',
-  'GIT_COMMON_DIR',
-  'GIT_PREFIX',
-  'GIT_OBJECT_DIRECTORY',
-  'GIT_ALTERNATE_OBJECT_DIRECTORIES',
-  'GIT_INDEX_VERSION',
-  'GIT_CONFIG',
-  'GIT_CONFIG_COUNT',
-  'GIT_NAMESPACE',
-  'GIT_GRAFT_FILE',
-];
-function gitEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_OPTIONAL_LOCKS: '0',
-  };
-  for (const k of INHERITED_GIT_ENV) delete env[k];
-  return env;
-}
+/* Every git spawn goes through SAFE_GIT_ARGS + gitEnv() (./git-safe.ts): we
+ * shell git INSIDE repos we do not own — nested repos and junction targets
+ * found by scanNested — and a hostile .git/config must stay inert. */
 
 function git(cwd: string, args: string[]): string | null {
   try {
@@ -156,7 +138,7 @@ function git(cwd: string, args: string[]): string | null {
       env: gitEnv(),
       encoding: 'utf8',
       windowsHide: true,
-      timeout: 20_000,
+      timeout: GIT_PLUMBING_TIMEOUT_MS,
       maxBuffer: 64 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -362,6 +344,30 @@ function leftRight(
   return { left: toInt(l), right: toInt(r) };
 }
 
+/** leftRight() for EVERY local branch against `base` in one spawn:
+ *  `%(ahead-behind:<base>)` (git ≥ 2.41) prints "<ahead> <behind>", the same
+ *  pair as `rev-list --left-right --count <branch>...<base>`. The per-branch
+ *  form cost up to two ~70 ms spawns per branch on Windows. null = the atom
+ *  is unsupported (older git) — callers fall back to leftRight(). */
+function aheadBehindAll(
+  cwd: string,
+  base: string,
+): Map<string, { left: number | null; right: number | null }> | null {
+  const out = git(cwd, [
+    'for-each-ref',
+    `--format=%(refname:short)%1f%(ahead-behind:${base})`,
+    'refs/heads',
+  ]);
+  if (out === null) return null;
+  const m = new Map<string, { left: number | null; right: number | null }>();
+  for (const l of lines(out)) {
+    const [name, ab] = l.split(US);
+    const [a, b] = (ab ?? '').split(' ');
+    if (name) m.set(name, { left: toInt(a), right: toInt(b) });
+  }
+  return m;
+}
+
 interface StatusCounts {
   ok: boolean;
   staged: number;
@@ -375,16 +381,29 @@ function readStatus(wt: string): StatusCounts {
   let out: string;
   try {
     /* SAFE_GIT_ARGS matters most here: `git status` is the command that
-       executes core.fsmonitor, and this runs inside nested/junction repos. */
+       executes core.fsmonitor and every filter driver's clean command, and
+       this runs inside nested/junction repos. No usable overrides → no probe.
+       --ignore-submodules=dirty: never recurse into a submodule, whose own
+       config would define drivers these overrides do not cover. */
+    const disarm = filterOverrides(wt);
+    if (!disarm) return zero;
     const r = spawnSync(
       'git',
-      [...SAFE_GIT_ARGS, 'status', '--porcelain=v2', '-z', '--untracked-files=normal'],
+      [
+        ...SAFE_GIT_ARGS,
+        ...disarm,
+        'status',
+        '--porcelain=v2',
+        '-z',
+        '--untracked-files=normal',
+        '--ignore-submodules=dirty',
+      ],
       {
         cwd: wt,
         env: gitEnv(),
         encoding: 'utf8',
         windowsHide: true,
-        timeout: 30_000,
+        timeout: GIT_TIMEOUT_MS,
         maxBuffer: 64 * 1024 * 1024,
         stdio: ['ignore', 'pipe', 'pipe'],
       },
@@ -973,27 +992,74 @@ function commitReadiness(
 
 /* ───────────── main ───────────── */
 
+/* Reading someone's agent transcripts is OPT-IN (owner's call, 2026-09-23):
+   a first `analyze` must not open ~/.claude or ~/.codex unasked. Turn it on
+   per run with `agentRequests: true` (CLI: `analyze --agent-requests`), or
+   for EVERY adapter with `FACTSTACK_AGENT_REQUESTS=1` — the MCP server, the
+   `ui` watcher, `export` and `quick` call this with no flag of their own.
+   `FACTSTACK_NO_AGENT_REQUESTS=1` (the old opt-out) still forces it off, and
+   beats the env opt-in. An explicit option always wins over both. */
+function requestsEnabledFor(opts: TopologyOptions): boolean {
+  const envFlag = (name: string): boolean => /^(1|true|yes)$/i.test(process.env[name] ?? '');
+  return (
+    opts.agentRequests ??
+    (envFlag('FACTSTACK_AGENT_REQUESTS') && !envFlag('FACTSTACK_NO_AGENT_REQUESTS'))
+  );
+}
+
+/* ───────────── topology cache (per-edit --minimal reuse) ───────────── */
+
+/** Bump when the cache file layout or the fingerprint inputs change.
+ *  v2: the shared fingerprint (./git-cache.ts) also stats `shallow`. */
+const TOPOLOGY_CACHE_VERSION = 2;
+const DEFAULT_CACHE_MAX_AGE_MS = 10 * 60_000;
+
+function readTopologyCache(file: string, fp: string, maxAgeMs: number): GitTopology | null {
+  const j = readCacheFile(file, TOPOLOGY_CACHE_VERSION, fp, maxAgeMs);
+  if (!j) return null;
+  /* Schema-checked: a bad topology would fail the whole artifact write. */
+  const parsed = GitTopologySchema.safeParse(j.topology);
+  return parsed.success ? parsed.data : null;
+}
+
 /**
  * Mine the worktree/branch topology of the repo containing `root`.
  * Returns null when `root` is not inside a git working tree.
  */
 export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTopology | null {
+  const cache = opts.cache;
+  if (!cache) return mineTopology(root, opts);
+  const requestsEnabled = requestsEnabledFor(opts);
+  /* Fingerprint BEFORE mining: a ref that moves mid-scan leaves the stored
+     key older than the repo, so the next run re-mines rather than reuse. */
+  const fp = refsFingerprint(path.resolve(root), [
+    TOPOLOGY_CACHE_VERSION,
+    key(path.resolve(root)),
+    requestsEnabled,
+    requestsEnabled ? (opts.homeDir ?? os.homedir()) : null,
+    opts.maxCommits ?? null,
+    opts.maxBranches ?? null,
+    opts.staleDays ?? null,
+    opts.now ?? null,
+  ]);
+  if (fp && cache.reuse) {
+    const hit = readTopologyCache(cache.file, fp, cache.maxAgeMs ?? DEFAULT_CACHE_MAX_AGE_MS);
+    if (hit) return hit;
+  }
+  const topology = mineTopology(root, opts);
+  if (fp && topology) {
+    writeCacheFile(cache.file, { v: TOPOLOGY_CACHE_VERSION, fp, savedAt: Date.now(), topology });
+  }
+  return topology;
+}
+
+function mineTopology(root: string, opts: TopologyOptions): GitTopology | null {
   const t0 = Date.now();
   const now = opts.now ?? Date.now();
   const maxCommits = opts.maxCommits ?? 12;
   const maxBranches = opts.maxBranches ?? 60;
   const staleMs = (opts.staleDays ?? 90) * 86_400_000;
-  /* Reading someone's agent transcripts is OPT-IN (owner's call, 2026-09-23):
-     a first `analyze` must not open ~/.claude or ~/.codex unasked. Turn it on
-     per run with `agentRequests: true` (CLI: `analyze --agent-requests`), or
-     for EVERY adapter with `FACTSTACK_AGENT_REQUESTS=1` — the MCP server, the
-     `ui` watcher, `export` and `quick` call this with no flag of their own.
-     `FACTSTACK_NO_AGENT_REQUESTS=1` (the old opt-out) still forces it off, and
-     beats the env opt-in. An explicit option always wins over both. */
-  const envFlag = (name: string): boolean => /^(1|true|yes)$/i.test(process.env[name] ?? '');
-  const requestsEnabled =
-    opts.agentRequests ??
-    (envFlag('FACTSTACK_AGENT_REQUESTS') && !envFlag('FACTSTACK_NO_AGENT_REQUESTS'));
+  const requestsEnabled = requestsEnabledFor(opts);
 
   const absRoot = norm(path.resolve(root));
   const top = git(absRoot, ['rev-parse', '--show-toplevel']);
@@ -1055,6 +1121,18 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
       return originDefault ? `refs/remotes/${originDefault}` : null;
     return localDefaultRef;
   };
+  /* Ahead/behind of a local branch vs `base`: one batched spawn per distinct
+     base (at most two: the local default and origin's), memoized; falls back
+     to a per-branch rev-list when the batch is unavailable. */
+  const batches = new Map<string, ReturnType<typeof aheadBehindAll>>();
+  const branchLR = (name: string, base: string): { left: number | null; right: number | null } => {
+    if (opts.batchAheadBehind !== false) {
+      if (!batches.has(base)) batches.set(base, aheadBehindAll(absRoot, base));
+      const hit = batches.get(base)?.get(name);
+      if (hit) return hit;
+    }
+    return leftRight(absRoot, `refs/heads/${name}`, base);
+  };
 
   /* branches */
   const branches: Branch[] = rawBranches.map((b, i) => {
@@ -1064,7 +1142,7 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
     let uniqueCount: number | null = null;
     let behindDefault: number | null = null;
     if (base && i < maxBranches) {
-      const lr = leftRight(absRoot, `refs/heads/${b.name}`, base);
+      const lr = branchLR(b.name, base);
       uniqueCount = lr.left;
       behindDefault = lr.right;
     }
@@ -1082,7 +1160,7 @@ export function mineGitTopology(root: string, opts: TopologyOptions = {}): GitTo
          that genuinely is not in origin/main. */
       const notInOrigin =
         i < maxBranches && originDefault
-          ? leftRight(absRoot, `refs/heads/${b.name}`, `refs/remotes/${originDefault}`).left
+          ? branchLR(b.name, `refs/remotes/${originDefault}`).left
           : null;
       blockers.push(
         `${notInOrigin ?? uniqueCount ?? '?'} ${(notInOrigin ?? uniqueCount) === 1 ? 'commit' : 'commits'} not in ${originDefault}`,

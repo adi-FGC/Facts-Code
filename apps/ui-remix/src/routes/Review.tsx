@@ -82,6 +82,10 @@ function resolveBaseline(key: string, data: Dataset): ReviewBaseline | null {
 export function Review(handle: Handle<ReviewProps>) {
   // '@auto' = newest prior snapshot · '@none' = posture only · else an ISO ts.
   let baselineKey = '@auto';
+  /* A ⌘O dataset swap patches this route in place (no remount), so a picked
+     snapshot timestamp would outlive the history it came from: the select
+     matched no option and the trend vanished. Reset to Auto on a swap. */
+  let baselineFor = handle.props.data;
   function setBaseline(next: string) {
     baselineKey = next;
     void handle.update();
@@ -89,6 +93,10 @@ export function Review(handle: Handle<ReviewProps>) {
 
   return () => {
     const { data } = handle.props;
+    if (data !== baselineFor) {
+      baselineFor = data;
+      baselineKey = '@auto';
+    }
     const history = data.history ?? [];
     const priors = history.filter((h) => h.at !== data.generatedAt);
     const baseline = resolveBaseline(baselineKey, data);
@@ -132,7 +140,9 @@ export function Review(handle: Handle<ReviewProps>) {
                 marginBottom: 'var(--space-3)',
               })}
             >
-              {SEVERITY_WORD[v.severity]} risk
+              {/* SEVERITY_WORD.none already reads "No risk" (it used to render
+                  "No risk risk"). */}
+              {v.severity === 'none' ? SEVERITY_WORD.none : `${SEVERITY_WORD[v.severity]} risk`}
               {v.findings.length
                 ? ` · ${v.findings.length} finding${v.findings.length === 1 ? '' : 's'}`
                 : ''}
@@ -248,94 +258,106 @@ export function Review(handle: Handle<ReviewProps>) {
           {v.findings.length > 0 ? (
             <Section label="Findings" title="What the verdict flags">
               <div mix={css({ display: 'flex', flexDirection: 'column' })}>
-                {v.findings.map((f, i) => (
-                  <div
-                    key={i}
-                    mix={css({
-                      display: 'grid',
-                      gridTemplateColumns: 'auto 1fr',
-                      gap: 'var(--space-3)',
-                      padding: 'var(--space-4) 0',
-                      borderTop: i === 0 ? 'none' : '1px solid var(--hairline)',
-                    })}
-                  >
+                {v.findings.map((f, i) => {
+                  /* A listed-only finding (possible secrets, dev / transitive
+                     advisories) keeps
+                     its schema `low` placeholder out of sight: a hollow dot
+                     and "not graded", never a LOW chip that reads as graded. */
+                  const graded = f.graded !== false;
+                  const mark = graded
+                    ? (FINDING_DOT[f.severity] ?? 'var(--fg-faint)')
+                    : 'var(--fg-faint)';
+                  return (
                     <div
+                      key={i}
                       mix={css({
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        marginTop: '6px',
-                        background: FINDING_DOT[f.severity] ?? 'var(--fg-faint)',
+                        display: 'grid',
+                        gridTemplateColumns: 'auto 1fr',
+                        gap: 'var(--space-3)',
+                        padding: 'var(--space-4) 0',
+                        borderTop: i === 0 ? 'none' : '1px solid var(--hairline)',
                       })}
-                    />
-                    <div mix={css({ minWidth: '0' })}>
+                    >
                       <div
                         mix={css({
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: 'var(--space-3)',
-                          flexWrap: 'wrap',
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          marginTop: '6px',
+                          boxSizing: 'border-box',
+                          background: graded ? mark : 'transparent',
+                          border: graded ? 'none' : `1px solid ${mark}`,
                         })}
-                      >
-                        <span
+                      />
+                      <div mix={css({ minWidth: '0' })}>
+                        <div
                           mix={css({
-                            fontWeight: '600',
-                            color: 'var(--fg)',
-                            fontSize: 'var(--fs-14)',
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: 'var(--space-3)',
+                            flexWrap: 'wrap',
                           })}
                         >
-                          {f.title}
-                        </span>
-                        <span
+                          <span
+                            mix={css({
+                              fontWeight: '600',
+                              color: 'var(--fg)',
+                              fontSize: 'var(--fs-14)',
+                            })}
+                          >
+                            {f.title}
+                          </span>
+                          <span
+                            mix={css({
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 'var(--fs-10)',
+                              letterSpacing: '0.1em',
+                              textTransform: 'uppercase',
+                              color: mark,
+                            })}
+                          >
+                            {graded ? f.severity : 'not graded'}
+                          </span>
+                        </div>
+                        <p
                           mix={css({
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 'var(--fs-10)',
-                            letterSpacing: '0.1em',
-                            textTransform: 'uppercase',
-                            color: FINDING_DOT[f.severity] ?? 'var(--fg-faint)',
+                            margin: 'var(--space-1) 0 0',
+                            color: 'var(--fg-muted)',
+                            fontSize: 'var(--fs-13)',
+                            lineHeight: '1.5',
                           })}
                         >
-                          {f.severity}
-                        </span>
+                          {f.detail}
+                        </p>
+                        {f.evidence?.files && f.evidence.files.length > 0 ? (
+                          <div
+                            mix={css({
+                              marginTop: 'var(--space-2)',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 'var(--fs-11)',
+                              color: 'var(--fg-faint)',
+                              wordBreak: 'break-all',
+                            })}
+                          >
+                            {f.evidence.files.join(' · ')}
+                          </div>
+                        ) : null}
+                        {f.evidence?.ids && f.evidence.ids.length > 0 ? (
+                          <div
+                            mix={css({
+                              marginTop: 'var(--space-2)',
+                              fontFamily: 'var(--font-mono)',
+                              fontSize: 'var(--fs-11)',
+                              color: 'var(--fg-faint)',
+                            })}
+                          >
+                            {f.evidence.ids.join(' · ')}
+                          </div>
+                        ) : null}
                       </div>
-                      <p
-                        mix={css({
-                          margin: 'var(--space-1) 0 0',
-                          color: 'var(--fg-muted)',
-                          fontSize: 'var(--fs-13)',
-                          lineHeight: '1.5',
-                        })}
-                      >
-                        {f.detail}
-                      </p>
-                      {f.evidence?.files && f.evidence.files.length > 0 ? (
-                        <div
-                          mix={css({
-                            marginTop: 'var(--space-2)',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 'var(--fs-11)',
-                            color: 'var(--fg-faint)',
-                            wordBreak: 'break-all',
-                          })}
-                        >
-                          {f.evidence.files.join(' · ')}
-                        </div>
-                      ) : null}
-                      {f.evidence?.ids && f.evidence.ids.length > 0 ? (
-                        <div
-                          mix={css({
-                            marginTop: 'var(--space-2)',
-                            fontFamily: 'var(--font-mono)',
-                            fontSize: 'var(--fs-11)',
-                            color: 'var(--fg-faint)',
-                          })}
-                        >
-                          {f.evidence.ids.join(' · ')}
-                        </div>
-                      ) : null}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </Section>
           ) : (

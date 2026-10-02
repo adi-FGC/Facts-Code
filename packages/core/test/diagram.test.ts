@@ -5,10 +5,20 @@ import {
   buildHubDiagram,
   buildPackageDiagram,
   classifyPath,
+  escapeMermaidLabel,
   sanitizeId,
   shortPath,
 } from '../src/diagram.js';
 import type { AgentArtifact } from '@factstack/spec';
+
+describe('escapeMermaidLabel', () => {
+  it('keeps a file name with a line break inside its label', () => {
+    // A raw newline ends the Mermaid statement, so the rest of the name would
+    // be parsed as diagram syntax; <br/> is Mermaid's in-label line break.
+    expect(escapeMermaidLabel('a\nb\r\nc\rd')).toBe('a<br/>b<br/>c<br/>d');
+    expect(escapeMermaidLabel('say "<hi>"')).toBe('say &quot;&lt;hi&gt;&quot;');
+  });
+});
 
 /**
  * Tests for the v0.7.1 Mermaid diagram generators.
@@ -39,7 +49,14 @@ import type { AgentArtifact } from '@factstack/spec';
 
 // ── Fixture builders ──────────────────────────────────────────────────
 
-function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
+type Graph = AgentArtifact['graph'];
+type GraphEdge = Graph['edges'][number];
+/** Fixture overrides: `graph` may omit the schema-defaulted F2/F11 arrays. */
+type AgentOverrides = Omit<Partial<AgentArtifact>, 'graph'> & {
+  graph?: Pick<Graph, 'nodes' | 'edges' | 'cycles'> & Partial<Graph>;
+};
+
+function makeAgent({ graph, ...overrides }: AgentOverrides = {}): AgentArtifact {
   return {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
@@ -53,23 +70,32 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+      ...graph,
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
     ...overrides,
-  } as AgentArtifact;
+  };
 }
 
 /** Convenience: build an edge object with a default `import` kind. */
-function edge(
-  from: string,
-  to: string,
-  kind: 'import' | 'type-import' | 'dynamic-import' = 'import',
-) {
-  return { from, to, kind };
+function edge(from: string, to: string, kind: GraphEdge['kind'] = 'import'): GraphEdge {
+  return { from, to, kind, confidence: 'extracted' };
 }
 
 // ── classifyPath ──────────────────────────────────────────────────────

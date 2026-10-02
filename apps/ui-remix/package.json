@@ -3,14 +3,15 @@
   "version": "0.0.0",
   "license": "UNLICENSED",
   "private": true,
-  "description": "Primary WebUI for FACTS. Built on Remix v3 (beta) — its own VDOM runtime, no React. Vite + JSX via the `remix/ui` subpath of the umbrella `remix` package (canonical entry; `@remix-run/ui` is the legacy standalone re-exported by `remix/ui` and on the way out). Two build targets: dev server (live re-analyze) and static (Netlify deploy, `factstack export`, VS Code webview).",
+  "description": "Primary WebUI for FACTS. Built on Remix v3 (beta) — its own VDOM runtime, no React. Vite + JSX via the `remix/ui` subpath of the umbrella `remix` package (canonical entry; `@remix-run/ui` is the legacy standalone re-exported by `remix/ui` and on the way out). Two build targets: dev server (live re-analyze) and static (Netlify/Cloudflare deploy, VS Code webview).",
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000",
     "build": "vite build && tsx scripts/gen-fb-config.mjs && tsx scripts/generate-discovery.mjs && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "build:static": "vite build --mode static && tsx scripts/gen-fb-config.mjs && tsx scripts/generate-discovery.mjs && tsx scripts/inject-data.mjs && node scripts/check-bundle-size.mjs",
     "start": "vite preview --port 3000",
-    "deploy:cf": "pnpm build:static && npx --yes wrangler@4 pages deploy dist --project-name factstack",
+    "deploy:cf": "node scripts/deploy-check.mjs pre && node scripts/carry-history.mjs && pnpm build:static && node scripts/gen-fb-config.mjs --require && node scripts/deploy-check.mjs post && npx --yes wrangler@4.127.1 pages deploy dist --project-name factstack --branch main",
+    "perf:report": "node scripts/perf-report.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
@@ -31,10 +32,10 @@
     "@factstack/emit": "workspace:*",
     "@factstack/registry": "workspace:*",
     "@factstack/site-kit": "workspace:*",
-    "@playwright/test": "^1.49.0",
-    "lightningcss": "^1.27.0",
-    "tsx": "^4.19.1",
-    "typescript": "^5.6.0",
-    "vite": "^8.0.16"
+    "@playwright/test": "^1.63.0",
+    "lightningcss": "^1.33.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1"
   }
 }

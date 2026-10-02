@@ -60,6 +60,21 @@ describe('extractFile — pure baseline', () => {
     expect(extractFile(SRC, '.ts', true).refs.length).toBeGreaterThan(0);
   });
 
+  it('does not flag a Svelte page with a JSON-LD <script> as a parse failure (CORE-R3)', () => {
+    const page = [
+      '<script lang="ts">',
+      "  import Seo from './Seo.svelte';",
+      '</script>',
+      '<svelte:head>',
+      '  <script type="application/ld+json">{ "@context": "https://schema.org", "@type": "Organization" }</script>',
+      '</svelte:head>',
+      '<Seo />',
+    ].join('\n');
+    const r = extractFile(page, '.svelte', false);
+    expect(r.parseFailed).toBeFalsy();
+    expect(r.imports.map((i) => i.specifier)).toEqual(['./Seo.svelte']);
+  });
+
   it('degrades to the empty quad on an unparseable extension', () => {
     expect(extractFile('hello world', '.unknownext', true)).toEqual({
       imports: [],

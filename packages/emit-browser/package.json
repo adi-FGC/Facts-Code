@@ -14,14 +14,14 @@
     "build": "tsc --noEmit",
     "test": "vitest run",
     "lint": "echo 'no lint yet' && exit 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
-    "@factstack/spec": "workspace:*",
     "@factstack/emit": "workspace:*",
-    "@factstack/skills": "workspace:*"
+    "@factstack/skills": "workspace:*",
+    "@factstack/spec": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "typescript": "^6.0.3"
   }
 }

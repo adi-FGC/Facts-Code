@@ -13,7 +13,7 @@
  * Additive-only within a major version.
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 
 export const StyleFindingCategorySchema = z.enum([
   'naming', // non-semantic / inconsistent class names

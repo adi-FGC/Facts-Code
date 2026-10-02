@@ -14,27 +14,35 @@
  *      filesystem cache instead — same `CacheStore` shape, different
  *      backend; the client doesn't care.
  *   2. A `parseNpmManifestForOsv(text)` helper for the paste flow.
- *      Reuses the shared `scanDependencyManifest` + `normalizeNpmVersion`
+ *      Reuses the shared `scanDependencyManifest` + `buildOsvQueries`
  *      so the parser drift between paste-flow and analyze-flow is zero.
  *
- * Dynamic-importable: the route's `<Vulnerabilities>` route type-only
- * imports the OsvQuery / OsvResult / OsvVuln types, then dynamic-imports
- * THIS module on the Scan button click. Main bundle pays type-only cost.
+ * The severity bucketer, fixed-version picker and graded/label helpers are
+ * re-exported unchanged: the dashboard grades a live or weekly OSV result
+ * with exactly the code the CLI and MCP use (INV7) — never a local copy.
+ * Only the Vulnerabilities route imports this module (a lazy tab chunk), so
+ * the main bundle never carries it.
  */
 
 import {
   queryOsvBatch as sharedQueryOsvBatch,
   scanDependencyManifest,
-  normalizeNpmVersion,
+  buildOsvQueries,
   bucketSeverity,
   pickFixedVersion,
   pickAdvisoryUrl,
+  isGradedVulnerability,
+  vulnerabilityLabels,
+  VULN_LABEL_TEXT,
   makeCacheKey,
   type CacheStore,
+  type DependencyScope,
+  type ManifestWithResolved,
   type OsvQuery,
   type OsvResult,
   type OsvVuln,
   type BatchOptions,
+  type VersionSource,
 } from '@factstack/scanners';
 
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
@@ -44,11 +52,16 @@ const CACHE_PREFIX = 'factstack:osv:';
  * import surface for "OSV stuff." The route already imports these
  * type-only at the top of its file; this re-export keeps that working
  * unchanged after the adapter switch. */
-export type { OsvQuery, OsvResult, OsvVuln, BatchOptions };
+export type { OsvQuery, OsvResult, OsvVuln, BatchOptions, DependencyScope, VersionSource };
 export type { ManifestEcosystem, VulnerabilitySeverity } from '@factstack/spec';
-/* Legacy alias for the previous `SeverityBucket` name used by the route. */
-export type SeverityBucket = 'critical' | 'high' | 'medium' | 'low' | 'unknown';
-export { bucketSeverity, pickFixedVersion, pickAdvisoryUrl };
+export {
+  bucketSeverity,
+  pickFixedVersion,
+  pickAdvisoryUrl,
+  isGradedVulnerability,
+  vulnerabilityLabels,
+  VULN_LABEL_TEXT,
+};
 
 /* ─────────── localStorage cache adapter ─────────── */
 
@@ -107,26 +120,72 @@ export function queryOsvBatch(
  *
  * Returns [] for non-JSON or non-npm manifests. The route surfaces
  * "no deps extracted" rather than silently failing.
+ *
+ * The shared parser picks the ecosystem from the file NAME, and a paste has
+ * none — `pasted-manifest` matched nothing, so every paste came back empty.
+ * The text is parsed as a package.json and the queries are labelled with
+ * `sourcePath`. Queries come from `buildOsvQueries` (aliases resolved,
+ * x-ranges padded, `declared-range` / `dev` labels set), as in the CLI.
  */
 export function parseNpmManifestForOsv(text: string, sourcePath = 'pasted-manifest'): OsvQuery[] {
-  const manifest = scanDependencyManifest(sourcePath, text);
+  const asFile = sourcePath.split('/').pop() === 'package.json' ? sourcePath : 'package.json';
+  const manifest = scanDependencyManifest(asFile, text);
   if (!manifest || manifest.ecosystem !== 'npm') return [];
-  const out: OsvQuery[] = [];
-  const merged: Record<string, string> = {
-    ...manifest.dependencies,
-    ...manifest.devDependencies,
+  const labelled = { ...manifest, path: sourcePath } as ManifestWithResolved;
+  return buildOsvQueries([labelled]).queries;
+}
+
+/* ─────────── result summary ─────────── */
+
+export interface OsvSummary {
+  /** GRADED advisories per severity bucket (direct runtime deps and
+   *  unlabelled legacy queries — isGradedVulnerability). */
+  critical: number;
+  high: number;
+  medium: number;
+  low: number;
+  unknown: number;
+  /** Every advisory, graded or not. */
+  total: number;
+  /** Advisories on dev / transitive packages: shown, not graded. */
+  ungraded: number;
+  cleanPackages: number;
+  vulnerablePackages: number;
+  /** Advisories whose detail fetch failed (id only, severity 'unknown'). */
+  degraded: number;
+}
+
+/** Counts for a live or weekly OSV result set. Severity comes from the
+ *  shared `bucketSeverity`, so a live re-check grades an advisory exactly as
+ *  the CLI's artifact does. */
+export function summarizeOsvResults(results: readonly OsvResult[]): OsvSummary {
+  const s: OsvSummary = {
+    critical: 0,
+    high: 0,
+    medium: 0,
+    low: 0,
+    unknown: 0,
+    total: 0,
+    ungraded: 0,
+    cleanPackages: 0,
+    vulnerablePackages: 0,
+    degraded: 0,
   };
-  for (const [name, raw] of Object.entries(merged)) {
-    const version = normalizeNpmVersion(raw);
-    if (!version) continue;
-    out.push({
-      ecosystem: 'npm',
-      name,
-      version,
-      manifestPath: sourcePath,
-    });
+  for (const r of results) {
+    s.degraded += r.detailsFailed ?? 0;
+    if (r.vulns.length === 0) {
+      s.cleanPackages++;
+      continue;
+    }
+    s.vulnerablePackages++;
+    s.total += r.vulns.length;
+    if (!isGradedVulnerability(r.query)) {
+      s.ungraded += r.vulns.length;
+      continue;
+    }
+    for (const v of r.vulns) s[bucketSeverity(v)]++;
   }
-  return out;
+  return s;
 }
 
 /* ─────────── weekly self-refresh ───────────
@@ -141,7 +200,7 @@ export function parseNpmManifestForOsv(text: string, sourcePath = 'pasted-manife
  * already extracted (no paste, no server) and shows that result instead,
  * labelled with where it came from. The answer is cached per visitor for a
  * week, so a returning reader costs nothing and OSV sees one request set per
- * browser per week.
+ * browser per week — an hour, when OSV answered only in part.
  *
  * The baked scan stays in the artifact as the offline answer — this only
  * supersedes it in a live browser that could reach OSV.
@@ -149,7 +208,17 @@ export function parseNpmManifestForOsv(text: string, sourcePath = 'pasted-manife
 
 /** Default staleness threshold. Matches the CLI's own `scan-vulns` cadence. */
 export const AUTO_REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
+/** How long a PARTIAL answer (advisories whose details loaded id-only) is
+ *  reused: an hour, not a week. Severity 'unknown' is never served for seven
+ *  days, and an advisory whose detail never loads costs one request set an
+ *  hour instead of one per page view (SCN-16 / UI-R3). */
+export const AUTO_REFRESH_PARTIAL_MS = 60 * 60 * 1000;
 const AUTO_KEY = 'factstack:osv:auto';
+
+/** True when an OSV answer holds advisories whose details did not load. */
+export function isPartialAnswer(results: readonly OsvResult[]): boolean {
+  return results.some((r) => (r.detailsFailed ?? 0) > 0);
+}
 
 export interface AutoRefreshRecord {
   /** When this browser last completed a refresh. */
@@ -167,7 +236,8 @@ export interface AutoRefreshRecord {
  * worth more as something a test can pin than as three conditions inside a
  * component.
  *
- *   - `use-cache`  a refresh from this browser is still inside the week.
+ *   - `use-cache`  a refresh from this browser is still inside the week
+ *                  (inside the hour, when that refresh was partial).
  *   - `refresh`    the baked scan has aged past the window; ask OSV.
  *   - `skip`       the build's scan is current, or nothing to ask about,
  *                  or this browser says it is offline.
@@ -177,14 +247,20 @@ export function weeklyRefreshDecision(input: {
   bakedAt?: number | undefined;
   /** Epoch ms of this browser's last refresh for the same dependency set. */
   cachedAt?: number | undefined;
+  /** That refresh held advisories whose details did not load (isPartialAnswer). */
+  cachedPartial?: boolean | undefined;
   now: number;
   online: boolean;
   queryCount: number;
   windowMs?: number;
+  partialWindowMs?: number;
 }): 'refresh' | 'use-cache' | 'skip' {
   const windowMs = input.windowMs ?? AUTO_REFRESH_AFTER_MS;
+  const cacheWindow = input.cachedPartial
+    ? (input.partialWindowMs ?? AUTO_REFRESH_PARTIAL_MS)
+    : windowMs;
   if (input.queryCount === 0) return 'skip';
-  if (input.cachedAt && input.now - input.cachedAt < windowMs) {
+  if (input.cachedAt && input.now - input.cachedAt < cacheWindow) {
     /* Only worth showing if it is actually newer than what was baked. */
     return input.cachedAt > (input.bakedAt ?? 0) ? 'use-cache' : 'skip';
   }
@@ -225,13 +301,16 @@ export function writeAutoRefresh(rec: AutoRefreshRecord): void {
 }
 
 /**
- * OSV queries for the manifests the analyzer already parsed. Mirrors
- * `parseNpmManifestForOsv`, but reads the structured `dependencyManifests[]`
- * from the dataset instead of pasted text, so the auto-refresh asks about
- * exactly what the artifact reports.
+ * OSV queries for the manifests the analyzer already parsed — built by the
+ * same `buildOsvQueries` that `factstack scan-vulns` and the MCP refresh use
+ * (INV7), so the weekly re-check asks about exactly what the artifact's scan
+ * asked about: installed versions the artifact carried (`resolved`), npm
+ * aliases under their real name, one query per package@version across a
+ * monorepo, and `scope` / `versionSource` labels on every query.
  *
  * Workspace / file / git protocol versions are unqueryable and are skipped —
- * the same ones `factstack scan-vulns` reports as "not queryable".
+ * the same ones `factstack scan-vulns` reports as "not queryable". The browser
+ * has no lockfile text, so transitive packages are not re-checked here.
  */
 export function queriesFromManifests(
   manifests: ReadonlyArray<{
@@ -241,21 +320,8 @@ export function queriesFromManifests(
     devDependencies?: Record<string, string>;
   }>,
 ): OsvQuery[] {
-  const out: OsvQuery[] = [];
-  const seen = new Set<string>();
-  for (const m of manifests) {
-    if (m.ecosystem !== 'npm') continue; // the only ecosystem the parser covers today
-    const merged = { ...(m.dependencies ?? {}), ...(m.devDependencies ?? {}) };
-    for (const [name, raw] of Object.entries(merged)) {
-      const version = normalizeNpmVersion(raw);
-      if (!version) continue;
-      const key = `${name}@${version}`;
-      if (seen.has(key)) continue; // a monorepo pins the same dep in many manifests
-      seen.add(key);
-      out.push({ ecosystem: 'npm', name, version, manifestPath: m.path });
-    }
-  }
-  return out;
+  /* Raw dataset JSON may omit either dep map; buildOsvQueries tolerates that. */
+  return buildOsvQueries(manifests as readonly ManifestWithResolved[]).queries;
 }
 
 /* ─────────── re-exports for cache-key helpers ─────────── */

@@ -140,6 +140,16 @@ function parseSheet(rawCss: string, file: string, scope: string): ParsedSheet {
 
     if (c === '}') {
       atStack.pop();
+      buf = ''; // declarations of a non-rule at-block (@font-face) end here
+      i++;
+      continue;
+    }
+
+    // A statement at-rule (`@import …;`, `@charset`, `@use`, `@tailwind`) or a
+    // stray `;` ends the prelude: without this it swallowed the next rule or
+    // @media (2026-09-24).
+    if (c === ';') {
+      buf = '';
       i++;
       continue;
     }
@@ -180,16 +190,38 @@ function classesIn(selector: string): string[] {
   return out;
 }
 
-function breakpointsFromMedia(raw: string): Array<{ px: number; feature: Breakpoint['feature'] }> {
-  const out: Array<{ px: number; feature: Breakpoint['feature'] }> = [];
-  const re = /(min|max)-width\s*:\s*([\d.]+)(px|rem|em)/gi;
+type WidthFeature = 'min-width' | 'max-width';
+
+/** Integer px (the schema's type) without changing which widths the query
+ *  reaches: a max-width rounds down, a min-width up (767.98px → 767). A strict
+ *  `<` / `>` excludes the bound itself (`width < 768px` → max-width 767). */
+function toPx(value: string, unit: string, feature: WidthFeature, strict = false): number {
+  const n = parseFloat(value) * (unit.toLowerCase() === 'px' ? 1 : 16);
+  if (feature === 'max-width') return strict ? Math.ceil(n) - 1 : Math.floor(n);
+  return strict ? Math.floor(n) + 1 : Math.ceil(n);
+}
+
+function breakpointsFromMedia(raw: string): Array<{ px: number; feature: WidthFeature }> {
+  const out: Array<{ px: number; feature: WidthFeature }> = [];
+  const add = (
+    value: string | undefined,
+    unit: string | undefined,
+    feature: WidthFeature,
+    strict = false,
+  ) => out.push({ px: toPx(value ?? '0', unit ?? 'px', feature, strict), feature });
   let m: RegExpExecArray | null;
-  while ((m = re.exec(raw))) {
-    const n = parseFloat(m[2] ?? '0');
-    const unit = (m[3] ?? 'px').toLowerCase();
-    const px = unit === 'px' ? n : Math.round(n * 16);
-    out.push({ px, feature: (m[1] ?? '').toLowerCase() === 'min' ? 'min-width' : 'max-width' });
+  const legacy = /(min|max)-width\s*:\s*([\d.]+)(px|rem|em)/gi;
+  while ((m = legacy.exec(raw))) {
+    add(m[2], m[3], (m[1] ?? '').toLowerCase() === 'min' ? 'min-width' : 'max-width');
   }
+  // Media Queries L4 range syntax (what Tailwind v4 emits): `width >= 768px`,
+  // the reversed `768px <= width`, and so both halves of `A <= width <= B`.
+  const range = /\bwidth\s*(>=|<=|>|<)\s*([\d.]+)(px|rem|em)\b/gi;
+  while ((m = range.exec(raw)))
+    add(m[2], m[3], m[1]!.startsWith('>') ? 'min-width' : 'max-width', m[1]!.length === 1);
+  const reversed = /([\d.]+)(px|rem|em)\s*(>=|<=|>|<)\s*width\b/gi;
+  while ((m = reversed.exec(raw)))
+    add(m[1], m[2], m[3]!.startsWith('<') ? 'min-width' : 'max-width', m[3]!.length === 1);
   return out;
 }
 
@@ -272,10 +304,15 @@ export function analyzeCss(sources: CssSource[], ctx: CssAuditContext): StyleAud
   }
   const breakpoints = [...bpMap.values()].sort((a, b) => a.px - b.px);
 
-  // Device-band coverage.
+  // Device-band coverage, by direction: a max-width query styles every width
+  // up to its px, a min-width query every width from its px up. (Checking
+  // only for a breakpoint INSIDE the band called Bootstrap's
+  // `max-width: 767.98px`, which targets every phone, "no mobile coverage".)
   const devices: DeviceBand[] = DEVICE_BANDS.map((band) => {
     const max = band.maxPx ?? Number.MAX_SAFE_INTEGER;
-    const covered = breakpoints.some((bp) => bp.px >= band.minPx - 1 && bp.px <= max);
+    const covered = breakpoints.some((bp) =>
+      bp.feature === 'max-width' ? band.minPx <= bp.px : max >= bp.px,
+    );
     return { ...band, covered };
   });
 

@@ -29,6 +29,11 @@ function mcpCmd(reg: SiteRegistry): string {
   return [reg.mcp.launchCommand.command, ...reg.mcp.launchCommand.args].join(' ');
 }
 
+/** The MCP launch that works from a clone today. */
+function mcpCloneCmd(reg: SiteRegistry): string {
+  return [reg.mcp.cloneLaunchCommand.command, ...reg.mcp.cloneLaunchCommand.args].join(' ');
+}
+
 function renderLlmsTxt(reg: SiteRegistry): string {
   const lines: string[] = [];
   lines.push(`# ${reg.product.name}`);
@@ -54,23 +59,22 @@ function renderLlmsTxt(reg: SiteRegistry): string {
 
   lines.push('## Drive it from a coding agent (CLI + MCP)');
   lines.push('');
-  if (reg.cli.published || reg.mcp.published) {
-    lines.push(
-      `- **CLI**: \`${reg.cli.command}\` — the \`${reg.cli.binName}\` binary (analyze · ui · query · export).`,
-    );
-    lines.push(
-      `- **MCP server**: \`${mcpCmd(reg)}\` — the \`${reg.mcp.binName}\` stdio server exposing ${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources.`,
-    );
-  } else {
-    // Honest gating: the packages are NOT on npm yet, so don't hand a chatbot a
-    // command that 404s. State the pending npm path + the working clone path.
-    lines.push(
-      `- The \`${reg.cli.publishedPackage}\` CLI and \`${reg.mcp.publishedPackage}\` MCP server are **not on npm yet**. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\` (${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources).`,
-    );
-    lines.push(
-      `- Today, run them from a clone of the repo: \`npx tsx apps/cli/src/cli.ts\` and \`npx tsx apps/mcp-server/src/server.ts\`.`,
-    );
-  }
+  /* Honest gating, PER PACKAGE: a name not on npm yet is never handed to a
+     chatbot as a working command (it 404s, or runs whoever claims the name).
+     It gets the pending name + the clone command that works today. Each line
+     reads its own flag, so publishing the MCP server first does not
+     advertise the CLI. */
+  const counts = `${reg.mcp.tools.length} tools + ${reg.mcp.resources.length} resources`;
+  lines.push(
+    reg.cli.published
+      ? `- **CLI**: \`${reg.cli.command}\` — the \`${reg.cli.binName}\` binary (analyze · ui · query · export).`
+      : `- **CLI**: \`${reg.cli.publishedPackage}\` is **not on npm yet** (when published: \`${reg.cli.command}\`). Today, from a clone of the repo: \`${reg.cli.cloneCommand}\` (analyze · ui · query · export).`,
+  );
+  lines.push(
+    reg.mcp.published
+      ? `- **MCP server**: \`${mcpCmd(reg)}\` — the \`${reg.mcp.binName}\` stdio server exposing ${counts}.`
+      : `- **MCP server**: \`${reg.mcp.publishedPackage}\` is **not on npm yet** (when published: \`${mcpCmd(reg)}\`). Today, from a clone of the repo: \`${mcpCloneCmd(reg)}\` (${counts}).`,
+  );
   if (reg.mcp.onboardingSequence.length) {
     lines.push(
       `- **First-contact tool order**: ` +
@@ -114,17 +118,17 @@ function renderLlmsFullTxt(reg: SiteRegistry): string {
 
   lines.push('## Connect a coding agent (CLI + MCP)');
   lines.push('');
-  if (reg.cli.published || reg.mcp.published) {
-    lines.push(`- CLI: \`${reg.cli.command}\` (published as \`${reg.cli.publishedPackage}\`)`);
-    lines.push(`- MCP (stdio): \`${mcpCmd(reg)}\` (published as \`${reg.mcp.publishedPackage}\`)`);
-  } else {
-    lines.push(
-      `- \`${reg.cli.publishedPackage}\` (CLI) and \`${reg.mcp.publishedPackage}\` (MCP server) are NOT yet on npm. When published: \`${reg.cli.command}\` and \`${mcpCmd(reg)}\`.`,
-    );
-    lines.push(
-      `- Today, run from a repo clone: \`npx tsx apps/cli/src/cli.ts\` (CLI) and \`npx tsx apps/mcp-server/src/server.ts\` (MCP stdio).`,
-    );
-  }
+  // Gated per package, as in llms.txt.
+  lines.push(
+    reg.cli.published
+      ? `- CLI: \`${reg.cli.command}\` (published as \`${reg.cli.publishedPackage}\`)`
+      : `- CLI: \`${reg.cli.publishedPackage}\` is NOT yet on npm (when published: \`${reg.cli.command}\`). Today, from a repo clone: \`${reg.cli.cloneCommand}\`.`,
+  );
+  lines.push(
+    reg.mcp.published
+      ? `- MCP (stdio): \`${mcpCmd(reg)}\` (published as \`${reg.mcp.publishedPackage}\`)`
+      : `- MCP (stdio): \`${reg.mcp.publishedPackage}\` is NOT yet on npm (when published: \`${mcpCmd(reg)}\`). Today, from a repo clone: \`${mcpCloneCmd(reg)}\`.`,
+  );
   lines.push('');
 
   lines.push(`## MCP tools (${reg.mcp.tools.length})`);

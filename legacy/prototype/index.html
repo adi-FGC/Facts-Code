@@ -24,25 +24,14 @@
       })();
     </script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!--
-      Fonts:
-      - Urbanist (display)    — SIL OFL, free for commercial use. Headings / chips / tabs.
-      - Inter (body default)  — SIL OFL, free for commercial use. Paragraphs / dense text.
-      - JetBrains Mono (code) — SIL OFL, free for commercial use. Paths / numbers.
-      - Google Sans (body alt, opt-in) — Google's proprietary UI typeface. Google does NOT
-        serve this font publicly via the Google Fonts API in most cases; the request below
-        will silently fall back to system-ui on non-Google origins. Shipping Google Sans
-        commercially requires a license from Google. If your deployment needs a legally
-        shippable near-equivalent, swap `Google Sans` for `Lexend` or `Public Sans`.
+      No web fonts and no CDN: fonts are system stacks (see "Typography
+      system" below) and the Tailwind utilities are compiled ahead of time
+      by apps/cli/scripts/sync-ui.mjs, which fills this <style> block in the
+      CLI build (apps/cli/src/ui/index.html). Open that build — this source
+      file renders unstyled on its own.
     -->
-    <link
-      href="https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=Google+Sans:wght@400;500;700&family=Fraunces:ital,opsz,wght@0,9..144,600..700;1,9..144,400&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
-
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style id="facts-tailwind"></style>
 
     <style>
       /* ================================================================== */
@@ -161,23 +150,20 @@
       }
 
       /* ---- Typography system -------------------------------------------
-         Three roles:
-         1. DISPLAY (Urbanist)   — headings, product name, chips, tabs,
-                                   stat numbers, button labels. Geometric,
-                                   slightly futuristic, reads modern & bold.
-         2. BODY (Inter)         — paragraphs, descriptions, any dense prose.
-                                   Optimized for UI + long-form legibility.
-         3. MONO (JetBrains Mono)— file paths, line numbers, tabular data.
-         Both SIL Open Font License — free for commercial use.                */
+         Three roles, all on system font stacks — nothing is downloaded, so
+         the page renders the same offline and under a no-third-party CSP
+         (the CLI serves and exports this file; see apps/cli/scripts/sync-ui.mjs).
+         1. DISPLAY — headings, product name, chips, tabs, stat numbers.
+         2. BODY    — paragraphs, descriptions, any dense prose.
+         3. MONO    — file paths, line numbers, tabular data.              */
       :root {
-        --font-display: 'Urbanist', system-ui, -apple-system, sans-serif;
-        --font-body:    'Inter',    system-ui, -apple-system, sans-serif;
-        --font-mono:    'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
-        --font-serif:   'Fraunces', 'Times New Roman', Georgia, serif;
+        --font-display: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-body:    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        --font-mono:    ui-monospace, 'SFMono-Regular', 'Cascadia Code', Menlo, Consolas, 'Liberation Mono', monospace;
+        --font-serif:   ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
       }
-      /* Body-font opt-in via [data-body-font="..."]. Google Sans's stack falls
-         through to system-ui if the family fails to load (which it will on
-         non-Google origins). */
+      /* Body-font opt-in via [data-body-font="..."]. Uses Google Sans only
+         when it is installed locally; otherwise the system stack. */
       :root[data-body-font='google-sans'] {
         --font-body: 'Google Sans', 'Google Sans Display', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
       }
@@ -1292,7 +1278,7 @@
           <li><span class="scan-tip-mark scan-tip-ok">✓</span><span><span class="mono">node_modules</span>, <span class="mono">dist</span>, <span class="mono">.git</span>, build caches are skipped automatically.</span></li>
           <li><span class="scan-tip-mark scan-tip-warn">⚠</span><span>Grant the directory read prompt your browser shows. Without it the picker returns nothing.</span></li>
           <li><span class="scan-tip-mark scan-tip-warn">⚠</span><span>The File System Access API is supported in Chrome, Edge, Brave, Opera, and Arc — not Firefox or Safari yet.</span></li>
-          <li><span class="scan-tip-mark scan-tip-info">ℹ</span><span>Imports are parsed via <span class="mono">@babel/parser</span> loaded from a CDN. If your network blocks <span class="mono">esm.sh</span>, dependency edges may be missing but file metrics still work.</span></li>
+          <li><span class="scan-tip-mark scan-tip-info">ℹ</span><span>Imports are parsed via <span class="mono">@babel/parser</span>, bundled with the CLI (no CDN). A static export has no server to load it from, so dependency edges may be missing there but file metrics still work.</span></li>
           <li><span class="scan-tip-mark scan-tip-info">ℹ</span><span>Files larger than 1&nbsp;MB and binary files are flagged but not read — keeps the browser responsive on monorepos.</span></li>
         </ul>
       </details>
@@ -1382,8 +1368,16 @@
         }
         return el;
       };
-      const fmtBytes = (n) => (n >= 1024 * 1024 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B');
-      const fmtTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n));
+      // XSS hardening: anything read from the dataset (file/folder/repo
+      // names, messages, colors, counts) passes one of these — or
+      // escapeHtml — before it reaches an innerHTML template. A cloned repo
+      // controls its file names, and a committed .facts/*.json controls
+      // every field. apps/cli/scripts/lib/ui-xss-audit.mjs enforces it.
+      const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+      const cssColor = (c, fallback = 'var(--fg-muted)') => (isSafeColor(c) ? c : fallback);
+      const cssIdent = (s) => String(s ?? '').replace(/[^\w-]/g, '');
+      const fmtBytes = (n) => { n = num(n); return n >= 1024 * 1024 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B'; };
+      const fmtTok = (n) => { n = num(n); return n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : String(n); };
 
       // ============================ DATA ==================================
       let DATA = null;
@@ -1393,10 +1387,14 @@
       async function loadDefault() {
         // Try the inline dataset first (standalone-friendly), then fall back
         // to fetch. This makes the file open via file:// without issues.
+        // Exact match on the placeholder: a real dataset can legitimately
+        // contain the token (factstack's own README does), and treating that
+        // as "no inline data" blanked every export of this repo.
         const inline = document.getElementById('factstack-data');
-        if (inline && inline.textContent && !inline.textContent.includes('__INLINE_FACTSTACK_JSON__')) {
+        const inlineText = inline ? inline.textContent.trim() : '';
+        if (inlineText && inlineText !== '__INLINE_FACTSTACK_JSON__') {
           try {
-            DATA = JSON.parse(inline.textContent);
+            DATA = JSON.parse(inlineText);
             return;
           } catch (e) { console.warn('inline dataset parse failed, falling back', e); }
         }
@@ -1456,7 +1454,7 @@
           });
           const totalLoc = c.rollup?.loc || 0;
           const row = h('div', { class: 'tree-row', 'data-kind': 'folder', 'data-path': c.path });
-          row.innerHTML = `${chevron()}${folderIcon()}<span class="truncate">${c.name}</span><span class="chip chip-muted">${fmtTok(totalLoc)}</span>`;
+          row.innerHTML = `${chevron()}${folderIcon()}<span class="truncate">${escapeHtml(c.name)}</span><span class="chip chip-muted">${fmtTok(totalLoc)}</span>`;
           wrap.append(row);
           const kids = h('div', { class: 'tree-children' });
           renderTree(kids, c, depth + 1);
@@ -1478,10 +1476,10 @@
           const langTag = f.language?.tag || f.ext?.replace('.', '').toUpperCase().slice(0, 4) || '···';
           // Prefer the design-system --lang-* token; fall back to the data's
           // iconColor only if no token exists for this language id.
-          const langId = f.language?.id;
-          const langColor = langId ? `var(--lang-${langId}, ${f.language?.iconColor || 'var(--fg-muted)'})` : (f.language?.iconColor || 'var(--fg-muted)');
+          const langId = cssIdent(f.language?.id);
+          const langColor = langId ? `var(--lang-${langId}, ${cssColor(f.language?.iconColor)})` : cssColor(f.language?.iconColor);
           const row = h('div', { class: 'tree-row', 'data-kind': 'file', 'data-path': f.path });
-          row.innerHTML = `<span></span><span class="mono text-[10px] font-semibold" style="color:${langColor};">${langTag}</span><span class="truncate">${f.name}</span>${statusChip}`;
+          row.innerHTML = `<span></span><span class="mono text-[10px] font-semibold" style="color:${langColor};">${escapeHtml(langTag)}</span><span class="truncate">${escapeHtml(f.name)}</span>${statusChip}`;
           wrap.append(row);
           return wrap;
         });
@@ -1561,7 +1559,7 @@
         // 4. LEAD PARAGRAPH — prose with data inline (replaces hero-metric)
         const lead = h('p', { class: 'ed-prose', style: { fontSize: '1.0625rem', marginBottom: '1.5rem' } });
         lead.innerHTML = `
-          The codebase is <span class="num">${fmtTok(totalTokens)}</span> tokens across <span class="num">${d.stats.files}</span> files, ${fitsCtx ? `fitting comfortably within a <span class="num">200K</span> agent context (${fitsPct}% full)` : `<strong>too large for a 200K agent context</strong> — consider scoping analyses to subdirectories`}.
+          The codebase is <span class="num">${fmtTok(totalTokens)}</span> tokens across <span class="num">${num(d.stats.files)}</span> files, ${fitsCtx ? `fitting comfortably within a <span class="num">200K</span> agent context (${fitsPct}% full)` : `<strong>too large for a 200K agent context</strong> — consider scoping analyses to subdirectories`}.
           ${dom ? `Roughly <span class="num">${domPct}%</span> of that budget lives in <strong>${escapeHtml(dom.label)}</strong>${langs.length === 2 ? `, with <strong>${escapeHtml(langs[1].label)}</strong> covering the rest.` : langs.length > 2 ? `, with <strong>${escapeHtml(langs[1].label)}</strong> and <strong>${escapeHtml(langs[2].label)}</strong> covering most of the remainder.` : '.'}` : ''}
         `;
         col.append(lead);
@@ -1570,20 +1568,20 @@
         const healthSentence = h('p', { class: 'ed-prose', style: { fontSize: '1.0625rem', marginBottom: '2.5rem' } });
         const verdict = (() => {
           const parts = [];
-          if (health.broken) parts.push(`<strong style="color:var(--danger)">${health.broken} broken file${health.broken === 1 ? '' : 's'}</strong>`);
-          if (health.stale)  parts.push(`<strong style="color:var(--warn)">${health.stale} stale file${health.stale === 1 ? '' : 's'}</strong>`);
-          if (health.secrets) parts.push(`<strong style="color:var(--danger)">${health.secrets} exposed secret${health.secrets === 1 ? '' : 's'}</strong>`);
+          if (health.broken) parts.push(`<strong style="color:var(--danger)">${num(health.broken)} broken file${health.broken === 1 ? '' : 's'}</strong>`);
+          if (health.stale)  parts.push(`<strong style="color:var(--warn)">${num(health.stale)} stale file${health.stale === 1 ? '' : 's'}</strong>`);
+          if (health.secrets) parts.push(`<strong style="color:var(--danger)">${num(health.secrets)} exposed secret${health.secrets === 1 ? '' : 's'}</strong>`);
           return parts;
         })();
         if (verdict.length === 0) {
           healthSentence.innerHTML = `
             Health is <strong style="color:var(--accent)">clean</strong>: no broken files, no stale code, no secrets detected.
-            ${health.todos ? `Developers have left <span class="num">${health.todos}</span> TODO/FIXME comments${hotspot ? `, concentrated in <strong>${escapeHtml(hotspot.name)}/</strong> (<span class="num">${hotspot.n}</span>)` : ''}.` : ''}
+            ${health.todos ? `Developers have left <span class="num">${num(health.todos)}</span> TODO/FIXME comments${hotspot ? `, concentrated in <strong>${escapeHtml(hotspot.name)}/</strong> (<span class="num">${num(hotspot.n)}</span>)` : ''}.` : ''}
           `;
         } else {
           healthSentence.innerHTML = `
             Needs attention: ${verdict.join(', ')}.
-            ${health.todos ? `Additionally <span class="num">${health.todos}</span> TODO/FIXME comments${hotspot ? ` cluster in <strong>${escapeHtml(hotspot.name)}/</strong>` : ''}.` : ''}
+            ${health.todos ? `Additionally <span class="num">${num(health.todos)}</span> TODO/FIXME comments${hotspot ? ` cluster in <strong>${escapeHtml(hotspot.name)}/</strong>` : ''}.` : ''}
           `;
         }
         col.append(healthSentence);
@@ -1608,7 +1606,7 @@
         const totalLang = langs.reduce((s, l) => s + (l.tokens || 0), 0) || 1;
         const bar = h('div', { class: 'dist-bar', style: { marginBottom: '1rem' } });
         const legend = h('div', { class: 'dist-legend', style: { containerType: 'inline-size', marginBottom: '1.75rem' } });
-        const colorFor = (id) => `var(--lang-${id}, var(--fg-muted))`;
+        const colorFor = (id) => `var(--lang-${cssIdent(id)}, var(--fg-muted))`;
         langs.forEach((l) => {
           const pct = ((l.tokens || 0) / totalLang) * 100;
           const seg = document.createElement('span');
@@ -1676,9 +1674,9 @@
           const pctTok = Math.round(((l.tokens || 0) / totalTokens) * 100);
           card.innerHTML = `
             <div class="flex items-center gap-2.5">
-              <span style="width:10px;height:10px;border-radius:3px;background:${l.iconColor || '#94a3b8'};box-shadow:0 0 0 1px var(--border) inset"></span>
+              <span style="width:10px;height:10px;border-radius:3px;background:${cssColor(l.iconColor, '#94a3b8')};box-shadow:0 0 0 1px var(--border) inset"></span>
               <span class="text-sm font-semibold">${escapeHtml(l.label || l.id)}</span>
-              <span class="chip chip-muted ml-auto">${l.files || 0} file${(l.files || 0) === 1 ? '' : 's'}</span>
+              <span class="chip chip-muted ml-auto">${num(l.files)} file${(l.files || 0) === 1 ? '' : 's'}</span>
             </div>
             <div class="flex items-baseline gap-4">
               <div>
@@ -1695,7 +1693,7 @@
                 <span>Share of LOC</span><span class="mono">${pctLoc}%</span>
               </div>
               <div class="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
-                <div style="width:${Math.max(pctLoc, 2)}%;height:100%;background:${l.iconColor || 'var(--accent)'};border-radius:inherit;"></div>
+                <div style="width:${Math.max(pctLoc, 2)}%;height:100%;background:${cssColor(l.iconColor, 'var(--accent)')};border-radius:inherit;"></div>
               </div>
             </div>
           `;
@@ -1712,7 +1710,7 @@
           fwCard.innerHTML = `
             <div class="flex items-center gap-2 mb-3">
               <span class="text-xs font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Frameworks & Tooling</span>
-              <span class="chip chip-muted">${frameworks.length}</span>
+              <span class="chip chip-muted">${num(frameworks.length)}</span>
             </div>
             <div class="flex flex-wrap gap-2">${chips}</div>
           `;
@@ -1781,9 +1779,9 @@
         // Header — use the editorial type treatment
         const header = h('div', { class: 'max-w-[64rem] mx-auto', style: { marginBottom: '2rem' } });
         header.innerHTML = `
-          <div class="ed-dateline" style="margin-bottom:0.75rem">RISKS &middot; ${risks.length} finding${risks.length === 1 ? '' : 's'}</div>
+          <div class="ed-dateline" style="margin-bottom:0.75rem">RISKS &middot; ${num(risks.length)} finding${risks.length === 1 ? '' : 's'}</div>
           <h1 class="ed-head" style="font-size:clamp(1.75rem, 3.2vw, 2.5rem);margin-bottom:0.5rem">
-            ${risks.length === 0 ? 'Nothing to flag today.' : (risks.length === 1 ? 'One finding needs review.' : `${risks.length} findings need review.`)}
+            ${risks.length === 0 ? 'Nothing to flag today.' : (risks.length === 1 ? 'One finding needs review.' : `${num(risks.length)} findings need review.`)}
           </h1>
           <p class="ed-prose" style="font-size:1rem;max-width:60ch">
             ${risks.length === 0
@@ -1809,8 +1807,8 @@
           list.append(h('hr', { class: 'ed-rule', style: { margin: '1.5rem 0 1rem' } }));
           const label = h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '0.75rem', marginBottom: '0.75rem' } });
           label.innerHTML = `
-            <span class="ed-label">${sev.toUpperCase()}</span>
-            <span class="chip chip-${sevClass(sev)}">${items.length}</span>
+            <span class="ed-label">${escapeHtml(sev.toUpperCase())}</span>
+            <span class="chip chip-${sevClass(sev)}">${num(items.length)}</span>
           `;
           list.append(label);
 
@@ -1823,7 +1821,7 @@
               padding: '0.875rem 0',
               borderTop: '1px solid var(--hairline)',
             } });
-            const fileRef = r.file ? `${escapeHtml(r.file)}${r.line ? ':' + r.line : ''}` : '';
+            const fileRef = r.file ? `${escapeHtml(r.file)}${r.line ? ':' + num(r.line) : ''}` : '';
             row.innerHTML = `
               <span class="ed-label" style="font-size:0.625rem;align-self:start;padding-top:2px">${escapeHtml(r.category || '').toUpperCase()}</span>
               <div>
@@ -2137,7 +2135,7 @@
           const tabindex = isRoot ? '0' : '-1';
           const expanded = isDir ? (e.collapsed ? 'false' : 'true') : null;
           // Rich aria-label: name + kind + (for folders) state + count.
-          const labelParts = [escapeHtml(n.name)];
+          const labelParts = [n.name]; // escaped once, at the aria-label sink
           if (isDir) {
             labelParts.push('folder');
             labelParts.push(e.collapsed ? 'collapsed' : 'expanded');
@@ -2156,7 +2154,7 @@
           const iconCx = -halfW + 22;     // 22px from left edge
           const iconR = 13;
           const lang = n.language;
-          const langColor = (lang && lang.iconColor) || (isDir ? 'var(--info)' : 'var(--fg-subtle)');
+          const langColor = cssColor(lang && lang.iconColor, isDir ? 'var(--info)' : 'var(--fg-subtle)');
           const langTag = isDir ? (isRoot ? '●' : '▸') : (lang?.tag || '·');
           // File-status stripe on the LHS inside edge
           const stripe = '<rect x="' + (-halfW + 0.5) + '" y="' + (-halfH + 0.5) + '" width="3" height="' + (NODE_H - 1) + '" rx="1.5" fill="' + statusAccent + '" opacity="' + (isRoot ? 1 : 0.75) + '"/>';
@@ -2316,12 +2314,12 @@
           const head = (n.kind === 'directory' ? 'Folder · ' : 'File · ') + (n.path || n.name);
           let html = '<div class="dep-tip-head">' + escapeHtml(head) + '</div>';
           if (importsTotal || callersTotal) {
-            html += '<div class="dep-tip-section"><span class="ed-label">Imports</span> <span class="mono">' + importsTotal + '</span></div>';
+            html += '<div class="dep-tip-section"><span class="ed-label">Imports</span> <span class="mono">' + num(importsTotal) + '</span></div>';
             if (imports.length) {
               html += '<ul class="dep-tip-list">' + imports.map((i) => '<li class="mono">' + (i.kind === 'type-import' ? '<span class="dep-tip-kind">type</span>' : i.kind === 'dynamic-import' ? '<span class="dep-tip-kind">dyn</span>' : '') + escapeHtml(i.to) + '</li>').join('') + '</ul>';
               if (importsTotal > imports.length) html += '<div class="dep-tip-more mono">+' + (importsTotal - imports.length) + ' more</div>';
             }
-            html += '<div class="dep-tip-section"><span class="ed-label">Callers</span> <span class="mono">' + callersTotal + '</span></div>';
+            html += '<div class="dep-tip-section"><span class="ed-label">Callers</span> <span class="mono">' + num(callersTotal) + '</span></div>';
             if (callers.length) {
               html += '<ul class="dep-tip-list">' + callers.map((c) => '<li class="mono">' + escapeHtml(c.from) + '</li>').join('') + '</ul>';
               if (callersTotal > callers.length) html += '<div class="dep-tip-more mono">+' + (callersTotal - callers.length) + ' more</div>';
@@ -2371,7 +2369,7 @@
           hasImportEdges
             ? '<span class="inline-flex items-center gap-2"><svg width="22" height="12" aria-hidden="true"><path d="M1 6 Q 11 2 21 6" fill="none" stroke="color-mix(in oklab, var(--accent) 85%, var(--fg))" stroke-width="1.75"/></svg><strong>Import edge</strong></span>'
             + '<span class="inline-flex items-center gap-2"><svg width="22" height="12" aria-hidden="true"><path d="M1 6 L 21 6" fill="none" stroke="color-mix(in oklab, var(--fg) 22%, transparent)"/></svg><strong>Containment</strong></span>'
-            + '<span class="ml-auto">' + visibleImportEdges + ' visible (of ' + DATA.edges.length + ') import edges · AST extractor</span>'
+            + '<span class="ml-auto">' + visibleImportEdges + ' visible (of ' + num(DATA.edges.length) + ') import edges · AST extractor</span>'
             : '<span class="ml-auto">Edges = containment · import overlay pending extractor v0.2</span>',
         ].join('');
         p.append(legend);
@@ -3606,10 +3604,10 @@
           style: { paddingLeft: (8 + depth * 14) + 'px' },
         });
         row.innerHTML =
-          '<span class="outline-glyph" style="color:' + glyph.c + '">' + glyph.g + '</span>' +
+          '<span class="outline-glyph" style="color:' + cssColor(glyph.c) + '">' + escapeHtml(glyph.g) + '</span>' +
           '<span class="outline-name">' + escapeHtml(n.name || '(anonymous)') + '</span>' +
           (n.signature ? '<span class="outline-sig mono">' + escapeHtml(n.signature.slice(0, 60)) + '</span>' : '') +
-          '<span class="outline-line mono">L' + (n.line || '?') + '</span>';
+          '<span class="outline-line mono">L' + escapeHtml(n.line || '?') + '</span>';
         li.append(row);
         if (n.children && n.children.length) {
           const sub = h('ul', { class: 'outline-list', style: { listStyle: 'none', padding: 0, margin: 0 } });
@@ -3677,7 +3675,7 @@
           <p class="ed-prose text-base text-[var(--fg-muted)]" style="max-width:62ch">
             ${tests.length === 0
               ? `Add files matching <span class="mono text-sm">*.test.*</span>, <span class="mono text-sm">*.spec.*</span>, or under <span class="mono text-sm">__tests__/</span> / <span class="mono text-sm">tests/</span> / <span class="mono text-sm">cypress/</span> / <span class="mono text-sm">playwright/</span> to start tracking coverage.`
-              : `Coverage by import-graph reachability — every source file imported by at least one test file counts as covered. <strong>${covered.length}</strong> of <strong>${sources.length}</strong> source files have a test importer; <strong>${tests.length}</strong> test files in total.`}
+              : `Coverage by import-graph reachability — every source file imported by at least one test file counts as covered. <strong>${num(covered.length)}</strong> of <strong>${num(sources.length)}</strong> source files have a test importer; <strong>${num(tests.length)}</strong> test files in total.`}
           </p>
         `;
         wrap_append(p, head);
@@ -3692,19 +3690,19 @@
         const stripe = h('div', { class: 'flex gap-2 mb-8 flex-wrap' });
         stripe.innerHTML = `
           <div class="surface rounded-md px-4 py-3">
-            <div class="text-2xl font-semibold mono"><span style="color:var(--ok)">${covered.length}</span></div>
+            <div class="text-2xl font-semibold mono"><span style="color:var(--ok)">${num(covered.length)}</span></div>
             <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">covered</div>
           </div>
           <div class="surface rounded-md px-4 py-3">
-            <div class="text-2xl font-semibold mono"><span style="color:var(--${uncovered.length ? 'warn' : 'fg-muted'})">${uncovered.length}</span></div>
+            <div class="text-2xl font-semibold mono"><span style="color:var(--${uncovered.length ? 'warn' : 'fg-muted'})">${num(uncovered.length)}</span></div>
             <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">untested</div>
           </div>
           <div class="surface rounded-md px-4 py-3">
-            <div class="text-2xl font-semibold mono"><span>${tests.length}</span></div>
+            <div class="text-2xl font-semibold mono"><span>${num(tests.length)}</span></div>
             <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">test files</div>
           </div>
           <div class="surface rounded-md px-4 py-3">
-            <div class="text-2xl font-semibold mono"><span>${sources.length}</span></div>
+            <div class="text-2xl font-semibold mono"><span>${num(sources.length)}</span></div>
             <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mt-1">source files</div>
           </div>
         `;
@@ -3739,11 +3737,11 @@
               <div class="col-span-3 mono text-sm truncate" title="${escapeHtml(r.dir)}">${escapeHtml(r.dir)}</div>
               <div class="col-span-5">
                 <div class="h-1.5 rounded-full bg-[var(--surface-3)] overflow-hidden">
-                  <div style="width:${r.pct}%; height:100%; background: var(--${t});"></div>
+                  <div style="width:${num(r.pct)}%; height:100%; background: var(--${t});"></div>
                 </div>
               </div>
-              <div class="col-span-2 text-right text-[11px] text-[var(--fg-muted)] mono"><span class="num" style="color:var(--${t})">${r.pct}%</span></div>
-              <div class="col-span-2 text-right text-[11px] text-[var(--fg-subtle)]">${r.covered}/${r.total} files</div>
+              <div class="col-span-2 text-right text-[11px] text-[var(--fg-muted)] mono"><span class="num" style="color:var(--${t})">${num(r.pct)}%</span></div>
+              <div class="col-span-2 text-right text-[11px] text-[var(--fg-subtle)]">${num(r.covered)}/${num(r.total)} files</div>
             `;
             dirInner.append(row);
           }
@@ -3764,7 +3762,7 @@
             const tag = lang?.tag || (typeof langId === 'string' ? langId.slice(0, 4).toUpperCase() : '?');
             const row = h('button', { type: 'button', class: 'w-full text-left flex items-center gap-3 p-3 hover:bg-[var(--surface-2)] transition-colors' });
             row.innerHTML = `
-              <span class="mono text-[10px] font-semibold w-7" style="color:${lang?.iconColor || 'var(--fg-muted)'}">${escapeHtml(tag)}</span>
+              <span class="mono text-[10px] font-semibold w-7" style="color:${cssColor(lang?.iconColor)}">${escapeHtml(tag)}</span>
               <span class="text-sm flex-1 truncate mono" title="${escapeHtml(f.path)}">${escapeHtml(f.path)}</span>
               <span class="text-[10px] mono text-[var(--fg-subtle)] shrink-0">${fmtTok(f.tokens || 0)} tok</span>
             `;
@@ -3791,8 +3789,8 @@
             if (!arr.length) continue;
             const card = h('div', { class: 'surface rounded-md p-4' });
             card.innerHTML = `
-              <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mb-1">${name}</div>
-              <div class="text-2xl font-semibold mono mb-1">${arr.length}</div>
+              <div class="text-[10px] uppercase tracking-wide text-[var(--fg-muted)] mb-1">${escapeHtml(name)}</div>
+              <div class="text-2xl font-semibold mono mb-1">${num(arr.length)}</div>
               <div class="text-[11px] text-[var(--fg-subtle)]">${arr.length === 1 ? 'file' : 'files'}</div>
             `;
             grid.append(card);
@@ -3838,7 +3836,7 @@
             return x + ',' + y;
           }).join(' ');
           const last = series[series.length - 1];
-          return '<svg width="' + w + '" height="' + hh + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + ((series.length - 1) * step).toFixed(1) + '" cy="' + (hh - ((last - min) / span) * (hh - 4) - 2).toFixed(1) + '" r="2.5" fill="' + color + '"/></svg>';
+          return '<svg width="' + w + '" height="' + hh + '" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="' + cssColor(color) + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/><circle cx="' + ((series.length - 1) * step).toFixed(1) + '" cy="' + (hh - ((last - min) / span) * (hh - 4) - 2).toFixed(1) + '" r="2.5" fill="' + cssColor(color) + '"/></svg>';
         }
         const row = (label, values, unit, color) => {
           const first = values[0], last = values[values.length - 1];
@@ -3847,17 +3845,17 @@
           const arrow = delta === 0 ? '→' : delta > 0 ? '↑' : '↓';
           const signed = (delta >= 0 ? '+' : '') + (Math.abs(delta) >= 1000 ? (delta / 1000).toFixed(1) + 'K' : delta);
           return `<tr style="border-bottom:1px solid var(--border)">
-              <td style="padding:14px 0;font-family:var(--font-display);font-weight:600">${label}</td>
-              <td style="padding:14px 16px" class="mono">${fmtNum(last)}${unit}</td>
+              <td style="padding:14px 0;font-family:var(--font-display);font-weight:600">${escapeHtml(label)}</td>
+              <td style="padding:14px 16px" class="mono">${fmtNum(last)}${escapeHtml(unit)}</td>
               <td style="padding:14px 16px;color:${delta > 0 ? 'var(--warn)' : delta < 0 ? 'var(--ok)' : 'var(--fg-muted)'}" class="mono">${arrow} ${signed} (${pct.toFixed(1)}%)</td>
               <td style="padding:10px 0;text-align:right">${spark(values, color)}</td>
             </tr>`;
         };
-        const fmtNum = (n) => n >= 1_000_000 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n);
+        const fmtNum = (n) => { n = num(n); return n >= 1_000_000 ? (n/1e6).toFixed(1)+'M' : n >= 1000 ? (n/1000).toFixed(1)+'K' : String(n); };
         const firstAt = new Date(history[0].at).toLocaleString();
         const lastAt = new Date(history[history.length - 1].at).toLocaleString();
         wrap.innerHTML = `
-          <div class="ed-dateline" style="margin-bottom:0.75rem">HISTORY &middot; ${history.length} snapshots</div>
+          <div class="ed-dateline" style="margin-bottom:0.75rem">HISTORY &middot; ${num(history.length)} snapshots</div>
           <h1 class="ed-head" style="font-size:clamp(1.75rem, 3.2vw, 2.5rem);margin-bottom:0.5rem">How the codebase moved.</h1>
           <p class="ed-prose" style="font-size:1rem;max-width:62ch;margin-bottom:1.5rem">
             ${firstAt} &mdash; ${lastAt}.
@@ -3912,7 +3910,7 @@
             <h2 class="text-sm font-semibold uppercase tracking-wider text-[var(--fg-subtle)]">Body font</h2>
             <span class="chip chip-muted">applies to paragraphs + dense blocks</span>
           </div>
-          <p class="text-sm text-[var(--fg-muted)] mb-4">Headings, chips, tabs, and numeric displays remain in <strong>Urbanist</strong>. Only paragraph + descriptive copy changes.</p>
+          <p class="text-sm text-[var(--fg-muted)] mb-4">Headings, chips, tabs, and numeric displays keep the display font. Only paragraph + descriptive copy changes.</p>
           <div role="radiogroup" aria-label="Body font" class="grid sm:grid-cols-2 gap-2">
             <button role="radio" aria-checked="${bodyFont === 'inter'}" data-body-font="inter"
                     class="font-opt text-left rounded-lg p-4 border transition-colors"
@@ -3939,7 +3937,7 @@
           <div class="mt-4 flex gap-2 items-start text-xs text-[var(--fg-muted)]">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
             <p class="leading-relaxed">
-              <strong>License note.</strong> Google Sans is Google&rsquo;s proprietary typeface. Google does not serve it publicly via the Google Fonts API on non-Google origins, so on your machine it will silently fall back to <span class="mono">system-ui</span>. For a legally shippable near-equivalent, swap <span class="mono">Google Sans</span> for <span class="mono">Lexend</span> or <span class="mono">Public Sans</span> in the font link.
+              <strong>No web fonts.</strong> Nothing is downloaded: each option uses the font only if it is installed on this machine and otherwise falls back to <span class="mono">system-ui</span>. Google Sans is Google&rsquo;s proprietary typeface.
             </p>
           </div>
         `;
@@ -3953,7 +3951,7 @@
             <span class="mono text-xs" id="fs-readout">${(parseFloat(fs) * 100).toFixed(0)}%</span>
           </div>
           <p class="text-sm text-[var(--fg-muted)] mb-4">Multiplier on the root <span class="mono">font-size</span>. Container queries re-flow components so nothing clips.</p>
-          <input id="config-font-slider" type="range" min="0.85" max="1.35" step="0.05" value="${fs}" class="w-full accent-[var(--accent)]" aria-label="Font size multiplier"/>
+          <input id="config-font-slider" type="range" min="0.85" max="1.35" step="0.05" value="${escapeHtml(fs)}" class="w-full accent-[var(--accent)]" aria-label="Font size multiplier"/>
           <div class="flex justify-between text-[0.6875rem] text-[var(--fg-subtle)] mt-2">
             <span>Compact</span><span>Default</span><span>Large</span><span>Extra Large</span>
           </div>
@@ -3963,14 +3961,14 @@
         // Theme — live control, not passive text (audit L2).
         const themeCard = h('section', { class: 'surface rounded-xl p-5' });
         const tRow = (val, label, desc) => `
-          <button role="radio" aria-checked="${theme === val}" data-theme-opt="${val}"
+          <button role="radio" aria-checked="${theme === val}" data-theme-opt="${escapeHtml(val)}"
                   class="text-left rounded-lg p-4 border transition-colors"
                   style="border-color: ${theme === val ? 'var(--accent)' : 'var(--border)'}; background: ${theme === val ? 'color-mix(in oklab, var(--accent) 10%, transparent)' : 'transparent'}">
             <div class="flex items-center gap-2 mb-1">
-              <span class="text-base font-semibold">${label}</span>
+              <span class="text-base font-semibold">${escapeHtml(label)}</span>
               <span class="chip ${theme === val ? 'chip-ok' : 'chip-muted'} ml-auto">${theme === val ? 'Active' : 'Select'}</span>
             </div>
-            <p class="text-sm text-[var(--fg-muted)] leading-relaxed">${desc}</p>
+            <p class="text-sm text-[var(--fg-muted)] leading-relaxed">${escapeHtml(desc)}</p>
           </button>`;
         themeCard.innerHTML = `
           <div class="flex items-baseline justify-between gap-3 mb-1">
@@ -4008,7 +4006,7 @@
         wrap.append(h('h1', { class: 'text-xl font-semibold mb-1' }, f.name));
         const meta = h('div', { class: 'flex flex-wrap items-center gap-2 mb-4' });
         const statusClass = f.status === 'broken' ? 'danger' : f.status === 'stale' ? 'warn' : 'ok';
-        meta.innerHTML = `<span class="chip chip-${statusClass}">${f.status}</span><span class="text-xs text-[var(--fg-muted)]">${f.language?.label || 'Unknown'} · ${f.loc} LOC · <span class="mono">${fmtBytes(f.size)}</span>${f.gzip ? ' · <span class="mono">' + fmtBytes(f.gzip) + '</span> gzip' : ''} · <span class="mono">${fmtTok(f.tokens)} tok</span></span>`;
+        meta.innerHTML = `<span class="chip chip-${statusClass}">${escapeHtml(f.status)}</span><span class="text-xs text-[var(--fg-muted)]">${escapeHtml(f.language?.label || 'Unknown')} · ${num(f.loc)} LOC · <span class="mono">${fmtBytes(f.size)}</span>${f.gzip ? ' · <span class="mono">' + fmtBytes(f.gzip) + '</span> gzip' : ''} · <span class="mono">${fmtTok(f.tokens)} tok</span></span>`;
         wrap.append(meta);
 
         wrap.append(renderFilesPaneContent(f, LOCAL_TAB));
@@ -4095,9 +4093,9 @@
         for (const fold of folders) {
           const lang = LANGS_BY_ID.get(fold.dominantLang);
           const langChip = lang
-            ? `<span class="mono text-[10px] font-semibold inline-flex items-center gap-1.5"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${lang.iconColor || 'var(--fg-muted)'}"></span>${escapeHtml(lang.label || lang.id)}</span>`
+            ? `<span class="mono text-[10px] font-semibold inline-flex items-center gap-1.5"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${cssColor(lang.iconColor)}"></span>${escapeHtml(lang.label || lang.id)}</span>`
             : '';
-          const topRoles = fold.roles.slice(0, 3).map(([r, n]) => `<span class="text-[11px] text-[var(--fg-muted)]">${escapeHtml(r)} <span class="mono text-[var(--fg-subtle)]">${n}</span></span>`).join('<span class="text-[var(--fg-subtle)] mx-1">·</span>');
+          const topRoles = fold.roles.slice(0, 3).map(([r, n]) => `<span class="text-[11px] text-[var(--fg-muted)]">${escapeHtml(r)} <span class="mono text-[var(--fg-subtle)]">${num(n)}</span></span>`).join('<span class="text-[var(--fg-subtle)] mx-1">·</span>');
           const row = h('button', {
             type: 'button',
             class: 'w-full text-left p-4 rounded-lg hover:bg-[var(--surface-2)] transition-colors flex items-start gap-4 border border-transparent hover:border-[var(--border)]',
@@ -4110,7 +4108,7 @@
             <div class="flex-1 min-w-0">
               <div class="flex items-baseline gap-3 mb-1.5 flex-wrap">
                 <span class="font-semibold text-[15px] mono">${escapeHtml(fold.name)}</span>
-                <span class="text-xs text-[var(--fg-muted)]"><span class="num">${fold.files}</span> file${fold.files === 1 ? '' : 's'} · <span class="num mono">${fmtTok(fold.tokens)}</span> tokens · <span class="num">${fold.loc.toLocaleString()}</span> LOC</span>
+                <span class="text-xs text-[var(--fg-muted)]"><span class="num">${num(fold.files)}</span> file${fold.files === 1 ? '' : 's'} · <span class="num mono">${fmtTok(fold.tokens)}</span> tokens · <span class="num">${num(fold.loc).toLocaleString()}</span> LOC</span>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
                 ${langChip}
@@ -4144,7 +4142,7 @@
             const langId = languageId(f);
             const lang = langId ? LANGS_BY_ID.get(langId) : null;
             const tag = lang?.tag || (typeof langId === 'string' && langId.length ? langId.slice(0, 4).toUpperCase() : '?');
-            const safeColor = (function () { const s = lang?.iconColor; if (!s || typeof s !== 'string') return 'var(--fg-muted)'; if (/^var\(--[\w-]+\)$/.test(s) || /^#[0-9a-f]{3,8}$/i.test(s) || /^(?:rgb|rgba|hsl|hsla|oklch|oklab)\([\d.,%\s\/-]+\)$/i.test(s)) return s; return 'var(--fg-muted)'; })();
+            const safeColor = cssColor(lang?.iconColor);
             const row = h('button', { type: 'button', class: 'w-full text-left flex items-center gap-2.5 p-3 hover:bg-[var(--surface-2)] transition-colors' });
             row.innerHTML = `
               <span class="mono text-[10px] font-semibold w-7" style="color:${safeColor}">${escapeHtml(tag)}</span>
@@ -4265,7 +4263,7 @@
               const label = h('div', { class: 'flex items-baseline justify-between' });
               label.innerHTML = `
                 <span class="ed-label">TODOs in this file</span>
-                <span class="chip chip-warn">${entries.length}</span>
+                <span class="chip chip-warn">${num(entries.length)}</span>
               `;
               wrap.append(label);
               const sevFor = (kind) => ({ TODO: 'chip-warn', FIXME: 'chip-danger', HACK: 'chip-danger', XXX: 'chip-danger', NOTE: 'chip-info' }[kind] || 'chip-muted');
@@ -4281,7 +4279,7 @@
                 } });
                 li.innerHTML = `
                   <span class="chip ${sevFor(t.kind)}">${escapeHtml(t.kind)}</span>
-                  <span class="mono text-xs text-[var(--fg-subtle)] text-right">:${t.line}</span>
+                  <span class="mono text-xs text-[var(--fg-subtle)] text-right">:${num(t.line)}</span>
                   <span class="text-sm" style="color:var(--fg);line-height:1.55">${escapeHtml(t.text) || '<em class="text-[var(--fg-subtle)]">(no description)</em>'}</span>
                 `;
                 ul.append(li);
@@ -4308,21 +4306,22 @@
               rowGap: 0,
               margin: 0,
             } });
+            // [label, value, class] — escaped where the markup is built below.
             const pairs = [
-              ['Extension', `<span class="mono">${escapeHtml(f.ext || '—')}</span>`],
-              ['Language', `${escapeHtml(f.language?.label || 'Unknown')}`],
-              ['Bytes', `<span class="mono">${fmtBytes(f.size)}</span>`],
-              ...(f.gzip ? [['Gzip', `<span class="mono">${fmtBytes(f.gzip)}</span>`]] : []),
-              ['LOC', `<span class="mono">${f.loc}</span>`],
-              ['Tokens (cl100k approx)', `<span class="mono">${fmtTok(f.tokens)}</span>`],
-              ['TODO / FIXME count', `<span class="mono">${f.todoEntries?.length ?? f.todos ?? 0}</span>`],
-              ['Last modified', `<span class="mono text-xs">${new Date(f.mtime || Date.now()).toLocaleString()}</span>`],
+              ['Extension', f.ext || '—', 'mono'],
+              ['Language', f.language?.label || 'Unknown', ''],
+              ['Bytes', fmtBytes(f.size), 'mono'],
+              ...(f.gzip ? [['Gzip', fmtBytes(f.gzip), 'mono']] : []),
+              ['LOC', num(f.loc), 'mono'],
+              ['Tokens (cl100k approx)', fmtTok(f.tokens), 'mono'],
+              ['TODO / FIXME count', f.todoEntries?.length ?? num(f.todos), 'mono'],
+              ['Last modified', new Date(f.mtime || Date.now()).toLocaleString(), 'mono text-xs'],
             ];
-            pairs.forEach(([k, v], i) => {
+            pairs.forEach(([k, v, cls], i) => {
               const border = i === 0 ? '' : 'border-top:1px solid var(--hairline);';
               dl.insertAdjacentHTML('beforeend',
                 `<dt style="${border}padding:0.5rem 0;color:var(--fg-subtle);font-size:0.8125rem">${escapeHtml(k)}</dt>` +
-                `<dd style="${border}padding:0.5rem 0;margin:0;color:var(--fg);font-size:0.875rem">${v}</dd>`
+                `<dd style="${border}padding:0.5rem 0;margin:0;color:var(--fg);font-size:0.875rem"><span class="${escapeHtml(cls)}">${escapeHtml(v)}</span></dd>`
               );
             });
             wrap.append(dl);
@@ -4395,7 +4394,7 @@
         // surfaces as a readable message instead of leaving the panel
         // blank. Defensive but cheap — runs once per render.
         try { return _renderLibraryInner(p); } catch (e) {
-          p.innerHTML = '<div class="p-8 text-[var(--fg-muted)]">Library failed to render: ' + (e?.message || 'unknown error') + '. Re-analyze the project; if the problem persists, file an issue with the project shape.</div>';
+          p.innerHTML = '<div class="p-8 text-[var(--fg-muted)]">Library failed to render: ' + escapeHtml(e?.message || 'unknown error') + '. Re-analyze the project; if the problem persists, file an issue with the project shape.</div>';
         }
       }
       function _renderLibraryInner(p) {
@@ -4519,7 +4518,7 @@
             // accept user-provided language metadata. Validate against a
             // tight allowlist before interpolating into a `style` attr
             // to prevent attribute-break / XSS via crafted color values.
-            const safeIconColor = isSafeColor(lang?.iconColor) ? lang.iconColor : 'var(--fg-muted)';
+            const safeIconColor = cssColor(lang?.iconColor);
             row.innerHTML = `
               <span class="mono text-[10px] font-semibold w-7 shrink-0" style="color:${safeIconColor}">${escapeHtml(tag)}</span>
               <span class="text-sm flex-1 truncate" title="${escapeHtml(f.path)}">${escapeHtml(f.name)}</span>
@@ -4664,7 +4663,7 @@
         meta.innerHTML = `
           <span class="mono">${escapeHtml(lang?.label || langId || 'unknown')}</span>
           <span>·</span>
-          <span><span class="num">${f.loc ?? 0}</span> LOC</span>
+          <span><span class="num">${num(f.loc)}</span> LOC</span>
           <span>·</span>
           <span class="mono"><span class="num">${fmtTok(f.tokens ?? 0)}</span> tokens</span>
           ${f.gzip ? `<span>·</span><span class="mono">${fmtBytes(f.gzip)} gzip</span>` : ''}
@@ -4707,7 +4706,7 @@
               <div class="flex items-center gap-2 mb-1">
                 <span class="chip chip-muted mono text-[10px]">${escapeHtml(d.kind)}</span>
                 <span class="mono text-sm font-medium">${escapeHtml(d.name)}</span>
-                <span class="text-[10px] text-[var(--fg-subtle)] ml-auto">L${d.startLine}</span>
+                <span class="text-[10px] text-[var(--fg-subtle)] ml-auto">L${num(d.startLine)}</span>
               </div>
               ${d.docstring ? `<p class="text-sm text-[var(--fg-muted)] leading-relaxed">${escapeHtml(d.docstring)}</p>` : ''}
             `;
@@ -4818,7 +4817,7 @@
         // unless we can see callers; don't claim "page-level route"
         // unless agent.routes points a route at this file. Falls back
         // to the simpler shape when evidence is missing.
-        const callerCount = (DATA?.edges || []).filter((e) => e.to === f.path).length;
+        const callerCount = num((DATA?.edges || []).filter((e) => e.to === f.path).length);
         const hasRoute = (DATA?.routes || []).some((r) => r.handlerFile === f.path);
         const ROLE_TEMPLATES = {
           'Pages & Routes':   hasRoute ? 'a page-level route component' : 'a page-shaped component',
@@ -4882,7 +4881,7 @@
             <button id="about-cta-overview" type="button" class="px-5 py-2.5 rounded-md bg-[var(--accent)] text-[var(--accent-fg)] font-medium hover:opacity-90 transition-opacity">
               See it on this project
             </button>
-            <a href="https://github.com/garrytan/factstack" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-md border border-[var(--border)] hover:bg-[var(--surface-2)] font-medium transition-colors">
+            <a href="https://github.com/adi-FGC/Facts-Code" target="_blank" rel="noopener noreferrer" class="px-5 py-2.5 rounded-md border border-[var(--border)] hover:bg-[var(--surface-2)] font-medium transition-colors">
               GitHub →
             </a>
           </div>
@@ -4963,7 +4962,7 @@
               Right now, you're looking at <span class="num">${escapeHtml(meta.name || '…')}</span>.
             </h2>
             <p class="ed-prose text-lg leading-relaxed text-[var(--fg-muted)] mb-6" style="max-width:62ch">
-              <span class="num text-[var(--fg)]">${(stats.files || 0)}</span> files · <span class="num text-[var(--fg)]">${fmtTok(stats.tokens || 0)}</span> tokens · <span class="num text-[var(--fg)]">${(meta.frameworks || []).length}</span> frameworks detected. Each tab is one lens on the same artifact:
+              <span class="num text-[var(--fg)]">${num(stats.files)}</span> files · <span class="num text-[var(--fg)]">${fmtTok(stats.tokens || 0)}</span> tokens · <span class="num text-[var(--fg)]">${num((meta.frameworks || []).length)}</span> frameworks detected. Each tab is one lens on the same artifact:
             </p>
             <ul class="space-y-2.5 mb-7" style="max-width:62ch">
               <li class="flex gap-3 items-baseline"><span class="mono text-xs text-[var(--accent)] uppercase shrink-0 w-20">Overview</span><span class="text-[15px] leading-relaxed text-[var(--fg-muted)]">What the project does and how healthy it is.</span></li>
@@ -5064,7 +5063,9 @@
         $('#local-todos-chip').textContent = (DATA.summary?.health?.todos || 0);
         const rootStr = DATA.project?.root?.replace(/\\/g, '/').split('/').slice(-2).join('/') || DATA.project?.name || '';
         $('#status-root').textContent = rootStr;
-        $('#status-health').innerHTML = `<span class="text-[var(--${DATA.summary?.health?.broken ? 'danger' : 'fg-muted'})]">${DATA.summary?.health?.broken || 0} broken</span> · <span class="text-[var(--warn)]">${DATA.summary?.health?.todos || 0} TODOs</span> · <span class="text-[var(--ok)]">${DATA.summary?.health?.secrets || 0} secrets</span>`;
+        // Whole class names, never assembled from pieces: Tailwind is compiled
+        // ahead of time and only sees complete literals in this source.
+        $('#status-health').innerHTML = `<span class="${DATA.summary?.health?.broken ? 'text-[var(--danger)]' : 'text-[var(--fg-muted)]'}">${num(DATA.summary?.health?.broken)} broken</span> · <span class="text-[var(--warn)]">${num(DATA.summary?.health?.todos)} TODOs</span> · <span class="text-[var(--ok)]">${num(DATA.summary?.health?.secrets)} secrets</span>`;
 
         // Index files for delegated click lookup (tree row clicks use data-path).
         indexFiles(DATA.tree || { files: [], children: [] });
@@ -6199,7 +6200,7 @@
               row.className = 'w-full text-left rounded-md px-2 py-1 hover:bg-[var(--surface-2)] flex items-center justify-between gap-2';
               row.style.border = '1px solid var(--border)';
               const updated = it.updated_at ? new Date(it.updated_at).toLocaleString() : '';
-              row.innerHTML = `<span class="mono truncate">${it.key}</span><span class="text-[var(--fg-subtle)] text-[0.6875rem] whitespace-nowrap">${updated}</span>`;
+              row.innerHTML = `<span class="mono truncate">${escapeHtml(it.key)}</span><span class="text-[var(--fg-subtle)] text-[0.6875rem] whitespace-nowrap">${updated}</span>`;
               row.addEventListener('click', () => {
                 if (ghInput) ghInput.value = it.key.replace(/_/g, '/').replace(/\/(.+)$/, '/$1'); // best-effort
                 // Just set the input — let user submit. Avoids surprise scans.
@@ -6340,15 +6341,16 @@
 
       // ------------------------------------------------------------------
       // Shallow client-side walker (File System Access API) + AST import
-      // extraction via @babel/parser (loaded lazily from esm.sh). When the
-      // CDN is unavailable we still show the tree + rollups — just without
-      // import edges.
+      // extraction via @babel/parser — a local bundle the CLI serves at
+      // ./vendor/babel-parser.mjs (built by apps/cli/scripts/sync-ui.mjs;
+      // no CDN). Where it can't load (a static export opened from file://)
+      // we still show the tree + rollups — just without import edges.
       // ------------------------------------------------------------------
       let _babelParser = null;
       async function getBabelParser() {
         if (_babelParser) return _babelParser;
         try {
-          _babelParser = (await import('https://esm.sh/@babel/parser@7.25.6')).parse;
+          _babelParser = (await import('./vendor/babel-parser.mjs')).parse;
         } catch (e) {
           console.warn('babel parser unavailable — graph edges disabled', e);
           _babelParser = null;

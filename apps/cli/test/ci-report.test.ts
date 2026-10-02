@@ -25,7 +25,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { DiffArtifact } from '@factstack/spec';
-import { renderCiReport } from '../src/emitters/ci-report.js';
+import { codeSpan, renderCiReport } from '../src/emitters/ci-report.js';
 
 /** Build a minimal-but-valid DiffArtifact. Each test overrides only
  *  the fields that matter for that case. */
@@ -200,7 +200,7 @@ describe('renderCiReport — vulnerability changes', () => {
      * left the set. */
     const out = renderCiReport(makeDiff({ vulns: { new: [], fixed: [], severityShift: 3 } }));
     expect(out).toContain('Severity reclassification');
-    expect(out).toContain('+3');
+    expect(out).toContain('shifted the graded score by +3');
   });
 
   it('caps vuln ID lists at VULN_LIST_CAP with "N more" footer', () => {
@@ -390,5 +390,221 @@ describe('renderCiReport — diagram embed', () => {
     const diff = makeDiff();
     const diagram = { source: sampleMermaid, view: 'package' as const };
     expect(renderCiReport(diff, { diagram })).toBe(renderCiReport(diff, { diagram }));
+  });
+});
+
+/* CLI-08: backslash escapes do not work inside CommonMark code spans, so a
+   file named with backticks used to close the span and inject a live
+   @mention or link into the bot's PR comment. */
+describe('renderCiReport — hostile paths stay inert (CLI-08)', () => {
+  /** Every code span in `md`, parsed the CommonMark way (fence = a run of N
+   *  backticks, closed by the next run of exactly N). Returns the text left
+   *  OUTSIDE code spans. */
+  const outsideCode = (md: string): string => {
+    let out = '';
+    let i = 0;
+    while (i < md.length) {
+      if (md[i] !== '`') {
+        out += md[i++];
+        continue;
+      }
+      let n = 0;
+      while (md[i + n] === '`') n++;
+      const fence = '`'.repeat(n);
+      let j = i + n;
+      let close = -1;
+      while (j < md.length) {
+        const k = md.indexOf(fence, j);
+        if (k < 0) break;
+        if (md[k + n] !== '`' && md[k - 1] !== '`') {
+          close = k;
+          break;
+        }
+        j = k + 1;
+      }
+      if (close < 0) {
+        out += fence;
+        i += n;
+        continue;
+      }
+      i = close + n;
+    }
+    return out;
+  };
+
+  it('codeSpan keeps any backtick run inside the span', () => {
+    expect(codeSpan('a.ts')).toBe('`a.ts`');
+    expect(codeSpan('src/x`@team`.ts')).toBe('``src/x`@team`.ts``');
+    expect(codeSpan('`lead')).toBe('`` `lead ``');
+    expect(codeSpan('a```b')).toBe('````a```b````');
+    expect(codeSpan('two\nlines')).toBe('`two lines`');
+  });
+
+  it('no @mention or link escapes a code span in any path list', () => {
+    const hostile = [
+      'src/x`@acme/security-team`.ts',
+      'src/y`[approve](https://evil.example)`.ts',
+      'src/z\\`@org/admins\\`.ts',
+      '``@everyone``.ts',
+    ];
+    const md = renderCiReport(
+      makeDiff({
+        from: { at: '`@from`' },
+        vulns: { new: ['GHSA-`@x`'], fixed: [], severityShift: 1 },
+        files: {
+          added: hostile,
+          removed: hostile,
+          changed: hostile.map((path) => ({ path, locDelta: 1, tokenDelta: 1 })),
+        },
+      }),
+      {
+        diagram: { source: 'flowchart LR\n', view: 'focal', focus: hostile[0]! },
+        findings: {
+          secrets: { new: 1, fixed: 0, newFiles: [hostile[1]!] },
+          risks: { new: 0, fixed: 0, newFiles: [] },
+        },
+      },
+    );
+    const prose = outsideCode(md.replace(/```mermaid[\s\S]*?```/, ''));
+    expect(prose).not.toMatch(/@\w/);
+    expect(prose).not.toContain('evil.example'); // the footer's own FACTS link is the only link
+    expect(md).toContain('evil.example'); // …and the path is still shown, inside a span
+  });
+
+  /* A file name holding a newline and a ``` run used to close the
+     mermaid fence early, leaving the rest of the name live in the comment. */
+  it('a diagram label with a newline and a backtick fence cannot close the mermaid block', () => {
+    const source =
+      'flowchart TD\n  focus["focus not in graph:<br/>src/x\n```\n@someone [click](https://evil.example)\n.ts"]\n';
+    const md = renderCiReport(makeDiff(), {
+      diagram: { source, view: 'focal', focus: 'src/x.ts' },
+    });
+    const lines = md.split('\n');
+    const open = lines.findIndex((l) => /^`{3,}mermaid$/.test(l));
+    const fence = lines[open]!.slice(0, -'mermaid'.length);
+    expect(fence.length).toBeGreaterThan(3); // longer than the ``` run inside
+    // CommonMark: only a line of >= fence.length backticks closes the block.
+    const close = lines.findIndex(
+      (l, i) => i > open && /^ {0,3}`+\s*$/.test(l) && l.trim().length >= fence.length,
+    );
+    expect(lines.slice(open + 1, close).join('\n')).toBe(source.replace(/\n+$/, ''));
+    expect(lines.slice(close + 1).join('\n')).not.toMatch(/@someone|evil\.example/);
+  });
+
+  it('a diagram with no backticks keeps the plain ``` fence', () => {
+    const md = renderCiReport(makeDiff(), {
+      diagram: { source: 'flowchart LR\n  A --> B\n', view: 'package' },
+    });
+    expect(md).toContain('```mermaid\nflowchart LR\n  A --> B\n```\n');
+  });
+});
+
+/* core request (correctness#6): findings compared one by one, so a swapped
+   secret is not "no change". correctness#2: a snapshot base has no CVE list. */
+describe('renderCiReport — set-based findings + rollup endpoints', () => {
+  it('a swapped secret reads as a new risk even though the net count is 0', () => {
+    const out = renderCiReport(makeDiff(), {
+      findings: {
+        secrets: { new: 1, fixed: 1, newFiles: ['src/other.ts'] },
+        risks: { new: 0, fixed: 0, newFiles: [] },
+      },
+    });
+    expect(out).toContain('New risks introduced');
+    expect(out).toContain('### Findings');
+    expect(out).toContain('**Secrets:** 1 new (`src/other.ts`), 1 fixed');
+  });
+
+  it('findings with nothing new or fixed keep the no-change verdict', () => {
+    const none = { new: 0, fixed: 0, newFiles: [] };
+    const out = renderCiReport(
+      makeDiff({
+        stats: { ...makeDiff().stats, risks: { before: 3, after: 4, delta: 1 } },
+      }),
+      { findings: { secrets: none, risks: none } },
+    );
+    expect(out).toContain('✓ No risk-surface change');
+    expect(out).not.toContain('### Findings');
+  });
+
+  it('grades the headline on the graded shift; ungraded IDs stay listed with their note (cli-r3-2)', () => {
+    /* core's severityShift (+4) counted a new transitive critical; the CLI
+       passes the graded shift (0) and the note for the listed ID. */
+    const diff = makeDiff({ vulns: { new: ['GHSA-trans'], fixed: [], severityShift: 4 } });
+    const out = renderCiReport(diff, {
+      gradedShift: 0,
+      notGraded: { 'GHSA-trans': 'transitive: shown, not graded' },
+    });
+    expect(out).not.toContain('Risk surface grew');
+    expect(out).toContain('✓ No risk-surface change');
+    expect(out).toContain('**New (1):**');
+    expect(out).toContain('- `GHSA-trans` — transitive: shown, not graded');
+    expect(out).toContain('listed, not graded — they do not move the severity shift');
+    expect(out).not.toContain('Severity reclassification'); // no graded churn to explain
+
+    const graded = renderCiReport(
+      makeDiff({ vulns: { new: ['GHSA-direct'], fixed: [], severityShift: 3 } }),
+      { gradedShift: 3, notGraded: {} },
+    );
+    expect(graded).toContain('Risk surface grew (severity shift **+3**)');
+    expect(graded).toContain('- `GHSA-direct`\n');
+    expect(graded).not.toContain('not graded');
+  });
+
+  /* Secrets core could not grade (base and head scanned under other
+     secret rules) were dropped, so a key added to an existing file read as
+     "No risk-surface change". */
+  it('ungraded secrets headline the report and are listed with the reason', () => {
+    const none = { new: 0, fixed: 0, newFiles: [] };
+    const out = renderCiReport(makeDiff(), {
+      findings: {
+        secrets: none,
+        risks: none,
+        ungradedSecrets: {
+          new: 1,
+          fixed: 0,
+          newFiles: ['src/config.ts'],
+          reason: 'the baseline was made by an older secret scanner',
+        },
+      },
+    });
+    expect(out).not.toContain('No risk-surface change');
+    expect(out).toContain(
+      '## FACTS diff — ⚠️ Secrets changed in existing files — not graded (the baseline was made by an older secret scanner)',
+    );
+    expect(out).toContain('### Findings');
+    expect(out).toMatch(
+      /- \*\*Secrets in existing files — not graded\*\* \(the baseline was made by an older secret scanner; re-save the baseline[^)]*\): 1 new \(`src\/config\.ts`\), 0 fixed/,
+    );
+  });
+
+  it('a graded new risk still leads; an ungraded fixed-only change is not "no change"', () => {
+    const none = { new: 0, fixed: 0, newFiles: [] };
+    const u = { new: 0, fixed: 2, newFiles: [], reason: 'the secret rules changed' };
+    const fixedOnly = renderCiReport(makeDiff(), {
+      findings: { secrets: none, risks: none, ungradedSecrets: u },
+    });
+    expect(fixedOnly).toContain('Secrets changed in existing files — not graded');
+    const graded = renderCiReport(makeDiff(), {
+      findings: {
+        secrets: { new: 1, fixed: 0, newFiles: ['src/new.ts'] },
+        risks: none,
+        ungradedSecrets: { ...u, new: 1 },
+      },
+    });
+    expect(graded).toContain('New risks introduced');
+  });
+
+  it('a snapshot endpoint reports the vuln diff as unavailable, never as all-new', () => {
+    const out = renderCiReport(
+      makeDiff({
+        vulns: { new: ['GHSA-old'], fixed: [], severityShift: 4 },
+        files: { added: [], removed: [], changed: [], incomplete: true },
+      }),
+      { vulnsUnavailable: true },
+    );
+    expect(out).not.toContain('Risk surface grew');
+    expect(out).not.toContain('`GHSA-old`');
+    expect(out).toContain('Vulnerability diff unavailable');
+    expect(out).toMatch(/\| Vulnerabilities \| n\/a \| \d+ \| n\/a \|/);
   });
 });

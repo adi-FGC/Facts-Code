@@ -15,7 +15,13 @@
  * PACK string that includes its own header line.
  */
 
-import { encode, type PackHeader, type PackRow, type PackTable } from '@factstack/factspack';
+import {
+  encode,
+  mapLiteralDashes,
+  type PackHeader,
+  type PackRow,
+  type PackTable,
+} from '@factstack/factspack';
 import type { AgentArtifact, Risk, RouteDecl, EnvVar, SymbolEdge } from '@factstack/spec';
 import type { ExtractedSymbol } from '@factstack/extractors';
 import type { LearningEvent, QueryResult } from '@factstack/core';
@@ -24,6 +30,16 @@ const PRODUCER = 'factstack/0.3.10';
 
 function header(schema: string, snapshotId: string): PackHeader {
   return { producer: PRODUCER, schema, snapshotId, rowCount: null };
+}
+
+/** Encode one response. A literal cell that is exactly `-` decodes back as
+ *  null (spec §10/S12), so the encoder rejects it — and that rejection failed
+ *  the WHOLE tool call for a learning whose reasoning is "-" or a risk message
+ *  of "-" (data-model#9). One mapLiteralDashes pass over EVERY table (the same
+ *  pass agent.pack runs) turns it into dash-space: reads the same, never null.
+ *  Patching columns one by one kept missing the next free-text column. */
+function encodeTables(schema: string, snapshotId: string, tables: PackTable[]): string {
+  return encode({ header: header(schema, snapshotId), tables: tables.map(mapLiteralDashes) });
 }
 
 /* ───────────── query_graph → PACK ─────────────
@@ -69,7 +85,7 @@ export function queryGraphToPack(result: QueryResult, snapshotId: string): strin
     });
   }
 
-  return encode({ header: header('query-graph-v1', snapshotId), tables });
+  return encodeTables('query-graph-v1', snapshotId, tables);
 }
 
 /* ───────────── list_risks → PACK ─────────────
@@ -105,7 +121,7 @@ export function listRisksToPack(risks: Risk[], snapshotId: string): string {
       rows,
     },
   ];
-  return encode({ header: header('risks-v1', snapshotId), tables });
+  return encodeTables('risks-v1', snapshotId, tables);
 }
 
 /* ───────────── get_outline → PACK ─────────────
@@ -160,29 +176,26 @@ export function getOutlineToPack(
     e.kind,
     e.confidence ?? 'extracted',
   ]);
-  return encode({
-    header: header('outline-v2', snapshotId),
-    tables: [
-      {
-        name: 'declarations',
-        columns: [
-          { name: 'id' },
-          { name: 'name' },
-          { name: 'kind' },
-          { name: 'start' },
-          { name: 'end' },
-          { name: 'exp' },
-          { name: 'parent' },
-        ],
-        rows,
-      },
-      {
-        name: 'refs',
-        columns: [{ name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' }],
-        rows: refRows,
-      },
-    ],
-  });
+  return encodeTables('outline-v2', snapshotId, [
+    {
+      name: 'declarations',
+      columns: [
+        { name: 'id' },
+        { name: 'name' },
+        { name: 'kind' },
+        { name: 'start' },
+        { name: 'end' },
+        { name: 'exp' },
+        { name: 'parent' },
+      ],
+      rows,
+    },
+    {
+      name: 'refs',
+      columns: [{ name: 'id' }, { name: 'S' }, { name: 'T' }, { name: 'kind' }, { name: 'conf' }],
+      rows: refRows,
+    },
+  ]);
 }
 
 /* ───────────── query (subgraph) → PACK ─────────────
@@ -237,9 +250,11 @@ export function subgraphToPack(
     meta.set(s.id, { path: s.path, line: s.startLine, name: s.name, kind: s.kind });
   }
 
+  // An id with no known metadata gets null kind/name (absent), never a raw
+  // "-" literal — the encoder rejects that cell and would fail the call.
   const nodeRows: PackRow[] = result.nodes.map((id, i) => {
     const m = meta.get(id);
-    return [String(i), id, m?.path ?? id, m?.kind ?? '-', m?.name ?? '-'];
+    return [String(i), id, m?.path ?? id, m?.kind ?? null, m?.name ?? null];
   });
 
   const edgeRows: PackRow[] = result.edges.map((e, i) => [
@@ -297,7 +312,7 @@ export function subgraphToPack(
     },
   ];
 
-  return encode({ header: header('subgraph-v1', snapshotId), tables });
+  return encodeTables('subgraph-v1', snapshotId, tables);
 }
 
 /* ───────────── get_context (F4) → PACK ─────────────
@@ -400,7 +415,7 @@ export function contextToPack(result: ContextLike, snapshotId: string): string {
     },
   ];
 
-  return encode({ header: header('context-v1', snapshotId), tables });
+  return encodeTables('context-v1', snapshotId, tables);
 }
 
 /* ───────────── get_config → PACK ─────────────
@@ -423,23 +438,20 @@ export function getConfigToPack(envVars: EnvVar[], snapshotId: string): string {
       ]);
     }
   }
-  return encode({
-    header: header('envs-v1', snapshotId),
-    tables: [
-      {
-        name: 'envs',
-        columns: [
-          { name: 'id' },
-          { name: 'N' },
-          { name: 'F' },
-          { name: 'line' },
-          { name: 'access' },
-          { name: 'default' },
-        ],
-        rows,
-      },
-    ],
-  });
+  return encodeTables('envs-v1', snapshotId, [
+    {
+      name: 'envs',
+      columns: [
+        { name: 'id' },
+        { name: 'N' },
+        { name: 'F' },
+        { name: 'line' },
+        { name: 'access' },
+        { name: 'default' },
+      ],
+      rows,
+    },
+  ]);
 }
 
 /* ───────────── query_learnings → PACK ─────────────
@@ -465,27 +477,24 @@ export function queryLearningsToPack(events: LearningEvent[], snapshotId: string
     e.reasoning ?? null,
     e.meta ? JSON.stringify(e.meta) : null,
   ]);
-  return encode({
-    header: header('learnings-v1', snapshotId),
-    tables: [
-      {
-        name: 'learnings',
-        columns: [
-          { name: 'id' },
-          { name: 'ts' },
-          { name: 'A' },
-          { name: 'M' },
-          { name: 'action' },
-          { name: 'outcome' },
-          { name: 'ticket' },
-          { name: 'conf' },
-          { name: 'reason' },
-          { name: 'meta' },
-        ],
-        rows,
-      },
-    ],
-  });
+  return encodeTables('learnings-v1', snapshotId, [
+    {
+      name: 'learnings',
+      columns: [
+        { name: 'id' },
+        { name: 'ts' },
+        { name: 'A' },
+        { name: 'M' },
+        { name: 'action' },
+        { name: 'outcome' },
+        { name: 'ticket' },
+        { name: 'conf' },
+        { name: 'reason' },
+        { name: 'meta' },
+      ],
+      rows,
+    },
+  ]);
 }
 
 /**

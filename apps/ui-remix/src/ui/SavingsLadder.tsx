@@ -5,11 +5,14 @@
  * (lib/savingsLadder.ts), mirroring the computeSankey / SankeyDiagram split.
  * This file decides nothing about the data.
  *
- * Reading the chart: one row per model on a shared log10 dollar axis. The
- * hollow dot is what one whole-codebase send costs on that model; the solid
- * accent bar is what the same send costs as a FACTS artifact; the hairline
- * between them is the saving. Because the axis is logarithmic, that hairline
- * is the SAME LENGTH on every row — the artifact's effect, drawn.
+ * Reading the chart: one row per model on a shared log10 dollar axis, each
+ * mark the MINIMUM cost of reading this project once before a change request
+ * (see lib/savingsLadder.ts for exactly what is and is not counted). The
+ * hollow dot is one read of the whole codebase; the solid accent tick is one
+ * read of the FACTS artifact. Because the axis is logarithmic, the hairline
+ * between them is the SAME LENGTH on every row. The axis names its unit and
+ * its scale on the chart itself, and the readout prints both figures, so
+ * nothing needs a hover to be read.
  *
  * CSP: every dynamic value is an SVG presentation attribute (x, y, width,
  * fill, stroke, stroke-width, stroke-dasharray, text-anchor). No `style=`
@@ -27,7 +30,6 @@ import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
 import {
   computeSavingsLadder,
-  fmtLadderUsd,
   type LadderModel,
   type LadderProject,
 } from '../lib/savingsLadder.ts';
@@ -93,15 +95,6 @@ const legend = css({
   marginBottom: 'var(--space-3)',
 });
 
-const finding = css({
-  fontFamily: 'var(--font-body)',
-  fontSize: 'var(--fs-12)',
-  lineHeight: '1.5',
-  color: 'var(--fg-muted)',
-  marginTop: 'var(--space-3)',
-  maxWidth: '64ch',
-});
-
 const unpricedNote = css({
   fontFamily: 'var(--font-body)',
   fontSize: 'var(--fs-12)',
@@ -136,8 +129,7 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
       <figure mix={figure}>
         <div mix={legend}>
           <span>○ whole codebase</span>
-          <span>▮ with FACTS</span>
-          <span>— the saving</span>
+          <span>▮ FACTS artifact</span>
           {L.rows.some((r) => r.flagged) && <span>* price not vendor-confirmed</span>}
         </div>
 
@@ -164,24 +156,24 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
             ))}
           </g>
 
-          {/* The crossover rule: where the dearest artifact run sits. */}
-          {L.crossover && (
-            <line
-              x1={L.crossover.x}
-              x2={L.crossover.x}
-              y1={L.plotTop}
-              y2={L.plotBottom}
-              stroke="var(--accent)"
-              stroke-width="1"
-              stroke-dasharray="3 3"
-              stroke-opacity="0.5"
-            />
+          {/* Column header for the readout, side layout only: stacked rows
+              carry their readout on the label line, under the legend. */}
+          {!stacked && (
+            <text
+              mix={axisLabel}
+              x={L.width}
+              y={L.plotTop - 8}
+              text-anchor="end"
+              dominant-baseline="middle"
+            >
+              whole vs FACTS
+            </text>
           )}
 
           <g>
             {L.rows.map((r) => (
               <g key={`row-${r.id}`}>
-                {/* The saving, drawn: a constant-length hairline on every row. */}
+                {/* The gap, drawn: a constant-length hairline on every row. */}
                 <line
                   x1={r.artifactX}
                   x2={r.fullX}
@@ -200,9 +192,9 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                   stroke="var(--fg-muted)"
                   stroke-width="1.25"
                 >
-                  <title>{`${r.label}: ${fmtLadderUsd(r.fullCost)} to send the whole codebase`}</title>
+                  <title>{`${r.label}: ${r.fullText} to read the whole codebase once`}</title>
                 </circle>
-                {/* Artifact cost: solid, accent — the number you actually pay. */}
+                {/* Artifact cost: solid, accent. */}
                 <rect
                   x={r.artifactX - 1.5}
                   y={r.y - 5}
@@ -211,7 +203,7 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                   rx="0.75"
                   fill="var(--accent)"
                 >
-                  <title>{`${r.label}: ${fmtLadderUsd(r.artifactCost)} with the FACTS artifact — saves ${fmtLadderUsd(r.savedCost)}`}</title>
+                  <title>{`${r.label}: ${r.artifactText} to read the FACTS artifact once. Opening the files the change touches costs extra.`}</title>
                 </rect>
 
                 {!stacked && (
@@ -248,24 +240,39 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                   </text>
                 )}
 
+                {/* Both figures, in legend order. Presentation `fill` on each
+                    tspan beats the inherited class colour, and stays CSP-safe. */}
                 <text
                   mix={rowValue}
                   x={L.width}
-                  y={r.y}
+                  y={stacked ? r.y - 11 : r.y}
                   text-anchor="end"
                   dominant-baseline="middle"
                 >
-                  {r.valueText}
+                  <tspan fill="var(--fg-muted)">{r.fullText}</tspan>
+                  <tspan fill="var(--fg-faint)"> vs </tspan>
+                  <tspan>{r.artifactText}</tspan>
                 </text>
               </g>
             ))}
           </g>
 
-          {/* Axis labels: dollars for ONE whole-codebase send of this repo. */}
+          {/* Axis: decade labels, then the axis's own name and scale. */}
           <g>
             {L.axisTicks.map((t, i) => (
-              <text key={`axl-${i}`} mix={axisLabel} x={t.x} y={L.height - 8} text-anchor="middle">
+              <text key={`axl-${i}`} mix={axisLabel} x={t.x} y={L.tickY} text-anchor="middle">
                 {t.label}
+              </text>
+            ))}
+            {L.axisTitle.map((t, i) => (
+              <text
+                key={`axt-${i}`}
+                mix={axisLabel}
+                x={(L.plotLeft + L.plotRight) / 2}
+                y={t.y}
+                text-anchor="middle"
+              >
+                {t.text}
               </text>
             ))}
           </g>
@@ -289,9 +296,8 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
               <tr>
                 <th scope="col">Model</th>
                 <th scope="col">Vendor</th>
-                <th scope="col">Whole codebase</th>
-                <th scope="col">With FACTS</th>
-                <th scope="col">Saved</th>
+                <th scope="col">Whole codebase, read once</th>
+                <th scope="col">FACTS artifact, read once</th>
               </tr>
             </thead>
             <tbody>
@@ -301,16 +307,13 @@ export function SavingsLadder(handle: Handle<SavingsLadderProps>) {
                     {r.flagged ? `${r.label} (price not vendor-confirmed)` : r.label}
                   </th>
                   <td>{r.vendor}</td>
-                  <td>{fmtLadderUsd(r.fullCost)}</td>
-                  <td>{fmtLadderUsd(r.artifactCost)}</td>
-                  <td>{fmtLadderUsd(r.savedCost)}</td>
+                  <td>{r.fullText}</td>
+                  <td>{r.artifactText}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-
-        {L.crossover && <figcaption mix={finding}>{L.crossover.caption}</figcaption>}
 
         {L.unpriced.length > 0 && (
           <p mix={unpricedNote}>

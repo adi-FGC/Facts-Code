@@ -1,8 +1,14 @@
 # Cloudflare Pages SPA fallback.
 # The dashboard is a client-side-routed SPA (see src/lib/routes.ts): /review,
-# /graph, /flow, etc. are rendered in the browser, not as separate HTML files.
+# /files, /docs, etc. are rendered in the browser, not as separate HTML files.
 # Without this rule a hard load of a deep link (or a refresh on /review) 404s.
 # Mirror of the Netlify `[[redirects]] /* -> /index.html 200` in netlify.toml.
+#
+# Files that exist are served as themselves, before this rewrite (live
+# 2026-09-24: /data/factstack.json → application/json, /robots.txt →
+# text/plain), so /mcp-auth-config.json needs no exclusion here. If it comes
+# back as text/html, that deploy was built WITHOUT it and this rule served
+# index.html — `gen-fb-config.mjs --require` in deploy:cf now blocks that.
 #
 # NOTE: do NOT add a 404.html + a `/assets/* /404.html 404` rule. On Cloudflare
 # Pages a 404.html in the build output takes precedence over this 200 catch-all

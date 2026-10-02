@@ -13,6 +13,8 @@
  * unstable iteration. Line numbers are 1-indexed.
  */
 
+import { lineIndex } from './line-index.js';
+
 /** A column in a CREATE TABLE. `type` is the declared type token (e.g.
  *  `VARCHAR(255)`, `INT`, `NUMERIC(10,2)`) — best-effort, for display. */
 export interface SqlColumn {
@@ -149,14 +151,6 @@ function unquote(id: string): string {
   return t;
 }
 
-/** 1-indexed line number of a character offset. */
-function lineAt(text: string, index: number): number {
-  let line = 1;
-  const cap = Math.min(index, text.length);
-  for (let i = 0; i < cap; i++) if (text.charCodeAt(i) === 10) line++;
-  return line;
-}
-
 /** Index of the `)` matching the `(` at `openIdx`, or -1 if unbalanced. */
 function matchParen(text: string, openIdx: number): number {
   let depth = 0;
@@ -214,9 +208,10 @@ function resolveTarget(schema: string | undefined, name: string): string {
   return qualify(schema ? unquote(schema) : null, unquote(name));
 }
 
-/** Parse one CREATE TABLE body into columns + foreign keys. */
+/** Parse one CREATE TABLE body into columns + foreign keys. `lineAt` maps an
+ *  offset in the sanitized source to its 1-indexed line. */
 function parseTableBody(
-  source: string,
+  lineAt: ReturnType<typeof lineIndex>,
   body: string,
   baseIndex: number,
 ): {
@@ -230,7 +225,7 @@ function parseTableBody(
     const trimmed = seg.text.trim();
     if (!trimmed) continue;
     const leadOffset = seg.text.length - seg.text.trimStart().length;
-    const line = lineAt(source, seg.index + leadOffset);
+    const line = lineAt(seg.index + leadOffset);
 
     // Table-level (or named CONSTRAINT … ) FOREIGN KEY.
     if (/\bFOREIGN\s+KEY\b/i.test(trimmed)) {
@@ -288,6 +283,7 @@ const FROM_JOIN_RE = new RegExp(`\\b(?:FROM|JOIN)\\s+(${IDENT})(?:\\.(${IDENT}))
  */
 export function parseSql(source: string): ParsedSql {
   const sql = sanitizeSql(source);
+  const lineAt = lineIndex(sql);
   const tables: SqlTable[] = [];
   const views: SqlView[] = [];
 
@@ -303,14 +299,14 @@ export function parseSql(source: string): ParsedSql {
     const closeIdx = matchParen(sql, openIdx);
     if (closeIdx < 0) continue;
     const body = sql.slice(openIdx + 1, closeIdx);
-    const { columns, foreignKeys } = parseTableBody(sql, body, openIdx + 1);
+    const { columns, foreignKeys } = parseTableBody(lineAt, body, openIdx + 1);
     tables.push({
       schema,
       name,
       qualified: qualify(schema, name),
       columns,
       foreignKeys,
-      line: lineAt(sql, tm.index),
+      line: lineAt(tm.index),
     });
   }
 
@@ -341,7 +337,7 @@ export function parseSql(source: string): ParsedSql {
       name,
       qualified: qualify(schema, name),
       referencedTables: referenced,
-      line: lineAt(sql, vm.index),
+      line: lineAt(vm.index),
     });
   }
 

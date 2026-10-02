@@ -14,6 +14,7 @@
  *   - Intent fallback: empty `intent` falls back to `oneLiner`.
  */
 
+import type { AgentArtifact } from '@factstack/spec';
 import { describe, expect, it } from 'vitest';
 import { agentToSkillSpec } from '../src/extract.js';
 import { CAPS, ONBOARDING_SEQUENCE } from '../src/types.js';
@@ -142,14 +143,13 @@ describe('agentToSkillSpec — map fields', () => {
        x has in-degree 3, y has in-degree 1. */
     const agent = makeAgent({
       graph: {
-        nodes: [],
+        ...makeAgent().graph,
         edges: [
-          { from: 'a', to: 'x', kind: 'import' },
-          { from: 'b', to: 'x', kind: 'import' },
-          { from: 'c', to: 'x', kind: 'import' },
-          { from: 'd', to: 'y', kind: 'import' },
+          { from: 'a', to: 'x', kind: 'import', confidence: 'extracted' },
+          { from: 'b', to: 'x', kind: 'import', confidence: 'extracted' },
+          { from: 'c', to: 'x', kind: 'import', confidence: 'extracted' },
+          { from: 'd', to: 'y', kind: 'import', confidence: 'extracted' },
         ],
-        cycles: [],
       },
     });
     const spec = agentToSkillSpec(agent, makeHuman());
@@ -177,8 +177,8 @@ describe('agentToSkillSpec — risk surface', () => {
   it('only includes high + critical risks', () => {
     const agent = makeAgent({
       risks: [
-        { severity: 'low' as const, category: 'todo', rule: 'r-low', message: 'low' },
-        { severity: 'medium' as const, category: 'todo', rule: 'r-med', message: 'med' },
+        { severity: 'low' as const, category: 'stale', rule: 'r-low', message: 'low' },
+        { severity: 'medium' as const, category: 'stale', rule: 'r-med', message: 'med' },
         { severity: 'high' as const, category: 'secret', rule: 'r-high', message: 'hi' },
         { severity: 'critical' as const, category: 'secret', rule: 'r-crit', message: 'cr' },
       ],
@@ -260,16 +260,15 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
        AGENTS.md byte-identical across runs. */
     const agent = makeAgent({
       graph: {
-        nodes: [],
+        ...makeAgent().graph,
         edges: [
-          { from: 's1', to: 'zebra.ts', kind: 'import' },
-          { from: 's2', to: 'zebra.ts', kind: 'import' },
-          { from: 's3', to: 'apple.ts', kind: 'import' },
-          { from: 's4', to: 'apple.ts', kind: 'import' },
-          { from: 's5', to: 'mango.ts', kind: 'import' },
-          { from: 's6', to: 'mango.ts', kind: 'import' },
+          { from: 's1', to: 'zebra.ts', kind: 'import', confidence: 'extracted' },
+          { from: 's2', to: 'zebra.ts', kind: 'import', confidence: 'extracted' },
+          { from: 's3', to: 'apple.ts', kind: 'import', confidence: 'extracted' },
+          { from: 's4', to: 'apple.ts', kind: 'import', confidence: 'extracted' },
+          { from: 's5', to: 'mango.ts', kind: 'import', confidence: 'extracted' },
+          { from: 's6', to: 'mango.ts', kind: 'import', confidence: 'extracted' },
         ],
-        cycles: [],
       },
     });
     // All three share in-degree 2 → ascending path order, not insertion order.
@@ -283,14 +282,19 @@ describe('agentToSkillSpec — sort, tiebreak + edge cases (gap coverage)', () =
   it('caps keyFiles at CAPS.keyFiles, keeping the highest in-degree', () => {
     /* The existing keyFiles test only has 2 hubs (< cap), so the
        `.slice(0, limit)` on keyFiles is never verified. */
-    const edges: { from: string; to: string; kind: 'import' }[] = [];
+    const edges: AgentArtifact['graph']['edges'] = [];
     // hub{i} gets in-degree i+1; build CAPS.keyFiles + 2 hubs so the cap bites.
     for (let i = 0; i <= CAPS.keyFiles + 1; i++) {
       for (let j = 0; j <= i; j++)
-        edges.push({ from: `s${i}_${j}`, to: `hub${i}.ts`, kind: 'import' });
+        edges.push({
+          from: `s${i}_${j}`,
+          to: `hub${i}.ts`,
+          kind: 'import',
+          confidence: 'extracted',
+        });
     }
     const spec = agentToSkillSpec(
-      makeAgent({ graph: { nodes: [], edges, cycles: [] } }),
+      makeAgent({ graph: { ...makeAgent().graph, edges } }),
       makeHuman(),
     );
     expect(spec.keyFiles).toHaveLength(CAPS.keyFiles);

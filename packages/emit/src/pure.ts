@@ -22,3 +22,12 @@ export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';
 export { writeArtifactsTo } from './orchestrator.js';
 export type { EmitProfile, WriteArtifactsToOptions, WriteArtifactsResult } from './orchestrator.js';
+export {
+  RAW_JSON_ARTIFACTS,
+  StaleResaveError,
+  packGeneratedAt,
+  parseStaleMark,
+  staleHint,
+  staleMarkName,
+} from './stale-mark.js';
+export type { RawJsonArtifact, StaleMark } from './stale-mark.js';

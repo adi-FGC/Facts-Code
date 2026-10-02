@@ -22,6 +22,7 @@
  * as a result. This helper unlocks Astro projects with ~30 lines.
  */
 
+import { stripLeadingBom } from '@factstack/spec';
 import { parseJS, type ParsedFile } from './parse.js';
 
 /* Astro frontmatter delimiter. Spec says exactly three hyphens on a
@@ -57,7 +58,7 @@ export function extractAstroFrontmatter(source: string): AstroFrontmatter | null
   /* Strip a UTF-8 BOM if present (rare but happens with Windows
      editors). Doing it on the original string keeps the line offset
      accurate — BOMs don't introduce a newline. */
-  const trimmed = source.charCodeAt(0) === 0xfeff ? source.slice(1) : source;
+  const trimmed = stripLeadingBom(source);
 
   const lines = trimmed.split(/\r\n|\n|\r/);
   if (lines.length === 0) return null;

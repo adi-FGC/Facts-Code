@@ -3,13 +3,14 @@
  *
  * Runs the Google popup via the Firebase Web SDK (loaded from the gstatic CDN,
  * allowed by this page's scoped CSP — see public/_headers `/mcp-auth.html`),
- * then hands the resulting Firebase ID + refresh tokens back to the local
- * `factstack-mcp login` process over its 127.0.0.1 loopback. The MCP uses those
- * to write the user's data to Firestore, scoped to their uid by the rules.
+ * then hands the resulting Firebase ID + refresh tokens back to the local MCP
+ * `login` process over its 127.0.0.1 loopback. The MCP uses those for its
+ * OPTIONAL cloud learnings sync (a Firestore mirror scoped to the user's uid by
+ * the rules). Every local MCP tool works without signing in.
  *
  * The Firebase config is the PUBLIC web config, but it is NOT committed to this
  * repo — it's fetched same-origin from `/mcp-auth-config.json`, which the build
- * generates from the owner's local (gitignored) fb.mjs (see scripts/gen-fb-config.mjs).
+ * generates (see scripts/gen-fb-config.mjs: fb.mjs or FACTS_FB_WEB_CONFIG).
  * It only identifies the project; Firestore rules do the actual access control.
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
@@ -19,9 +20,17 @@ import {
   signInWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 
+// The sign-in command to run today. The MCP package is not on npm yet (spec's
+// MCP_PUBLISHED is false), and `npx -y` on an unclaimed name runs whatever
+// claims it, unprompted (MCP-R4). So this is the from-a-clone launch, the same
+// as apps/mcp-server/src/auth.ts SIGN_IN_COMMAND. test/mcpAuthPage.test.ts
+// fails if this page offers the npx form before publish, or keeps the clone
+// form after it.
+const SIGN_IN_COMMAND = 'npx tsx apps/mcp-server/src/server.ts login';
+
 const params = new URLSearchParams(location.search);
 const port = params.get('port');
-// One-time nonce minted by `factstack-mcp login` and passed in the URL. We echo
+// One-time nonce minted by the MCP `login` command and passed in the URL. We echo
 // it back on the callback so the local loopback can prove the token came from
 // THIS sign-in (not a hostile page blindly POSTing to 127.0.0.1) — see auth.ts.
 const state = params.get('state');
@@ -31,11 +40,19 @@ const setStatus = (t) => {
 };
 
 // Load the PUBLIC Firebase web config (served same-origin, generated at build
-// from the owner's local fb.mjs — kept out of the repo), then init Firebase.
+// time — kept out of the repo), then init Firebase. A deployment built without
+// it still answers 200: the SPA fallback serves index.html (text/html) for the
+// missing file, so check the type instead of failing inside res.json().
 let auth = null;
 try {
-  const res = await fetch('/mcp-auth-config.json');
-  if (!res.ok) throw new Error('config ' + res.status);
+  const res = await fetch('/mcp-auth-config.json', { cache: 'no-store' });
+  const type = res.headers.get('content-type') || '';
+  if (!res.ok || !type.includes('json')) {
+    throw new Error(
+      'this deployment was built without its sign-in config (mcp-auth-config.json is missing). ' +
+        'Local MCP tools still work without signing in.',
+    );
+  }
   auth = getAuth(initializeApp(await res.json()));
 } catch (e) {
   setStatus(
@@ -46,7 +63,9 @@ try {
 
 if (!port || !state) {
   setStatus(
-    'This page must be opened by `factstack-mcp login` in your terminal (missing the one-time link parameters).',
+    'This page must be opened by the FACTS MCP sign-in in your terminal (from a clone of the FACTS repo: `' +
+      SIGN_IN_COMMAND +
+      '`). It is missing the one-time link parameters.',
   );
   btn.disabled = true;
 }
@@ -80,7 +99,9 @@ btn.addEventListener('click', async () => {
       );
     } else {
       setStatus(
-        'Signed in, but couldn’t reach the local FACTS process. Is `factstack-mcp login` still running?',
+        'Signed in, but couldn’t reach the local FACTS process. Is `' +
+          SIGN_IN_COMMAND +
+          '` still running?',
       );
       btn.disabled = false;
     }

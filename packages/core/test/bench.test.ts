@@ -84,6 +84,10 @@ function makeAgent(): AgentArtifact {
     capabilities: [],
     risks: [],
     stats: { loc: 200, fileCount: 4, packageCount: 1, totalTokenCost: 1000 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
   } as AgentArtifact;
 }
 

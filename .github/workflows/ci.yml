@@ -17,9 +17,10 @@ jobs:
         with:
           fetch-depth: 50
 
-      # pnpm version comes from package.json "packageManager" (pnpm@11.3.0).
-      # Do NOT also set `version:` here — action-setup@v4 errors on a dual spec.
-      - uses: pnpm/action-setup@v4
+      # pnpm version comes from package.json "packageManager" (pnpm@12.8.1).
+      # Do NOT also set `version:` here — action-setup errors on a dual spec.
+      # v6.1.0 is the first release that supports pnpm 12.
+      - uses: pnpm/action-setup@v6
 
       # Node 24 = the root engines floor (>=24.3.0), which Remix 3 (ui-remix)
       # requires; netlify.toml and cve-refresh.yml build on the same major.
@@ -36,7 +37,9 @@ jobs:
       # but never enforced, and a formatter pass could land unchecked.
       # `lint:boundaries` (eslint) fails on C1/C2 violations and on the
       # error-level rules of js/typescript-eslint recommended; the style rules
-      # listed in eslint.config.mjs are downgraded to warnings.
+      # listed in eslint.config.mjs are downgraded to warnings. It then runs
+      # test/boundaries.test.mjs, which proves the gate CAN fail: known-bad
+      # probe imports (static, import(), require(), relative) must be reported.
       - name: Lint + boundaries + format
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -50,6 +53,24 @@ jobs:
 
       - name: Tests
         run: pnpm turbo test
+
+      # The CLI's local UI (the hardened legacy prototype behind `factstack ui`,
+      # `export` and `quick`) rendered in headless Chromium with a dataset whose
+      # every string is a markup payload (security#3). `pnpm turbo test` above
+      # runs before any browser is installed, so there the suite SKIPS; here it
+      # gets Chromium and FACTS_UI_DOM_TEST=1 turns a missing browser into a
+      # failure instead of a skip. BLOCKING — no continue-on-error. Chromium is
+      # installed by apps/cli's OWN `playwright` devDependency (pinned 1.60.0).
+      # The test file still loads Playwright through ui-remix's @playwright/test,
+      # which finds this browser only while the lockfile resolves ONE playwright
+      # version; test/workflows.test.mjs fails if it resolves more than one.
+      - name: Legacy UI — DOM XSS regression (headless Chromium)
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          FACTS_UI_DOM_TEST: '1'
+        run: |
+          pnpm --filter @factstack/cli exec playwright install --with-deps chromium
+          pnpm --filter @factstack/cli exec vitest run scripts/test/legacy-ui-dom.test.ts
 
       # Smoke: the CLI should analyze itself and produce valid artifacts.
       # Golden-master fixture: re-run and diff against committed summary.
@@ -70,6 +91,13 @@ jobs:
           "
           rm -f smoke.json
 
+      # Repo-root tests (test/): the deploy scripts, the Cloudflare _headers
+      # model, the strict-CSP page guard, the public-bake scrub (end to end
+      # over the .facts/ the smoke step just wrote), the evaluator hardening
+      # and the root scripts. Every OS: several of them are about paths.
+      - name: Root tests (deploy tooling + boundary probes)
+        run: pnpm test:root
+
       # OPD-2: build the web dashboard in CI so bundler errors AND the
       # CSP-hash/connect-src drift guard (check-bundle-size.mjs) run pre-deploy
       # — not silently first on Netlify/Cloudflare. That script also prints the
@@ -80,6 +108,18 @@ jobs:
       - name: Build web dashboard (bundle + CSP guards)
         run: pnpm --filter @factstack/ui-remix build:static
 
+      # First paint on the build above, under Lighthouse's mobile Slow 4G +
+      # 4x CPU (scripts/perf-report.mjs). REPORT-ONLY for now: the numbers go to
+      # the job summary and the step can never turn the job red. Once they are
+      # stable, set PERF_WARN_LCP_MS (a warning) or make it a budget.
+      - name: First-paint report (report-only)
+        if: matrix.os == 'ubuntu-latest'
+        continue-on-error: true
+        timeout-minutes: 10
+        run: |
+          pnpm --filter @factstack/ui-remix exec playwright install --with-deps chromium
+          pnpm --filter @factstack/ui-remix perf:report
+
       # Determinism gate (F13): re-run the benchmark over the committed corpus and
       # fail if the byte output drifts from bench/expected.json. Runs on every OS in
       # the matrix, which also verifies the corpus .gitattributes LF pinning keeps
@@ -88,3 +128,25 @@ jobs:
       - name: Bench — determinism gate
         shell: bash
         run: ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts bench --check
+
+      # deploy-infra#7: prove the distributable, not just the source. The
+      # bundle test inside `pnpm turbo test` builds a bundle into a temp dir and
+      # runs it on a small fixture; this builds the real publish folder
+      # (apps/cli/publish/, gitignored), runs it with plain Node over this repo
+      # and lists what `npm pack` would ship. NEVER publishes: publishing is the
+      # owner's (apps/cli/PUBLISHING.md). Last, so its .facts/ rewrite cannot
+      # change what the dashboard build above baked.
+      - name: CLI bundle — build, run, pack (dry run)
+        shell: bash
+        run: |
+          pnpm --filter @factstack/cli pack:dry-run
+          node apps/cli/publish/dist/cli.js --version
+          # cwd-relative output file, not /tmp — see the Smoke step.
+          node apps/cli/publish/dist/cli.js analyze . --no-progress --json > bundle-smoke.json
+          node -e "
+            const j = JSON.parse(require('fs').readFileSync('bundle-smoke.json','utf8'));
+            if (!j.ok) throw new Error('bundled analyze failed');
+            if (!j.stats || j.stats.fileCount < 10) throw new Error('fileCount too low: ' + j.stats?.fileCount);
+            console.log('[bundle] analyzed files=' + j.stats.fileCount);
+          "
+          rm -f bundle-smoke.json

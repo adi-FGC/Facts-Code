@@ -18,16 +18,26 @@ import type {
   FileOutline,
   HumanArtifact,
 } from '@factstack/spec';
-import { FACTS_SCHEMA_VERSION, NEVER_TEXT_EXTENSIONS, byCodeUnit } from '@factstack/spec';
+import {
+  FACTS_SCHEMA_VERSION,
+  NEVER_TEXT_EXTENSIONS,
+  SECRET_SCAN_MAX_BYTES,
+  byCodeUnit,
+} from '@factstack/spec';
 import { computeHealth } from './health.js';
 export { computeHealth } from './health.js';
 import { walk, type WalkedFile } from '@factstack/walker';
 import {
   applyRewrite,
   approximateTokens,
+  attachResolvedVersions,
   deriveLicenseRisks,
   detectLanguage,
+  detectLicenseText,
+  isLicenseFileName,
+  isLockfilePath,
   mergeFrameworks,
+  parseLockfile,
   scanFileLicense,
   scanFrameworksFromPackageJson,
   scanFrameworksFromRequirements,
@@ -40,6 +50,7 @@ import {
   cssOrigin,
   extractStyleBlocks,
   type CssSource,
+  type ParsedLockfile,
   type TodoEntry,
 } from '@factstack/scanners';
 import {
@@ -48,6 +59,7 @@ import {
   isAstro,
   isParseable,
   isPython,
+  isTestPath,
   type DetectedRoute,
   type EnvVarRead,
   type ExtractedSymbol,
@@ -63,14 +75,34 @@ import {
   aliasInScope,
   computeMetrics,
   resolveSpecifier,
+  resolvedKey,
+  stripSpecifierQuery,
   type ResolverContext,
 } from '@factstack/graph';
 import { buildDocFile, isDocFile } from './docs.js';
+import { isFenceClose, parseFenceOpen, type FenceOpen } from './md-fence.js';
+import { stripInlineMarkdown } from './plain-text.js';
+import { spdxHeaderLine } from './spdx-header.js';
 import { buildRationale } from './rationale.js';
 import { buildEntities, type EntitySource } from './entities.js';
 import { extractFileCached, type ExtractionCache } from './extraction-cache.js';
 
-export { diffArtifacts } from './diff.js';
+import { SECRET_GRADING_REV, withoutFingerprint } from './diff.js';
+
+export {
+  diffArtifacts,
+  diffFindings,
+  diffRiskSets,
+  riskFingerprint,
+  isExposedSecret,
+  isRollupEndpoint,
+  secretGrading,
+  withoutFingerprint,
+  SECRET_GRADING_REV,
+  type SecretGrading,
+  type SecretGradingReason,
+  type DiffRiskSetsOptions,
+} from './diff.js';
 export {
   extractFile,
   extractFileCached,
@@ -221,6 +253,11 @@ export interface AnalyzeOptions {
    *  vulnerability scan (`now: number = Date.now()`).
    *  FOLLOW-UP: thread this from the CLI/MCP adapters to retire the fallback. */
   generatedAt?: string | undefined;
+  /** Whole-scan caveats the host knows and the walk cannot see, e.g. the
+   *  browser GitHub scan's "truncated tree: some files were not scanned".
+   *  Emitted on `agent.project.scanWarnings` when non-empty (absent
+   *  otherwise, INV4). Plain sentences: never paths or file contents. */
+  scanWarnings?: string[] | undefined;
 }
 
 export interface AnalysisResult {
@@ -234,22 +271,34 @@ export interface AnalysisResult {
   };
 }
 
-/** Secret-only pass ceiling for files over the walker's parse cap. Formats
- *  that are never text (NEVER_TEXT_EXTENSIONS) are skipped whatever their
- *  size: grepping a 10 MB video for keys would only burn time. */
-const SECRET_SCAN_MAX_BYTES = 16 * 1024 * 1024;
+/* Secret-only pass ceiling for files over the walker's parse cap:
+   SECRET_SCAN_MAX_BYTES from @factstack/spec, the same constant the browser
+   GitHub download uses (INV7). Formats that are never text
+   (NEVER_TEXT_EXTENSIONS) are skipped whatever their size: grepping a 10 MB
+   video for keys would only burn time. */
 
-/** Test / fixture locations by convention: a `test`, `tests`, `__tests__`,
- *  `__mocks__`, `fixtures` or `testdata` directory segment, or a
- *  `*.test.*` / `*.spec.*` file name. Heuristic by design — a real credential
- *  committed under test/ is still listed, just not scored as exposed. */
+/** Data / config / lock formats: never a file-level SPDX license header. */
+const NO_LICENSE_HEADER_EXTS = new Set(['.json', '.yaml', '.yml', '.toml', '.lock']);
+
+/** tsconfig.json / tsconfig.base.json / jsconfig.*.json: their `paths` feed
+ *  the resolver's alias index. */
+const isTsconfigName = (name: string): boolean =>
+  (name.startsWith('tsconfig.') || name.startsWith('jsconfig.')) && name.endsWith('.json');
+
+/** How much of the README's first prose line the one-liner pass reads. The
+ *  one-liner keeps ≤ 240 chars; the slack covers link URLs and badges. */
+const README_LINE_SCAN_CAP = 2_000;
+
+/** Test / fixture locations by convention — the one shared helper
+ *  (@factstack/extractors `isTestPath`) in its strict form: test/fixture
+ *  directory segments and every language's test SOURCE naming
+ *  (`*.test.ts`, `*_test.go`, `test_*.py`, `conftest.py`, `*_spec.rb`).
+ *  Not e2e/, playwright/, cypress/ or testing/, and not `.env.test.local` /
+ *  `docker-compose.test.yml`: those hold real credentials. Heuristic by
+ *  design — a real credential committed under test/ is still listed, just
+ *  not scored as exposed. */
 export function isTestFixturePath(p: string): boolean {
-  const u = p.replace(/\\/g, '/');
-  return (
-    /(^|\/)(test|tests|__tests__|__mocks__|__fixtures__|fixtures|fixture|testdata|test-data)\//i.test(
-      u,
-    ) || /\.(test|spec)\.[cm]?[jt]sx?$/i.test(u)
-  );
+  return isTestPath(p, { strict: true });
 }
 
 export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<AnalysisResult> {
@@ -264,6 +313,12 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
      Vulnerabilities page + the MCP server's list_vulnerabilities tool
      + the CLI's scan-vulns subcommand. */
   const dependencyManifests: DependencyManifest[] = [];
+  /* Lockfiles (pnpm/npm/yarn) seen in the walk: what is INSTALLED. After the
+     walk each npm manifest carries its direct deps' installed versions
+     (`resolved`), so the dashboard's weekly refresh and the browser scan
+     query OSV with the same versions as the CLI (INV7). Text only, no
+     network (INV6). */
+  const lockfiles: ParsedLockfile[] = [];
   /* v0.8 — flagged documentation files with parsed structure. A raw-content
      budget keeps the artifact JSON bounded when a repo has many large docs. */
   const docs: AgentArtifact['docs'] = [];
@@ -289,12 +344,17 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   const detectedRoutes: DetectedRoute[] = [];
   const fileLicenses = new Map<string, string>();
   let projectLicense: string | null = null;
+  /* A root LICENSE / COPYING file: its SPDX id (when the text is
+     recognised) backs the project license when no manifest declares one. */
+  let hasLicenseFile = false;
+  let licenseFromFile: string | null = null;
   /* v0.3.6 — env-var read sites collected per file, aggregated below
      into the top-level `config.envVars` table. */
   const envVarReadsByFile = new Map<string, EnvVarRead[]>();
   /* F2 — per-file identifier references (call/read/jsx/type-ref), captured
      only when opts.symbols is set; fed to buildSymbolGraph below. */
   const refsByFile = new Map<string, RawRef[]>();
+  const tsconfigTexts: Array<{ path: string; text: string }> = [];
   let filesScanned = 0;
   let filesSkipped = 0;
   // Sources for the human-friendly one-liner, in priority order:
@@ -323,10 +383,29 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
      file + line (category 'secret', so the Credentials view and the CLI list
      it and a human can check), but at `low` severity; health.ts keeps it out
      of the grade and counts it on the headline instead, so it is never
-     silent. */
+     silent.
+
+     Owner decision 2026-09-24 — the generic heuristics (a secret-named
+     config value or field, a password in a connection URL) are reported as
+     UNGRADED "possible secrets" at `info`: listed with file + line and a
+     `***` preview, counted on the headline, never in the grade or in a
+     review's "new secret" count. Only the provider-specific detectors
+     above them are graded. */
   const pushSecrets = (path: string, hits: ReturnType<typeof scanSecrets>): void => {
     const fixture = isTestFixturePath(path);
     for (const s of hits) {
+      if (s.possible) {
+        secrets.push({
+          severity: 'info',
+          category: 'secret',
+          rule: s.ruleId,
+          file: s.file,
+          line: s.line,
+          message: `${s.ruleLabel} (entropy ${s.entropy}) — not graded; verify whether it is a real credential.`,
+          preview: s.preview,
+        });
+        continue;
+      }
       secrets.push({
         severity: fixture ? 'low' : 'high',
         category: 'secret',
@@ -337,6 +416,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
           ? `${s.ruleLabel}-shaped value in a test/fixture file (entropy ${s.entropy}). Verify it is a fixture, not a real credential.`
           : `${s.ruleLabel} detected (entropy ${s.entropy}). Rotate and remove from source.`,
         preview: s.preview,
+        /* correctness#1 — the scanner's one-way digest, on GRADED hits only,
+           so a review tells a key swapped in the same file (new) from the
+           same key moved (not). Stays in agent.json for diffing: human.json
+           and every list/credential payload drop it (SV-8). */
+        ...(!fixture && s.fingerprint ? { fingerprint: s.fingerprint } : {}),
       });
     }
   };
@@ -355,8 +439,22 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
         let secretScanned = false;
         if (f.size <= SECRET_SCAN_MAX_BYTES && !NEVER_TEXT_EXTENSIONS.has(f.ext.toLowerCase())) {
           try {
-            pushSecrets(f.path, scanSecrets(f.path, await fs.readText(f.path)));
+            const bigText = await fs.readText(f.path);
+            const hits = scanSecrets(f.path, bigText, { possible: true });
+            pushSecrets(f.path, hits);
             secretScanned = true;
+            /* A lockfile over the parse cap (package-lock.json often is) still
+               records what is installed; its versions are data, never a key.
+               Empty text (a host that lists the file without its content) is
+               no lockfile: manifests keep their declared ranges. */
+            if (isLockfilePath(f.path) && bigText.trim() !== '') {
+              const lock = parseLockfile(f.path, hits.length ? redactSecrets(bigText) : bigText);
+              if (lock) lockfiles.push(lock);
+            }
+            /* core-1: a generated tsconfig (a big Nx tsconfig.base.json) can
+               pass the parse cap; without its `paths` every aliased import
+               reads as external and its graph edge vanishes. */
+            if (isTsconfigName(f.name)) tsconfigTexts.push({ path: f.path, text: bigText });
           } catch {
             /* unreadable — the message below says it was not scanned */
           }
@@ -400,6 +498,12 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
 
     const lang = detectLanguage(f.ext);
     const rawText = f.text ?? '';
+    // Drop the walker's copy: `files` lives until analyze returns, and
+    // keeping every text in it held the whole repo in memory at peak.
+    f.text = null;
+    // tsconfig/jsconfig `paths` feed the resolver's alias index after the
+    // walk; keep just those (few) texts, already in hand.
+    if (isTsconfigName(f.name)) tsconfigTexts.push({ path: f.path, text: rawText });
     // Size metrics describe the file as it is on disk.
     const tokens = approximateTokens(rawText);
     const gzip = opts.gzip && isCompressibleExt(f.ext) ? opts.gzip(rawText) : null;
@@ -408,12 +512,14 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        docstrings, rationale, dependency specs, import sources, route paths,
        scripts and the README one-liner all end up in the artifact, and a
        flagged key must never ship verbatim next to the finding that hides it.
-       redactSecrets preserves every line break, so line numbers are exact. */
-    const secretHits = scanSecrets(f.path, rawText);
+       redactSecrets preserves every line break, so line numbers are exact.
+       Possible (ungraded) hits redact too: ungraded is not harmless. */
+    const secretHits = scanSecrets(f.path, rawText, { possible: true });
     const text = secretHits.length > 0 ? redactSecrets(rawText) : rawText;
 
     // v0.8 — flag documentation/spec files + parse their structure once.
-    if (isDocFile(f.path, f.ext, f.name)) {
+    const isDoc = isDocFile(f.path, f.ext, f.name);
+    if (isDoc) {
       const storeContent = docContentChars < DOC_TOTAL_BUDGET;
       const doc = buildDocFile({
         path: f.path,
@@ -454,6 +560,16 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        prevent the secret scan; both are independent passes. */
     const manifest = scanDependencyManifest(f.path, text);
     if (manifest) dependencyManifests.push(manifest);
+    /* Lockfile reads degrade to "no lockfile" (declared ranges), never to an
+       error: one the host could not read is a walker read_error and never
+       gets here, and an empty one (e.g. a GitHub scan that listed it without
+       content) is skipped. Defensive: every parser already resolves nothing
+       from '' today (parseYarnV1('') is an empty lockfile with no importers,
+       not null), so this pins that instead of relying on it. */
+    if (isLockfilePath(f.path) && text.trim() !== '') {
+      const lock = parseLockfile(f.path, text);
+      if (lock) lockfiles.push(lock);
+    }
 
     pushSecrets(f.path, secretHits);
 
@@ -508,9 +624,20 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       readmeOneLiner = extractReadmeFirstSentence(text);
     }
 
-    // File-header SPDX detection — cheap, per source file.
-    if (lang && lang.id !== 'json' && lang.id !== 'yaml' && lang.id !== 'toml') {
-      const fileLic = scanFileLicense(text);
+    if (f.dir === '' && isLicenseFileName(f.name)) {
+      hasLicenseFile = true;
+      licenseFromFile ??= detectLicenseText(text);
+    }
+
+    // File-header SPDX detection — cheap, on every text file the walk read,
+    // not only recognised languages: a GPL header in a .c, .h or .sh file
+    // binds just the same. Data/config formats carry no license header, and
+    // only a real header line counts: a doc or string that QUOTES the tag
+    // ("start each file with ``SPDX-License-Identifier: GPL-2.0``") is not
+    // the file's own license.
+    if (!NO_LICENSE_HEADER_EXTS.has(f.ext)) {
+      const header = spdxHeaderLine(text, isDoc);
+      const fileLic = header ? scanFileLicense(header) : null;
       if (fileLic) fileLicenses.set(f.path, fileLic);
     }
 
@@ -526,6 +653,17 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     if (extracted.imports.length) importsByFile.set(f.path, extracted.imports);
     if (opts.symbols && extracted.refs.length) refsByFile.set(f.path, extracted.refs);
     if (extracted.envReads.length) envVarReadsByFile.set(f.path, extracted.envReads);
+    /* A parse failure is not "an empty module": its imports and symbols are
+       unknown. Say so (risk + non-ok status) instead of grading it clean. */
+    if (extracted.parseFailed) {
+      secrets.push({
+        severity: 'medium',
+        category: 'parse-error',
+        rule: 'parse-error',
+        file: f.path,
+        message: `File could not be parsed — its imports and declarations are unknown, not empty.`,
+      });
+    }
 
     // Routes — file-path-based (Next/Remix/pages) + source-based
     // (Express-style, FastAPI, Flask, Django). Both passes contribute.
@@ -554,17 +692,15 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
          The symbol extractor already records the `exported` flag; pulling
          the export list out as a flat array gives agents an O(1) "what
          does this module surface?" question without rescanning the
-         declarations array. `isDefault` is approximated: a symbol named
-         literally `default` (default function/class export) is the
-         common case; named-but-default exports lose the flag here and
-         need declarations[] for full fidelity. Refining when v0.3.5
-         symbol-refs lands. */
+         declarations array. Export lists (`export { a }`) and
+         `export default App` mark the declaration itself, and the
+         extractor flags the default export (named or not). */
       exports: symbols
         .filter((s) => s.exported)
         .map((s) => ({
           name: s.name,
           kind: s.kind,
-          isDefault: s.name === 'default',
+          isDefault: s.isDefault === true || s.name === 'default',
         })),
       declarations: symbols.map((s) => ({
         name: s.name,
@@ -592,7 +728,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
       // now emit explicit null so Zod validates.
       todos: todoEntries.map((t) => ({ ...t, authoredAt: null })),
       complexity: { cyclomatic: 0, cognitive: 0 },
-      status: 'ok',
+      status: extracted.parseFailed ? 'parse_error' : 'ok',
       // Prefer git-mined timestamps over fs.stat when available — the
       // latter is clone-time, not authoring-time.
       lastModifiedMs: opts.gitStats?.get(f.path)?.lastModifiedMs ?? f.mtimeMs ?? null,
@@ -618,27 +754,17 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // tsconfig/jsconfig `paths` aliases → let bare specifiers like `@lib/foo`
   // resolve to internal files. Without this, every aliased import is
   // mislabeled "external" and its dependency-graph edge silently vanishes.
-  // We re-read the (few) config files here rather than thread them through
-  // the per-file loop — cheap, and keeps the collection self-contained.
-  const tsconfigTexts: Array<{ path: string; text: string }> = [];
-  for (const f of files) {
-    const base = f.path.slice(f.path.lastIndexOf('/') + 1);
-    if ((base.startsWith('tsconfig.') || base.startsWith('jsconfig.')) && base.endsWith('.json')) {
-      try {
-        tsconfigTexts.push({ path: f.path, text: await fs.readText(f.path) });
-      } catch {
-        /* unreadable config — skip, don't fail the whole analysis */
-      }
-    }
-  }
-
+  // The config texts were collected in the per-file loop (tsconfigTexts).
   const resolverCtx: ResolverContext = {
     files: new Set(outlines.map((o) => o.path)),
     workspaces: buildWorkspaceIndex(packageJsons),
     aliases: buildAliasIndex(tsconfigTexts),
     ...(goModules.length ? { goModules } : {}), // F6
   };
-  const depGraph = buildDependencyGraph(outlines, importsByFile, resolverCtx);
+  // Each import's primary target, recorded while the graph resolves it, so
+  // the imports[].resolved backfill below never resolves anything twice.
+  const resolvedTargets = new Map<string, string | null>();
+  const depGraph = buildDependencyGraph(outlines, importsByFile, resolverCtx, resolvedTargets);
   // Backfill the `callers` field on every graph node so consumers can
   // answer "who imports X?" without walking the edge list themselves.
   const callerIndex = buildCallerIndex(depGraph);
@@ -667,8 +793,10 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   for (const outline of outlines) {
     if (!outline.imports.length) continue;
     for (const imp of outline.imports) {
-      const resolved = resolveIfLocal(imp.source, outline.path, resolverCtx);
-      imp.resolved = resolved;
+      const key = resolvedKey(outline.path, imp.source);
+      imp.resolved = resolvedTargets.has(key)
+        ? (resolvedTargets.get(key) ?? null)
+        : resolveSpecifier(imp.source, outline.path, resolverCtx);
     }
   }
 
@@ -697,14 +825,16 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
   // Surface broken imports (reads the now-backfilled `imp.resolved`).
   for (const outline of outlines) {
     for (const imp of outline.imports) {
-      if (imp.resolved != null || !isProjectLocalSpecifier(imp.source, outline.path, resolverCtx))
+      // Same query/hash strip the resolver applies (`./x.md?raw` → x.md).
+      const bare = stripSpecifierQuery(imp.source);
+      if (imp.resolved != null || !isProjectLocalSpecifier(bare, outline.path, resolverCtx))
         continue;
       // The walker excludes dist/build/etc., so an import into build output
       // is unresolvable HERE while perfectly valid after a build. Probe the
       // real filesystem before diagnosing: "dependency removed or path
       // stale" on an import that exists on disk is a wrong diagnosis
       // (flagged in the facts+ real-world eval).
-      const diskPath = resolveRelativeSpecifier(outline.path, imp.source);
+      const diskPath = resolveRelativeSpecifier(outline.path, bare);
       if (diskPath && (await existsOutsideScan(fs, rootPath, diskPath))) {
         secrets.push({
           severity: 'low',
@@ -733,8 +863,11 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     });
   }
 
-  // License risks — GPL-in-permissive, missing declaration, etc.
-  for (const lr of deriveLicenseRisks(projectLicense, fileLicenses)) {
+  // License risks — GPL-in-permissive, missing declaration, etc. A manifest
+  // `license` wins; a root LICENSE file backs it when none is declared.
+  for (const lr of deriveLicenseRisks(projectLicense ?? licenseFromFile, fileLicenses, {
+    hasLicenseFile,
+  })) {
     secrets.push({
       severity: lr.severity === 'info' ? 'info' : lr.severity,
       category: 'license',
@@ -786,6 +919,7 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     ),
     monorepo: detectMonorepo(outlines),
     gitAvailable,
+    ...(opts.scanWarnings?.length ? { scanWarnings: [...opts.scanWarnings] } : {}),
   };
 
   // Tokens total
@@ -839,6 +973,10 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        original technical text on `messageTechnical`. Rules without
        a rewrite pass through unchanged. */
     risks: secrets.map((r) => applyRewrite(r)),
+    /* data-model#1 / SV-9 — the graded secret rules + fingerprint scheme +
+       this analyzer's secret coverage that produced risks[]. A review grades
+       secret deltas only between artifacts with the same revision. */
+    secretRulesRev: SECRET_GRADING_REV,
     stats: {
       loc: totalLOC,
       fileCount: filesScanned,
@@ -850,8 +988,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
        main scan loop; vulnerabilities stays [] here because analyze
        MUST NOT make network calls (constraint C1). The opt-in
        `factstack scan-vulns` subcommand reads agent.json, queries OSV,
-       and writes findings back. */
-    dependencyManifests,
+       and writes findings back. npm manifests carry their lockfile-installed
+       direct-dep versions on the additive `resolved` map. */
+    dependencyManifests: attachResolvedVersions(dependencyManifests, lockfiles),
     vulnerabilities: [],
     docs,
     rationale,
@@ -911,8 +1050,9 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
     /* v0.3.9 — risks now go through applyRewrite at the agent level
        above; the human-artifact mirrors the same already-rewritten
        array so the dashboard doesn't show technical text the agent
-       summary already softened. */
-    risks: secrets.map((r) => applyRewrite(r)),
+       summary already softened. The secret fingerprint stays in agent.json
+       only (diffing); the dashboard artifact never carries it (SV-8). */
+    risks: agent.risks.map(withoutFingerprint),
     /* v0.3.9 — glossary omitted when empty. The empty-array stub was
        lying about future capability. Populated when a real glossary
        generator ships (v0.5). */
@@ -998,35 +1138,35 @@ function dedupeRoutes(routes: DetectedRoute[]): DetectedRoute[] {
  * Same rule for `remix` without Remix in frameworks. Source-based
  * detections (`express`, `fastapi`, etc.) are trusted as-is — they
  * required an explicit import gate to fire.
+ *
+ * Owner decision 2026-09-24: when NO routing framework is detected, a file
+ * path alone is not a route — `src/routes/users.js` in a plain Express app
+ * or `components/pages/Header.js` produced phantom GET pages — so those
+ * convention matches are dropped instead of relabelled `spa-page`.
  */
+const ROUTING_FRAMEWORKS = ['Next.js', 'Remix', 'Astro', 'React Router', 'Nuxt', 'SvelteKit'];
+
 function reclassifyRoutes(routes: DetectedRoute[], frameworks: string[]): DetectedRoute[] {
   const fwSet = new Set(frameworks);
   const hasNext = fwSet.has('Next.js');
   const hasRemix = fwSet.has('Remix');
   const hasAstro = fwSet.has('Astro');
   const hasReactRouter = fwSet.has('React Router');
+  const hasRouting = ROUTING_FRAMEWORKS.some((f) => fwSet.has(f));
   // If a route extractor matched a file convention but the project's
   // manifest doesn't actually use that framework, re-label to the most
   // accurate alternative we have evidence for. Common case: a Vite SPA
   // with `src/pages/` triggers nextjs detection without Next.js being
   // installed; same shape for Astro projects without Astro.
-  return routes.map((r) => {
-    if (r.framework === 'nextjs' && !hasNext) {
-      return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
-    }
-    if (r.framework === 'remix' && !hasRemix) {
-      return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
-    }
-    if (r.framework === 'astro' && !hasAstro) {
-      return { ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' };
-    }
-    return r;
+  return routes.flatMap((r) => {
+    const unbacked =
+      (r.framework === 'nextjs' && !hasNext) ||
+      (r.framework === 'remix' && !hasRemix) ||
+      (r.framework === 'astro' && !hasAstro);
+    if (!unbacked) return [r];
+    if (!hasRouting) return [];
+    return [{ ...r, framework: hasReactRouter ? 'react-router' : 'spa-page' }];
   });
-}
-
-/** Re-resolve a specifier for an outline's imports[] backfill. */
-function resolveIfLocal(source: string, importerPath: string, ctx: ResolverContext): string | null {
-  return resolveSpecifier(source, importerPath, ctx);
 }
 
 /** True iff a specifier looks like something that SHOULD resolve to a project
@@ -1195,7 +1335,7 @@ function oneLiner(
  *  - Skip blank lines, ATX/Setext headings, HTML tags, badge images, code
  *    fences, blockquotes, and list bullets.
  *  - Take the first surviving line (or two if the first is short and joins
- *    naturally with the next).
+ *    naturally with the next), with its inline Markdown reduced to text.
  *  - Cap at 240 chars; let the caller normalize punctuation.
  *
  * Returns `null` when nothing survives the filter (a README with only
@@ -1203,17 +1343,19 @@ function oneLiner(
  */
 function extractReadmeFirstSentence(md: string): string | null {
   const lines = md.split('\n');
-  let inFence = false;
+  let fence: FenceOpen | null = null;
   for (let i = 0; i < lines.length; i++) {
     let line = lines[i] ?? '';
     const trimmed = line.trim();
     if (!trimmed) continue;
-    // Code fences open/close — skip everything inside.
-    if (/^```/.test(trimmed)) {
-      inFence = !inFence;
+    // Code fences (``` or ~~~, CommonMark open/close rules) — skip
+    // everything inside, including a shorter inner fence or '``` text'.
+    if (fence) {
+      if (isFenceClose(trimmed, fence)) fence = null;
       continue;
     }
-    if (inFence) continue;
+    fence = parseFenceOpen(trimmed);
+    if (fence) continue;
     // ATX heading (# ...), HR rules, blockquotes, list items, badges,
     // raw HTML, or setext underline lines.
     if (/^#{1,6}\s/.test(trimmed)) continue;
@@ -1228,8 +1370,16 @@ function extractReadmeFirstSentence(md: string): string | null {
     // (the GitHub convention). The content of that blockquote IS the
     // most useful one-liner, so we treat it as prose.
     line = trimmed.replace(/^>\s+/, '');
+    // Cap BEFORE the regexes below: several go quadratic on an unclosed
+    // marker (' [a' × 60k took 6.5 s), and the hosted scan reads arbitrary
+    // READMEs. The one-liner keeps ≤ 240 chars, so this loses nothing.
+    line = line.slice(0, README_LINE_SCAN_CAP);
     // Drop trailing inline links/badges from prose lines.
     line = line.replace(/\s*\[!\[.*$/, '').trim();
+    // The one-liner reaches agent.json, the pack, MEMORY.md and MCP, none
+    // of which render Markdown: keep the words, drop the syntax
+    // ('See [setup](docs/setup.md).' → 'See setup.').
+    line = stripInlineMarkdown(line);
     if (!line) continue;
     // Take just the first sentence — but skip terminators that are
     // actually abbreviations or version numbers. Naive `[.!?]` matching

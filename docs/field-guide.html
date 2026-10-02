@@ -213,7 +213,7 @@
       ['Security & supply chain', [
         ['Secret scanner','scanners/secrets.ts','Catches API keys and tokens left in the code.','Rule-based scan; raw secrets NEVER emitted — redacted preview enforced at the type level.'],
         ['CVE scanner (OSV)','scanners/vulnerabilities.ts','Tells you which dependencies have known security holes.','Opt-in scan-vulns queries OSV.dev against parsed dependency manifests.'],
-        ['Dependency manifest parse','scanners/dependencies.ts','Knows every package you depend on, across ecosystems.','detectManifestEcosystem + scanDependencyManifest + flattenManifests.'],
+        ['Dependency manifest parse','scanners/dependencies.ts','Knows every package you depend on, across ecosystems.','detectManifestEcosystem + scanDependencyManifest; buildOsvQueries (vulnerabilities.ts) turns them into OSV queries.'],
         ['License scanner','scanners/licenses.ts','Flags risky licenses (e.g. GPL in a closed product).','scanFileLicense + scanManifestLicense → LicenseRisk.'],
         ['TODO / FIXME harvester','scanners/todos.ts','Collects every "fix this later" into one list.','scanTodos → TodoEntry with file:line + tag.'],
       ]],
@@ -306,7 +306,7 @@
         ['Security trend over time','Is the codebase getting safer or worse each week?','Track secret/CVE counts across snapshots; sparkline + delta.'],
       ]],
       ['supply','Supply chain, licenses & SBOM', [
-        ['SBOM export (CycloneDX/SPDX)','The "ingredients list" customers and auditors now demand.','Emit standard SBOM JSON from flattenManifests + license data.'],
+        ['SBOM export (CycloneDX/SPDX)','The "ingredients list" customers and auditors now demand.','Emit standard SBOM JSON from the buildOsvQueries package list + license data.'],
         ['Transitive dependency graph','See the deps of your deps, where most risk hides.','Resolve lockfiles to full transitive tree; attribute CVEs to paths.'],
         ['License compatibility matrix','Catch a copyleft license that poisons a proprietary product.','Policy table of license combos; flag incompatible pairs.'],
         ['Outdated / abandoned dep flags','Spot packages that haven\'t shipped in years.','Registry metadata: last-publish age, deprecation, maintainer count.'],
@@ -386,7 +386,7 @@
         ['Watch performance HUD','Show analyze time + what\'s slow while watching.','Per-phase timing surfaced in watch output.'],
         ['Offline mode guarantees','Work with zero network when needed (no OSV calls).','Explicit --offline; skip + mark network-dependent steps.'],
         ['Doctor deep mode','Diagnose why analysis is incomplete on this machine.','Extend doctor: parser load, permissions, memory, language coverage.'],
-        ['Deno / Bun first-class','Run anywhere modern JS runs, not just Node.','Already Node20+/Deno2+; verify + document Bun path.'],
+        ['Deno / Bun first-class','Run anywhere modern JS runs, not just Node.','Node 24.3+ today; verify + document Deno and Bun paths.'],
       ]],
       ['ui','Web UI & visualization', [
         ['Search across everything','One ⌘K to find any file, symbol, route, risk.','Palette over the unified index; already have CommandPalette base.'],

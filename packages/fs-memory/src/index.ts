@@ -9,7 +9,7 @@
  *   });
  */
 
-import type { Dirent, FactsFS, Stats } from '@factstack/spec';
+import { stripLeadingBom, type Dirent, type FactsFS, type Stats } from '@factstack/spec';
 
 type Entry = { kind: 'file'; text: string; mtime: number } | { kind: 'dir' };
 
@@ -43,7 +43,8 @@ export class MemoryFS implements FactsFS {
   async readText(p: string): Promise<string> {
     const e = this.entries.get(this.normalize(p));
     if (!e || e.kind !== 'file') throw new Error(`ENOENT: ${p}`);
-    return e.text;
+    // Parity with every other host: one leading UTF-8 BOM is not content.
+    return stripLeadingBom(e.text);
   }
 
   async *readDir(p: string): AsyncIterable<Dirent> {

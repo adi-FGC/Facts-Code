@@ -12,6 +12,7 @@ import type {
   GraphQuery,
   NodeSelector,
 } from '@factstack/spec';
+import { isTestOrExamplePath } from '@factstack/extractors';
 
 export interface QueryResult {
   verb: QueryVerb;
@@ -189,14 +190,19 @@ function allOrphans(agent: AgentArtifact, limit: number, filter?: string): Query
   //
   //  2. Genuine entrypoints (src/cli.ts, app/page.tsx, etc.) have zero
   //     incoming edges by definition. They're not "dead code" — they're
-  //     reached by the runtime, not by another module's import. We
-  //     suppress them by checking `agent.project.entryPoints` and the
-  //     declared route handler files.
+  //     reached by the runtime, not by another module's import.
+  //     `agent.project.entryPoints` holds launch COMMANDS ('npm run dev'),
+  //     not files, and the artifact records no declared entry files, so we
+  //     suppress route handler files plus the conventional entry shapes
+  //     (`isConventionalEntry`: main.* anywhere; index/server/cli at a
+  //     package root or its src/).
   //
-  //  3. Test files (vitest, jest, pytest) have zero JS-import callers
+  //  3. Test files (vitest, jest, pytest, go test) have zero import callers
   //     because the runner invokes them via filesystem glob, not via
   //     import. Listing them as orphans makes "0 dead code" projects
-  //     look noisy. → `isTestPath` filter.
+  //     look noisy. → `isTestOrExamplePath` filter (@factstack/extractors:
+  //     every language's test naming, test/fixture/e2e dirs, `examples/`).
+  //     If your test layout differs, pass `--filter` on the CLI.
   //
   // The escape hatch is still `filter` for callers who want the wider
   // set (e.g. a security audit might want every uncalled file). If you
@@ -207,11 +213,21 @@ function allOrphans(agent: AgentArtifact, limit: number, filter?: string): Query
     ...agent.project.entryPoints,
     ...(agent.routes.map((r) => r.handlerFile).filter(Boolean) as string[]),
   ]);
+  // Package roots: the repo root plus every directory holding a manifest.
+  const packageDirs = new Set<string>(['']);
+  for (const n of agent.graph.nodes) {
+    const m =
+      /^(?:(.*)\/)?(?:package\.json|go\.mod|pyproject\.toml|Cargo\.toml|deno\.jsonc?)$/.exec(
+        n.path,
+      );
+    if (m) packageDirs.add(m[1] ?? '');
+  }
   let orphans = agent.graph.nodes
     .filter((n) => isSourceModule(n.path, n.language))
-    .filter((n) => !isTestPath(n.path))
+    .filter((n) => !isTestOrExamplePath(n.path))
     .filter((n) => !incoming.has(n.path))
     .filter((n) => !entryPaths.has(n.path))
+    .filter((n) => !isConventionalEntry(n.path, packageDirs))
     // True orphans should at minimum have an outgoing import — a leaf
     // node with no edges at all is most likely a config file we missed
     // classifying. If you want pure leaves, pass `--filter '*'`.
@@ -659,27 +675,23 @@ function pathBetween(agent: AgentArtifact, from: string, to: string, limit: numb
 }
 
 /**
- * Path-shape predicate for "this file is a test, not application code."
- * Mirrors the route extractor's `isTestOrFixturePath` but inlined here
- * to keep `@factstack/core` from depending on `@factstack/extractors`
- * (currently a one-way dep). Catches:
- *
- *   - `*.test.*` / `*.spec.*` (vitest, jest, mocha)
- *   - `__tests__/`, `__test__/` (jest convention)
- *   - `tests/`, `test/` (pytest, go test, cargo test convention)
- *   - `cypress/integration/`, `e2e/`, `playwright/` (e2e suites)
- *   - `examples/`, `fixtures/` (sample/golden code)
- *
- * If your test layout differs, pass `--filter` to override on the CLI.
+ * A runtime entry file by shape, which nothing imports by design: `main.*`
+ * anywhere (an HTML `<script src>` or bundler entry, Go/Python mains), a
+ * file directly in a `scripts/` or `bin/` directory (run by path from a
+ * package.json script or a shell), and `index` / `server` / `cli` directly
+ * in a package root or its `src/`. The shape is the only evidence: the
+ * artifact carries no declared entries (package.json main/bin/exports), and
+ * entryPoints lists commands.
  */
-function isTestPath(p: string): boolean {
-  const n = p.toLowerCase().replace(/\\/g, '/');
-  if (
-    /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)
-  )
-    return true;
-  if (/\.(test|spec)\.[a-z]+$/.test(n)) return true;
-  return false;
+function isConventionalEntry(p: string, packageDirs: Set<string>): boolean {
+  if (/(?:^|\/)(?:scripts|bin)\/[^/]+$/.test(p)) return true;
+  const m = /^(?:(.*)\/)?(main|__main__|index|server|cli)\.(?:[cm]?[jt]sx?|py|go)$/i.exec(p);
+  if (!m) return false;
+  const stem = m[2]!.toLowerCase();
+  if (stem === 'main' || stem === '__main__') return true;
+  const dir = m[1] ?? '';
+  const pkgDir = dir === 'src' ? '' : dir.endsWith('/src') ? dir.slice(0, -'/src'.length) : dir;
+  return packageDirs.has(pkgDir);
 }
 
 /**
@@ -745,20 +757,38 @@ function isSourceModule(path: string, language: string): boolean {
 }
 
 /**
- * Simple glob → regex converter, or plain substring match when the
- * pattern has no glob chars. Supports `*` and `?` only; anything more
- * complex is beyond v0.2's needs.
+ * Anchored glob match (`*` = any run, `?` = any one char), or plain
+ * substring match when the pattern has no glob chars. Anything more complex
+ * is beyond v0.2's needs.
+ *
+ * Iterative two-pointer matcher, NOT a regex: `*a*a*a*…b` compiled to
+ * nested `.*` backtracks exponentially (8 stars on a 64-char path took 28 s)
+ * and the filter comes straight from MCP callers, so one crafted pattern
+ * froze the single-threaded server. This is O(|s|·|pattern|) at worst.
  */
 function matches(s: string, pattern: string): boolean {
   if (!pattern) return true;
   if (!/[*?]/.test(pattern)) return s.includes(pattern);
-  const re = new RegExp(
-    '^' +
-      pattern
-        .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-        .replace(/\*/g, '.*')
-        .replace(/\?/g, '.') +
-      '$',
-  );
-  return re.test(s);
+  let si = 0;
+  let pi = 0;
+  let star = -1; // pattern index of the last `*` seen
+  let resume = 0; // string index that `*` currently absorbs up to
+  while (si < s.length) {
+    const pc = pattern[pi];
+    if (pc === '?' || (pc !== undefined && pc !== '*' && pc === s[si])) {
+      si++;
+      pi++;
+    } else if (pc === '*') {
+      star = pi++;
+      resume = si;
+    } else if (star !== -1) {
+      // Let the last `*` absorb one more char and retry from after it.
+      pi = star + 1;
+      si = ++resume;
+    } else {
+      return false;
+    }
+  }
+  while (pattern[pi] === '*') pi++;
+  return pi === pattern.length;
 }

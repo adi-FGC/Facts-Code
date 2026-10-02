@@ -2,15 +2,14 @@
  * tokenEconomics — the math behind the Overview "cost to give an agent
  * this project" panel.
  *
- * The pitch FACTS makes, quantified: putting a whole codebase in an AI
- * agent's context window costs `stats.tokens` tokens every time. Loading
- * the FACTS artifact instead — the structural map of the same project —
- * costs a fraction, and the agent then opens only the handful of files a
- * task actually touches.
+ * The pitch FACTS makes, quantified: reading the whole codebase once costs
+ * `stats.tokens` tokens. Reading the FACTS artifact instead — the structural
+ * map of the same project — costs less, and the agent then opens the files
+ * the change touches on top of it.
  *
  * This module is the pure arithmetic. No DOM, no model SDK. The caller
- * measures the artifact's serialized size (see measureArtifactChars in
- * ui/TokenRoiPanel.tsx) and passes it in; everything here is testable in
+ * measures the artifact's serialized size (see artifactCharsOf in
+ * lib/loadArtifacts.ts) and passes it in; everything here is testable in
  * isolation.
  *
  * Honesty notes (surfaced in the panel caption, not hidden):
@@ -59,7 +58,8 @@ export interface ModelRate {
 }
 
 export interface TokenRoi {
-  /** Whole-codebase tokens (exact, from the analyzer). */
+  /** Whole-codebase tokens, estimated by the analyzer as characters ÷ 3.5
+   *  (not a tokenizer count). */
   fullTokens: number;
   /** Estimated tokens of the FACTS artifact. */
   artifactTokens: number;
@@ -73,10 +73,10 @@ export interface TokenRoi {
 }
 
 /**
- * Compute the token ROI from the exact codebase token count and the
+ * Compute the token ROI from the analyzer's codebase token estimate and the
  * artifact's serialized character length.
  *
- * @param fullTokens   exact codebase tokens (data.stats.tokens)
+ * @param fullTokens   estimated codebase tokens (data.stats.tokens)
  * @param artifactChars serialized length of the shipped artifact, in chars
  */
 export function computeTokenRoi(fullTokens: number, artifactChars: number): TokenRoi {

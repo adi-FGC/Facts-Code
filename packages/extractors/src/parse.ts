@@ -35,29 +35,45 @@ export function isParseable(ext: string): boolean {
 }
 
 /** Parse a JS/TS source file. Returns null if the extension isn't
- *  parseable or if Babel errors out even with recovery on. */
+ *  parseable or if every Babel attempt errors out even with recovery on. */
 export function parseJS(source: string, ext: string): ParsedFile | null {
   if (!isParseable(ext)) return null;
   const kind = TS_EXTS.has(ext.toLowerCase()) ? 'ts' : 'js';
-  let ast: unknown;
+  const first = plugins(kind, ext);
+  /* Flow-typed .js (React Native, older Meta code: `// @flow`, `import type`,
+     annotations) needs the flow plugin, which excludes `typescript` — so it is
+     a JS-only retry, tried only after the plain parse fails. Files that parsed
+     before parse exactly as before (INV2). */
+  const ast =
+    tryParse(source, first) ?? (kind === 'js' ? tryParse(source, [...first, 'flow']) : null);
+  if (ast === null) return null;
+  return { ast, contentHash: djb2(source), ext: ext.toLowerCase() };
+}
+
+function tryParse(source: string, pluginList: ParserPlugin[]): unknown {
   try {
-    ast = parse(source, {
+    return parse(source, {
       sourceType: 'module',
       allowImportExportEverywhere: true,
       allowReturnOutsideFunction: true,
       allowUndeclaredExports: true,
       errorRecovery: true,
-      plugins: plugins(kind, ext),
+      plugins: pluginList,
     });
   } catch {
     return null;
   }
-  return { ast, contentHash: djb2(source), ext: ext.toLowerCase() };
 }
 
 function plugins(kind: 'js' | 'ts', ext: string): ParserPlugin[] {
-  const jsx = ext.toLowerCase().endsWith('x');
-  const base: ParserPlugin[] = ['importAssertions', 'decorators-legacy'];
+  /* JSX in plain .js is the norm (CRA, React Native, Expo, Gatsby), and the
+     jsx plugin is unambiguous in JS — only TS generics (`<T>(x)`) conflict,
+     which is why .ts stays jsx-free. Without it such a file failed to parse
+     and read as an empty module with no imports. */
+  const jsx = kind === 'js' || ext.toLowerCase().endsWith('x');
+  /* decoratorAutoAccessors: TS 4.9+/TC39 `accessor x = 1` class fields (Lit,
+     standard decorators). It composes with decorators-legacy. */
+  const base: ParserPlugin[] = ['importAssertions', 'decorators-legacy', 'decoratorAutoAccessors'];
   if (kind === 'ts') base.push('typescript');
   if (jsx) base.push('jsx');
   return base;

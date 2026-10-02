@@ -236,6 +236,50 @@ export function onCurrentSourceChange(fn: (id: string | null) => void): () => vo
   return () => currentSubscribers.delete(fn);
 }
 
+/** Where a scan was launched from, recorded at launch — not guessed from
+ *  the result afterwards (a folder-input scan named `my-app` used to fall
+ *  through to the GitHub branch and leave the old project current). */
+export type ScanSource =
+  | { kind: 'local-fsa'; handle: FileSystemDirectoryHandle }
+  | { kind: 'local-files' }
+  | { kind: 'github'; owner: string; repo: string; ref: string };
+
+/**
+ * The recent a finished scan should become, or null when it can't be one:
+ * a folder-input (`<input webkitdirectory>`) scan has no handle to re-open,
+ * so the caller clears the current pointer and the header chip falls back to
+ * the scanned dataset's own project name. A GitHub scan prefers the worker's
+ * `owner/repo@ref` project name, which carries the ref it resolved.
+ */
+export function recentForScan(source: ScanSource, projectName: string): AddRecentInput | null {
+  if (source.kind === 'local-files') return null;
+  if (source.kind === 'local-fsa') {
+    return { kind: 'local', name: source.handle.name, handle: source.handle };
+  }
+  const m = /^([^/]+)\/([^@]+)(?:@(.+))?$/.exec(projectName);
+  if (m && m[1] === source.owner && m[2] === source.repo) {
+    return {
+      kind: 'github',
+      name: projectName,
+      owner: source.owner,
+      repo: source.repo,
+      ref: m[3] ?? '',
+    };
+  }
+  const name = `${source.owner}/${source.repo}${source.ref ? '@' + source.ref : ''}`;
+  return { kind: 'github', name, owner: source.owner, repo: source.repo, ref: source.ref };
+}
+
+/**
+ * Whether Save writes the agent-rules files (AGENTS.md, .cursorrules, …) by
+ * default after a scan from `source`. A GitHub scan has no folder of its
+ * own: its Save goes to a folder the user picks, and rules that describe the
+ * scanned repo must not land in some other project unless asked (FSB-7).
+ */
+export function agentRulesDefault(source: ScanSource): boolean {
+  return source.kind !== 'github';
+}
+
 /* ─────────── permission helper for local recents ─────────── */
 
 /**

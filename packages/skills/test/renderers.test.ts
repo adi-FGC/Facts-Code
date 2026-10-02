@@ -61,12 +61,11 @@ function representativeSpec(): SkillSpec {
        section gets omitted (per the SECTION OMISSION contract) and
        cross-renderer presence tests would need to be conditional. */
     graph: {
-      nodes: [],
+      ...makeAgent().graph,
       edges: [
-        { from: 'a.ts', to: 'src/lib/index.ts', kind: 'import' },
-        { from: 'b.ts', to: 'src/lib/index.ts', kind: 'import' },
+        { from: 'a.ts', to: 'src/lib/index.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'b.ts', to: 'src/lib/index.ts', kind: 'import', confidence: 'extracted' },
       ],
-      cycles: [],
     },
     capabilities: ['Renders a React UI', 'Uses Vite for bundling'],
     risks: [
@@ -179,6 +178,14 @@ describe('claudeRenderer', () => {
     const b = JSON.stringify(claudeRenderer.render(spec));
     expect(a).toBe(b);
   });
+
+  it('the description does not double the intent sentence’s full stop', () => {
+    // The fixture intent ends with a period, as a package description does.
+    const body = Object.values(claudeRenderer.render(representativeSpec()))[0]!;
+    const description = body.match(/^description: (.*)$/m)![1]!;
+    expect(description).toContain('for the skills renderers. Use when working');
+    expect(description).not.toMatch(/\.\./);
+  });
 });
 
 /* ─────────── Cursor renderer ─────────── */
@@ -281,6 +288,23 @@ describe('SKILL_REGISTRY + ALL_FORMATS', () => {
       const body = Object.values(renderer.render(spec)).join('\n');
       expect(body, `${id} must point the agent at the pack`).toContain('.facts/agent.pack');
       expect(body, `${id} must teach the refresh hook`).toContain('factstack analyze --minimal');
+    }
+  });
+
+  /* The CLI's export-skills takes `--format <ids>` (its positional is
+     the target DIRECTORY); `--target` made commander exit 1 with "unknown
+     option". Each footer must refresh its own format with the real flag. */
+  it('every refresh footer names export-skills with --format <its own id>', () => {
+    const spec = representativeSpec();
+    for (const [id, renderer] of Object.entries(SKILL_REGISTRY)) {
+      const body = Object.values(renderer.render(spec)).join('\n');
+      const commands = [...body.matchAll(/`(factstack export-skills\b[^`]*)`/g)].map((m) => m[1]);
+      expect(commands.length, id).toBeGreaterThan(0);
+      for (const c of commands) {
+        expect(c, id).not.toMatch(/--target\b/);
+        if (c !== 'factstack export-skills')
+          expect(c, id).toBe(`factstack export-skills --format ${id}`);
+      }
     }
   });
 });

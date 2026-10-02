@@ -842,6 +842,7 @@
           <strong>Sprint 1 · now:</strong> ft-1 FACTS agent-skill → ft-2 <code>factstack quick</code> → ft-3 idle-shutdown → ft-4 dependency-freshness.
           <strong>Sprint 2 · evidence + hygiene:</strong> ft-9 local telemetry → ft-10 always-fresh artifact → ft-11 simple-mode.
           <strong>Sprint 3 · deferred (needs a serve mode):</strong> ft-8 security base → ft-5 Open-in-Claude/Codex → ft-6 folder switcher → ft-7 per-file history.
+          <strong>Update 2026-09-24:</strong> the ft-5/ft-6/ft-7 endpoints <code>/api/exec</code>, <code>/api/browse</code> and <code>/api/file-history</code> were removed in the hardening pass (CLI-13; they now answer 404) — only <code>/api/recent</code> remains. Bringing any of them back is future work that needs a new, reviewed design.
           <br>The four sprint-1 items are independent — buildable in any order or in parallel; listed by leverage ÷ effort (Copy first: ½ day, zero deps).
         </p>
       </div>
@@ -928,7 +929,8 @@
           <div class="todo__main">
             <span class="todo__title">Open in Claude / Codex / editor / terminal</span>
             <span class="todo__body">v0's <code>/api/exec</code> launches a whitelisted editor or terminal at any file (<code>spawn</code>, arg-arrays, per-OS fallback ladders). The whitelist already ships <code>claude</code> and <code>codex</code> entries — lead with one-click "Open in Claude / Codex" from file rows. Reuse v0's whitelist + the audit's symlink-safety fix verbatim.</span>
-            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+            <span class="todo__body"><strong>Removed 2026-09-24 (CLI-13).</strong> It shipped 2026-06-05, then came out in the hardening pass: no shipped UI called it, it could not launch half its editors (Windows <code>.cmd</code> shims, wrong agent-CLI flags), and it widened what any page reaching the localhost server could do. <code>/api/exec</code> now answers 404. Future work only, with a new reviewed design.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--blocked">removed · CLI-13</span><span class="todo__tag todo__tag--effort-m">1 day</span></span>
             <span class="todo__deps">depends on ft-8-security (serve mode)</span>
           </div>
         </label>
@@ -937,7 +939,8 @@
           <div class="todo__main">
             <span class="todo__title">The folder switcher, properly (recents + browse)</span>
             <span class="todo__body">v0 pairs <code>/api/recent</code> (last 10 in <code>~/.facts-tree/recent.json</code>) with <code>/api/browse</code> — a server-backed directory walker that skips <code>node_modules</code>/<code>dist</code>/<code>.git</code> and detects project roots. Enrich v2's <code>OpenModal</code> with recents + server browse; make the path bar itself the change-folder affordance.</span>
-            <span class="todo__tags"><span class="todo__tag todo__tag--effort-m">1 day</span></span>
+            <span class="todo__body"><strong>Partly removed 2026-09-24 (CLI-13).</strong> The read-only <code>/api/recent</code> list remains; the server-side directory walker <code>/api/browse</code> was removed in the hardening pass and now answers 404. A server browse is future work that needs a new, reviewed design.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--blocked">browse removed · CLI-13</span><span class="todo__tag todo__tag--effort-m">1 day</span></span>
             <span class="todo__deps">depends on ft-8-security (serve mode)</span>
           </div>
         </label>
@@ -946,7 +949,8 @@
           <div class="todo__main">
             <span class="todo__title">Per-file git history</span>
             <span class="todo__body">v0's <code>/api/file-history</code> runs <code>git log --follow -10</code> for one file (traversal-guarded, 5s timeout). v2 already does a repo-level git scan — add the on-demand, per-file depth as a "Recent commits" strip in the file detail panel.</span>
-            <span class="todo__tags"><span class="todo__tag todo__tag--effort-s">½ day</span></span>
+            <span class="todo__body"><strong>Removed 2026-09-24 (CLI-13).</strong> It shipped 2026-06-05 and came out in the hardening pass: no shipped UI called it, and every localhost endpoint widens what a page reaching the server can do. <code>/api/file-history</code> now answers 404. Future work only, with a new reviewed design.</span>
+            <span class="todo__tags"><span class="todo__tag todo__tag--blocked">removed · CLI-13</span><span class="todo__tag todo__tag--effort-s">½ day</span></span>
             <span class="todo__deps">depends on ft-8-security (serve mode)</span>
           </div>
         </label>
@@ -1081,11 +1085,11 @@
            blocklist) + recents-on-start + a "Projects" picker that copies
            `factstack ui <path>`. All four verified live via /browse. The live
            re-point of the running server (mutating root + watcher) is an
-           explicit follow-up. Sprint 3 complete. */
+           explicit follow-up. Sprint 3 complete.
+           2026-09-24 (CLI-13): /api/exec, /api/browse and /api/file-history
+           were removed in the hardening pass (404 now); only /api/recent
+           remains. ft-5, ft-6 and ft-7 are therefore no longer pre-checked. */
         'ft-8-security': true,
-        'ft-5-exec': true,
-        'ft-7-history': true,
-        'ft-6-switcher': true,
       };
 
       function readState() {

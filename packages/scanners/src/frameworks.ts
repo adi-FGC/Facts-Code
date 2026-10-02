@@ -55,30 +55,37 @@ const DEP_TO_FRAMEWORK: Array<[RegExp, string]> = [
   [/^stripe$/, 'Stripe'],
 ];
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  typeof v === 'object' && v !== null && !Array.isArray(v);
+
 export function scanFrameworksFromPackageJson(text: string): FrameworkDetection {
-  let pkg: Record<string, unknown>;
+  let pkg: unknown;
   try {
-    pkg = JSON.parse(text) as Record<string, unknown>;
+    pkg = JSON.parse(text);
   } catch {
     return { frameworks: [], scripts: {} };
   }
+  /* Valid JSON is not always a package object: fixture and parser-test repos
+     ship `null`, `[]` or `"x"` package.json files, and one of them must never
+     abort the whole analyze (it threw on `null.dependencies`). */
+  if (!isRecord(pkg)) return { frameworks: [], scripts: {} };
 
-  const deps = Object.assign(
-    {},
-    (pkg.dependencies as Record<string, string>) ?? {},
-    (pkg.devDependencies as Record<string, string>) ?? {},
-    (pkg.peerDependencies as Record<string, string>) ?? {},
-  );
   const found = new Set<string>();
-  for (const name of Object.keys(deps)) {
-    for (const [re, label] of DEP_TO_FRAMEWORK) {
-      if (re.test(name)) {
-        found.add(label);
-        break;
+  for (const field of [pkg.dependencies, pkg.devDependencies, pkg.peerDependencies]) {
+    if (!isRecord(field)) continue;
+    for (const name of Object.keys(field)) {
+      for (const [re, label] of DEP_TO_FRAMEWORK) {
+        if (re.test(name)) {
+          found.add(label);
+          break;
+        }
       }
     }
   }
-  const scripts = (pkg.scripts as Record<string, string>) ?? {};
+  const scripts: Record<string, string> = {};
+  if (isRecord(pkg.scripts)) {
+    for (const [k, v] of Object.entries(pkg.scripts)) if (typeof v === 'string') scripts[k] = v;
+  }
   return { frameworks: [...found].sort(), scripts };
 }
 
@@ -86,8 +93,11 @@ export function scanFrameworksFromRequirements(text: string): string[] {
   const found = new Set<string>();
   for (const rawLine of text.split('\n')) {
     const line = rawLine.trim().toLowerCase();
-    if (!line || line.startsWith('#')) continue;
-    const name = line.split(/[=<>~!]/)[0]?.trim();
+    // Comments and pip options (`-r base.txt`, `-e …`, `--hash=…`).
+    if (!line || line.startsWith('#') || line.startsWith('-')) continue;
+    // The name ends at extras `[…]`, a version operator, an env marker `;`,
+    // whitespace, or a direct-URL `@`.
+    const name = line.split(/[[=<>~!;\s@]/)[0]?.trim();
     if (!name) continue;
     for (const [re, label] of DEP_TO_FRAMEWORK) {
       if (re.test(name)) {

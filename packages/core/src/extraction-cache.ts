@@ -28,6 +28,7 @@
 
 import {
   extractAstroFrontmatter,
+  extractSfcScripts,
   extractEnvVars,
   extractGoImports,
   extractGoSymbols,
@@ -39,6 +40,7 @@ import {
   isGo,
   isParseable,
   isPython,
+  isSfc,
   parseJS,
   type EnvVarRead,
   type ExtractedSymbol,
@@ -51,8 +53,14 @@ import { detectLanguage } from '@factstack/scanners';
 /** Bump on ANY behavior change in extractors/parse so stale entries die.
  *  v2: cache key switched from a 32-bit djb2 digest to SHA-256 — a djb2
  *  collision between two same-ext files could serve the wrong file's parse
- *  (silent INV2 violation). Bumping retires every djb2-keyed entry. */
-export const EXTRACTION_CACHE_VERSION = 2;
+ *  (silent INV2 violation). Bumping retires every djb2-keyed entry.
+ *  v3: JSX parses in .js/.mjs/.cjs, and a failed parse is flagged
+ *  (`parseFailed`) instead of reading as an empty module; Vue/Svelte
+ *  <script> blocks are extracted; Python `from X import a` records members;
+ *  export lists / `export default Name` mark the declaration exported.
+ *  v4: Flow-typed .js (retry with the flow plugin) and `accessor` class
+ *  fields parse — v3 cached them as `parseFailed`. */
+export const EXTRACTION_CACHE_VERSION = 4;
 
 /** The parse-derived facts of one file — everything analyze() takes from the
  *  AST pass. Plain JSON data (structuredClone/serialization safe). */
@@ -63,6 +71,10 @@ export interface FileExtraction {
    *  with `wantRefs` (the cache key segregates the two modes). */
   refs: RawRef[];
   envReads: EnvVarRead[];
+  /** True when the file's language is parseable but the parse failed, so
+   *  the empty quad means "unknown", not "no imports". analyze() turns it
+   *  into a `parse-error` risk + `parse_error` status. */
+  parseFailed?: boolean;
 }
 
 /**
@@ -98,17 +110,18 @@ function empty(): FileExtraction {
  * Mirrors analyze()'s former inline branches exactly:
  *  - JS/TS (and .jsx/.tsx/.mjs/…): one Babel parse shared by all extractors.
  *  - Astro: frontmatter sliced, parsed as TS, line numbers shifted back.
+ *  - Vue / Svelte: each <script> block sliced + shifted the same way.
  *  - Python / Go: regex import + symbol extractors, regex env-var scan.
  *  - Everything else: the empty quad.
- * Never throws; a parse failure degrades to the empty quad (matching the
- * previous inline behavior where `parsed == null` skipped extraction).
+ * Never throws; a parse failure degrades to the empty quad flagged
+ * `parseFailed`, so callers can tell it apart from a genuinely empty module.
  */
 export function extractFile(text: string, ext: string, wantRefs: boolean): FileExtraction {
   const lang = detectLanguage(ext);
 
   if (lang && isParseable(ext)) {
     const parsed = parseJS(text, ext);
-    if (!parsed) return empty();
+    if (!parsed) return { ...empty(), parseFailed: true };
     return {
       imports: extractImports(text, ext, parsed),
       symbols: extractSymbols(text, ext, parsed),
@@ -120,37 +133,36 @@ export function extractFile(text: string, ext: string, wantRefs: boolean): FileE
   if (isAstro(ext)) {
     const fm = extractAstroFrontmatter(text);
     if (!fm) return empty();
-    const parsed = parseJS(fm.source, '.ts');
-    if (!parsed) return empty();
-    const imports = extractImports(fm.source, '.ts', parsed);
-    for (const r of imports) {
-      if (typeof r.line === 'number') r.line += fm.lineOffset;
+    return (
+      extractEmbedded(fm.source, '.ts', fm.lineOffset, wantRefs) ?? {
+        ...empty(),
+        parseFailed: true,
+      }
+    );
+  }
+
+  /* Vue / Svelte: every <script> block (Vue `<script>` + `<script setup>`,
+     Svelte instance + module script), each parsed on its own and merged. */
+  if (isSfc(ext)) {
+    const out = empty();
+    const seenImports = new Set<string>();
+    for (const block of extractSfcScripts(text)) {
+      const part = extractEmbedded(block.source, block.ext, block.lineOffset, wantRefs);
+      if (!part) {
+        out.parseFailed = true;
+        continue;
+      }
+      for (const imp of part.imports) {
+        const key = imp.specifier + '|' + imp.kind;
+        if (seenImports.has(key)) continue;
+        seenImports.add(key);
+        out.imports.push(imp);
+      }
+      out.symbols.push(...part.symbols);
+      out.refs.push(...part.refs);
+      out.envReads.push(...part.envReads);
     }
-    const symbols = extractSymbols(fm.source, '.ts', parsed).map((s) => ({
-      ...s,
-      startLine: s.startLine + fm.lineOffset,
-      endLine: s.endLine + fm.lineOffset,
-      ...(s.children
-        ? {
-            children: s.children.map((c) => ({
-              ...c,
-              startLine: c.startLine + fm.lineOffset,
-              endLine: c.endLine + fm.lineOffset,
-            })),
-          }
-        : {}),
-    }));
-    const refs = wantRefs
-      ? extractSymbolRefs(fm.source, '.ts', parsed).map((r) => ({
-          ...r,
-          line: r.line + fm.lineOffset,
-        }))
-      : [];
-    const envReads = extractEnvVars(fm.source, '.ts', parsed).map((r) => ({
-      ...r,
-      line: r.line + fm.lineOffset,
-    }));
-    return { imports, symbols, refs, envReads };
+    return out;
   }
 
   if (isPython(ext)) {
@@ -172,6 +184,46 @@ export function extractFile(text: string, ext: string, wantRefs: boolean): FileE
   }
 
   return empty();
+}
+
+/** Extract from a script embedded in another file format (Astro
+ *  frontmatter, an SFC <script> block), shifting every line number by
+ *  `lineOffset` so it points into the original file. Null when the embedded
+ *  source does not parse. */
+function extractEmbedded(
+  source: string,
+  ext: string,
+  lineOffset: number,
+  wantRefs: boolean,
+): FileExtraction | null {
+  const parsed = parseJS(source, ext);
+  if (!parsed) return null;
+  const imports = extractImports(source, ext, parsed);
+  for (const r of imports) {
+    if (typeof r.line === 'number') r.line += lineOffset;
+  }
+  const symbols = extractSymbols(source, ext, parsed).map((s) => ({
+    ...s,
+    startLine: s.startLine + lineOffset,
+    endLine: s.endLine + lineOffset,
+    ...(s.children
+      ? {
+          children: s.children.map((c) => ({
+            ...c,
+            startLine: c.startLine + lineOffset,
+            endLine: c.endLine + lineOffset,
+          })),
+        }
+      : {}),
+  }));
+  const refs = wantRefs
+    ? extractSymbolRefs(source, ext, parsed).map((r) => ({ ...r, line: r.line + lineOffset }))
+    : [];
+  const envReads = extractEnvVars(source, ext, parsed).map((r) => ({
+    ...r,
+    line: r.line + lineOffset,
+  }));
+  return { imports, symbols, refs, envReads };
 }
 
 /** Deep-clone a cached value before handing it to analyze() — downstream

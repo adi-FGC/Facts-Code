@@ -27,7 +27,11 @@ export const RISK_DELTA_SEVERITY: FindingSeverity = 'low';
 export const HOTSPOT_LOW = 5; // ≥ this many transitive dependents → low hotspot note
 export const HOTSPOT_MEDIUM = 20; // ≥ this many → medium hotspot caution
 
-/** Map a vulnerability/advisory severity string onto a finding severity. */
+/** Map a vulnerability/advisory severity string onto a finding severity.
+ *  'unknown' (the OSV detail fetch failed, so the row is id-only) and any
+ *  unexpected string grade MEDIUM, never low: the real advisory may be
+ *  critical, and grading it low let it pass `--fail-on medium` (audit
+ *  correctness#8 — the gate must not fail open). */
 export function vulnFindingSeverity(sev: string): FindingSeverity {
   switch (sev) {
     case 'critical':
@@ -36,12 +40,16 @@ export function vulnFindingSeverity(sev: string): FindingSeverity {
       return 'high';
     case 'medium':
       return 'medium';
+    case 'low':
+      return 'low';
     default:
-      return 'low'; // low / unknown / anything unexpected
+      return 'medium'; // unknown / anything unexpected: fail closed
   }
 }
 
-/** Rolled-up verdict severity = the worst finding, or `none`. */
+/** Rolled-up verdict severity = the worst finding, or `none`. Pass the
+ *  GRADED findings only: a listed-only one (dev/transitive advisories) is
+ *  appended after this runs, so it never raises the level. */
 export function rollupSeverity(findings: ChangeFinding[]): ReviewSeverity {
   let worst: ReviewSeverity = 'none';
   for (const f of findings) {

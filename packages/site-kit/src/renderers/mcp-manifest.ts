@@ -21,13 +21,27 @@ export const mcpManifestRenderer: SiteRenderer = {
       description: reg.product.description,
       mcp: {
         transport: 'stdio',
-        // Honest: false until @factstack/mcp-server is on npm, so a client
-        // doesn't blindly run an `npx` command that 404s.
+        // Honest: false until the npm package is published.
         published: reg.mcp.published,
-        launch: {
-          command: reg.mcp.launchCommand.command,
-          args: reg.mcp.launchCommand.args,
-        },
+        package: reg.mcp.publishedPackage,
+        /* `published` is non-standard and a client may ignore it, so an
+           unpublished server gets NO runnable `launch` — an auto-launching
+           client must never `npx -y` a package that isn't on npm (security#5).
+           Until then: the stdio launch that works from a clone of the repo. */
+        ...(reg.mcp.published
+          ? {
+              launch: {
+                command: reg.mcp.launchCommand.command,
+                args: reg.mcp.launchCommand.args,
+              },
+            }
+          : {
+              launchFromClone: {
+                command: reg.mcp.cloneLaunchCommand.command,
+                args: reg.mcp.cloneLaunchCommand.args,
+                note: 'Run inside a clone of the FACTS repository; add --root <project dir>.',
+              },
+            }),
         toolCount: reg.mcp.tools.length,
         resourceCount: reg.mcp.resources.length,
         toolNames: reg.mcp.tools.map((t) => t.name),

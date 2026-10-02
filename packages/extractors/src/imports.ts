@@ -38,6 +38,13 @@ export interface RawImport {
    * lower-confidence global tier in the resolver (a documented v1 gap).
    */
   names: string[];
+  /**
+   * Python only: the member names of `from X import a, b` (not the local
+   * `as` aliases). A member may be a SUBMODULE (`from . import utils`), so
+   * the resolver tries `X.a` before the package X. `'*'` means the package
+   * itself is imported too (a merged `import X` row). Absent elsewhere.
+   */
+  members?: string[];
 }
 
 /**

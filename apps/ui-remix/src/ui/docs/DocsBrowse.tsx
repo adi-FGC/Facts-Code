@@ -2,15 +2,20 @@
  * DocsBrowse — find every doc in one place + preview it.
  *
  * Left: a searchable, folder-grouped index of every flagged doc/spec file.
- * Right: the selected doc rendered (Markdown → VDOM; HTML → sandboxed iframe;
- * everything else → raw), with a Raw toggle and a generated outline. This is
- * the "see all the documentation that exists, in its real form" surface.
+ * Right: the selected doc rendered (Markdown → VDOM; HTML → its source, since
+ * the dashboard's CSP would strip a doc's own styles/scripts; everything else
+ * → raw), with a Raw toggle and a generated outline. This is the "see all the
+ * documentation that exists, in its real form" surface.
+ *
+ * `/docs?doc=<path>` selects a doc (relative links inside docs resolve to it).
+ * The component outlives a dataset hot-swap (⌘O scan), so everything cached
+ * per dataset is dropped when `props.data` changes identity.
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
 import type { DocFile } from '@factstack/spec';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
-import { renderMarkdown } from '../../lib/markdown.tsx';
+import { renderMarkdown, type MarkdownOptions } from '../../lib/markdown.tsx';
 import { getDocs, groupDocs } from '../../lib/docsModel.ts';
 
 const wrap = css({
@@ -151,13 +156,6 @@ const rawPre = css({
   whiteSpace: 'pre-wrap',
   overflowWrap: 'anywhere',
 });
-const frame = css({
-  width: '100%',
-  height: '70vh',
-  border: '1px solid var(--hairline)',
-  borderRadius: '10px',
-  background: '#fff',
-});
 const outline = css({
   border: '1px solid var(--hairline)',
   borderRadius: '10px',
@@ -212,19 +210,31 @@ function isMarkdownish(f: DocFile): boolean {
  *  carry `content` inline and never set it. */
 type LazyDoc = DocFile & { contentUrl?: string };
 
+/** The `?doc=` deep-link param, if the URL carries one. */
+function docParam(): string | null {
+  if (typeof location === 'undefined') return null;
+  return new URLSearchParams(location.search).get('doc');
+}
+
 export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
-  const first = getDocs(handle.props.data)[0];
-  let selPath = first?.path ?? '';
+  let lastData = handle.props.data;
+  let docPaths = new Set(getDocs(lastData).map((d) => d.path));
+  const linked = docParam();
+  let selPath = linked && docPaths.has(linked) ? linked : (getDocs(lastData)[0]?.path ?? '');
   let mode: 'preview' | 'raw' = 'preview';
   let query = '';
 
-  /* Bodies fetched on demand, once per doc. */
+  /* Bodies fetched on demand, once per URL. Keyed by contentUrl, not path:
+     after a hot-swap a new project's README.md is a different document, and
+     a path-keyed cache showed the old one's body over it (UI-03). */
   const bodies = new Map<string, string | Error>();
   const pending = new Set<string>();
+  let bodyGen = 0;
   const ensureBody = (doc: LazyDoc | undefined): void => {
     const url = doc && doc.content === null ? doc.contentUrl : undefined;
-    if (!doc || !url || bodies.has(doc.path) || pending.has(doc.path)) return;
-    pending.add(doc.path);
+    if (!url || bodies.has(url) || pending.has(url)) return;
+    const gen = bodyGen;
+    pending.add(url);
     fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -232,11 +242,13 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
       })
       .then((j) => {
         if (typeof j.content !== 'string') throw new Error('malformed document file');
-        bodies.set(doc.path, j.content);
+        if (gen === bodyGen) bodies.set(url, j.content);
       })
-      .catch((e: unknown) => bodies.set(doc.path, e instanceof Error ? e : new Error(String(e))))
+      .catch((e: unknown) => {
+        if (gen === bodyGen) bodies.set(url, e instanceof Error ? e : new Error(String(e)));
+      })
       .finally(() => {
-        pending.delete(doc.path);
+        pending.delete(url);
         void handle.update();
       });
   };
@@ -244,8 +256,39 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
   const select = (p: string) => {
     selPath = p;
     mode = 'preview';
+    /* Keep `?doc=` in step with the pick, so Back, a reload or a copied
+       link shows the doc on screen, and a later link back to the doc the
+       URL named is a real change. */
+    if (typeof location !== 'undefined' && location.pathname === '/docs') {
+      try {
+        history.replaceState(history.state, '', `/docs?doc=${encodeURIComponent(p)}`);
+      } catch {
+        /* sandboxed / file:// — the selection still applies */
+      }
+    }
     void handle.update();
   };
+  /* A `?doc=` link followed from inside a doc (or back/forward) selects it.
+     A /docs entry without a known `?doc=` is the landing state, which shows
+     the first doc — so Back from a followed link restores it. */
+  const onNav = () => {
+    if (typeof location === 'undefined' || location.pathname !== '/docs') return;
+    const want = docParam();
+    const next =
+      want && docPaths.has(want) ? want : (getDocs(handle.props.data)[0]?.path ?? selPath);
+    if (next === selPath) return;
+    selPath = next;
+    mode = 'preview';
+    void handle.update();
+  };
+  if (typeof window !== 'undefined') {
+    window.addEventListener('popstate', onNav);
+    window.addEventListener('factstack:nav', onNav);
+    handle.signal.addEventListener('abort', () => {
+      window.removeEventListener('popstate', onNav);
+      window.removeEventListener('factstack:nav', onNav);
+    });
+  }
   const setMode = (m: 'preview' | 'raw') => {
     mode = m;
     void handle.update();
@@ -257,6 +300,19 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
 
   return () => {
     const docs = getDocs(handle.props.data);
+    if (handle.props.data !== lastData) {
+      /* Dataset hot-swapped: drop every per-dataset cache, and fall back to
+         the new first doc if the old selection doesn't exist there. */
+      lastData = handle.props.data;
+      docPaths = new Set(docs.map((d) => d.path));
+      bodies.clear();
+      pending.clear();
+      bodyGen++;
+      if (!docPaths.has(selPath)) {
+        selPath = docs[0]?.path ?? '';
+        mode = 'preview';
+      }
+    }
     const q = query.trim().toLowerCase();
     const filtered = q
       ? docs.filter((d) => (d.path + ' ' + d.title).toLowerCase().includes(q))
@@ -264,8 +320,8 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
     const groups = groupDocs(filtered);
     const picked: LazyDoc | undefined = docs.find((d) => d.path === selPath) ?? docs[0];
     ensureBody(picked);
-    const fetched = picked ? bodies.get(picked.path) : undefined;
     const lazy = picked?.content === null && Boolean(picked?.contentUrl);
+    const fetched = lazy && picked?.contentUrl ? bodies.get(picked.contentUrl) : undefined;
     const sel: LazyDoc | undefined =
       picked && typeof fetched === 'string' ? { ...picked, content: fetched } : picked;
 
@@ -353,8 +409,8 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
                 </p>
               ) : sel.content === null ? (
                 <p mix={note}>
-                  Content omitted (doc exceeded the per-artifact content budget). Outline +
-                  structure below.
+                  This doc’s text isn’t in this dataset (over the analysis content budget, or left
+                  out of the published build). Outline + structure below.
                 </p>
               ) : sel.truncated ? (
                 <p mix={note}>
@@ -372,7 +428,9 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
                 </nav>
               ) : null}
 
-              {lazy && sel.content === null ? null : renderBody(sel, mode)}
+              {lazy && sel.content === null
+                ? null
+                : renderBody(sel, mode, { basePath: sel.path, isDoc: (p) => docPaths.has(p) })}
             </>
           )}
         </section>
@@ -381,7 +439,7 @@ export function DocsBrowse(handle: Handle<{ data: Dataset }>) {
   };
 }
 
-function renderBody(doc: DocFile, mode: 'preview' | 'raw') {
+function renderBody(doc: DocFile, mode: 'preview' | 'raw', md: MarkdownOptions) {
   const content = doc.content ?? '';
   if (mode === 'raw' || (!isMarkdownish(doc) && doc.format !== 'html')) {
     if (!content) return <p mix={empty}>No raw content stored for this doc.</p>;
@@ -393,14 +451,23 @@ function renderBody(doc: DocFile, mode: 'preview' | 'raw') {
   }
   if (doc.format === 'html') {
     if (!content) return <p mix={empty}>No content stored for this HTML doc.</p>;
-    // Sandboxed: scripts run in an opaque origin (no parent/storage access),
-    // so JS-driven docs still render but can't touch the dashboard.
+    /* No live preview. A srcdoc iframe inherits the dashboard's strict CSP,
+       so the doc's own inline <style>/<script> never apply and it renders
+       broken (UI-12). Say so, and show the source instead. */
     return (
-      <iframe mix={frame} sandbox="allow-scripts" srcdoc={content} title={doc.title || doc.name} />
+      <>
+        <p mix={note} role="note">
+          HTML preview is off: this dashboard’s security policy blocks a page’s own inline styles
+          and scripts, so it would render broken. Showing the source instead.
+        </p>
+        <pre mix={rawPre}>
+          <code>{content}</code>
+        </pre>
+      </>
     );
   }
   if (!content) return <p mix={empty}>No content stored for this doc.</p>;
-  return renderMarkdown(content);
+  return renderMarkdown(content, md);
 }
 
 function fmtBytes(n: number): string {

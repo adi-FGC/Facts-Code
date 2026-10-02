@@ -74,8 +74,9 @@ I/O. Symmetric with `FactsFS` at the read tier.
 
 ### `writeArtifactsTo(writer, agent, human, options?)`
 
-The orchestrator. Lives in `packages/emit/pure/`. Pure — no I/O of
-its own, delegates everything to the `FileWriter` it's given.
+The orchestrator. Lives in `packages/emit/src/orchestrator.ts`, exported
+from the isomorphic `@factstack/emit/pure` entry (`packages/emit/src/pure.ts`).
+Pure — no I/O of its own, delegates everything to the `FileWriter` it's given.
 Responsibilities:
 
 - Validate `agent` + `human` against their Zod schemas
@@ -246,7 +247,9 @@ narrow type declarations rather than DOM lib.
 
 ### `factstack scan-vulns [target]`
 
-CLI subcommand in `apps/cli/src/cli.ts`. Reads `.facts/agent.json`,
+CLI subcommand in `apps/cli/src/commands/scan-vulns.ts` (registered in
+`apps/cli/src/cli.ts`; shared OSV plumbing in `apps/cli/src/vulns.ts`).
+Reads `.facts/agent.json`,
 flattens dep manifests, normalizes versions, queries OSV in batch,
 converts results to canonical `Vulnerability[]`, persists back via
 `writeArtifacts`. Pre-flight rejects if `agent.json` is missing —
@@ -255,7 +258,8 @@ deliberately separate so `analyze` stays C1-pure.
 
 ### MCP tools `list_credentials` + `list_vulnerabilities`
 
-In `apps/mcp-server/src/server.ts`. `list_credentials` filters
+In `apps/mcp-server/src/create-server.ts` (`server.ts` is only the stdio
+bin that connects it). `list_credentials` filters
 `agent.risks` to category=secret. `list_vulnerabilities` returns
 `agent.vulnerabilities` with optional severity/ecosystem/package
 filters. When `lastChecked` is null, surfaces a hint that

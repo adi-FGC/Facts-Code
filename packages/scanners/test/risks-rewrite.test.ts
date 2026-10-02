@@ -77,9 +77,13 @@ describe('rewriteRiskMessage — quantity-aware templates', () => {
   });
 });
 
+/** A partial Risk as `applyRewrite` sees it: `messageTechnical` is optional
+ *  because the rewrite adds it, so the fixtures must admit it in their type. */
+type PartialRisk = { rule: string; message: string; file?: string; messageTechnical?: string };
+
 describe('applyRewrite — partial Risk objects', () => {
   it('moves original message into messageTechnical when a rewrite exists', () => {
-    const risk = {
+    const risk: PartialRisk = {
       rule: 'aws-access-key',
       message: 'Detected AKIA*** signature in src/foo.ts',
       file: 'src/foo.ts',
@@ -91,7 +95,7 @@ describe('applyRewrite — partial Risk objects', () => {
   });
 
   it('returns the input unchanged when no rewrite exists', () => {
-    const risk = {
+    const risk: PartialRisk = {
       rule: 'no-such-rule',
       message: 'something technical',
       file: 'src/foo.ts',

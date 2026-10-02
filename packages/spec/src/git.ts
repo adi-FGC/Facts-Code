@@ -13,7 +13,7 @@
  * remote-tracking refs…) so a reader knows how much to trust a verdict
  * and how to close the gap.
  */
-import { z } from 'zod';
+import { z } from './zod.js';
 
 /** Where a worktree row came from. `main` = the primary checkout;
  *  `linked` = `git worktree add`; `nested` = a separate repo inside the

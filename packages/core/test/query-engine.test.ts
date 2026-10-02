@@ -62,6 +62,10 @@ function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
   } as AgentArtifact;
 }
 

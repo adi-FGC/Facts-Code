@@ -124,3 +124,12 @@ describe('detectSourceRoutes', () => {
     ]);
   });
 });
+
+describe('detectSourceRoutes — mounts are not endpoints (HUNT-CORE-15)', () => {
+  it('ignores app.use() mounts and keeps real verbs', () => {
+    const src =
+      "const express = require('express');\nconst app = express();\napp.use('/users', usersRouter);\napp.use('/static', express.static('public'));\napp.get('/health', ok);\n";
+    const routes = detectSourceRoutes('src/app.js', src).map((r) => `${r.method} ${r.path}`);
+    expect(routes).toEqual(['GET /health']);
+  });
+});

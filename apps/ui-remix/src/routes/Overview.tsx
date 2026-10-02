@@ -22,6 +22,9 @@
  */
 import type { Handle } from 'remix/ui';
 import { css } from 'remix/ui';
+// Leaf subpath, not the '@factstack/core' barrel (keeps the analyzer out of
+// this chunk); the same helper cleans summary.oneLiner for agent.json.
+import { stripInlineMarkdown } from '@factstack/core/plain-text';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { Section } from '../ui/Section.tsx';
 import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
@@ -279,7 +282,8 @@ export function Overview(handle: Handle<OverviewProps>) {
               <span mix={css({ color: 'var(--fg-muted)', fontWeight: '500' })}>{project.name}</span>
             </span>
           </div>
-          <h1 mix={headline}>{summary.oneLiner}</h1>
+          {/* The README tagline arrives with its Markdown intact; show the words. */}
+          <h1 mix={headline}>{stripInlineMarkdown(summary.oneLiner)}</h1>
           <p mix={ledeText}>
             {project.name} spans <strong mix={ledeStrong}>{fmt(stats.files)} files</strong> and{' '}
             <strong mix={ledeStrong}>{fmt(stats.loc)} lines</strong>, a roughly{' '}

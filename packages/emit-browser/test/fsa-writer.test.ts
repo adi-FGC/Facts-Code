@@ -1,9 +1,9 @@
 /* eslint-disable max-classes-per-file, require-await */
 
 import { describe, expect, it } from 'vitest';
-import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
+import { BASELINE_AGENT_FILE, type AgentArtifact, type HumanArtifact } from '@factstack/spec';
 import { FsaFileWriter } from '../src/fsa-writer.js';
-import { writeBrowserArtifacts } from '../src/write.js';
+import { writeBrowserArtifacts, writeBrowserSkills } from '../src/write.js';
 
 describe('FsaFileWriter — browser filesystem targets', () => {
   it('writes files under .facts and verifies bytes after close', async () => {
@@ -26,7 +26,7 @@ describe('FsaFileWriter — browser filesystem targets', () => {
     await writer.writeText('snapshots/a.json', '{}');
     await writer.writeText('snapshots/nested/b.json', '{}');
 
-    expect((await writer.listKeys('snapshots')).toSorted()).toEqual(['a.json', 'nested']);
+    expect([...(await writer.listKeys('snapshots'))].sort()).toEqual(['a.json', 'nested']);
 
     await writer.removeEntry('snapshots', 'a.json');
     await writer.removeEntry('snapshots', 'a.json');
@@ -156,6 +156,58 @@ describe('FsaFileWriter — browser filesystem targets', () => {
   });
 });
 
+describe('FsaFileWriter.readText (CLI parity with NodeFileWriter.readText)', () => {
+  it('reads back a file, and returns null where there is no file', async () => {
+    const root = new MemoryFsaDirectory('');
+    const writer = new FsaFileWriter(root.asHandle(), '');
+    await writer.writeText('.github/copilot-instructions.md', 'rules\n');
+
+    expect(await writer.readText('.github/copilot-instructions.md')).toBe('rules\n');
+    expect(await writer.readText('.cursorrules')).toBeNull(); // NotFoundError
+    expect(await writer.readText('nope/deeper/.cursorrules')).toBeNull(); // missing dirs
+    expect(await writer.readText('.github')).toBeNull(); // TypeMismatchError: a directory
+    expect(await writer.readText('.github/copilot-instructions.md/x')).toBeNull(); // file as dir
+  });
+
+  it('rejects anything else (a revoked permission is not "no file")', async () => {
+    const root = new MemoryFsaDirectory('');
+    const writer = new FsaFileWriter(root.asHandle(), '');
+    await writer.writeText('.cursorrules', 'x');
+    root.deniedReads.add('.cursorrules');
+    await expect(writer.readText('.cursorrules')).rejects.toMatchObject({
+      name: 'NotAllowedError',
+    });
+  });
+
+  it('is scoped to the writer root like every other method', async () => {
+    const root = new MemoryFsaDirectory('');
+    await new FsaFileWriter(root.asHandle()).writeText('agent.json', '{}');
+    expect(await new FsaFileWriter(root.asHandle()).readText('agent.json')).toBe('{}');
+    expect(await new FsaFileWriter(root.asHandle(), '').readText('agent.json')).toBeNull();
+  });
+});
+
+describe('writeBrowserSkills — rules files (FSB-7)', () => {
+  it('refreshes a FACTS-managed .cursorrules and keeps a hand-written Copilot file', async () => {
+    const root = new MemoryFsaDirectory('');
+    const seed = new FsaFileWriter(root.asHandle(), '');
+    await seed.writeText('.cursorrules', '<!-- factstack:managed -->\nstale FACTS rules\n');
+    await seed.writeText('.github/copilot-instructions.md', 'Our own house rules.\n');
+
+    const r = await writeBrowserSkills({
+      root: root.asHandle(),
+      agent: makeAgent(),
+      human: makeHuman(),
+      formats: ['cursor', 'copilot'],
+    });
+
+    expect(r.files).toContain('.cursorrules');
+    expect(root.text('.cursorrules')).not.toContain('stale FACTS rules');
+    expect(r.preserved).toEqual(['.github/copilot-instructions.md']);
+    expect(root.text('.github/copilot-instructions.md')).toBe('Our own house rules.\n');
+  });
+});
+
 describe('writeBrowserArtifacts — complete artifact write', () => {
   it('writes the full browser artifact set to the picked directory', async () => {
     const root = new MemoryFsaDirectory('');
@@ -195,7 +247,7 @@ describe('writeBrowserArtifacts — complete artifact write', () => {
     expect(root.hasFile('.facts/agent.pack')).toBe(true);
 
     // Warm run with a CHANGED agent (one new risk) → the F8 diff sidecar.
-    const changed = {
+    const changed: AgentArtifact = {
       ...makeAgent(),
       risks: [
         {
@@ -206,7 +258,7 @@ describe('writeBrowserArtifacts — complete artifact write', () => {
           file: 'src/big.ts',
         },
       ],
-    } as AgentArtifact;
+    };
     const warm = await writeBrowserArtifacts({
       root: root.asHandle(),
       agent: changed,
@@ -215,6 +267,45 @@ describe('writeBrowserArtifacts — complete artifact write', () => {
     });
     expect(warm.diffName).toBe('agent.diff.pack');
     expect(root.hasFile('.facts/agent.diff.pack')).toBe(true);
+  });
+
+  it('keeps the prior agent.json as the review baseline and drops a stale diff (CLI parity)', async () => {
+    const root = new MemoryFsaDirectory('');
+    await writeBrowserArtifacts({ root: root.asHandle(), agent: makeAgent(), human: makeHuman() });
+    const first = root.text('.facts/agent.json');
+    expect(root.hasFile(`.facts/${BASELINE_AGENT_FILE}`)).toBe(false);
+
+    // A leftover sidecar from an older master; this save builds no diff
+    // (a new analysis, but the prior pack is made unusable).
+    const w = new FsaFileWriter(root.asHandle());
+    await w.writeText('agent.diff.pack', 'stale');
+    await w.writeText('agent.pack', 'not a pack');
+    const r = await writeBrowserArtifacts({
+      root: root.asHandle(),
+      agent: { ...makeAgent(), generatedAt: '2026-05-25T00:00:01.000Z' },
+      human: makeHuman(),
+    });
+    expect(r.diffName).toBeNull();
+    expect(r.diffSkipped).toMatch(/^previous agent\.pack is unreadable: /); // CLI parity
+    expect(root.hasFile('.facts/agent.diff.pack')).toBe(false);
+    expect(root.text(`.facts/${BASELINE_AGENT_FILE}`)).toBe(first);
+  });
+
+  it('minimal saves after a legacy one keep that legacy save as the baseline (CLI parity)', async () => {
+    const root = new MemoryFsaDirectory('');
+    const save = (s: number, profile: 'legacy' | 'minimal') =>
+      writeBrowserArtifacts({
+        root: root.asHandle(),
+        agent: { ...makeAgent(), generatedAt: `2026-05-25T00:00:0${s}.000Z` },
+        human: makeHuman(),
+        profile,
+      });
+    await save(1, 'legacy');
+    const legacy = root.text('.facts/agent.json');
+    await save(2, 'minimal');
+    await save(3, 'minimal');
+    await save(4, 'legacy'); // a minimal save's head is never parked
+    expect(root.text(`.facts/${BASELINE_AGENT_FILE}`)).toBe(legacy);
   });
 });
 
@@ -232,13 +323,25 @@ function makeAgent(): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
-  } as AgentArtifact;
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
+  };
 }
 
 function makeHuman(): HumanArtifact {
@@ -265,10 +368,18 @@ function makeHuman(): HumanArtifact {
       status: 'ok',
       children: [],
     },
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     activity: [],
     risks: [],
-  } as HumanArtifact;
+  };
 }
 
 /**
@@ -295,6 +406,9 @@ class MemoryFsaDirectory {
   /** path → the options passed to createWritable for that file's last
    *  write. Asserts the explicit keepExistingData: false contract. */
   readonly createWritableOpts = new Map<string, { keepExistingData?: boolean } | undefined>();
+  /** Leaf names in THIS directory whose handle lookup fails with
+   *  NotAllowedError (a permission the user revoked mid-session). */
+  readonly deniedReads = new Set<string>();
   readonly root: MemoryFsaDirectory;
 
   constructor(
@@ -325,7 +439,10 @@ class MemoryFsaDirectory {
   ): Promise<FileSystemDirectoryHandle> {
     let dir = this.dirs.get(name);
     if (!dir) {
-      if (!opts?.create) throw new Error(`Directory not found: ${name}`);
+      // Real FSA rejects with these DOMException names.
+      if (this.files.has(name))
+        throw new DOMException(`Not a directory: ${name}`, 'TypeMismatchError');
+      if (!opts?.create) throw new DOMException(`Directory not found: ${name}`, 'NotFoundError');
       dir = new MemoryFsaDirectory(this.childPath(name), this.root);
       this.dirs.set(name, dir);
     }
@@ -333,8 +450,10 @@ class MemoryFsaDirectory {
   }
 
   async getFileHandle(name: string, opts?: { create?: boolean }): Promise<FileSystemFileHandle> {
+    if (this.dirs.has(name)) throw new DOMException(`Not a file: ${name}`, 'TypeMismatchError');
+    if (this.deniedReads.has(name)) throw new DOMException('Permission revoked', 'NotAllowedError');
     if (!this.files.has(name)) {
-      if (!opts?.create) throw new Error(`File not found: ${name}`);
+      if (!opts?.create) throw new DOMException(`File not found: ${name}`, 'NotFoundError');
       this.files.set(name, new Uint8Array());
     }
     return new MemoryFsaFileHandle(this, name).asHandle();
@@ -347,7 +466,7 @@ class MemoryFsaDirectory {
   }
 
   async *keys(): AsyncIterableIterator<string> {
-    for (const name of [...this.files.keys(), ...this.dirs.keys()].toSorted()) {
+    for (const name of [...this.files.keys(), ...this.dirs.keys()].sort()) {
       yield name;
     }
   }

@@ -1,0 +1,7 @@
+/* Tailwind v4 input for the CLI's local UI (the legacy prototype).
+   The prototype used to load the in-browser Tailwind JIT from a CDN; sync-ui
+   now compiles the same utilities ahead of time and inlines them, so
+   `factstack ui`, `export` and `quick` render styled offline with no
+   third-party requests. Candidates are scanned from the prototype source. */
+@import 'tailwindcss' source(none);
+@source '../../../legacy/prototype/index.html';

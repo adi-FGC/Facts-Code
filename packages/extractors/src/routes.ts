@@ -19,6 +19,10 @@
  * don't need source at all.
  */
 
+/* Test / fixture code by the shared convention, plus `examples/` — sample
+   apps, not this project's endpoints. */
+import { isTestOrExamplePath } from './test-paths.js';
+
 export interface DetectedRoute {
   framework:
     | 'nextjs'
@@ -45,7 +49,7 @@ export interface DetectedRoute {
  *  Skips test + fixture paths so a project's test suite doesn't pollute
  *  the routes artifact. */
 export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
-  if (isTestOrFixturePath(filePath)) return [];
+  if (isTestOrExamplePath(filePath)) return [];
   const out: DetectedRoute[] = [];
 
   // Next.js App Router: app/**/route.{ts,js}
@@ -160,20 +164,11 @@ export function detectFileBasedRoutes(filePath: string): DetectedRoute[] {
  * real route — confusing CXOs and AI agents alike.
  */
 export function detectSourceRoutes(filePath: string, source: string): DetectedRoute[] {
-  if (isTestOrFixturePath(filePath)) return [];
+  if (isTestOrExamplePath(filePath)) return [];
   const ext = extOf(filePath);
   if (ext === '.py') return detectPythonRoutes(filePath, source);
   if (/\.(ts|tsx|js|jsx|mjs|cjs)$/.test(ext)) return detectJsRoutes(filePath, source);
   return [];
-}
-
-/** True for `*.test.*`, `*.spec.*`, `__tests__/`, `examples/`, `fixtures/`. */
-function isTestOrFixturePath(p: string): boolean {
-  const normalized = p.toLowerCase().replace(/\\/g, '/');
-  if (/(?:^|\/)__tests__\//.test(normalized)) return true;
-  if (/(?:^|\/)(?:test|tests|__test__|examples|fixtures)\//.test(normalized)) return true;
-  if (/\.(test|spec)\.[a-z]+$/.test(normalized)) return true;
-  return false;
 }
 
 function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
@@ -242,8 +237,10 @@ function detectJsRoutes(filePath: string, source: string): DetectedRoute[] {
     );
   let m: RegExpExecArray | null;
   if (usesExpressFamily) {
+    // HTTP verbs only: `app.use('/users', router)` MOUNTS middleware or a
+    // sub-router — it is not an endpoint, and `USE` is not an HTTP method.
     const expressRe =
-      /\b([a-zA-Z_$][\w$]*)\s*\.\s*(get|post|put|patch|delete|head|options|all|use)\s*\(\s*['"`]([^'"`]+)['"`]/g;
+      /\b([a-zA-Z_$][\w$]*)\s*\.\s*(get|post|put|patch|delete|head|options|all)\s*\(\s*['"`]([^'"`]+)['"`]/g;
     while ((m = expressRe.exec(source))) {
       if (!m[2] || !m[3]) continue;
       const method = m[2].toUpperCase();

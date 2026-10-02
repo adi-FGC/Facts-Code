@@ -23,6 +23,15 @@ import {
 
 const REG = buildSiteRegistry({ version: '0.1.0', generatedAt: '2026-07-04T00:00:00.000Z' });
 
+/** REG with each package's npm state pinned, so the gating tests hold before
+ *  and after the owner flips spec's CLI_PUBLISHED / MCP_PUBLISHED. */
+const withPublished = (cli: boolean, mcp: boolean) => ({
+  ...REG,
+  cli: { ...REG.cli, published: cli },
+  mcp: { ...REG.mcp, published: mcp },
+});
+const UNPUBLISHED = withPublished(false, false);
+
 /** Minimal in-memory FileWriter for the orchestrator test. */
 class MemoryFileWriter implements FileWriter {
   readonly files = new Map<string, string>();
@@ -46,7 +55,7 @@ describe('llmsTxtRenderer', () => {
   });
 
   it('llms.txt leads with the fetch-only path, then honestly-gated CLI/MCP', () => {
-    const body = llmsTxtRenderer.render(REG)['llms.txt']!;
+    const body = llmsTxtRenderer.render(UNPUBLISHED)['llms.txt']!;
     expect(body.startsWith('# FACTS\n')).toBe(true);
     expect(body).toContain('> FACTS turns any codebase');
     // Fetch-first: a browsing chat's path comes before the agent path.
@@ -59,8 +68,44 @@ describe('llmsTxtRenderer', () => {
     );
     // Unpublished packages → honest gating, never a bare working-CTA claim.
     expect(body).toContain('not on npm yet');
-    expect(body).toContain('npx -y @factstack/cli');
-    expect(body).toContain('npx -y @factstack/mcp-server');
+    expect(body).toContain('`npx factstack`');
+    expect(body).toContain('`npx -y factstack-mcp`');
+    expect(body).toContain('npx tsx apps/mcp-server/src/server.ts');
+    expect(body).toContain('npx tsx apps/cli/src/cli.ts');
+    expect(body).not.toContain('@factstack/');
+  });
+
+  it('llms-full.txt names only the one npx pair', () => {
+    for (const reg of [UNPUBLISHED, withPublished(true, true)]) {
+      const body = llmsTxtRenderer.render(reg)['llms-full.txt']!;
+      expect(body).toContain('`npx -y factstack-mcp`');
+      expect(body).not.toMatch(/@factstack\/(cli|mcp-server)/);
+    }
+  });
+
+  /* mcp-pkg-4: the MCP server may reach npm before the CLI. Each command is
+     gated on its OWN flag, so the unpublished one is never advertised. */
+  it.each([
+    ['MCP published, CLI not', false, true],
+    ['CLI published, MCP not', true, false],
+    ['both published', true, true],
+  ])('%s: each npx command is offered only for its published package', (_, cli, mcp) => {
+    const out = llmsTxtRenderer.render(withPublished(cli, mcp));
+    const txt = out['llms.txt']!;
+    const full = out['llms-full.txt']!;
+    const cliWorks = '- **CLI**: `npx factstack` — ';
+    const mcpWorks = '- **MCP server**: `npx -y factstack-mcp` — ';
+    expect(txt.includes(cliWorks)).toBe(cli);
+    expect(txt.includes(mcpWorks)).toBe(mcp);
+    expect(full.includes('- CLI: `npx factstack` (published as')).toBe(cli);
+    expect(full.includes('- MCP (stdio): `npx -y factstack-mcp` (published as')).toBe(mcp);
+    // The unpublished one keeps its pending note + the clone command.
+    expect(txt.includes('`factstack` is **not on npm yet**')).toBe(!cli);
+    expect(txt.includes('npx tsx apps/cli/src/cli.ts')).toBe(!cli);
+    expect(txt.includes('`factstack-mcp` is **not on npm yet**')).toBe(!mcp);
+    expect(txt.includes('npx tsx apps/mcp-server/src/server.ts')).toBe(!mcp);
+    expect(full.includes('`factstack` is NOT yet on npm')).toBe(!cli);
+    expect(full.includes('`factstack-mcp` is NOT yet on npm')).toBe(!mcp);
   });
 
   it('llms-full.txt: fetch section, one section per tool, resources, annotated routes', () => {
@@ -92,12 +137,32 @@ describe('mcpManifestRenderer', () => {
     expect(json.name).toBe('factstack');
     expect(json.version).toBe('0.1.0');
     expect(json.mcp.transport).toBe('stdio');
-    expect(json.mcp.launch).toEqual({ command: 'npx', args: ['-y', '@factstack/mcp-server'] });
+    expect(json.mcp.package).toBe('factstack-mcp');
     expect(json.mcp.toolCount).toBe(17);
     expect(json.mcp.resourceCount).toBe(4);
     expect(json.mcp.toolNames).toHaveLength(17);
     expect(json.mcp.toolNames[0]).toBe('analyze');
     expect(json.generatedAt).toBe('2026-07-04T00:00:00.000Z');
+  });
+
+  it('security#5: an unpublished server gets NO runnable npx launch, only the clone path', () => {
+    const json = JSON.parse(mcpManifestRenderer.render(UNPUBLISHED)['.well-known/mcp.json']!);
+    expect(json.mcp.published).toBe(false);
+    // A client that ignores the non-standard `published` flag must find nothing
+    // to auto-run that would fetch an npm package.
+    expect(json.mcp.launch).toBeUndefined();
+    expect(JSON.stringify(json)).not.toMatch(/"-y"/);
+    expect(json.mcp.launchFromClone).toMatchObject({
+      command: 'npx',
+      args: ['tsx', 'apps/mcp-server/src/server.ts'],
+    });
+  });
+
+  it('a published server gets the one npx launch', () => {
+    const published = withPublished(false, true);
+    const json = JSON.parse(mcpManifestRenderer.render(published)['.well-known/mcp.json']!);
+    expect(json.mcp.launch).toEqual({ command: 'npx', args: ['-y', 'factstack-mcp'] });
+    expect(json.mcp.launchFromClone).toBeUndefined();
   });
 });
 

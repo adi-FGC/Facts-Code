@@ -13,6 +13,8 @@
  * Line numbers are 1-indexed.
  */
 
+import { lineIndex } from './line-index.js';
+
 export interface HclResource {
   /** Resource type, e.g. `aws_s3_bucket`. */
   type: string;
@@ -44,6 +46,58 @@ export interface ParsedHcl {
  * `{` inside a heredoc body can no longer unbalance `matchBrace` (the body is
  * blanked to spaces). Unterminated block comments are consumed to EOF.
  */
+/**
+ * Index just past the `"…"` string that opens at `start`. Honors `\` escapes
+ * and `${ … }` / `%{ … }` template sequences, which may hold NESTED quoted
+ * strings (`"${format("arn:%s/*", x)}"`, TF 0.11 style) — ending the string
+ * at the first inner quote read `/*` as a comment that ate the rest of the
+ * file. `$${` / `%%{` are literal. Unterminated → the text's end.
+ * Iterative, with an explicit stack of open contexts: recursing per nested
+ * `"${` overflowed the call stack at a few thousand levels (a fuzz-corpus
+ * .tf aborted the whole analyze).
+ */
+function stringEnd(text: string, start: number): number {
+  // Innermost last: 0 = inside a string, n > 0 = inside a template at brace depth n.
+  const open: number[] = [0];
+  let i = start + 1;
+  while (i < text.length) {
+    const c = text[i];
+    const top = open.length - 1;
+    const depth = open[top]!;
+    if (depth > 0) {
+      if (c === '"') open.push(0);
+      else if (c === '{') open[top] = depth + 1;
+      else if (c === '}') {
+        if (depth === 1) open.pop();
+        else open[top] = depth - 1;
+      }
+      i++;
+      continue;
+    }
+    if (c === '\\') {
+      i += 2;
+      continue;
+    }
+    if (c === '"') {
+      open.pop();
+      i++;
+      if (open.length === 0) return i;
+      continue;
+    }
+    if ((c === '$' || c === '%') && text[i + 1] === c && text[i + 2] === '{') {
+      i += 3;
+      continue;
+    }
+    if ((c === '$' || c === '%') && text[i + 1] === '{') {
+      open.push(1);
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  return text.length;
+}
+
 function stripHclComments(src: string): string {
   const out: string[] = [];
   const n = src.length;
@@ -53,22 +107,9 @@ function stripHclComments(src: string): string {
     const c2 = src[i + 1];
     // "…" string — preserve verbatim (incl. ${type.name} interpolations).
     if (c === '"') {
-      out.push('"');
-      i++;
-      while (i < n) {
-        const d = src[i]!;
-        if (d === '\\') {
-          out.push(d);
-          if (i + 1 < n) {
-            out.push(src[i + 1]!);
-            i += 2;
-          } else i++;
-          continue;
-        }
-        out.push(d);
-        i++;
-        if (d === '"') break;
-      }
+      const end = stringEnd(src, i);
+      out.push(src.slice(i, end));
+      i = end;
       continue;
     }
     // <<MARKER / <<-MARKER heredoc — keep header + terminator, blank the body.
@@ -134,31 +175,15 @@ function stripHclComments(src: string): string {
   return out.join('');
 }
 
-/** 1-indexed line number of a character offset. */
-function lineAt(text: string, index: number): number {
-  let line = 1;
-  const cap = Math.min(index, text.length);
-  for (let i = 0; i < cap; i++) if (text.charCodeAt(i) === 10) line++;
-  return line;
-}
-
 /** Index of the `}` matching the `{` at `openIdx`, skipping double-quoted
  *  strings (so `"${...}"` interpolations don't unbalance the count). */
 function matchBrace(text: string, openIdx: number): number {
   let depth = 0;
-  let inStr = false;
-  for (let i = openIdx; i < text.length; i++) {
+  let i = openIdx;
+  while (i < text.length) {
     const c = text[i];
-    if (inStr) {
-      if (c === '\\') {
-        i++;
-        continue;
-      }
-      if (c === '"') inStr = false;
-      continue;
-    }
     if (c === '"') {
-      inStr = true;
+      i = stringEnd(text, i);
       continue;
     }
     if (c === '{') depth++;
@@ -166,6 +191,7 @@ function matchBrace(text: string, openIdx: number): number {
       depth--;
       if (depth === 0) return i;
     }
+    i++;
   }
   return -1;
 }
@@ -185,6 +211,7 @@ interface ResourceBlock extends HclResource {
  */
 export function parseHcl(source: string): ParsedHcl {
   const src = stripHclComments(source);
+  const lineAt = lineIndex(src);
 
   // ── Pass 1: collect resource blocks ──
   const blocks: ResourceBlock[] = [];
@@ -201,7 +228,7 @@ export function parseHcl(source: string): ParsedHcl {
     blocks.push({
       type,
       name,
-      line: lineAt(src, m.index),
+      line: lineAt(m.index),
       bodyStart: openIdx + 1,
       bodyEnd: closeIdx,
     });
@@ -238,7 +265,7 @@ export function parseHcl(source: string): ParsedHcl {
         fromName: b.name,
         toType,
         toName,
-        line: lineAt(src, b.bodyStart + r.index),
+        line: lineAt(b.bodyStart + r.index),
       });
     }
   }

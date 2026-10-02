@@ -9,12 +9,28 @@
  * byte-identical rendered artifacts).
  */
 
-import { MCP_TOOL_CATALOG, McpResourceCatalog, ROUTE_CATALOG } from '@factstack/spec';
-import type { SiteRegistry, SiteResource, SiteRoute } from './types.js';
+import {
+  CLI_NPM_PACKAGE,
+  CLI_NPX,
+  CLI_PUBLISHED,
+  MCP_NPM_PACKAGE,
+  MCP_NPX,
+  MCP_PUBLISHED,
+  MCP_TOOL_CATALOG,
+  McpResourceCatalog,
+  ROUTE_CATALOG,
+} from '@factstack/spec';
+import type { McpLaunchCommand, SiteRegistry, SiteResource, SiteRoute } from './types.js';
 
 /** The two static hosts the same `apps/ui-remix/dist` is served from. */
 const HOST_NETLIFY = 'https://factstack-demo.netlify.app';
 const HOST_CLOUDFLARE = 'https://factstack.pages.dev';
+
+/** `npx -y factstack-mcp` → { command: 'npx', args: ['-y', 'factstack-mcp'] }. */
+function toLaunch(oneLiner: string): McpLaunchCommand {
+  const [command, ...args] = oneLiner.split(' ');
+  return { command: command!, args };
+}
 
 export interface BuildSiteRegistryInput {
   /** Product version — usually the root/app package.json `version`. */
@@ -67,23 +83,27 @@ export function buildSiteRegistry(input: BuildSiteRegistryInput): SiteRegistry {
       netlify: HOST_NETLIFY,
       cloudflare: HOST_CLOUDFLARE,
     },
+    /* One npx pair, from @factstack/spec (owner decision 2026-09-24: keep npx;
+       the owner reserves + publishes `factstack` and `factstack-mcp`). Neither
+       is on npm yet: `published` is spec's CLI_PUBLISHED / MCP_PUBLISHED (the one
+       flag the owner flips on publish), and renderers gate every npx
+       call-to-action on it; the clone commands work today. */
     cli: {
       binName: 'factstack',
-      publishedPackage: '@factstack/cli',
-      command: 'npx -y @factstack/cli',
-      // @factstack/cli is private:true / unpublished (404 on npm), and it
-      // imports the whole unpublished @factstack/* workspace tree — so the
-      // `npx` command does NOT work yet. Renderers gate the CTA on this.
-      published: false,
+      publishedPackage: CLI_NPM_PACKAGE,
+      command: CLI_NPX,
+      cloneCommand: 'npx tsx apps/cli/src/cli.ts',
+      published: CLI_PUBLISHED,
     },
     mcp: {
       binName: 'factstack-mcp',
-      publishedPackage: '@factstack/mcp-server',
-      launchCommand: { command: 'npx', args: ['-y', '@factstack/mcp-server'] },
+      publishedPackage: MCP_NPM_PACKAGE,
+      launchCommand: toLaunch(MCP_NPX),
+      cloneLaunchCommand: { command: 'npx', args: ['tsx', 'apps/mcp-server/src/server.ts'] },
       tools: MCP_TOOL_CATALOG,
       resources,
       onboardingSequence,
-      published: false, // @factstack/mcp-server is private:true / unpublished
+      published: MCP_PUBLISHED,
     },
     routes,
     // Host-relative so they resolve against whichever origin served the file.

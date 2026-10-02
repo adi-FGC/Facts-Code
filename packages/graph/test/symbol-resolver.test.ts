@@ -162,3 +162,19 @@ describe('buildSymbolGraph (F2)', () => {
     });
   });
 });
+
+describe('buildSymbolGraph — unique node ids (data-model#3)', () => {
+  it('keeps one node for a one-line getter/setter pair (same path#name@line id)', () => {
+    const box = outline('src/box.ts', [
+      decl('Box', 1, 1, {
+        kind: 'class',
+        children: [
+          decl('value', 1, 1, { kind: 'method' }),
+          decl('value', 1, 1, { kind: 'method' }),
+        ],
+      }),
+    ]);
+    const ids = buildSymbolGraph([box], new Map()).symbolNodes.map((n) => n.id);
+    expect(ids).toEqual(['src/box.ts#Box@1', 'src/box.ts#value@1']);
+  });
+});

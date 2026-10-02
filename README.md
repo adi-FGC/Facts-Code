@@ -31,7 +31,7 @@ the facts-open line never used it — its agent surface is plain JSON.
 | **Analyze**    | `factstack analyze [path]`        | Walks the project, extracts JS/TS imports + symbols + routes + license headers + secrets, builds the dependency graph, mines git history, writes `.facts/agent.json` + `.facts/human.json` + a snapshot. |
 | **WebUI**      | `factstack ui [path]`             | Serves the editorial dashboard at `http://localhost:4747`. Re-analyze button, live source preview, graph view, file outline.                                                                             |
 | **Watch**      | `factstack watch [path]`          | UI + chokidar file-watcher + Server-Sent Events. Edits trigger re-analysis (500ms debounce); UI tree rows pulse.                                                                                         |
-| **Diff**       | `factstack diff [snapA] [snapB]`  | Compare two analyses. Zero args = current vs latest snapshot. One arg = current vs named snapshot. Two args = explicit snapshots.                                                                        |
+| **Diff**       | `factstack diff [snapA] [snapB]`  | Compare two analyses. Zero args = current vs the review baseline (`.facts/baseline/agent.json`). One arg = current vs named snapshot. Two args = explicit snapshots.                                     |
 | **Query**      | `factstack query <verb> [target]` | Structured graph queries: `callers <path>`, `imports <path>`, `cycles`, `orphans`.                                                                                                                       |
 | **Export**     | `factstack export [path]`         | Self-contained HTML report (no server needed).                                                                                                                                                           |
 | **Doctor**     | `factstack doctor`                | Verifies Node version + `node:sqlite` availability.                                                                                                                                                      |
@@ -58,22 +58,50 @@ pnpm --filter @factstack/cli exec tsx src/cli.ts ui /path/to/your/project
 pnpm --filter @factstack/cli exec tsx src/cli.ts watch /path/to/your/project
 ```
 
-For repeated use, link the binary globally:
+For repeated use, build the standalone CLI and install that folder globally:
 
 ```bash
-cd apps/cli
-pnpm link --global       # exposes `factstack` on PATH
+pnpm --filter @factstack/cli bundle       # → apps/cli/publish/
+npm install --global ./apps/cli/publish   # exposes `factstack` on PATH
 factstack analyze /path/to/your/project
 factstack ui /path/to/your/project
 ```
 
-> **Note**: `pnpm build` currently has unresolved type errors in a few packages (tracked in `app_plan_spec.md`). The CLI works via `tsx` regardless — TypeScript runtime, no build step needed for development. Production binary builds land with v0.3.
+npm links a local folder rather than copying it, so re-running `bundle` updates the global
+command; `npm uninstall --global factstack` removes it. Don't link `apps/cli` itself: its `bin`
+is the `tsc` build, which imports the workspace's TypeScript sources and does not run under plain Node.
+
+> **Note**: the CLI runs from source via `tsx` — no build step needed for development. The standalone CLI is built by `pnpm --filter @factstack/cli bundle` into a self-contained folder, `apps/cli/publish/` (run `node apps/cli/publish/dist/cli.js`), that runs with plain Node ≥ 24.3 and needs no install. Copy the whole folder, not just `dist/cli.js`: `ui` and `export` load the UI and vendored files beside it. The owner's npm publish steps are in [`apps/cli/PUBLISHING.md`](apps/cli/PUBLISHING.md).
 
 ---
 
 ## MCP server — Claude Desktop / Cursor / Claude Code config
 
-The MCP server runs over stdio and exposes the cached analysis to any compliant client:
+The MCP server runs over stdio and exposes the cached analysis to any compliant client.
+
+The launch names are `npx factstack` (CLI) and `npx -y factstack-mcp` (MCP server) — **not yet
+published to npm**; until they are, use the source forms below. Once published:
+
+```jsonc
+{
+  "mcpServers": {
+    "factstack": {
+      "command": "npx",
+      "args": ["-y", "factstack-mcp", "--root", "/abs/path/to/the/project"]
+    }
+  }
+}
+```
+
+Sign-in is **optional**: every local tool and resource works without it. `npx -y factstack-mcp login`
+only enables the cloud sync of your learnings (a private Firestore mirror).
+
+From a source checkout, build the server first — this bundles it into the one file the config
+below runs, with plain Node ≥ 24.3:
+
+```bash
+pnpm --filter @factstack/mcp-server build   # → apps/mcp-server/dist/server.js
+```
 
 ```jsonc
 // claude_desktop_config.json (or .cursor/mcp.json or any MCP client)
@@ -90,6 +118,9 @@ The MCP server runs over stdio and exposes the cached analysis to any compliant 
   }
 }
 ```
+
+The npm package the owner publishes is assembled from the same bundle — see
+[`apps/mcp-server/PUBLISHING.md`](apps/mcp-server/PUBLISHING.md).
 
 For dev (no build step):
 
@@ -140,25 +171,20 @@ Read it via the MCP `read_memory` tool, the file directly, or paste it into an a
 
 ## Open from GitHub (browser-only · no install)
 
-The static demo at [factstack-demo.netlify.app](https://factstack-demo.netlify.app) can analyze any public GitHub repo without a clone:
+The hosted dashboard at [factstack.pages.dev](https://factstack.pages.dev) (Cloudflare Pages; [factstack-demo.netlify.app](https://factstack-demo.netlify.app) is an older mirror that can lag behind) can analyze any public GitHub repo without a clone:
 
-1. Click **GitHub** in the toolbar.
+1. Click **Open ↗** in the header and switch to **GitHub** (or press ⌘⇧O / Ctrl+Shift+O).
 2. Paste `owner/repo`, `owner/repo@branch`, or any `https://github.com/...` URL.
-3. (Optional) Drop in a Personal Access Token to raise the rate limit from 60 → 5000/hr.
-4. The browser fetches the repo zip via `api.github.com/repos/{o}/{r}/zipball`, unpacks with JSZip, and runs the same scanner the local-folder flow uses.
+3. (Optional) Add a Personal Access Token to raise the rate limit from 60 → 5,000 requests/hour. It is held only in your browser.
+4. The browser lists the repo with the GitHub Trees API (`api.github.com`), fetches the source files from `raw.githubusercontent.com`, and runs the same scanner the local-folder flow uses, in a Web Worker. Nothing is uploaded.
 
-Deep links work too:
+### Legacy prototype only: `?gh=` deep links and Supabase persistence
 
-```
-https://factstack-demo.netlify.app/?gh=vercel/next.js
-https://factstack-demo.netlify.app/?gh=vercel/next.js@canary
-```
+`?gh=owner/repo[@ref]` deep links and the optional Supabase cache below belong to the **legacy
+prototype** (`legacy/prototype/index.html`), not to the hosted Remix app, which has neither. The CLI's build of that prototype (`apps/cli/src/ui/index.html`, see C3)
+disables the Supabase path: its remote imports are stubbed, so it never loads the client.
 
-When a Supabase bucket is configured (see below), deep links replay cached analyses instantly — no GitHub API hit, no scan time. First visitor pays the cost; everyone after is free.
-
-### Supabase persistence (optional, deploy-time)
-
-To save GitHub-repo analyses so visitors share a cache instead of each re-scanning:
+To save GitHub-repo analyses from a separately deployed prototype, so visitors share a cache instead of each re-scanning:
 
 1. **Create a Supabase project** at [supabase.com](https://supabase.com). Free tier is plenty — analyses are ~50 KB each.
 2. **Create a public storage bucket** named `factstack-analyses` (Storage → New bucket → toggle "Public bucket").
@@ -172,19 +198,20 @@ To save GitHub-repo analyses so visitors share a cache instead of each re-scanni
      using       (bucket_id = 'factstack-analyses' and name like '%/latest.json')
      with check  (bucket_id = 'factstack-analyses' and name like '%/latest.json');
    ```
-4. **Inject your project URL + anon key** into `prototype/index.html`. Two options:
+4. **Inject your project URL + anon key** into `legacy/prototype/index.html`. Two options:
    - **Manual** (pre-deploy): edit the `<script id="factstack-supa-config">` block to add `data-url` and `data-anon-key` attributes:
      ```html
      <script id="factstack-supa-config"
              data-url="https://YOUR_PROJECT.supabase.co"
              data-anon-key="eyJhbGciOi...">
      ```
-   - **Build-time** (Netlify): use a `[build]` `command` that substitutes from env vars before publishing:
+   - **Build-time** (a separate Netlify site for the prototype — the repo's own `netlify.toml`
+     deploys `apps/ui-remix`): use a `[build]` `command` that substitutes from env vars before publishing:
      ```toml
-     # netlify.toml
+     # netlify.toml of the prototype site
      [build]
-       command = "sed -i \"s|data-url=\\\"\\\"|data-url=\\\"$SUPABASE_URL\\\"|; s|data-anon-key=\\\"\\\"|data-anon-key=\\\"$SUPABASE_ANON_KEY\\\"|\" prototype/index.html"
-       publish = "prototype"
+       command = "sed -i \"s|data-url=\\\"\\\"|data-url=\\\"$SUPABASE_URL\\\"|; s|data-anon-key=\\\"\\\"|data-anon-key=\\\"$SUPABASE_ANON_KEY\\\"|\" legacy/prototype/index.html"
+       publish = "legacy/prototype"
      ```
      Set `SUPABASE_URL` + `SUPABASE_ANON_KEY` in Netlify's environment settings.
 
@@ -233,14 +260,16 @@ factstack/
 │   └── ui-theme/      # CSS tokens, motion presets, language icons (v0.3)
 ├── apps/
 │   ├── cli/           # `factstack` binary — primary v0.2 surface
-│   ├── ui-remix/      # React 19 + React Router v7 — full dashboard (alongside the prototype)
+│   ├── ui-remix/      # Remix v3 dashboard (own VDOM, no React) — the hosted site, factstack.pages.dev
 │   ├── mcp-server/    # `factstack-mcp` binary — MCP stdio server (v0.2)
 │   ├── vscode-ext/    # v0.3 stub (will host the static-mode UI)
 │   ├── chrome-ext/    # MV3 side panel — parked, not published
 │   └── webapp/        # v0.5 stub
 ├── plugins/
 │   └── mcp-app/       # v0.6 stub
-├── prototype/         # Standalone editorial UI (open via file:// or factstack ui)
+├── legacy/
+│   └── prototype/     # Source of the CLI's local UI. Unstyled on its own: open the built,
+│                      #   self-contained apps/cli/src/ui/index.html, or run `factstack ui`
 ├── examples/
 │   └── tiny-ts-app/   # Minimal SPDX-MIT fixture
 └── *spec*.md          # Living specs
@@ -261,15 +290,17 @@ Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`,
 - Artifacts never contain raw secrets — scanners redact before serialization.
 - The MCP tool/resource catalog (`packages/spec/src/mcp.ts`) is the single source of truth shared by CLI + MCP server.
 
-### C3 · Webview-ready UI
+### C3 · Two UIs, one dataset
 
-`apps/ui-remix` builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON). Used by `factstack export` and the future VS Code webview. CSP-clean — no inline scripts, no third-party CDN runtime deps.
+`apps/ui-remix` is the hosted site ([factstack.pages.dev](https://factstack.pages.dev)). It builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON) for Cloudflare/Netlify and the future VS Code webview. CSP-clean — no inline scripts beyond one hash-pinned boot script, no inline styles, no third-party CDN runtime deps.
+
+`factstack ui`, `export` and `quick` use the **legacy prototype** (`legacy/prototype/index.html`), kept by owner decision (2026-09-24, [ADR 0001](./docs/adr/0001-cli-ui-keeps-legacy-prototype.md)) and hardened: `apps/cli/scripts/sync-ui.mjs` compiles and inlines Tailwind, uses system font stacks, vendors `@babel/parser` and stubs remote imports, and the UI runs under a hash-based CSP with no third-party requests (the one exception is `api.github.com` / `raw.githubusercontent.com` when you explicitly scan a GitHub repo). A DOM-level XSS test renders it in headless Chromium in CI. This is a deliberate INV7 parity exception: the hosted UI is Remix, the CLI UI is the prototype.
 
 ---
 
 ## Package dependency rules
 
-`pnpm lint:boundaries` (`eslint.config.mjs`) enforces two rules per package: no Node built-ins below `emit` (C1), and only the `@factstack/*` dependencies each package declares in its manifest (C2). The allow-lists in `eslint.config.mjs` are authoritative; the table below is the intended layering, not the enforced list:
+`pnpm lint:boundaries` (`eslint.config.mjs`) enforces two rules per package: no Node built-ins below `emit` (C1), and only the `@factstack/*` dependencies each package declares in its manifest (C2). Static imports, `import()`, `require()`, `process.getBuiltinModule()` and relative cross-package paths are all checked, and `test/boundaries.test.mjs` (run by the same script) proves known-bad probes fail. The allow-lists in `eslint.config.mjs` are authoritative; the table below is the intended layering, not the enforced list:
 
 | Layer               | May import from                                        |
 | ------------------- | ------------------------------------------------------ |
@@ -307,7 +338,7 @@ pnpm --filter @factstack/cli exec tsx src/cli.ts analyze .
 pnpm --filter @factstack/cli exec tsx src/cli.ts query callers packages/spec/src/index.ts
 ```
 
-CI runs typecheck + tests + a smoke `analyze .` on Ubuntu/macOS/Windows × Node 24 (the workspace needs Node ≥ 24.3, Remix 3's floor; see `.nvmrc`).
+CI runs typecheck + tests + a smoke `analyze .` + the repo-root suite (`pnpm test:root`) + the CLI bundle built, run over this repo and `npm pack --dry-run` on every OS, Ubuntu/macOS/Windows × Node 24 (the workspace and the CLI need Node ≥ 24.3, Remix 3's floor; see `.nvmrc`), plus a blocking headless-Chromium XSS test of the CLI UI and a report-only first-paint measurement on Ubuntu. Production deploys: [`docs/DEPLOY.md`](./docs/DEPLOY.md).
 
 ---
 

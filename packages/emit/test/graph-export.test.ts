@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { toGraphML, toJsonGraph, exportGraph, graphExportFilename } from '../src/graph-export.js';
 import type { AgentArtifact } from '@factstack/spec';
 
-/* Loose fixtures — the serializers read only graph + project.name + generatedAt;
-   the runner doesn't type-check, so partial nodes/edges are fine. */
+/* Deliberately partial: the serializers read only graph + project.name +
+   generatedAt, so the fixture is cast rather than filled in. */
 function makeAgent(overrides: Record<string, unknown> = {}): AgentArtifact {
   return {
     generatedAt: '2026-05-01T00:00:00Z',

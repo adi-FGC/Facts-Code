@@ -55,14 +55,21 @@ export class MemoryFileWriter implements FileWriter {
     this.files.delete(key);
   }
 
+  /** The optional `FileWriter.readText`: null when missing, like the Node
+   *  and FSA adapters. */
+  async readText(p: string): Promise<string | null> {
+    return this.files.get(this.normalize(p)) ?? null;
+  }
+
   /**
-   * Strip leading `./`, collapse `//`, trim trailing slashes. Same
+   * Strip leading `./` or `/`, collapse `//`, trim trailing slashes. Same
    * normalization Node/FSA adapters do implicitly via their resolve
-   * methods — we mirror it so test assertions on `.files` keys are
-   * predictable.
+   * methods (`removeEntry('', name)` addresses the root there, so the
+   * `/name` it builds here must too) — we mirror it so test assertions on
+   * `.files` keys are predictable.
    */
   private normalize(p: string): string {
-    return p.replace(/^\.\//, '').replace(/\/+/g, '/').replace(/\/+$/, '');
+    return p.replace(/^\.\//, '').replace(/\/+/g, '/').replace(/^\//, '').replace(/\/+$/, '');
   }
 
   /* ─────────── test-only conveniences ─────────── */

@@ -53,8 +53,11 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
   'github-token': ({ file }) =>
     `A GitHub personal access token is in source${file ? ` (${file})` : ''}. This may grant push access or private-repo read. Revoke and replace before merging anything else.`,
 
-  'github-classic-token': ({ file }) =>
-    `A classic GitHub token is committed${file ? ` in ${file}` : ''}. Revoke it now — classic tokens carry broad scope and rarely have IP restrictions.`,
+  'gitlab-token': ({ file }) =>
+    `A GitLab access token is committed${file ? ` in ${file}` : ''}. It can read — and often push to — your GitLab projects. Revoke it and issue a new one.`,
+
+  'npm-token': ({ file }) =>
+    `An npm access token is committed${file ? ` in ${file}` : ''}. With it, anyone can publish packages under your account. Revoke it on npmjs.com now.`,
 
   'stripe-secret-key': ({ file }) =>
     `A Stripe secret key is committed${file ? ` in ${file}` : ''}. Anyone reading this can charge your customers, issue refunds, and read full payment data. Rotate immediately.`,
@@ -62,14 +65,27 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
   'stripe-restricted-key': ({ file }) =>
     `A Stripe restricted API key is committed${file ? ` in ${file}` : ''}. Even with limited scope, rotate it — keys in source belong to the repo, not a person.`,
 
+  'sendgrid-api-key': ({ file }) =>
+    `A SendGrid API key is committed${file ? ` in ${file}` : ''}. Anyone with it can send email as your domain. Revoke it and create a new one.`,
+
+  'slack-webhook': ({ file }) =>
+    `A Slack incoming-webhook address is committed${file ? ` in ${file}` : ''}. Anyone with it can post messages into your workspace. Regenerate the webhook.`,
+
+  'azure-storage-key': ({ file }) =>
+    `An Azure storage account key is committed${file ? ` in ${file}` : ''}. It grants full read and write access to that storage account. Rotate the key in the Azure portal.`,
+
   'private-key-header': ({ file }) =>
     `A private cryptographic key is checked in${file ? ` (${file})` : ''}. Treat the corresponding public key as compromised. Replace it and audit who has cloned the repo since the key landed.`,
 
+  // Generic matches — reported as POSSIBLE secrets, so the advice is to check.
   'generic-secret': ({ file }) =>
-    `A long random-looking string was found${file ? ` in ${file}` : ''} that looks like a secret. Confirm whether it is, and if so, rotate it before pushing further commits.`,
+    `A value assigned to a password, secret or token field was found${file ? ` in ${file}` : ''} and may be a real credential. Confirm whether it is; if so, move it out of source and rotate it.`,
 
   'env-secret-pair': ({ file }) =>
-    `A name=value pair that looks like secret config is committed${file ? ` in ${file}` : ''}. Move it to a .env file (and add .env to .gitignore) or to a secrets manager.`,
+    `A name=value pair that looks like secret config is committed${file ? ` in ${file}` : ''}. If it is a real secret, keep it out of the repo (an uncommitted .env file or a secrets manager) and rotate it.`,
+
+  'connection-string-password': ({ file }) =>
+    `A database or queue address with a password in it is committed${file ? ` in ${file}` : ''}. If that password is real, change it and load the address from the environment instead.`,
 
   // ─── Imports / structure ────────────────────────────────────────
   'unresolved-import': ({ file }) =>
@@ -79,7 +95,7 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
     `An import in ${file ?? 'an unknown file'} points at a file that exists on disk but sits in a directory the analyzer doesn't scan (build output like dist/, or an ignored folder). It likely works after a build — but it breaks whenever that output is missing or regenerated, so prefer importing from source.`,
 
   'parse-error': ({ file }) =>
-    `${file ?? 'A source file'} has a syntax error and couldn't be analyzed. The rest of the report is missing data from this file until it's fixed.`,
+    `${file ?? 'A source file'} could not be parsed by the analyzer, so the report is missing its imports, symbols and complexity. It may hold a syntax error, or use syntax the analyzer does not support yet.`,
 
   'read-error': ({ file }) =>
     `${file ?? 'A file'} could not be read during analysis (it may have been locked or mid-save). Its line and token counts in this report are placeholders, not measurements — re-run the analysis to fill them in.`,
@@ -97,7 +113,7 @@ export const RULE_REWRITES: Record<string, RewriteTemplate> = {
 
   // ─── Licenses ───────────────────────────────────────────────────
   'copyleft-detected': ({ file }) =>
-    `A GPL or AGPL-licensed file (${file ?? 'unknown path'}) is included in this project. If the rest of the project ships under a permissive license, this combination may legally require open-sourcing the whole thing.`,
+    `A GPL or AGPL-licensed file (${file ?? 'unknown path'}) is included in this project. If the rest of the project ships under a permissive or closed-source license, this combination may legally require open-sourcing the whole thing.`,
 
   'missing-license': () =>
     `No software license is declared. Without one, contributors and users have no legal right to use, copy, or distribute this code — even if the repo is public.`,

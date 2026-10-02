@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { GraphEdgeSchema } from '@factstack/spec';
-import { buildDependencyGraph } from '../src/dependency.js';
+import type { RawImport } from '@factstack/extractors';
+import { buildDependencyGraph, resolvedKey } from '../src/dependency.js';
 import { buildCallerIndex } from '../src/callers.js';
 import { isRelative, isNodeBuiltin } from '../src/resolver.js';
 
@@ -34,8 +35,8 @@ function file(path: string) {
 function rawImport(
   specifier: string,
   kind: 'import' | 'dynamic-import' | 'type-import' = 'import',
-) {
-  return { specifier, kind, line: 1 };
+): RawImport {
+  return { specifier, kind, line: 1, names: [] };
 }
 
 const emptyCtx = {
@@ -122,6 +123,32 @@ describe('buildDependencyGraph', () => {
     expect(g.cycles.length).toBeGreaterThanOrEqual(2);
   });
 
+  it('resolves `from . import utils` to the submodule: no false package cycle (HUNT-CORE-05)', () => {
+    // pkg/__init__.py: `from .core import run`; pkg/core.py: `from . import utils`.
+    const ctx = {
+      files: new Set(['pkg/__init__.py', 'pkg/core.py', 'pkg/utils.py']),
+      workspaces: new Map(),
+    };
+    const importsByFile = new Map([
+      ['pkg/__init__.py', [{ ...rawImport('.core'), members: ['run'] }]],
+      ['pkg/core.py', [{ ...rawImport('.'), members: ['utils'] }]],
+    ]);
+    const resolved = new Map<string, string | null>();
+    const g = buildDependencyGraph(
+      ['pkg/__init__.py', 'pkg/core.py', 'pkg/utils.py'].map(file),
+      importsByFile,
+      ctx,
+      resolved,
+    );
+    expect(g.edges.map((e) => `${e.from}->${e.to}`).sort()).toEqual([
+      'pkg/__init__.py->pkg/core.py',
+      'pkg/core.py->pkg/utils.py',
+    ]);
+    expect(g.cycles).toEqual([]);
+    // The primary target is recorded for the imports[].resolved backfill.
+    expect(resolved.get(resolvedKey('pkg/core.py', '.'))).toBe('pkg/utils.py');
+  });
+
   it('preserves edge kind (import / dynamic-import / type-import)', () => {
     const ctx = { files: new Set(['a.ts', 'b.ts']), workspaces: new Map() };
     const importsByFile = new Map([['a.ts', [rawImport('./b', 'dynamic-import')]]]);
@@ -134,8 +161,8 @@ describe('buildCallerIndex', () => {
   it('inverts edges into a callers map', () => {
     const callers = buildCallerIndex({
       edges: [
-        { from: 'a.ts', to: 'shared.ts', kind: 'import' },
-        { from: 'b.ts', to: 'shared.ts', kind: 'import' },
+        { from: 'a.ts', to: 'shared.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'b.ts', to: 'shared.ts', kind: 'import', confidence: 'extracted' },
       ],
     });
     expect(callers.get('shared.ts')?.sort()).toEqual(['a.ts', 'b.ts']);
@@ -148,8 +175,8 @@ describe('buildCallerIndex', () => {
   it('dedupes when the same edge appears twice (e.g. import + dynamic-import)', () => {
     const callers = buildCallerIndex({
       edges: [
-        { from: 'a.ts', to: 'shared.ts', kind: 'import' },
-        { from: 'a.ts', to: 'shared.ts', kind: 'dynamic-import' },
+        { from: 'a.ts', to: 'shared.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'a.ts', to: 'shared.ts', kind: 'dynamic-import', confidence: 'extracted' },
       ],
     });
     expect(callers.get('shared.ts')).toEqual(['a.ts']);

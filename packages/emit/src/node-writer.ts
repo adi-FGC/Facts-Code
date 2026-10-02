@@ -16,9 +16,33 @@
  * `FileWriter` interface from `@factstack/spec`.
  */
 
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { FileWriter } from '@factstack/spec';
+import { stripLeadingBom, type FileWriter } from '@factstack/spec';
+
+/** Windows refuses a rename over a file that is open anywhere — a concurrent
+ *  reader (MCP server, hook), an editor, an indexer, antivirus — until the
+ *  handle closes. Transient, so retry with backoff (~1.5 s in total). */
+const RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'EACCES']);
+
+/** writeText's temp-file name shape: `<target>.<pid>.<8 hex>.tmp`. */
+const TEMP_FILE = /\.\d+\.[0-9a-f]{8}\.tmp$/;
+
+/** true = renamed; false = the target stayed locked through every retry. */
+async function renameWithRetry(from: string, to: string): Promise<boolean> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      await fs.rename(from, to);
+      return true;
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code ?? '';
+      if (!RENAME_RETRY_CODES.has(code)) throw err;
+      if (attempt >= 9) return false;
+      await new Promise((r) => setTimeout(r, Math.min(250, 10 * 2 ** attempt)));
+    }
+  }
+}
 
 export class NodeFileWriter implements FileWriter {
   /** Absolute path of the artifact root (typically `<project>/.facts/`). */
@@ -69,11 +93,68 @@ export class NodeFileWriter implements FileWriter {
        when the directory already exists, so we don't pay anything
        extra after the first write per directory. */
     await fs.mkdir(path.dirname(full), { recursive: true });
-    await fs.writeFile(full, body);
+    /* Atomic replace (the FileWriter contract): write a sibling temp file,
+       then rename it over the target. A plain writeFile truncates first, so
+       a concurrent reader (the MCP server, the hook, `ui` watch, restoring
+       the CVE scan from the old agent.json) could read an empty or partial
+       file mid-write. rename() swaps the whole file in one step. */
+    const tmp = `${full}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
+    try {
+      await fs.writeFile(tmp, body);
+      if (!(await renameWithRetry(tmp, full))) {
+        /* Held open for the whole retry window (Windows only): fall back to
+           the old in-place write rather than fail the entire analyze. */
+        await fs.writeFile(full, body);
+        await fs.rm(tmp, { force: true });
+      }
+    } catch (err) {
+      await fs.rm(tmp, { force: true }).catch(() => undefined);
+      throw err;
+    }
     /* Buffer.byteLength gives UTF-8 length, matching what writeFile
        actually wrote. We compute here rather than statting the file
        to avoid a second syscall per write. */
     return Buffer.byteLength(body);
+  }
+
+  /**
+   * Remove temp files a killed run left behind (it died between the temp
+   * write and the rename: a hook timeout, Ctrl-C). Only writeText's own name
+   * shape, only in `dirs`, and only when older than `maxAgeMs`, so a
+   * concurrent writer's in-flight temp is never touched. Best-effort.
+   */
+  async sweepStaleTemps(dirs: readonly string[], maxAgeMs = 60_000): Promise<void> {
+    const cutoff = Date.now() - maxAgeMs;
+    for (const dir of dirs) {
+      const full = this.resolve(dir);
+      const names = await fs.readdir(full).catch((): string[] => []);
+      for (const name of names.filter((n) => TEMP_FILE.test(n))) {
+        const p = path.join(full, name);
+        try {
+          if ((await fs.stat(p)).mtimeMs < cutoff) await fs.rm(p, { force: true });
+        } catch {
+          /* raced with its owner, or locked — leave it for the next run */
+        }
+      }
+    }
+  }
+
+  /**
+   * Read back a file under the writer root (UTF-8). `null` when there is no
+   * file there (missing, or a directory); anything else (EACCES, EIO) and a
+   * path escape still throw. `buildSkillsTo` uses it to refresh a
+   * `.cursorrules` / Copilot file only when it carries the FACTS marker.
+   * One leading BOM is dropped, as FSA's Blob.text() does (INV7).
+   */
+  async readText(p: string): Promise<string | null> {
+    const full = this.resolve(p);
+    try {
+      return stripLeadingBom(await fs.readFile(full, 'utf8'));
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'EISDIR') return null;
+      throw err;
+    }
   }
 
   async listKeys(dir: string): Promise<string[]> {

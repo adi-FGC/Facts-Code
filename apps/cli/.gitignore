@@ -1,3 +1,6 @@
 
 # FACTS analysis artifacts
 .facts/
+
+# Publishable package assembled by scripts/bundle.mjs (never committed).
+publish/

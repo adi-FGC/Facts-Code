@@ -19,4 +19,6 @@ export * from './docs.js';
 export * from './styles.js';
 export * from './git.js';
 export * from './git-share.js';
+export * from './launch.js';
+export * from './layout.js';
 export { agentJsonSchema, humanJsonSchema, jsonSchemaByKind } from './schema-export.js';

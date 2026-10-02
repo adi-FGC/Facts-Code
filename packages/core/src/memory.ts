@@ -357,17 +357,23 @@ function topLanguages(agent: AgentArtifact): Array<{ id: string; pct: number }> 
 }
 
 /**
- * Files sorted by in-degree (count of edges pointing TO them) descending.
+ * Files sorted by in-degree (count of distinct FILES importing them)
+ * descending. Edges are per kind, so `import type {T}` + `import {f}` from
+ * one file are two edges but one importer — "imported by N" counts files.
  * Files with in-degree 0 are excluded — they're not hubs by definition.
  */
 function topImportedFiles(
   agent: AgentArtifact,
   limit: number,
 ): Array<{ path: string; inDegree: number; importance?: number }> {
-  const inDeg = new Map<string, number>();
+  const importers = new Map<string, Set<string>>();
   for (const e of agent.graph.edges) {
-    inDeg.set(e.to, (inDeg.get(e.to) ?? 0) + 1);
+    const set = importers.get(e.to);
+    if (set) set.add(e.from);
+    else importers.set(e.to, new Set([e.from]));
   }
+  const inDeg = new Map<string, number>();
+  for (const [path, set] of importers) inDeg.set(path, set.size);
   // F5 — when importance (PageRank) is present, reorder hubs by it: a file
   // imported by a few *important* files can outrank one imported by many
   // trivial ones. The in-degree>0 gate stays — importance only reorders hubs,

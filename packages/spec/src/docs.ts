@@ -12,7 +12,7 @@
  * Additive-only within a major version, same contract as agent/human.
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 
 /** How the doc is written — drives which renderer the UI reaches for. */
 export const DocFormatSchema = z.enum([

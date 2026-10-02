@@ -12,10 +12,23 @@
  * Text is escaped by virtue of being passed as VDOM text children, and link
  * hrefs are scheme-sanitized (see `safeHref`), so there's no XSS surface even
  * on untrusted doc content copied verbatim from the analyzed project.
+ * Given the doc's own path (`MarkdownOptions.basePath`), relative links
+ * resolve to in-app Docs/Files routes instead of a bare relative href.
  */
 import { css } from 'remix/ui';
 import type { RemixNode } from 'remix/ui';
+// Leaf subpath, not the '@factstack/core' barrel: keeps the analyzer out of
+// this chunk while the Docs body and core's doc outline share one fence rule.
+import { isFenceClose, parseFenceOpen } from '@factstack/core/md-fence';
 import { safeHref } from './urlSafety.ts';
+import { resolveDocHref } from './docLinks.ts';
+
+/** Where the doc lives, so its relative links resolve to in-app routes
+ *  (see lib/docLinks.ts). Without `basePath` hrefs render as written. */
+export interface MarkdownOptions {
+  basePath?: string;
+  isDoc?: (path: string) => boolean;
+}
 
 /* ─────────── styles ─────────── */
 
@@ -135,7 +148,7 @@ const tdStyle = css({
 /* ─────────── inline ─────────── */
 
 /** Parse inline markdown (bold/italic/code/link) into VDOM nodes. */
-export function renderInline(text: string): RemixNode[] {
+export function renderInline(text: string, opts: MarkdownOptions = {}): RemixNode[] {
   const out: RemixNode[] = [];
   // Token regex: code, bold, italic, link — first match wins, left to right.
   const re =
@@ -153,11 +166,23 @@ export function renderInline(text: string): RemixNode[] {
         </code>,
       );
     } else if (tok.startsWith('**') || tok.startsWith('__')) {
-      out.push(<strong key={`b${k}`}>{renderInline(tok.slice(2, -2))}</strong>);
+      out.push(<strong key={`b${k}`}>{renderInline(tok.slice(2, -2), opts)}</strong>);
     } else if (tok.startsWith('[')) {
       const lm = /^\[([^\]]+)\]\(([^)\s]+)[^)]*\)$/.exec(tok);
       const label = lm?.[1] ?? tok;
-      const href = safeHref(lm?.[2] ?? '#');
+      const raw = lm?.[2] ?? '#';
+      const resolved =
+        opts.basePath === undefined
+          ? raw
+          : resolveDocHref(raw, opts.basePath, opts.isDoc ?? (() => false));
+      if (resolved === null) {
+        // Points outside the project: no route to send it to, so plain text.
+        out.push(label);
+        last = m.index + tok.length;
+        k++;
+        continue;
+      }
+      const href = safeHref(resolved);
       const ext = /^https?:/i.test(href);
       out.push(
         <a
@@ -170,7 +195,7 @@ export function renderInline(text: string): RemixNode[] {
         </a>,
       );
     } else {
-      out.push(<em key={`i${k}`}>{renderInline(tok.slice(1, -1))}</em>);
+      out.push(<em key={`i${k}`}>{renderInline(tok.slice(1, -1), opts)}</em>);
     }
     last = m.index + tok.length;
     k++;
@@ -182,7 +207,6 @@ export function renderInline(text: string): RemixNode[] {
 /* ─────────── blocks ─────────── */
 
 const HEADING = /^(#{1,6})\s+(.+?)\s*#*\s*$/;
-const FENCE = /^(```|~~~)\s*([A-Za-z0-9_-]*)\s*$/;
 const HR = /^\s{0,3}([-*_])(\s*\1){2,}\s*$/;
 const ULI = /^(\s*)[-*+]\s+(.*)$/;
 const OLI = /^(\s*)\d+[.)]\s+(.*)$/;
@@ -197,12 +221,13 @@ const slug = (s: string) =>
     .slice(0, 64);
 
 /** Render a full Markdown document to a VDOM fragment. */
-export function renderMarkdown(src: string): RemixNode {
+export function renderMarkdown(src: string, opts: MarkdownOptions = {}): RemixNode {
   const lines = src.replace(/\r\n?/g, '\n').split('\n');
   const blocks: RemixNode[] = [];
   let i = 0;
   let key = 0;
   const push = (n: RemixNode) => blocks.push(n);
+  const inline = (s: string) => renderInline(s, opts);
 
   while (i < lines.length) {
     const line = lines[i] ?? '';
@@ -213,13 +238,13 @@ export function renderMarkdown(src: string): RemixNode {
       continue;
     }
 
-    // fenced code / mermaid
-    const fence = FENCE.exec(trimmed);
+    // fenced code / mermaid — info strings, ````-nesting and ~~~ per core's md-fence
+    const fence = parseFenceOpen(trimmed);
     if (fence) {
-      const lang = (fence[2] ?? '').toLowerCase();
+      const lang = fence.lang;
       const buf: string[] = [];
       i++;
-      while (i < lines.length && !FENCE.test((lines[i] ?? '').trim())) {
+      while (i < lines.length && !isFenceClose((lines[i] ?? '').trim(), fence)) {
         buf.push(lines[i] ?? '');
         i++;
       }
@@ -242,7 +267,7 @@ export function renderMarkdown(src: string): RemixNode {
       const txt = (h[2] ?? '').trim();
       push(
         <div key={`k${key++}`} id={slug(txt)} role="heading" aria-level={depth} mix={hStyle(depth)}>
-          {renderInline(txt)}
+          {inline(txt)}
         </div>,
       );
       i++;
@@ -265,7 +290,7 @@ export function renderMarkdown(src: string): RemixNode {
       }
       push(
         <blockquote key={`k${key++}`} mix={quoteStyle}>
-          {renderInline(buf.join(' '))}
+          {inline(buf.join(' '))}
         </blockquote>,
       );
       continue;
@@ -287,7 +312,7 @@ export function renderMarkdown(src: string): RemixNode {
               <tr>
                 {header.map((c, ci) => (
                   <th key={`h${ci}`} mix={thStyle}>
-                    {renderInline(c)}
+                    {inline(c)}
                   </th>
                 ))}
               </tr>
@@ -297,7 +322,7 @@ export function renderMarkdown(src: string): RemixNode {
                 <tr key={`r${ri}`}>
                   {header.map((_, ci) => (
                     <td key={`d${ci}`} mix={tdStyle}>
-                      {renderInline(r[ci] ?? '')}
+                      {inline(r[ci] ?? '')}
                     </td>
                   ))}
                 </tr>
@@ -341,14 +366,14 @@ export function renderMarkdown(src: string): RemixNode {
                   textDecoration: done ? 'line-through' : 'none',
                 })}
               >
-                {renderInline(task[2] ?? '')}
+                {inline(task[2] ?? '')}
               </span>
             </li>,
           );
         } else {
           items.push(
             <li key={`li${li++}`} mix={liStyle}>
-              {renderInline(body)}
+              {inline(body)}
             </li>,
           );
         }
@@ -369,7 +394,7 @@ export function renderMarkdown(src: string): RemixNode {
       if (!ln.trim()) break;
       if (
         HEADING.test(ln) ||
-        FENCE.test(ln.trim()) ||
+        parseFenceOpen(ln.trim()) ||
         HR.test(ln) ||
         /^\s{0,3}>/.test(ln) ||
         ULI.test(ln) ||
@@ -381,7 +406,7 @@ export function renderMarkdown(src: string): RemixNode {
     }
     push(
       <p key={`k${key++}`} mix={pStyle}>
-        {renderInline(buf.join(' '))}
+        {inline(buf.join(' '))}
       </p>,
     );
   }

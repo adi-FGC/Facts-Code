@@ -132,3 +132,26 @@ describe('parseSql — string-literal & comment robustness (adversarial-verify r
     expect(r.tables[0]!.columns.map((c) => c.name)).toEqual(['a', 'label', 'c']);
   });
 });
+
+/* SCN-09 — every column's line number re-counted newlines from offset 0, so a
+   ~1 MB schema dump took ~13 s. Lines are now looked up in a prebuilt index. */
+describe('parseSql — near-linear on large dumps', () => {
+  it('parses a ~1 MB schema (600 tables × 40 FK columns) quickly, lines intact', () => {
+    const parts: string[] = [];
+    for (let t = 0; t < 600; t++) {
+      const cols = ['  id SERIAL PRIMARY KEY'];
+      for (let c = 0; c < 40; c++)
+        cols.push(`  ref_${c}_id INT REFERENCES table_${(t + c) % 600}(id)`);
+      parts.push(`CREATE TABLE table_${t} (\n${cols.join(',\n')}\n);`);
+    }
+    const sql = parts.join('\n\n');
+    expect(sql.length).toBeGreaterThan(900_000);
+    const t0 = performance.now();
+    const r = parseSql(sql);
+    const ms = performance.now() - t0;
+    expect(r.tables).toHaveLength(600);
+    expect(r.tables[599]!.line).toBe(599 * 44 + 1);
+    expect(r.tables[599]!.foreignKeys[39]!.line).toBe(599 * 44 + 42);
+    expect(ms).toBeLessThan(3000);
+  });
+});

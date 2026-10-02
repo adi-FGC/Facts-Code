@@ -464,7 +464,11 @@ export function shortPath(p: string): string {
  * to escape `&` — Mermaid handles entities itself.
  */
 export function escapeMermaidLabel(s: string): string {
-  return s.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return s
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\r\n|\r|\n/g, '<br/>');
 }
 
 /** Map an edge kind to its Mermaid arrow representation. */

@@ -15,7 +15,15 @@ import type { AgentArtifact } from '@factstack/spec';
 // Tiny artifact builder that lets each test focus on the bits it cares
 // about. All fields default to safe empty values so tests can pass a
 // partial. Shape mirrors @factstack/spec/AgentArtifact.
-function makeArtifact(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
+type Graph = AgentArtifact['graph'];
+type GraphNode = Graph['nodes'][number];
+type GraphEdge = Graph['edges'][number];
+/** Fixture overrides: `graph` may omit the schema-defaulted F2/F11 arrays. */
+type AgentOverrides = Omit<Partial<AgentArtifact>, 'graph'> & {
+  graph?: Pick<Graph, 'nodes' | 'edges' | 'cycles'> & Partial<Graph>;
+};
+
+function makeArtifact({ graph, ...overrides }: AgentOverrides = {}): AgentArtifact {
   return {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
@@ -29,28 +37,41 @@ function makeArtifact(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+      ...graph,
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
     ...overrides,
-  } as AgentArtifact;
+  };
 }
 
-function node(path: string, language: string = 'typescript', extra: Record<string, unknown> = {}) {
-  return { id: path, path, language, loc: 10, tokenCost: 50, status: 'ok' as const, ...extra };
+function node(
+  path: string,
+  language: string = 'typescript',
+  extra: Partial<GraphNode> = {},
+): GraphNode {
+  return { id: path, path, language, loc: 10, tokenCost: 50, status: 'ok', ...extra };
 }
-function edge(
-  from: string,
-  to: string,
-  kind: 'import' | 'dynamic-import' | 'type-import' = 'import',
-) {
-  return { from, to, kind };
+function edge(from: string, to: string, kind: GraphEdge['kind'] = 'import'): GraphEdge {
+  return { from, to, kind, confidence: 'extracted' };
 }
-function edgeC(from: string, to: string, confidence: 'extracted' | 'inferred' | 'ambiguous') {
-  return { from, to, kind: 'import' as const, confidence };
+function edgeC(from: string, to: string, confidence: GraphEdge['confidence']): GraphEdge {
+  return { from, to, kind: 'import', confidence };
 }
 
 describe('executeQuery — callers verb', () => {
@@ -212,21 +233,22 @@ describe('executeQuery — orphans verb (v0.2 noise filtering)', () => {
     const agent = makeArtifact({
       graph: {
         nodes: [
-          node('src/index.ts', 'typescript'),
+          node('src/dead.ts', 'typescript'),
           node('package.json', 'json'),
           node('.gitignore', 'gitignore'),
           node('tsconfig.json', 'json'),
           node('pnpm-lock.yaml', 'yaml'),
         ],
-        edges: [edge('src/index.ts', 'src/lib.ts')],
+        edges: [edge('src/dead.ts', 'src/lib.ts')],
         cycles: [],
       },
       files: [],
     });
     const r = executeQuery(agent, { verb: 'orphans' });
-    // Only TypeScript file (src/index.ts) should be considered;
-    // it has an outgoing edge so qualifies as a real orphan.
-    expect(r.results).toEqual(['src/index.ts']);
+    // Only the TypeScript file (src/dead.ts) should be considered; it has an
+    // outgoing edge so qualifies as a real orphan. (A src/index.ts next to
+    // the root package.json would be the package entry, not dead code.)
+    expect(r.results).toEqual(['src/dead.ts']);
   });
 
   it('skips files in declared entryPoints', () => {
@@ -294,6 +316,42 @@ describe('executeQuery — orphans verb (v0.2 noise filtering)', () => {
     // None of the test files should appear as orphans even though they
     // have no callers (test runners invoke them, not other code).
     expect(r.results).toEqual([]);
+  });
+
+  it('does not report runtime entry files or other-language tests as dead code (HUNT-CORE-08/09)', () => {
+    const files = [
+      'apps/mcp-server/src/server.ts',
+      'apps/ui-remix/src/main.tsx', // an index.html <script src> target
+      'apps/chrome-ext/src/panel/main.tsx',
+      'packages/ui-theme/src/index.ts',
+      'apps/cli/src/cli.ts',
+      'apps/cli/scripts/sync-ui.mjs', // run by path from a package.json script
+      'bin/factstack.js',
+      'pkg/auth/auth_test.go',
+      'app/test_auth.py',
+      'packages/core/src/dead.ts', // the genuine orphan
+      'packages/core/src/lib/index.ts', // a nested barrel nothing imports: still dead
+    ];
+    const manifests = [
+      'apps/mcp-server',
+      'apps/ui-remix',
+      'apps/chrome-ext',
+      'packages/ui-theme',
+      'apps/cli',
+      'packages/core',
+    ];
+    const agent = makeArtifact({
+      graph: {
+        nodes: [
+          ...files.map((p) => node(p)),
+          ...manifests.map((d) => node(`${d}/package.json`, 'json')),
+        ],
+        edges: files.map((p) => edge(p, 'packages/spec/src/index.ts')),
+        cycles: [],
+      },
+    });
+    const r = executeQuery(agent, { verb: 'orphans' });
+    expect(r.results).toEqual(['packages/core/src/dead.ts', 'packages/core/src/lib/index.ts']);
   });
 
   it('requires at least one outgoing import (skips bare leaves)', () => {
@@ -366,6 +424,34 @@ describe('executeQuery — glob matcher', () => {
     expect(executeQuery(agent, { verb: 'cycles', filter: 'x.ts' }).count).toBe(2);
     // '?.ts' is glob → anchored single-char + literal '.ts', matches only 'x.ts'
     expect(executeQuery(agent, { verb: 'cycles', filter: '?.ts' }).count).toBe(1);
+  });
+
+  it('keeps glob semantics: multiple stars, regex metachars literal, anchored', () => {
+    const agent = makeArtifact({
+      graph: {
+        nodes: [],
+        edges: [],
+        cycles: [['packages/core/src/a.ts'], ['apps/x (copy)/b+c.ts'], ['src/a.tsx']],
+      },
+    });
+    const count = (filter: string) => executeQuery(agent, { verb: 'cycles', filter }).count;
+    expect(count('*/src/*.ts')).toBe(1); // not src/a.tsx (anchored), not the root src/
+    expect(count('*(copy)/b+c.ts')).toBe(1);
+    expect(count('*.ts*')).toBe(3);
+    expect(count('**')).toBe(3);
+    expect(count('*.t?x')).toBe(1);
+  });
+
+  it('cannot be frozen by a pathological pattern (MCP-11)', () => {
+    const long = 'a'.repeat(200);
+    const agent = makeArtifact({
+      graph: { nodes: [], edges: [], cycles: [[long], [long + '/x']] },
+    });
+    const t0 = Date.now();
+    // 20 stars that never match: exponential for a backtracking regex.
+    const r = executeQuery(agent, { verb: 'cycles', filter: '*a'.repeat(20) + '*b' });
+    expect(r.count).toBe(0);
+    expect(Date.now() - t0).toBeLessThan(50);
   });
 });
 

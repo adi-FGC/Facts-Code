@@ -73,8 +73,9 @@ const pathRes = new Map<string, RegExp>();
 /**
  * One path, every spelling: any separator run (`/`, `\`, the `\\` a JSON or
  * pack encoder writes, `\\\\` when that is escaped again), case-insensitive
- * for Windows drive paths (`d:\x` and `D:\x` are one folder), and only at a
- * name boundary so `/repo` never eats the front of `/repo-2`.
+ * for Windows drive paths and their MSYS form (`d:\x`, `D:\x` and `/d/x` are
+ * one folder), and only at a name boundary so `/repo` never eats the front of
+ * `/repo-2`.
  */
 function pathRe(p: string): RegExp {
   let re = pathRes.get(p);
@@ -86,7 +87,7 @@ function pathRe(p: string): RegExp {
     const lead = /^[\\/]/.test(p) ? '[\\\\/]+' : '';
     re = new RegExp(
       lead + segs.join('[\\\\/]+') + '(?![A-Za-z0-9_-])',
-      /^[A-Za-z]:/.test(p) ? 'gi' : 'g',
+      /^(?:[A-Za-z]:|\/[A-Za-z]\/)/.test(p) ? 'gi' : 'g',
     );
     pathRes.set(p, re);
   }
@@ -102,16 +103,35 @@ function replaceAll(s: string, subs: ReadonlyArray<readonly [string, string]>): 
   return out;
 }
 
-/** Root → '.', its parent → '..', in both slash styles. Longest first, so
- *  the root is rewritten before the parent it contains. Never a bare drive
- *  or '/', which would rewrite unrelated text. */
+/** A drive path's Git Bash (MSYS) spelling — `D:/dev/x` → `/d/dev/x` — or
+ *  null. Tooling on Windows prints it, so text can quote it. */
+function msysPath(p: string): string | null {
+  const m = /^([A-Za-z]):[\\/]+(.+)$/.exec(p);
+  return m ? `/${m[1]!.toLowerCase()}/${m[2]!.replace(/\\/g, '/')}` : null;
+}
+
+/** `[from, to]` plus, for a drive path, the same pair keyed on its MSYS form. */
+function withMsys([from, to]: [string, string]): Array<[string, string]> {
+  const msys = msysPath(from);
+  return msys
+    ? [
+        [from, to],
+        [msys, to],
+      ]
+    : [[from, to]];
+}
+
+/** Root → '.', its parent → '..', in both slash styles and, for a drive
+ *  path, its Git Bash (MSYS) form. Root first, so it is rewritten before the
+ *  parent it contains. Never a bare drive or '/', which would rewrite
+ *  unrelated text. */
 export function localPathSubs(repoRoot: string): Array<[string, string]> {
   const fwd = repoRoot.replace(/\\/g, '/').replace(/\/+$/, '');
   const parent = fwd.replace(/\/[^/]*$/, '');
   const pairs: Array<[string, string]> = [
-    [fwd, '.'],
+    ...withMsys([fwd, '.']),
     [fwd.replace(/\//g, '\\'), '.'],
-    [parent, '..'],
+    ...withMsys([parent, '..']),
     [parent.replace(/\//g, '\\'), '..'],
   ];
   return pairs.filter(([from]) => from.length > 3 && /[\\/]/.test(from.slice(1)));
@@ -146,6 +166,7 @@ export function shareableDataset<T>(input: T, repoRoot: string): ShareableDatase
     rec.git = shared.git;
     gitSubs = [...shared.pathSubs]
       .filter(([from]) => isAbsolutePath(from))
+      .flatMap(withMsys)
       .sort((a, b) => b[0].length - a[0].length);
   }
   /* Longest first across BOTH lists: a checkout that contains the build root

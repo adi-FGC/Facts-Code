@@ -175,31 +175,49 @@ export async function* walk(
      3. the repository's own ignore files, added per directory in walkDir —
         last, so a project that deliberately TRACKS one of these paths can still
         re-include it with `!` in .gitignore / .factsignore. */
-  const rootIgnore = ignore().add(parseIgnore([...extraIgnore, ...PERSONAL_IGNORE].join('\n')));
+  const rootRules = parseIgnore([...extraIgnore, ...PERSONAL_IGNORE].join('\n'));
 
-  yield* walkDir(fs, rootNorm, rootNorm, rootIgnore, visited, {
+  yield* walkDir(fs, rootNorm, rootNorm, rootRules, [], visited, {
     maxFileSize,
     followSymlinks,
     skipGit,
   });
 }
 
+/** One directory's ignore rules. A nested ignore file's patterns are
+ *  relative to ITS directory (`/out`, `lib/gen.ts` anchor there), so each
+ *  directory keeps its own instance and paths are tested relative to it. */
+interface IgnoreLevel {
+  /** Directory relative to the walk root ('' for the root itself). */
+  dir: string;
+  ig: Ignore;
+}
+
+/** git semantics: the deepest ignore file with a matching rule decides
+ *  (a deeper file overrides its parents, `!` re-includes per level); within
+ *  one level the last matching rule wins. */
+function isIgnored(levels: IgnoreLevel[], relToRoot: string, isDir: boolean): boolean {
+  for (let i = levels.length - 1; i >= 0; i--) {
+    const { dir, ig } = levels[i]!;
+    const rel = dir === '' ? relToRoot : relToRoot.slice(dir.length + 1);
+    const r = ig.test(isDir ? rel + '/' : rel);
+    if (r.ignored) return true;
+    if (r.unignored) return false;
+  }
+  return false;
+}
+
 async function* walkDir(
   fs: FactsFS,
   base: string,
   current: string,
-  parentIgnore: ReturnType<typeof ignore>,
+  /* Root-level rules (host-injected + PERSONAL_IGNORE); only applied at the
+     root, so their anchoring stays relative to the walk root. */
+  rootRules: string[],
+  parentLevels: IgnoreLevel[],
   visited: Set<string>,
-  /* Rules travel in `parentIgnore`, never in opts: walkDir must not be able
-     to re-seed them per directory (it would change their anchoring). */
   opts: Required<Omit<WalkOptions, 'extraIgnore'>>,
 ): AsyncIterable<WalkedFile> {
-  // Compose ignore patterns at this level by appending any local ignore files.
-  const localIgnore = ignore().add(parentIgnore as unknown as string[]);
-  // `ignore` doesn't expose its internal pattern list, so each level starts
-  // fresh from the parent's set by re-adding discovered rule content.
-  // The walker accumulates ignore content in `accumulated` and reuses.
-
   const accumulated: string[] = [];
   for (const f of IGNORE_FILES) {
     try {
@@ -210,7 +228,16 @@ async function* walkDir(
       /* file doesn't exist — fine */
     }
   }
-  if (accumulated.length > 0) localIgnore.add(accumulated);
+  let levels = parentLevels;
+  if (parentLevels.length === 0) {
+    // The root: injected rules first, the repository's own files last.
+    levels = [{ dir: '', ig: ignore().add(rootRules).add(accumulated) }];
+  } else if (accumulated.length > 0) {
+    levels = [
+      ...parentLevels,
+      { dir: relativeTo(base, current, fs), ig: ignore().add(accumulated) },
+    ];
+  }
 
   const entries: Dirent[] = [];
   try {
@@ -236,8 +263,7 @@ async function* walkDir(
     if (!entry.isDirectory && IGNORE_FILES.includes(entry.name)) continue;
 
     const relToRoot = relativeTo(base, entry.path, fs);
-    const ignoreKey = entry.isDirectory ? relToRoot + '/' : relToRoot;
-    if (localIgnore.ignores(ignoreKey)) continue;
+    if (isIgnored(levels, relToRoot, entry.isDirectory)) continue;
 
     if (entry.isSymlink && !opts.followSymlinks) continue;
 
@@ -252,7 +278,7 @@ async function* walkDir(
          checkouts on purpose; the file walk must not swallow them. Root is
          exempt (its .git is the project's own). */
       if (opts.skipGit && (await isOtherCheckout(fs, entry.path))) continue;
-      yield* walkDir(fs, base, entry.path, localIgnore, visited, opts);
+      yield* walkDir(fs, base, entry.path, rootRules, levels, visited, opts);
       continue;
     }
     if (!entry.isFile) continue;

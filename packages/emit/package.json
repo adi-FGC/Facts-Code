@@ -16,7 +16,7 @@
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
     "lint": "echo 'no lint yet' && exit 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "@factstack/core": "workspace:*",
@@ -24,9 +24,9 @@
     "@factstack/spec": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
-    "@vitest/coverage-v8": "^4.1.11",
-    "typescript": "^5.6.0",
-    "vitest": "^4.1.11"
+    "@types/node": "^26.6.3",
+    "@vitest/coverage-v8": "^5.0.3",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
   }
 }

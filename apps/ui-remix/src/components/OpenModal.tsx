@@ -21,8 +21,9 @@
  *   Backdrop scrim + centered panel anchored under the header. Same
  *   editorial language as CommandPalette: hairlines, mono input, no
  *   rounded corners. Closes on Escape, scrim click, or successful
- *   scan completion. Body scroll is NOT locked — the modal is small
- *   enough that the page underneath staying scrollable is fine.
+ *   scan completion; while a scan runs, Escape / "Cancel scan" abandon
+ *   it instead. Body scroll is NOT locked; on a short screen the overlay
+ *   itself scrolls so the action row stays reachable.
  *
  * Open trigger:
  *   Any code that wants to open the modal dispatches a CustomEvent:
@@ -45,14 +46,17 @@ import { parseRepoSpec, type GitHubFetchSpec } from '@factstack/fs-browser';
 import type { ScanProgress, ScanResult } from '../lib/scannerBridge.ts';
 import {
   addRecent,
+  agentRulesDefault,
   ensureReadAccess,
   getCurrentSourceId,
   listRecents,
+  recentForScan,
   recentGlyph,
   recentLabel,
   removeRecent,
   setCurrentSourceId,
   type Recent,
+  type ScanSource,
 } from '../lib/recents.ts';
 import { computeEnvChecks, type EnvCheck } from '../lib/envChecks.ts';
 import { getEmitProfile, setEmitProfile, type EmitProfile } from '../lib/emitProfile.ts';
@@ -71,6 +75,16 @@ type Mode = 'local' | 'github';
 type Phase = 'idle' | 'picking' | 'scanning' | 'done' | 'saving' | 'saved' | 'error';
 
 const GH_TOKEN_KEY = 'factstack:gh-token';
+
+/* What "Agent rules" writes, named in full before Save (FSB-7). */
+const RULES_FILES =
+  'AGENTS.md, .cursorrules, .github/copilot-instructions.md and .claude/skills/<name>/SKILL.md';
+
+/* A lazy chunk that won't load is almost always a redeploy since this tab
+   opened: the host serves index.html for the old hashed name. Same advice
+   as App.tsx's RouteLoadError. */
+const STALE_CHUNK_MSG =
+  'The scanner didn’t load. The site may have been updated since this page opened — reload to get the latest version.';
 
 /* ─────────── visual treatment ─────────── */
 
@@ -110,6 +124,12 @@ const overlay = css({
   flexDirection: 'column',
   alignItems: 'center',
   paddingTop: 'calc(var(--nav-h) + var(--space-4))',
+  /* A phone is shorter than the open panel: the overlay itself scrolls so
+     the action row (Choose folder / Fetch & analyze) is always reachable,
+     without scrolling the page underneath (UI-09). */
+  paddingBottom: 'var(--space-4)',
+  overflowY: 'auto',
+  overscrollBehavior: 'contain',
   background: 'color-mix(in oklab, var(--bg) 64%, transparent)',
   backdropFilter: 'blur(4px)',
   WebkitBackdropFilter: 'blur(4px)',
@@ -120,6 +140,7 @@ const overlay = css({
 
 const panel = css({
   width: 'min(92vw, 560px)',
+  flexShrink: '0',
   background: 'var(--bg)',
   border: '1px solid var(--border)',
   boxShadow: '0 1px 0 var(--hairline), 0 12px 24px color-mix(in oklab, var(--fg) 8%, transparent)',
@@ -446,6 +467,35 @@ const profileHint = css({
   color: 'var(--fg-faint)',
   lineHeight: '1.5',
   marginTop: 'var(--space-2)',
+});
+
+/* An incomplete scan (UI-02): a GitHub download with failed files or a
+   truncated tree. Same inset-rule grammar as the disclaimer, in --warn,
+   so the result never reads as a complete scan. */
+const scanWarning = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--warn)',
+  lineHeight: '1.55',
+  padding: 'var(--space-3)',
+  borderLeft: '2px solid var(--warn)',
+  background: 'color-mix(in oklab, var(--warn) 6%, transparent)',
+  '& ul': { margin: 'var(--space-2) 0 0', paddingLeft: '2ch' },
+});
+
+/* "Forget token" — a quiet text button under the PAT field. */
+const forgetTokenBtn = css({
+  marginTop: 'var(--space-2)',
+  padding: '0',
+  border: 'none',
+  background: 'none',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  color: 'var(--fg-muted)',
+  textDecoration: 'underline',
+  cursor: 'pointer',
+  '&:hover': { color: 'var(--fg)' },
+  '&:disabled': { cursor: 'default', opacity: '0.5' },
 });
 
 /* ─────────── privacy disclaimer ─────────── */
@@ -781,6 +831,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   let progress: ScanProgress | null = null;
   let urlInput = '';
   let tokenInput = readStoredToken();
+  let tokenInputEl: HTMLInputElement | null = null;
   let urlInputEl: HTMLInputElement | null = null;
   let dirInputEl: HTMLInputElement | null = null;
   /* Flips true the first time showDirectoryPicker() throws a non-Abort
@@ -825,9 +876,14 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   /* v0.10 — also write the agent-rules files (AGENTS.md, .cursorrules,
      .github/copilot-instructions.md, .claude/skills/<name>/SKILL.md) at the
      PROJECT ROOT on save, so any AI agent that opens this folder is told to
-     prefer .facts/agent.pack over re-scanning. Default on: that's the
-     universal, zero-CLI "turnkey" path. Unchecked → only .facts/ is written. */
+     prefer .facts/agent.pack over re-scanning. Default on for a local scan:
+     that's the universal, zero-CLI "turnkey" path. OFF for a GitHub scan
+     (reset per scan in runScan): its Save goes to a folder the user picks,
+     and rules describing another repo must not land there by default (FSB-7).
+     Unchecked → only .facts/ is written. */
   let writeAgentRules = true;
+  /* The source of the scan on screen — decides the rules default + hint. */
+  let lastSource: ScanSource | null = null;
   /* Cached recents list. Loaded on first show() and refreshed after every
      successful scan. Empty array (not null) is a meaningful state — it
      means "we tried IDB and it returned nothing" so the renderer hides
@@ -995,9 +1051,12 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     /* Reset save state too — opening a fresh modal shouldn't show a
        "Wrote N files…" banner from a previous session. */
     lastResult = null;
+    lastSource = null;
     lastSourceHandle = null;
     savedSummary = null;
-    envExpanded = true;
+    /* Collapsed by default so the primary action stays near the top on a
+       phone; refreshEnvChecks() still expands it the moment a check fails. */
+    envExpanded = false;
     void handle.update();
     /* Lazy-load the recents list on first open so we don't pay an IDB
        hit on cold start. Subsequent opens reuse the cached list, which
@@ -1038,9 +1097,39 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       return;
     }
     if (!open) return;
-    if (e.key === 'Escape' && phase !== 'scanning') {
+    if (e.key === 'Escape') {
       e.preventDefault();
-      hide();
+      if (phase === 'scanning' || phase === 'picking') cancelScan();
+      else hide();
+    }
+  }
+
+  /* Abandon the in-flight scan (UI-10): a worker that died or never loaded
+     used to leave the modal stuck in `scanning` with Close disabled. Bumping
+     scanGen makes runScan ignore whatever the old scan does next. */
+  function cancelScan() {
+    if (phase !== 'scanning' && phase !== 'picking') return;
+    scanGen++;
+    phase = 'idle';
+    progress = null;
+    void handle.update();
+  }
+
+  /* The bridge chunk, or null after surfacing a load failure. A caller that
+     exposes Cancel while the chunk loads passes its scan generation: if the
+     user cancelled meanwhile, a late load failure stays silent instead of
+     flipping the cancelled (idle) modal back to 'error'. */
+  async function loadBridge(
+    gen?: number,
+  ): Promise<typeof import('../lib/scannerBridge.ts') | null> {
+    try {
+      return await import('../lib/scannerBridge.ts');
+    } catch (err) {
+      if (gen !== undefined && gen !== scanGen) return null;
+      phase = 'error';
+      error = `${STALE_CHUNK_MSG} (${err instanceof Error ? err.message : String(err)})`;
+      void handle.update();
+      return null;
     }
   }
 
@@ -1146,18 +1235,20 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     }
 
     phase = 'picking';
+    const gen = scanGen;
     void handle.update();
     /* Dynamic-imported bridge — see the type-only import note at the top
        of this file. The first scan pays the bridge-chunk download (~5 KB
        gz) on top of the worker chunk; subsequent scans are warm. */
-    const bridge = await import('../lib/scannerBridge.ts');
+    const bridge = await loadBridge(gen);
+    if (!bridge || gen !== scanGen) return; /* load failed, or cancelled while loading */
     /* Stash the source handle BEFORE the scan completes so the save
        fast-path knows which directory to re-prompt for write perm. */
     lastSourceHandle = dirHandle;
     /* Re-probe env checks now that we have a handle — the read/write
        permission rows for the picked dir become relevant here. */
     void refreshEnvChecks();
-    await runScan(bridge, (onProgress) =>
+    await runScan(bridge, { kind: 'local-fsa', handle: dirHandle }, (onProgress) =>
       bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }),
     );
   }
@@ -1180,10 +1271,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       .filter((entry) => entry.path.length > 0);
 
     if (files.length === 0) return;
-    const bridge = await import('../lib/scannerBridge.ts');
+    const bridge = await loadBridge();
+    if (!bridge) return;
     lastSourceHandle = null;
     void refreshEnvChecks();
-    await runScan(bridge, (onProgress) =>
+    await runScan(bridge, { kind: 'local-files' }, (onProgress) =>
       bridge.runFileListScan(files, { onProgress, projectName: rootName }),
     );
   }
@@ -1204,15 +1296,21 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       ...spec,
       ...(tokenInput.trim() ? { token: tokenInput.trim() } : {}),
     };
-    const bridge = await import('../lib/scannerBridge.ts');
+    const bridge = await loadBridge();
+    if (!bridge) return;
     /* GitHub repos have no on-disk source — keep the source-handle
        null so the save path knows to prompt for a destination. */
     lastSourceHandle = null;
-    await runScan(bridge, (onProgress) => bridge.runGitHubScan(fullSpec, { onProgress }));
+    await runScan(
+      bridge,
+      { kind: 'github', owner: spec.owner, repo: spec.repo, ref: spec.ref ?? '' },
+      (onProgress) => bridge.runGitHubScan(fullSpec, { onProgress }),
+    );
   }
 
   async function runScan(
     bridge: typeof import('../lib/scannerBridge.ts'),
+    source: ScanSource,
     launch: (onProgress: (p: ScanProgress) => void) => Promise<ScanResult>,
   ) {
     const myGen = ++scanGen;
@@ -1231,6 +1329,8 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
          fresh data without a page reload. */
       bridge.publishDataset(result.dataset);
       lastResult = result;
+      lastSource = source;
+      writeAgentRules = agentRulesDefault(source);
       phase = 'done';
       void handle.update();
       /* Modal stays open after `done` so the user can choose to save
@@ -1243,7 +1343,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
          recents list. addRecent is async + best-effort — failure (Safari
          private mode, denied IDB) is silently dropped; in-session UI
          still works because we update from the result we already have. */
-      void persistScanToRecents(result);
+      void persistScanToRecents(result, source);
     } catch (err) {
       if (myGen !== scanGen) return;
       phase = 'error';
@@ -1275,7 +1375,8 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     error = '';
     void handle.update();
 
-    const bridge = await import('../lib/scannerBridge.ts');
+    const bridge = await loadBridge();
+    if (!bridge) return;
     let destination: FileSystemDirectoryHandle | null = lastSourceHandle;
     if (!destination) {
       try {
@@ -1356,43 +1457,22 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
   /**
    * Fold a freshly-completed scan into the recents store and mark it
-   * the active source. The pre-scan inputs (lastSourceHandle for local,
-   * the parsed spec for GitHub) are the source of truth; we read the
-   * result only for the project name when constructing GitHub recents.
+   * the active source. `source` is what the scan was launched from
+   * (recorded at launch, UI-13); the result supplies only the project
+   * name, which for GitHub carries the ref the worker resolved.
    */
-  async function persistScanToRecents(result: ScanResult) {
-    let saved: Recent | null = null;
-    if (lastSourceHandle) {
-      saved = await addRecent({
-        kind: 'local',
-        name: lastSourceHandle.name,
-        handle: lastSourceHandle,
-      });
-    } else {
-      /* GitHub path — reconstruct from the project name. The worker
-         passes `${owner}/${repo}[@ref]` as projectName, which is the
-         canonical recents id format. */
-      const name = result.agent.project.name;
-      const m = /^([^/]+)\/([^@]+)(?:@(.+))?$/.exec(name);
-      if (m) {
-        const [, owner, repo, ref] = m;
-        saved = await addRecent({
-          kind: 'github',
-          name,
-          owner: owner!,
-          repo: repo!,
-          ref: ref ?? '',
-        });
-      }
-    }
-    if (saved) {
-      setCurrentSourceId(saved.id);
-      /* Hydrate the emit-profile toggle for THIS project from its stored
-         preference (minimal default for a never-saved project). Done
-         here — not in show() — because the project id only exists once a
-         scan completes + persists. */
-      emitProfile = getEmitProfile(saved.id);
-    }
+  async function persistScanToRecents(result: ScanResult, source: ScanSource) {
+    const input = recentForScan(source, result.agent.project.name);
+    const saved: Recent | null = input ? await addRecent(input) : null;
+    /* A folder-input scan has no handle to re-open, so it isn't a recent —
+       but it IS the dataset on screen now, so the previous source must stop
+       being "current" (the header chip falls back to the project name). */
+    setCurrentSourceId(saved ? saved.id : null);
+    /* Hydrate the emit-profile toggle for THIS project from its stored
+       preference (minimal default for a never-saved project). Done
+       here — not in show() — because the project id only exists once a
+       scan completes + persists. */
+    emitProfile = getEmitProfile(saved ? saved.id : null);
     await refreshRecents();
   }
 
@@ -1422,9 +1502,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
         void handle.update();
         return;
       }
-      const bridge = await import('../lib/scannerBridge.ts');
+      const bridge = await loadBridge();
+      if (!bridge) return;
       lastSourceHandle = r.handle;
-      await runScan(bridge, (onProgress) =>
+      await runScan(bridge, { kind: 'local-fsa', handle: r.handle }, (onProgress) =>
         bridge.runLocalScan(r.handle, { onProgress, projectName: r.name }),
       );
       return;
@@ -1438,9 +1519,24 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       ref: r.ref,
       ...(token ? { token } : {}),
     };
-    const bridge = await import('../lib/scannerBridge.ts');
+    const bridge = await loadBridge();
+    if (!bridge) return;
     lastSourceHandle = null;
-    await runScan(bridge, (onProgress) => bridge.runGitHubScan(fullSpec, { onProgress }));
+    await runScan(
+      bridge,
+      { kind: 'github', owner: r.owner, repo: r.repo, ref: r.ref },
+      (onProgress) => bridge.runGitHubScan(fullSpec, { onProgress }),
+    );
+  }
+
+  /* UI-01: drop the stored PAT and empty the field. The input's DOM value
+     is cleared directly — typing never re-rendered it, so a `value` prop
+     diff alone could leave the typed token on screen. */
+  function forgetToken() {
+    clearStoredToken();
+    tokenInput = '';
+    if (tokenInputEl) tokenInputEl.value = '';
+    void handle.update();
   }
 
   async function dropRecent(r: Recent) {
@@ -1859,13 +1955,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
               Choose folder…
             </button>
           </span>
-          <button
-            type="button"
-            mix={[secondaryBtn, on('click', hide)]}
-            disabled={phase === 'scanning'}
-          >
-            Close
-          </button>
+          {renderCloseOrCancel()}
         </div>
       </>
     );
@@ -1887,6 +1977,8 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const tokens = result.agent.stats.totalTokenCost;
     const loc = result.agent.stats.loc;
     const projectName = result.agent.project.name;
+    const warnings = result.meta.warnings ?? [];
+    const fromGithub = lastSource?.kind === 'github';
     const saveLabel =
       phase === 'saving'
         ? 'Saving…'
@@ -1901,6 +1993,16 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           <span class="mono">agent.json</span>, <span class="mono">agent.pack</span>,{' '}
           <span class="mono">MEMORY.md</span>) lands on disk for downstream agents.
         </p>
+        {warnings.length > 0 && (
+          <div role="status" mix={scanWarning}>
+            <strong>Incomplete scan</strong> — the results below miss part of the project:
+            <ul>
+              {warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         <div mix={resultPanel}>
           <div mix={resultStatLine}>
             <span>Files</span>
@@ -2039,8 +2141,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             </div>
             <div mix={profileHint}>
               {writeAgentRules
-                ? 'Also writes AGENTS.md + .cursorrules + Copilot + Claude SKILL.md at the project root — so any AI agent opening this folder is told to prefer .facts/agent.pack over re-scanning.'
+                ? `Also writes ${RULES_FILES} at the root of the folder you save to — so any AI agent opening it is told to prefer .facts/agent.pack over re-scanning. Hand-written AGENTS.md, .cursorrules and Copilot files are kept; the FACTS skill file is refreshed.`
                 : 'Skips the agent-rules files; only the .facts/ artifacts are written.'}
+              {fromGithub
+                ? ` These files describe ${projectName}: turn this on only if the folder you save to is a checkout of that repo.`
+                : ''}
             </div>
           </>
         )}
@@ -2097,7 +2202,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
                 urlInputEl = node;
               }),
               on<HTMLInputElement, 'input'>('input', (e) => {
+                const had = urlInput.trim().length > 0;
                 urlInput = (e.currentTarget as HTMLInputElement | null)?.value ?? '';
+                /* Re-render when emptiness flips, so "Fetch & analyze"
+                   (disabled while the box is empty) enables on typing. */
+                if (had !== urlInput.trim().length > 0) void handle.update();
               }),
               on<HTMLInputElement, 'keydown'>('keydown', (e) => {
                 if (e.key === 'Enter' && phase !== 'scanning') {
@@ -2123,11 +2232,27 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             disabled={phase === 'scanning'}
             mix={[
               inputEl,
+              ref<HTMLInputElement>((node) => {
+                tokenInputEl = node;
+              }),
               on<HTMLInputElement, 'input'>('input', (e) => {
+                const had = tokenInput.trim().length > 0;
                 tokenInput = (e.currentTarget as HTMLInputElement | null)?.value ?? '';
+                /* Re-render when emptiness flips, so "Forget token" shows. */
+                if (had !== tokenInput.trim().length > 0) void handle.update();
               }),
             ]}
           />
+          {(tokenInput.trim().length > 0 || readStoredToken() !== '') && (
+            <button
+              type="button"
+              disabled={phase === 'scanning'}
+              title="Remove the token from this browser's storage and clear the field"
+              mix={[forgetTokenBtn, on('click', forgetToken)]}
+            >
+              Forget token
+            </button>
+          )}
         </div>
         <div mix={actionsRow}>
           <button
@@ -2137,15 +2262,20 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           >
             {phase === 'scanning' ? 'Analyzing…' : 'Fetch & analyze'}
           </button>
-          <button
-            type="button"
-            mix={[secondaryBtn, on('click', hide)]}
-            disabled={phase === 'scanning'}
-          >
-            Close
-          </button>
+          {renderCloseOrCancel()}
         </div>
       </>
+    );
+  }
+
+  /** Close — or, while a scan runs, Cancel (the way out of a scan whose
+   *  worker died or never loaded; Escape does the same). */
+  function renderCloseOrCancel() {
+    const busy = phase === 'scanning' || phase === 'picking';
+    return (
+      <button type="button" mix={[secondaryBtn, on('click', busy ? cancelScan : hide)]}>
+        {busy ? 'Cancel scan' : 'Close'}
+      </button>
     );
   }
 }
@@ -2168,6 +2298,17 @@ function writeStoredToken(value: string): void {
   } catch {
     /* quota / private mode — silently swallow; the in-memory copy
        remains for this session. */
+  }
+}
+
+/** UI-01: the stored PAT used to have no way out short of clearing site
+ *  data. Removes it; blocked storage has nothing stored to remove. */
+function clearStoredToken(): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    localStorage.removeItem(GH_TOKEN_KEY);
+  } catch {
+    /* private mode / blocked storage — nothing was stored. */
   }
 }
 

@@ -8,7 +8,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { encode, encodeIncremental, PackEncodeError } from '../src/encode.js';
+import { encode, encodeIncremental, mapLiteralDashes, PackEncodeError } from '../src/encode.js';
+import { decode } from '../src/decode.js';
 import type { PackHeader, PackTable } from '../src/types.js';
 
 const HEADER: PackHeader = {
@@ -470,6 +471,80 @@ describe('encode — v0.2 literal "-" guard (S12)', () => {
       tables: [{ name: 't', columns: [{ name: 'a' }, { name: 'b' }], rows: [['x', null]] }],
     });
     expect(out).toContain('- x\t-\n');
+  });
+
+  it('mapLiteralDashes maps every "-" cell to "- " (interned too, so tables join) and leaves null alone', () => {
+    const table: PackTable = {
+      name: 't',
+      columns: [{ name: 'path' }, { name: 'F' }, { name: 'text' }],
+      rows: [
+        ['-', '-', 'ok'],
+        ['a', null, '-'],
+        ['b', 'c', 'd'],
+      ],
+    };
+    const mapped = mapLiteralDashes(table);
+    expect(mapped.rows).toEqual([
+      ['- ', '- ', 'ok'],
+      ['a', null, '- '],
+      ['b', 'c', 'd'],
+    ]);
+    expect(table.rows[0]![0]).toBe('-'); // input untouched
+    const d = decode(encode({ header: HEADER, tables: [mapped] }));
+    expect(d.tables.get('t')!.rows[0]).toEqual(['- ', '- ', 'ok']); // '- ' round-trips via the dict
+    expect(d.tables.get('t')!.rows[1]).toEqual(['a', null, '- ']);
+    // Nothing to map → the same table object (no copy on the hot path).
+    const clean: PackTable = { name: 'c', columns: [{ name: 'a' }], rows: [['x']] };
+    expect(mapLiteralDashes(clean)).toBe(clean);
+  });
+});
+
+describe('encode — never emits a pack its own decoder rejects (ART-7)', () => {
+  it('rejects an interned namespace ending in a digit (F + F1 would both mint "F11")', () => {
+    const rows = Array.from({ length: 11 }, (_, i) => [`a${i}`, `b${i}`]);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'F' }, { name: 'F1' }], rows }],
+      }),
+    ).toThrow(/ends in a digit/);
+    expect(() =>
+      encode({
+        header: HEADER,
+        tables: [{ name: 't', columns: [{ name: 'S', internGroup: 'S2' }], rows: [['x']] }],
+      }),
+    ).toThrow(/ends in a digit/);
+  });
+
+  it('rejects an untyped column name containing ":" once any column is typed', () => {
+    const tables: PackTable[] = [
+      {
+        name: 't',
+        columns: [{ name: 'id', type: 'int' }, { name: 'ns:key' }],
+        rows: [['1', 'x']],
+      },
+    ];
+    expect(() => encode({ header: HEADER, tables })).toThrow(/contains ':'/);
+    expect(() =>
+      encodeIncremental({
+        header: { ...HEADER, rowCount: 0, kind: 'diff' },
+        tables: [{ ...tables[0]!, addedRows: [['1', 'x']], deletedIds: [] }],
+      }),
+    ).toThrow(/contains ':'/);
+    // A caller-declared `; caps typed` makes the decoder split names too.
+    expect(() =>
+      encode({
+        header: HEADER,
+        meta: { legend: ['caps typed'] },
+        tables: [{ name: 'u', columns: [{ name: 'ns:key' }], rows: [['x']] }],
+      }),
+    ).toThrow(/contains ':'/);
+    // Without any typed column, a ':' name stays legal (v0.2 packs unchanged).
+    const out = encode({
+      header: HEADER,
+      tables: [{ name: 'u', columns: [{ name: 'ns:key' }], rows: [['x']] }],
+    });
+    expect(decode(out).tables.get('u')!.columns[0]).toEqual({ name: 'ns:key' });
   });
 });
 

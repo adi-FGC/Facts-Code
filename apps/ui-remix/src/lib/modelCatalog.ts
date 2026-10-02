@@ -8,22 +8,25 @@
  * behind the "?" button) is strictly additive — it can only ever replace
  * these numbers with fresher ones, never be required to show any.
  *
- * HOW THESE NUMBERS WERE OBTAINED (2026-09-23)
- * Each row was researched against the vendor's own pricing page, then
- * INDEPENDENTLY re-checked by a second pass whose instructions were to
- * refute it — open the primary page again and compare both rates. 160 of
- * 167 researched rates confirmed; the corrections that survived are noted
- * per row below. Where a vendor's page and multiple hosted providers
- * disagreed, the disagreement is recorded in `notes` rather than resolved
- * silently in the product's favour.
+ * HOW THESE NUMBERS WERE OBTAINED (first 2026-09-23, re-verified 2026-10-02)
+ * Each row was researched against the vendor's own pricing or model page,
+ * then INDEPENDENTLY re-checked by a second pass whose instructions were to
+ * refute it — open the primary page again and compare every rate. On
+ * 2026-10-02 every row was re-read that way: no list price had moved; the
+ * corrections were cached-input rates, max-input figures and caveats
+ * (peak-hour and prompt-length tiers, an introductory price). Sonnet 5.5 and
+ * GPT-6.1 Sol were added; Devstral 2 was dropped (Mistral retired it on
+ * 2026-07-31); Inkling's earlier source disagreement was resolved by the
+ * vendor's own serverless price. Where sources disagree, the disagreement is
+ * recorded in `notes` rather than resolved silently in the product's favour.
  *
  * `verifiedOn` IS PER MODEL, DELIBERATELY
  * Not one global "last updated" stamp. Prices move independently — Sonnet 5
- * held introductory pricing past its announced end date; Inkling is on a
- * limited-time discount; Qwen re-tiers by region. A single banner date would
- * claim freshness for rows nobody re-checked. Re-verify one row, bump one
- * date. The UI surfaces the OLDEST date in the visible set, so the panel can
- * never look fresher than its stalest row.
+ * held introductory pricing past its announced end date; Gemini 3.8 Flash is
+ * on an introductory rate until the end of 2026; Qwen re-tiers by region. A
+ * single banner date would claim freshness for rows nobody re-checked.
+ * Re-verify one row, bump one date. The UI surfaces the OLDEST date in the
+ * visible set, so the panel can never look fresher than its stalest row.
  *
  * RULES FOR EDITING
  *   - Never adjust a price without opening `sourceUrl` and bumping
@@ -33,9 +36,13 @@
  *   - `litellmKey` must be an EXACT key from the live price file, verified by
  *     lookup — never guessed from the label, never fuzzy-matched at runtime.
  *     A wrong key silently shows another model's price. '' = deliberately
- *     absent from the live source.
+ *     absent from the live source, or present only under a reseller whose
+ *     rate differs from the vendor's (a live refresh must never swap the
+ *     vendor's price for a reseller's).
  *   - All rates are USD per 1,000,000 tokens, standard (non-batch,
  *     non-cached) rates, normalised from whatever unit the vendor quotes.
+ *     Where a vendor tiers by prompt length or time of day, the row carries
+ *     the base tier and `notes` says what the other tiers cost.
  */
 
 export type PriceConfidence = 'primary' | 'aggregator' | 'unverified';
@@ -66,13 +73,13 @@ export interface CatalogModel {
   notes: string;
 }
 
-const V = '2026-09-23';
+const V = '2026-10-02';
 
 /**
- * Roughly the top two models per vendor, biased to what people actually code
- * with rather than to the cheapest or the newest. Kept deliberately short:
- * the panel is a cost calculator, not a model directory, and a 150-row list
- * makes "find yourself" harder, not easier.
+ * Roughly the top two or three models per vendor, biased to what people
+ * actually code with rather than to the cheapest or the newest. Kept
+ * deliberately short: the panel is a cost calculator, not a model directory,
+ * and a 150-row list makes "find yourself" harder, not easier.
  */
 export const MODEL_CATALOG: readonly CatalogModel[] = [
   /* ── Anthropic ─────────────────────────────────────────────────────── */
@@ -91,7 +98,24 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'claude-opus-5-5',
     notes:
-      'Released 2026-09-22. Cheaper than the Opus 5 it replaces ($5/$25) with a 2.5x better cache-read rate. Cache read is 0.05x base input, not the usual 0.1x. Fast mode (research preview) reprices to $8/$40.',
+      'Released 2026-09-22; still the newest Opus. Cache read is 0.05x base input, not the usual 0.1x. Fast mode (research preview) reprices to $8/$40.',
+  },
+  {
+    id: 'claude-sonnet-5-5',
+    label: 'Sonnet 5.5',
+    vendor: 'Anthropic',
+    apiModelId: 'claude-sonnet-5-5',
+    inputPerMTok: 2,
+    outputPerMTok: 10,
+    cachedInputPerMTok: 0.2,
+    contextWindow: 1_000_000,
+    codingNotable: true,
+    verifiedOn: V,
+    sourceUrl: 'https://platform.claude.com/docs/en/models/sonnet-5-5/overview',
+    confidence: 'primary',
+    litellmKey: 'claude-sonnet-5-5',
+    notes:
+      'Released 2026-09-28. Same per-token price as Sonnet 5. Cache read is the standard 0.1x ($0.20).',
   },
   {
     id: 'claude-fable-5-1',
@@ -120,13 +144,31 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     inputPerMTok: 10,
     outputPerMTok: 50,
     cachedInputPerMTok: 1,
-    contextWindow: 1_050_000,
+    contextWindow: 922_000,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6-astra',
     confidence: 'primary',
     litellmKey: 'gpt-6-astra',
-    notes: 'Released 2026-09-03. Cached input is 0.1x base.',
+    notes:
+      'Released 2026-09-03. Base rate for prompts up to 272K input tokens; longer prompts cost 2x input and 1.5x output. Cached input is 0.1x base. The window is 1,050,000 tokens, of which up to 922,000 can be input.',
+  },
+  {
+    id: 'gpt-6-1-sol',
+    label: 'GPT-6.1 Sol',
+    vendor: 'OpenAI',
+    apiModelId: 'gpt-6.1-sol',
+    inputPerMTok: 2,
+    outputPerMTok: 10,
+    cachedInputPerMTok: 0.1,
+    contextWindow: 922_000,
+    codingNotable: true,
+    verifiedOn: V,
+    sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6.1-sol',
+    confidence: 'primary',
+    litellmKey: 'gpt-6.1-sol',
+    notes:
+      'Released 2026-09-29; now OpenAI’s featured Sol model. Same $2/$10 as GPT-6 Sol with half the cached-input rate. Base rate for prompts up to 272K input tokens; longer prompts cost 2x input and 1.5x output. The API id uses a DOT (gpt-6.1-sol).',
   },
   {
     id: 'gpt-6-sol',
@@ -136,13 +178,14 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     inputPerMTok: 2,
     outputPerMTok: 10,
     cachedInputPerMTok: 0.2,
-    contextWindow: 1_050_000,
+    contextWindow: 922_000,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-6-sol',
     confidence: 'primary',
     litellmKey: 'gpt-6-sol',
-    notes: 'Released 2026-09-22 — one day before this snapshot. Same rate as its 5.6 predecessor.',
+    notes:
+      'Released 2026-09-22. Still active, but GPT-6.1 Sol has replaced it as the featured Sol model. Base rate for prompts up to 272K input tokens.',
   },
   {
     id: 'gpt-5-6-terra',
@@ -152,14 +195,14 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     inputPerMTok: 2,
     outputPerMTok: 12,
     cachedInputPerMTok: 0.2,
-    contextWindow: 1_050_000,
+    contextWindow: 922_000,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://developers.openai.com/api/docs/models/gpt-5.6-terra',
     confidence: 'primary',
     litellmKey: 'gpt-5.6-terra',
     notes:
-      'Note the API id uses a DOT (gpt-5.6-terra); the hyphenated spelling is not a valid model id.',
+      'Previous generation, still active. Prompts over 272K input tokens cost 2x input and 1.5x output. The API id uses a DOT (gpt-5.6-terra); the hyphenated spelling is not a valid model id.',
   },
 
   /* ── Google ────────────────────────────────────────────────────────── */
@@ -176,8 +219,9 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     verifiedOn: V,
     sourceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
     confidence: 'primary',
-    litellmKey: 'gemini-3.8-flash',
-    notes: 'Paid-tier rate. Half the price of the 3.5 Flash generation at the same context window.',
+    litellmKey: 'gemini/gemini-3.8-flash',
+    notes:
+      'Introductory paid-tier price until 2026-12-31. From 2027-01-01 Google lists $1.50 input / $7.50 output ($0.15 cached).',
   },
   {
     id: 'gemini-3-1-pro',
@@ -192,26 +236,26 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     verifiedOn: V,
     sourceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
     confidence: 'primary',
-    litellmKey: 'gemini-3.1-pro-preview',
+    litellmKey: 'gemini/gemini-3.1-pro-preview',
     notes:
-      'Preview channel. The strongest non-Anthropic coding model on SWE-bench Verified (0.806) at this snapshot.',
+      'Preview channel, no shutdown date announced. Base rate for prompts up to 200K tokens; longer prompts cost $4 input / $18 output ($0.40 cached).',
   },
   {
     id: 'gemini-antigravity',
     label: 'Antigravity',
     vendor: 'Google',
-    apiModelId: 'antigravity-preview-05-2026',
+    apiModelId: 'antigravity-preview-09-2026',
     inputPerMTok: null,
     outputPerMTok: null,
     cachedInputPerMTok: null,
     contextWindow: 0,
     codingNotable: true,
     verifiedOn: V,
-    sourceUrl: 'https://ai.google.dev/gemini-api/docs/pricing',
+    sourceUrl: 'https://ai.google.dev/gemini-api/docs/antigravity-agent',
     confidence: 'primary',
     litellmKey: '',
     notes:
-      'Listed in the Gemini model catalog as a managed coding agent, but it has NO row on the pricing page and no entry in any live price source — so it has no per-token cost to show. Present here precisely so its absence is visible rather than silently omitted. If Google publishes a rate, fill it in and bump verifiedOn.',
+      'A managed coding agent with no per-token price of its own: you pay the rates of the Gemini model underneath it (Gemini 3.8 Flash by default), and sandbox compute is not billed during the preview. Listed so its absence from the price list is visible rather than silently omitted.',
   },
 
   /* ── Moonshot AI ───────────────────────────────────────────────────── */
@@ -229,7 +273,8 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     sourceUrl: 'https://platform.kimi.ai/docs/pricing/chat',
     confidence: 'primary',
     litellmKey: 'moonshot/kimi-k3',
-    notes: 'Cache-hit input is 0.1x. Vendor also quotes CNY; this is the USD rate.',
+    notes:
+      'Cache hits are 0.1x ($0.30); writing to the cache costs extra ($3 per 1M for a 5-minute TTL, $6 for 1 hour). Vendor also quotes CNY; this is the USD rate.',
   },
   {
     id: 'kimi-k2-7-code',
@@ -246,7 +291,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'moonshot/kimi-k2.7-code',
     notes:
-      'Coding-specialised. A "High-Speed" variant exists at exactly 2x this rate ($1.90/$8.00).',
+      'Coding-specialised. A high-speed variant costs exactly 2x this rate ($1.90/$8.00, $0.38 cached).',
   },
 
   /* ── Alibaba ───────────────────────────────────────────────────────── */
@@ -258,14 +303,14 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     inputPerMTok: 2,
     outputPerMTok: 6,
     cachedInputPerMTok: 0.25,
-    contextWindow: 1_000_000,
+    contextWindow: 991_808,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://www.alibabacloud.com/help/en/model-studio/qwen3-8-max',
     confidence: 'primary',
     litellmKey: 'dashscope/qwen3.8-max',
     notes:
-      'Singapore region, flat 0-1M (no context tiers). The API id uses a DOT — qwen3.8-max, not qwen3-8-max. Other Qwen models DO tier by prompt length.',
+      'Singapore region, flat across prompt lengths; Beijing and global regions charge $1.65/$4.951. The window is 1,000,000 tokens, of which up to 991,808 can be input (983,616 in thinking mode). The API id uses a DOT — qwen3.8-max.',
   },
   {
     id: 'qwen3-coder-plus',
@@ -274,15 +319,15 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     apiModelId: 'qwen3-coder-plus',
     inputPerMTok: 1,
     outputPerMTok: 5,
-    cachedInputPerMTok: null,
-    contextWindow: 1_000_000,
+    cachedInputPerMTok: 0.2,
+    contextWindow: 997_952,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://www.alibabacloud.com/help/en/model-studio/qwen3-coder-plus',
     confidence: 'primary',
     litellmKey: 'dashscope/qwen3-coder-plus',
     notes:
-      'The live price source carries this key with no price attached, so a live refresh leaves this row on its baked value — which is the correct, visible behaviour rather than a silent fallback to a reseller rate.',
+      'Singapore region, base tier for prompts up to 32K tokens; longer prompts cost more ($1.80/$9 to 128K, $3/$15 to 256K, $6/$60 to 1M). The live price source carries this key with no price, so a live refresh leaves this row on its baked value.',
   },
 
   /* ── DeepSeek ──────────────────────────────────────────────────────── */
@@ -301,7 +346,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'deepseek/deepseek-v4-pro',
     notes:
-      'Cache-hit input is 0.033x base — among the steepest cache discounts published. Best open-weight model on SWE-bench Verified (0.806) at this snapshot.',
+      'Peak-hours rate (weekdays 01:00–04:00 and 06:00–10:00 UTC); every other hour bills at half this. Cache-hit input is 0.033x base.',
   },
   {
     id: 'deepseek-flash',
@@ -318,7 +363,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'deepseek/deepseek-flash',
     notes:
-      'Released 2026-09-10. Cache-hit input is $0.006/M — effectively free to re-read context.',
+      'Released 2026-09-10. Peak-hours rate; off-peak bills at half. Cache-hit input is $0.006/M — effectively free to re-read context.',
   },
 
   /* ── xAI ───────────────────────────────────────────────────────────── */
@@ -336,7 +381,8 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     sourceUrl: 'https://docs.x.ai/developers/pricing',
     confidence: 'primary',
     litellmKey: 'xai/grok-4.7',
-    notes: 'Released 2026-09-21, two days before this snapshot.',
+    notes:
+      'Released 2026-09-21; still xAI’s newest. Base rate for prompts under 200K tokens; at 200K or more, every token bills at $4 input / $12 output ($1 cached).',
   },
   {
     id: 'grok-build-0-1',
@@ -349,10 +395,11 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     contextWindow: 256_000,
     codingNotable: true,
     verifiedOn: V,
-    sourceUrl: 'https://docs.x.ai/developers/pricing',
+    sourceUrl: 'https://docs.x.ai/developers/models/grok-build-0.1',
     confidence: 'primary',
     litellmKey: 'xai/grok-build-0.1',
-    notes: 'Build-focused variant; the cheapest xAI output rate at $2/M.',
+    notes:
+      'Build-focused variant; the cheapest xAI output rate. Base rate under 200K tokens; at 200K or more, $2 input / $4 output ($0.40 cached).',
   },
 
   /* ── Z.ai (Zhipu) ──────────────────────────────────────────────────── */
@@ -371,7 +418,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'zai/glm-5.3',
     notes:
-      'Highest-scoring non-US-lab model on Terminal-Bench 4.0 at this snapshot. Z.ai also sells flat-rate coding subscriptions that bypass per-token pricing entirely.',
+      'Reasoning is always on. Z.ai also sells flat-rate coding subscriptions that bypass per-token pricing entirely.',
   },
   {
     id: 'glm-5-3-flash',
@@ -381,13 +428,14 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     inputPerMTok: 0.15,
     outputPerMTok: 0.5,
     cachedInputPerMTok: 0.03,
-    contextWindow: 0,
+    contextWindow: 1_000_000,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://docs.z.ai/guides/overview/pricing',
     confidence: 'primary',
     litellmKey: 'zai/glm-5.3-flash',
-    notes: 'Cheapest credible coding model in this catalog.',
+    notes:
+      'Cheapest coding model in this catalog. A faster FlashX variant costs $0.37/$1.25 ($0.075 cached).',
   },
 
   /* ── Thinking Machines Lab ─────────────────────────────────────────── */
@@ -395,70 +443,60 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     id: 'inkling',
     label: 'Inkling',
     vendor: 'Thinking Machines',
-    apiModelId: 'thinkingmachines/Inkling',
+    apiModelId: 'thinkingmachines/Inkling:peft:262144:sampling-nvfp4',
     inputPerMTok: 1,
     outputPerMTok: 4.05,
     cachedInputPerMTok: 0.17,
-    contextWindow: 524_288,
+    contextWindow: 262_144,
     codingNotable: true,
     verifiedOn: V,
-    sourceUrl: 'https://tinker-docs.thinkingmachines.ai/tinker/models/',
-    confidence: 'aggregator',
-    litellmKey: 'together_ai/thinkingmachines/Inkling',
+    sourceUrl:
+      'https://tinker-docs.thinkingmachines.ai/tinker/models/models_and_pricing/#serverless-inference-beta',
+    confidence: 'primary',
+    /* The live index carries Inkling only under resellers; '' so a refresh
+       never swaps the vendor's own price for one. */
+    litellmKey: '',
     notes:
-      'SOURCES DISAGREE, recorded rather than resolved: five independent hosted providers (Together, Fireworks, Databricks, Baseten, OpenRouter) all list $1.00/$4.05 for inference, and that is the figure baked here. An independent re-read of the vendor doc came back with $1.87/$4.68 (list $3.74, described as a limited-time 50% discount) at a 64K window — most likely the Tinker fine-tuning service rather than inference. Marked "aggregator" confidence for that reason; treat as approximate and re-verify before quoting.',
+      'Thinking Machines’ own serverless inference price — in beta and “not recommended for intensive production use”. The model handles 1M tokens natively; the vendor’s API serves 256K. The higher figures seen earlier came from its fine-tuning price table.',
   },
   {
     id: 'inkling-small',
     label: 'Inkling Small',
     vendor: 'Thinking Machines',
-    apiModelId: 'thinkingmachines/Inkling-Small',
-    inputPerMTok: 0.45,
+    apiModelId: 'thinkingmachines/Inkling-Small:peft:262144:sampling-nvfp4',
+    inputPerMTok: 0.3,
     outputPerMTok: 1.2,
-    cachedInputPerMTok: 0.116,
-    contextWindow: 524_288,
+    cachedInputPerMTok: 0.06,
+    contextWindow: 262_144,
     codingNotable: true,
     verifiedOn: V,
-    sourceUrl: 'https://tinker-docs.thinkingmachines.ai/tinker/models/',
-    confidence: 'aggregator',
-    litellmKey: 'deepinfra/thinkingmachines/Inkling-Small',
+    sourceUrl:
+      'https://tinker-docs.thinkingmachines.ai/tinker/models/models_and_pricing/#serverless-inference-beta',
+    confidence: 'primary',
+    /* Resellers in the live index charge $0.45-$0.50 input; '' so a refresh
+       never shows theirs as this row's price. */
+    litellmKey: '',
     notes:
-      '276B/12B MoE. Same source disagreement as Inkling: hosted providers cluster at $0.45-$0.50 input / $1.20 output; the vendor re-read reported $0.58/$1.44 after a limited-time discount. Baked at the corroborated $0.45/$1.20.',
+      'The vendor’s own beta serverless price; resellers in the LiteLLM index charge more for input ($0.45–$0.50). The vendor’s API serves 256K of a 1M native window.',
   },
 
   /* ── Mistral ───────────────────────────────────────────────────────── */
   {
-    id: 'devstral-2',
-    label: 'Devstral 2',
-    vendor: 'Mistral',
-    apiModelId: 'devstral-medium-latest',
-    inputPerMTok: 0.4,
-    outputPerMTok: 2,
-    cachedInputPerMTok: null,
-    contextWindow: 256_000,
-    codingNotable: true,
-    verifiedOn: V,
-    sourceUrl: 'https://mistral.ai/news/devstral-2-vibe-cli/',
-    confidence: 'primary',
-    litellmKey: 'mistral/devstral-latest',
-    notes:
-      "Agentic-coding specific, 123B. Announced free via Mistral's API at the time of checking — the $0.40/$2.00 here is the published paid rate, so this row may overstate what you actually pay today.",
-  },
-  {
     id: 'mistral-medium-3-5',
     label: 'Mistral Medium 3.5',
     vendor: 'Mistral',
-    apiModelId: 'mistral-medium-2604',
+    apiModelId: 'mistral-medium-3-5',
     inputPerMTok: 1.5,
     outputPerMTok: 7.5,
-    cachedInputPerMTok: null,
+    cachedInputPerMTok: 0.15,
     contextWindow: 262_144,
     codingNotable: true,
     verifiedOn: V,
-    sourceUrl: 'https://docs.mistral.ai/models/mistral-medium-3-5-26-04',
+    sourceUrl: 'https://docs.mistral.ai/inference/pricing',
     confidence: 'primary',
-    litellmKey: 'mistral/mistral-medium-3.5',
-    notes: 'General-purpose flagship; Devstral 2 is the cheaper coding-specific sibling.',
+    litellmKey: 'mistral/mistral-medium-3-5',
+    notes:
+      'Mistral’s recommended coding model since Devstral 2 was retired on 2026-07-31. Mistral states the window only as “256k”; 262,144 is the live index’s figure.',
   },
 
   /* ── MiniMax ───────────────────────────────────────────────────────── */
@@ -469,15 +507,15 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     apiModelId: 'MiniMax-M3',
     inputPerMTok: 0.3,
     outputPerMTok: 1.2,
-    cachedInputPerMTok: null,
-    contextWindow: 0,
+    cachedInputPerMTok: 0.06,
+    contextWindow: 1_000_000,
     codingNotable: true,
     verifiedOn: V,
     sourceUrl: 'https://platform.minimax.io/docs/guides/pricing-paygo',
     confidence: 'primary',
     litellmKey: 'minimax/MiniMax-M3',
     notes:
-      'Self-reported SWE-bench Verified 80.5%. MiniMax has held $0.30/$1.20 across the M2 and M3 generations.',
+      'Base tier for prompts up to 512K tokens; above that $0.60/$2.40. These rates include what MiniMax labels a “permanent 50% off”. Its newer M3.1 Flash preview is subscription-only, with no per-token price.',
   },
 
   /* ── Meta ──────────────────────────────────────────────────────────── */
@@ -496,7 +534,7 @@ export const MODEL_CATALOG: readonly CatalogModel[] = [
     confidence: 'primary',
     litellmKey: 'meta/muse-spark-1.3',
     notes:
-      'Released 2026-09-02. A "contributor" tier exists at $0.10/$0.20 for qualifying open-source work.',
+      'Standard tier. A cheaper “contributor” tier ($0.10/$0.20) lets Meta train on your data. No long-context premium.',
   },
 ] as const;
 

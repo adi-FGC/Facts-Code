@@ -16,9 +16,12 @@
  *
  * Wire shape:
  *   Request:  { id, kind: 'scan:local',  root: FileSystemDirectoryHandle, projectName? }
+ *             { id, kind: 'scan:files',  files: {path, file}[], projectName? }
  *             { id, kind: 'scan:github', spec: GitHubFetchSpec }
  *   Response: { id, type: 'progress', phase, current, total, label }
- *             { id, type: 'done', agent, human, meta }
+ *             { id, type: 'done', agent, human, meta }   (meta.warnings: an
+ *               incomplete GitHub download — failed files, truncated tree;
+ *               a truncated tree is also in agent.project.scanWarnings)
  *             { id, type: 'error', message }
  *
  *   `FileSystemDirectoryHandle` is structured-cloneable so it transfers
@@ -33,8 +36,13 @@
  */
 
 import { analyze } from '@factstack/core';
-import { FsaBrowserFS, fetchGitHubToMemory, type GitHubFetchSpec } from '@factstack/fs-browser';
-import { MemoryFS } from '@factstack/fs-memory';
+import {
+  FileListFS,
+  FsaBrowserFS,
+  browserRepoName,
+  fetchGitHubToMemory,
+  type GitHubFetchSpec,
+} from '@factstack/fs-browser';
 import { browserGzippedBytes } from '@factstack/emit-browser';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
@@ -55,9 +63,20 @@ export type ScanResponse =
       type: 'done';
       agent: AgentArtifact;
       human: HumanArtifact;
-      meta: { filesScanned: number; filesSkipped: number; elapsedMs: number };
+      meta: ScanMeta;
     }
   | { id: string; type: 'error'; message: string };
+
+export interface ScanMeta {
+  filesScanned: number;
+  /** Walker-skipped files (a failed GitHub download counts: read_error). */
+  filesSkipped: number;
+  elapsedMs: number;
+  /** Present only when the scan is known to be incomplete (a GitHub
+   *  download with failed files or a truncated tree) — show them, never
+   *  present the result as a complete scan. */
+  warnings?: string[];
+}
 
 const post = (msg: ScanResponse): void => {
   (self as unknown as { postMessage: (m: ScanResponse) => void }).postMessage(msg);
@@ -119,43 +138,32 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
         total: 0,
         label: 'Walking…',
       });
-      const result = await analyze(
-        fs,
-        buildAnalyzeOpts(req.projectName ?? req.root.name, onProgress),
-      );
+      /* Same project name the CLI gives this checkout: a linked worktree
+         is named after its main repo, so a browser Save lands on the same
+         .claude/skills/factstack-<name>/ the CLI writes (FSB-11). */
+      const projectName = await browserRepoName(fs, req.projectName ?? req.root.name);
+      const result = await analyze(fs, buildAnalyzeOpts(projectName, onProgress));
       post({ id: req.id, type: 'done', ...result });
       return;
     }
 
     if (req.kind === 'scan:files') {
-      const files: Record<string, string> = {};
-      const total = req.files.length;
-      for (let i = 0; i < req.files.length; i++) {
-        const entry = req.files[i]!;
-        post({
-          id: req.id,
-          type: 'progress',
-          phase: 'reading',
-          current: i,
-          total,
-          label: entry.path,
-        });
-        files[entry.path] = await entry.file.text();
-      }
+      /* Lazy, like the FSA path: stat() is each File's real byte size and
+         bytes are read only when the walker asks. Decoding every file up
+         front inflated binaries ~1.8x (false file-size-cap risks) and read
+         node_modules/.git the walker would skip anyway. */
+      const fs = new FileListFS(req.files);
       post({
         id: req.id,
         type: 'progress',
-        phase: 'reading',
-        current: total,
-        total,
-        label: 'Analyzing…',
+        phase: 'analyzing',
+        current: 0,
+        total: 0,
+        label: 'Walking…',
       });
-      const fs = new MemoryFS(files);
       const onProgress = throttledProgress(req.id, 'analyzing');
-      const result = await analyze(
-        fs,
-        buildAnalyzeOpts(req.projectName ?? 'local files', onProgress),
-      );
+      const projectName = await browserRepoName(fs, req.projectName ?? 'local files');
+      const result = await analyze(fs, buildAnalyzeOpts(projectName, onProgress));
       post({ id: req.id, type: 'done', ...result });
       return;
     }
@@ -183,9 +191,33 @@ self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {
         total: 0,
         label: 'Analyzing…',
       });
-      const projectName = `${req.spec.owner}/${req.spec.repo}${req.spec.ref ? '@' + req.spec.ref : ''}`;
-      const result = await analyze(fs, buildAnalyzeOpts(projectName, onProgress));
-      post({ id: req.id, type: 'done', ...result });
+      /* `owner/repo[@ref]` is the recents id OpenModal parses back out of
+         project.name, so it stays; the Claude skill renderer slugs only
+         the repo part, matching the CLI's folder-named skill. The ref is
+         the one that resolved (a slash branch may have had candidates). */
+      const { report } = fs;
+      const projectName = `${req.spec.owner}/${req.spec.repo}${report.ref ? '@' + report.ref : ''}`;
+      /* A truncated tree leaves no per-file marker, so its path-free caveat
+         goes into the artifacts themselves (agent.project.scanWarnings, which
+         core omits when the list is empty) — a saved or shared agent.json
+         must not pass for a complete scan (UI-02). */
+      const result = await analyze(fs, {
+        ...buildAnalyzeOpts(projectName, onProgress),
+        scanWarnings: report.scanWarnings,
+      });
+      /* Failed downloads are already in filesSkipped (and in agent.risks as
+         read-error): they stay in the tree unreadable, so the walker marks
+         them read_error. meta.warnings keeps the UI's full list, the
+         failed-file example included. */
+      post({
+        id: req.id,
+        type: 'done',
+        ...result,
+        meta: {
+          ...result.meta,
+          ...(report.warnings.length ? { warnings: report.warnings } : {}),
+        },
+      });
       return;
     }
 

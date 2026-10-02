@@ -96,4 +96,29 @@ describe('extractPythonImports', () => {
     const out = extractPythonImports('x = __import__("foo.bar")');
     expect(out[0]).toEqual({ specifier: 'foo.bar', kind: 'dynamic-import', line: 1, names: [] });
   });
+
+  it('records `from X import a, b` member names so submodules can resolve (HUNT-CORE-05)', () => {
+    const src = [
+      'from . import utils, models as m',
+      'from .core import (',
+      '    run,',
+      '    stop,',
+      ')',
+      'from pkg import a, \\',
+      '    b',
+      'from . import extra',
+      'from star import *',
+    ].join('\n');
+    const byspec = new Map(extractPythonImports(src).map((r) => [r.specifier, r.members]));
+    expect(byspec.get('.')).toEqual(['utils', 'models', 'extra']); // one row, every member
+    expect(byspec.get('.core')).toEqual(['run', 'stop']);
+    expect(byspec.get('pkg')).toEqual(['a', 'b']);
+    expect(byspec.get('star')).toBeUndefined();
+  });
+
+  it("marks a merged `import pkg` row with '*' so the package edge survives", () => {
+    const out = extractPythonImports('import pkg\nfrom pkg import sub\n');
+    expect(out).toHaveLength(1);
+    expect(out[0]?.members).toEqual(['*', 'sub']);
+  });
 });

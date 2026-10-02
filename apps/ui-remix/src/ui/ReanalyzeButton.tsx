@@ -18,7 +18,7 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
-import { requestReanalyze } from '../lib/loadArtifacts.ts';
+import { hasBakedInline, requestReanalyze } from '../lib/loadArtifacts.ts';
 import { adoptCss } from '../lib/adoptCss.ts';
 
 type State = 'idle' | 'running' | 'static' | 'error';
@@ -119,11 +119,12 @@ export function ReanalyzeButton(handle: Handle) {
   // Check static mode at mount: when the inline-data block has real
   // JSON (set by inject-data.mjs at build time), the deploy is static.
   // We could still try the POST, but flagging up-front prevents a
-  // confusing "click → 404 → error" first interaction.
+  // confusing "click → 404 → error" first interaction. Same exact-match
+  // test loadArtifacts uses: a baked dataset that merely MENTIONS the
+  // placeholder token (factstack's own README does) is still baked.
   if (typeof document !== 'undefined') {
     const inline = document.getElementById('factstack-data');
-    const placeholderStill = inline?.textContent?.includes('__INLINE_FACTSTACK_JSON__');
-    if (inline && !placeholderStill) {
+    if (inline && hasBakedInline(inline.textContent)) {
       state = 'static';
     }
   }

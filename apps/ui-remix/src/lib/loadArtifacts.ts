@@ -188,6 +188,14 @@ export interface Dataset {
     packagesQueried: number;
     packagesSkipped: number;
     findings: number;
+    /** Lockfiles the scan read installed versions from (spec
+     *  VulnerabilityScanSchema, optional). Non-empty = the scan covered
+     *  transitive packages the browser's weekly re-check cannot. */
+    lockfiles?: string[];
+    /** Dependencies that changed while OSV.dev was answering, so the scan
+     *  never checked them (spec VulnerabilityScanSchema, optional). > 0 means
+     *  "no findings" is not a clean answer for every dependency. */
+    unscanned?: number;
   };
   /** v0.8 — flagged documentation files with parsed structure + capped raw
    *  content. Optional for backward-compat with pre-v0.8 datasets; the Docs
@@ -200,35 +208,142 @@ export interface Dataset {
    *  readiness. Absent for non-git projects and pre-v0.3.11 datasets; the
    *  Worktrees tab renders an empty state. */
   git?: GitTopology;
+  /** performance#5 — a static build may move heavy sections out of the
+   *  inline block into same-origin JSON files (`/data/sections/<name>.json`,
+   *  written by inject-data.mjs). loadArtifacts fetches every listed section
+   *  that is absent inline before the first render, so no view ever sees a
+   *  half-loaded dataset. UI-only build metadata, never part of the artifact. */
+  sectionUrls?: Partial<Record<DatasetSection, string>>;
+}
+
+/** The sections a build may serve outside the inline block. */
+export const DATASET_SECTIONS = ['edges', 'nodeMetrics', 'docs', 'tree'] as const;
+export type DatasetSection = (typeof DATASET_SECTIONS)[number];
+
+/* Same-origin data files only: a ROOT-relative path under /data/, ending in
+   .json, with no `..` segment. A relative `data/…` is refused: on a deep
+   link (/docs/a/b) it resolves to /docs/a/data/…, which the SPA fallback
+   answers with index.html (UI-R4). */
+const SECTION_URL = /^\/data\/(?:[\w-]+\/)*[\w.-]+\.json$/;
+const isSectionUrl = (u: unknown): u is string =>
+  typeof u === 'string' && SECTION_URL.test(u) && !u.split('/').includes('..');
+
+const RELOAD_HINT = 'the site may have been updated since this page opened; reload.';
+
+/**
+ * Fill in every section `data.sectionUrls` lists that is absent inline,
+ * fetched in parallel (a `<link rel=preload as=fetch crossorigin>` for each
+ * lets the fetch start while the page is still parsing). Mutates `data`;
+ * returns the fetched JSON's total length so the baked artifact's size stays
+ * exact. A failed section fails the load — a view must never present a
+ * missing section as an empty one ("no dependencies", "no docs"). That
+ * includes a listed section whose URL is not a `/data/…json` path: it is
+ * never fetched, and the load fails naming it.
+ */
+export async function hydrateSections(
+  data: Dataset,
+  fetchImpl: typeof fetch = fetch,
+): Promise<number> {
+  const urls = data.sectionUrls;
+  if (!urls || typeof urls !== 'object') return 0;
+  const wanted = DATASET_SECTIONS.filter((k) => data[k] === undefined && urls[k] !== undefined);
+  const refused = wanted.find((k) => !isSectionUrl(urls[k]));
+  if (refused) {
+    throw new Error(
+      `The dataset's ${refused} section is listed at an unsupported URL (sections load only from /data/…json) — rebuild the site.`,
+    );
+  }
+  const texts = await Promise.all(
+    wanted.map(async (k) => {
+      const res = await fetchImpl(urls[k]!);
+      if (!res.ok) {
+        throw new Error(
+          `HTTP ${res.status} loading the dataset's ${k} section (${urls[k]}) — ${RELOAD_HINT}`,
+        );
+      }
+      return [k, await res.text()] as const;
+    }),
+  );
+  let chars = 0;
+  for (const [k, text] of texts) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      /* A 200 that is not JSON is almost always the SPA fallback's
+         index.html for a file a newer deploy renamed. */
+      throw new Error(`Could not parse the dataset's ${k} section (${urls[k]}) — ${RELOAD_HINT}`);
+    }
+    (data as unknown as Record<string, unknown>)[k] = parsed;
+    chars += text.length;
+  }
+  return chars;
 }
 
 const INLINE_ID = 'factstack-data';
 const INLINE_PLACEHOLDER = '__INLINE_FACTSTACK_JSON__';
 
+/**
+ * True when the inline block's text is a baked dataset. Detected by EXACT
+ * match against the bare placeholder, never a substring `includes()`: the
+ * baked dataset can legitimately *contain* the token — a project doc that
+ * documents this bake pipeline does (apps/ui-remix/test/e2e/README.md). The
+ * un-baked template's text IS the bare token; anything else is real data.
+ * Shared by loadArtifacts and ReanalyzeButton's static-mode check.
+ */
+export function hasBakedInline(text: string | null | undefined): boolean {
+  return !!text && text.trim() !== INLINE_PLACEHOLDER;
+}
+
+/* Exact serialized size of a dataset parsed from the inline block, keyed by
+   identity. A hot-swapped dataset (⌘O scan, re-analyze) is a different
+   object, so it can never inherit the baked page's size. */
+const inlineChars = new WeakMap<Dataset, number>();
+
+/**
+ * Serialized size (chars) of the artifact a dataset stands for. The baked
+ * dataset reports its inline block's length (that block IS the artifact);
+ * any other dataset is measured by re-serializing it.
+ */
+export function artifactCharsOf(data: Dataset): number {
+  const baked = inlineChars.get(data);
+  if (baked !== undefined) return baked;
+  try {
+    return JSON.stringify(data).length;
+  } catch {
+    return 0;
+  }
+}
+
 export async function loadArtifacts(): Promise<Dataset> {
   // 1. Inline (static deploy / exported single-file HTML)
   //
-  // Detect "baked" by EXACT match against the bare placeholder, not a
-  // substring `includes()`. The baked dataset can legitimately *contain*
-  // the placeholder string — e.g. a project doc that documents this very
-  // bake pipeline (apps/ui-remix/test/e2e/README.md does). A substring
-  // check would mistake that contaminated-but-valid payload for an
-  // un-baked template and fall through to the (404/502) dev fetch,
-  // blanking the whole app. The un-baked template's textContent IS the
-  // bare token; anything else is real data, so try to parse it. The
-  // try/catch still covers a genuinely malformed inline blob.
+  // Detect "baked" by EXACT match against the bare placeholder
+  // (hasBakedInline). A substring check would mistake a dataset that
+  // mentions the token for an un-baked template and fall through to the
+  // (404/502) dev fetch, blanking the whole app. The try/catch still covers
+  // a genuinely malformed inline blob.
   const inline = document.getElementById(INLINE_ID);
-  if (inline && inline.textContent && inline.textContent.trim() !== INLINE_PLACEHOLDER) {
+  if (inline && inline.textContent && hasBakedInline(inline.textContent)) {
+    let data: Dataset | null = null;
     try {
-      return JSON.parse(inline.textContent) as Dataset;
+      data = JSON.parse(inline.textContent) as Dataset;
     } catch (err) {
       console.warn('[loadArtifacts] inline JSON parse failed, falling back to fetch', err);
+    }
+    if (data) {
+      /* Sections served beside the page count toward the artifact's size. */
+      const sectionChars = await hydrateSections(data);
+      inlineChars.set(data, inline.textContent.length + sectionChars);
+      return data;
     }
   }
   // 2. Fetch — works when served by `factstack ui`
   const res = await fetch('/data/factstack.json', { cache: 'no-store' });
   if (!res.ok) throw new Error('HTTP ' + res.status + ' loading /data/factstack.json');
-  return (await res.json()) as Dataset;
+  const data = (await res.json()) as Dataset;
+  await hydrateSections(data);
+  return data;
 }
 
 /** Triggers a re-analyze on the served CLI. No-op in static mode. */

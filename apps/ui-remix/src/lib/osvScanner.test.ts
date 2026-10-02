@@ -8,13 +8,22 @@
  * silent in a browser, so they are pinned here.
  */
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { buildOsvQueries } from '@factstack/scanners';
 import {
   AUTO_REFRESH_AFTER_MS,
+  AUTO_REFRESH_PARTIAL_MS,
+  bucketSeverity,
+  isPartialAnswer,
   manifestFingerprint,
+  parseNpmManifestForOsv,
+  pickFixedVersion,
   queriesFromManifests,
   readAutoRefresh,
+  summarizeOsvResults,
   weeklyRefreshDecision,
   writeAutoRefresh,
+  type OsvResult,
+  type OsvVuln,
 } from './osvScanner.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -75,6 +84,31 @@ describe('weeklyRefreshDecision', () => {
   it('uses a one-week window by default', () => {
     expect(AUTO_REFRESH_AFTER_MS).toBe(7 * DAY);
   });
+
+  /* UI-R3 — a partial answer (details that loaded id-only) used to be
+     refused by the cache entirely, so every page view re-asked OSV; it is
+     reused for an hour instead — never the week. */
+  it('reuses a partial answer for an hour, then asks again', () => {
+    const HOUR = 60 * 60 * 1000;
+    expect(AUTO_REFRESH_PARTIAL_MS).toBe(HOUR);
+    const stale = { ...base, bakedAt: NOW - 30 * DAY, cachedPartial: true };
+    expect(weeklyRefreshDecision({ ...stale, cachedAt: NOW - 30 * 60 * 1000 })).toBe('use-cache');
+    expect(weeklyRefreshDecision({ ...stale, cachedAt: NOW - HOUR })).toBe('refresh');
+    expect(weeklyRefreshDecision({ ...stale, cachedAt: NOW - 2 * DAY })).toBe('refresh');
+    // A full answer of the same age is still inside its week.
+    expect(weeklyRefreshDecision({ ...stale, cachedPartial: false, cachedAt: NOW - 2 * DAY })).toBe(
+      'use-cache',
+    );
+  });
+
+  it('reads the partial state off the answer itself', () => {
+    const q = { name: 'lodash', ecosystem: 'npm' as const, version: '4.17.20' };
+    expect(isPartialAnswer([{ query: q, vulns: [{ id: 'GHSA-x' } as OsvVuln] }])).toBe(false);
+    expect(
+      isPartialAnswer([{ query: q, vulns: [{ id: 'GHSA-x' } as OsvVuln], detailsFailed: 1 }]),
+    ).toBe(true);
+    expect(isPartialAnswer([])).toBe(false);
+  });
 });
 
 describe('queriesFromManifests', () => {
@@ -92,7 +126,7 @@ describe('queriesFromManifests', () => {
     expect(q.map((x) => `${x.name}@${x.version}`).sort()).toEqual(['vite@8.0.16', 'vitest@4.1.11']);
   });
 
-  it('skips versions OSV cannot answer for, and ecosystems the parser does not cover', () => {
+  it('skips versions OSV cannot answer for', () => {
     const q = queriesFromManifests([
       {
         path: 'package.json',
@@ -104,9 +138,35 @@ describe('queriesFromManifests', () => {
           real: '1.2.3',
         },
       },
-      { path: 'pyproject.toml', ecosystem: 'pypi', dependencies: { requests: '2.31.0' } },
     ]);
     expect(q.map((x) => x.name)).toEqual(['real']);
+  });
+
+  it('asks exactly what the CLI scan asked (shared buildOsvQueries, INV7)', () => {
+    const manifests = [
+      {
+        path: 'package.json',
+        ecosystem: 'npm',
+        dependencies: { lodash: '^4.17.20', ws: '8.16.0', 'my-lodash': 'npm:lodash@^4.17.21' },
+        devDependencies: { vitest: '1.x' },
+        // Installed versions the artifact carried from analyze time.
+        resolved: { ws: '8.17.0' },
+      },
+      { path: 'pyproject.toml', ecosystem: 'pypi', dependencies: { requests: '2.31.0' } },
+    ];
+    expect(queriesFromManifests(manifests)).toEqual(
+      buildOsvQueries(manifests as unknown as Parameters<typeof buildOsvQueries>[0]).queries,
+    );
+    const by = new Map(queriesFromManifests(manifests).map((x) => [`${x.name}@${x.version}`, x]));
+    expect(by.get('ws@8.17.0')?.versionSource).toBe('lockfile');
+    expect(by.get('lodash@4.17.20')?.versionSource).toBe('declared-range');
+    expect(by.has('lodash@4.17.21')).toBe(true); // the alias, under its real name
+    expect(by.get('vitest@1.0.0')?.scope).toBe('dev');
+    expect(by.has('requests@2.31.0')).toBe(true); // other ecosystems, as the CLI does
+  });
+
+  it('tolerates a raw dataset manifest with no dependency maps', () => {
+    expect(queriesFromManifests([{ path: 'package.json', ecosystem: 'npm' }])).toEqual([]);
   });
 
   it('records which manifest a dependency came from', () => {
@@ -114,6 +174,105 @@ describe('queriesFromManifests', () => {
       { path: 'apps/cli/package.json', ecosystem: 'npm', dependencies: { commander: '12.0.0' } },
     ]);
     expect(q?.manifestPath).toBe('apps/cli/package.json');
+  });
+});
+
+describe('parseNpmManifestForOsv (the paste flow)', () => {
+  const pasted = JSON.stringify({
+    name: 'demo',
+    dependencies: { lodash: '4.17.20', alias: 'npm:left-pad@^1.3.0' },
+    devDependencies: { vitest: '^1.2.0' },
+  });
+
+  it('parses a pasted package.json (a paste has no file name to detect from)', () => {
+    const q = parseNpmManifestForOsv(pasted, 'pasted-manifest');
+    expect(q.map((x) => `${x.name}@${x.version}`).sort()).toEqual([
+      'left-pad@1.3.0',
+      'lodash@4.17.20',
+      'vitest@1.2.0',
+    ]);
+    expect(q.every((x) => x.manifestPath === 'pasted-manifest')).toBe(true);
+    expect(q.every((x) => x.versionSource === 'declared-range')).toBe(true);
+    expect(q.find((x) => x.name === 'vitest')?.scope).toBe('dev');
+  });
+
+  it('returns nothing for text that is not a package.json', () => {
+    expect(parseNpmManifestForOsv('not json')).toEqual([]);
+  });
+});
+
+describe('summarizeOsvResults', () => {
+  const vuln = (id: string, over: Partial<OsvVuln> = {}): OsvVuln => ({ id, ...over });
+  const result = (name: string, vulns: OsvVuln[], extra: Partial<OsvResult> = {}): OsvResult => ({
+    query: { ecosystem: 'npm', name, version: '1.0.0', ...(extra.query ?? {}) },
+    vulns,
+    ...(extra.detailsFailed ? { detailsFailed: extra.detailsFailed } : {}),
+  });
+
+  it('grades with the shared bucketer: a reviewed GHSA label wins over the vector', () => {
+    // CVSS:3.1 C:H/I:H/A:H with AV:L/AC:H/PR:H is a 6.4, and GHSA says HIGH.
+    const v = vuln('GHSA-x', {
+      database_specific: { severity: 'HIGH' },
+      severity: [{ type: 'CVSS_V3', score: 'CVSS:3.1/AV:L/AC:H/PR:H/UI:R/S:U/C:H/I:H/A:H' }],
+    });
+    const s = summarizeOsvResults([result('lodash', [v])]);
+    expect(s.critical).toBe(0);
+    expect(s.high).toBe(1);
+    expect(bucketSeverity(v)).toBe('high');
+  });
+
+  it('counts dev and transitive advisories as shown, not graded', () => {
+    const s = summarizeOsvResults([
+      result('a', [vuln('A', { database_specific: { severity: 'CRITICAL' } })], {
+        query: { ecosystem: 'npm', name: 'a', version: '1.0.0', scope: 'dev' },
+      }),
+      result('b', [vuln('B', { database_specific: { severity: 'LOW' } })], {
+        query: { ecosystem: 'npm', name: 'b', version: '1.0.0', scope: 'direct' },
+      }),
+      result('c', []),
+    ]);
+    expect(s).toMatchObject({
+      critical: 0,
+      low: 1,
+      total: 2,
+      ungraded: 1,
+      cleanPackages: 1,
+      vulnerablePackages: 2,
+    });
+  });
+
+  it('adds up advisories whose details could not be loaded', () => {
+    const s = summarizeOsvResults([
+      result('a', [vuln('A'), vuln('B')], { detailsFailed: 2 }),
+      result('b', [vuln('C')]),
+    ]);
+    expect(s.degraded).toBe(2);
+    expect(s.unknown).toBe(3);
+  });
+});
+
+describe('pickFixedVersion (shared) never suggests a downgrade', () => {
+  it('names the fix on the installed release line (ws@8.16.0 → 8.17.1, not 5.2.4)', () => {
+    const ws: OsvVuln = {
+      id: 'GHSA-3h5v-q93c-6h6q',
+      affected: [
+        {
+          package: { name: 'ws', ecosystem: 'npm' },
+          ranges: [
+            {
+              type: 'SEMVER',
+              events: [
+                { introduced: '2.1.0' },
+                { fixed: '5.2.4' },
+                { introduced: '8.0.0' },
+                { fixed: '8.17.1' },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    expect(pickFixedVersion(ws, 'ws', '8.16.0')).toBe('8.17.1');
   });
 });
 

@@ -1,11 +1,25 @@
 /**
  * savingsLadder — pure layout for the cross-model savings chart.
  *
+ * WHAT A DOLLAR FIGURE MEANS
+ * The MINIMUM an agent pays to read this project before it attempts a change
+ * request: one read, input tokens at list price. Not the cost of the change.
+ *   - Whole codebase: every source file, once. That already includes the
+ *     files the change will touch.
+ *   - FACTS artifact: the map alone. The agent then opens the files the change
+ *     touches on top of it, which no one can size before the change is known,
+ *     so part of the gap between the two marks is spent later. (The measured
+ *     block is also a superset of the lean agent.json, which pulls the other
+ *     way; the panel caption states both.)
+ * Anything that re-reads (an agent re-sending context each turn) pays more;
+ * that is why these are minimums. The panel caption says all of this in plain
+ * words; keep the two in step.
+ *
  * THE CLAIM THE CHART MAKES
  * On a log10 dollar axis a constant token-reduction ratio becomes a constant
  * LEFTWARD TRANSLATION. Every model's pair of marks is therefore separated by
- * the same distance, and that distance IS the artifact's effect — visible
- * without reading a single number. The absolute dollars stay honest and
+ * the same distance: the gap between the two reads, before the files the
+ * change touches — visible without reading a single number. The absolute dollars stay honest and
  * comparable across a ~100x price spread, which a linear axis could not show
  * (GLM-5.3 Flash would be a 1px smear next to GPT-6 Astra).
  *
@@ -33,7 +47,7 @@ export interface LadderModel {
 }
 
 export interface LadderProject {
-  /** Exact whole-codebase tokens. */
+  /** Whole-codebase tokens (the analyzer's characters ÷ 3.5 estimate). */
   fullTokens: number;
   /** Estimated FACTS artifact tokens. */
   artifactTokens: number;
@@ -45,7 +59,8 @@ export interface LadderOptions {
   rowHeight?: number;
   /** Space reserved at the left for model labels. */
   labelWidth?: number;
-  /** Space reserved at the right for the cost readout. */
+  /** Space reserved at the right for the cost readout (0 when stacked: the
+   *  readout then shares the label line above each row). */
   valueWidth?: number;
   /** Compact mode: labels above rows instead of beside them (narrow screens). */
   stacked?: boolean;
@@ -62,8 +77,14 @@ export interface LadderRow {
   artifactX: number;
   fullCost: number;
   artifactCost: number;
+  /** fullCost − artifactCost: the difference on this read, not the saving on
+   *  the change (the agent later opens the files the change touches). */
   savedCost: number;
-  /** Label text for the right-hand readout. */
+  /** Whole-codebase cost, formatted. */
+  fullText: string;
+  /** FACTS-map cost, formatted. */
+  artifactText: string;
+  /** Both, in legend order: "$1.84 vs $0.05" (the renderer styles the parts). */
   valueText: string;
   /** True when the price is not from a primary vendor source. */
   flagged: boolean;
@@ -73,9 +94,16 @@ export interface LadderRow {
 
 export interface LadderAxisTick {
   x: number;
-  /** Dollar label for one whole-codebase send. */
+  /** Dollar label at that gridline. */
   label: string;
 }
+
+/** Names the axis, so its unit and its log scale are read, not guessed. Two
+ *  parts, so a phone-width chart stacks them instead of clipping the line. */
+export const LADDER_AXIS_TITLE = [
+  'Minimum cost to read the project once',
+  'log scale, each gridline 10×',
+] as const;
 
 export interface SavingsLadderLayout {
   width: number;
@@ -86,11 +114,13 @@ export interface SavingsLadderLayout {
   plotBottom: number;
   rows: LadderRow[];
   axisTicks: LadderAxisTick[];
-  /** Dashed rule at the dearest artifact cost, with its computed finding. */
-  crossover: { x: number; caption: string } | null;
+  /** Baseline of the tick labels. */
+  tickY: number;
+  /** The axis title under them: one line, or two when stacked. */
+  axisTitle: Array<{ y: number; text: string }>;
   /** Models with no published per-token price — listed, never dropped. */
   unpriced: Array<{ id: string; label: string; vendor: string }>;
-  /** Constant multiple every model's cost falls by. 0 when undefined. */
+  /** fullTokens / artifactTokens: the same on every row. 0 when undefined. */
   ratio: number;
   ariaSummary: string;
 }
@@ -104,13 +134,14 @@ const EMPTY: SavingsLadderLayout = {
   plotBottom: 0,
   rows: [],
   axisTicks: [],
-  crossover: null,
+  tickY: 0,
+  axisTitle: [],
   unpriced: [],
   ratio: 0,
   ariaSummary: 'No priced models to chart.',
 };
 
-/** USD for one run that sends `tokens` input tokens at `perMTok`. */
+/** USD for one read of `tokens` input tokens at `perMTok`. */
 function costOf(tokens: number, perMTok: number): number {
   return (Math.max(0, tokens) / 1_000_000) * Math.max(0, perMTok);
 }
@@ -154,7 +185,9 @@ export function computeSavingsLadder(
   const stacked = options.stacked ?? false;
   const rowHeight = options.rowHeight ?? (stacked ? 34 : 24);
   const labelWidth = stacked ? 0 : (options.labelWidth ?? 168);
-  const valueWidth = options.valueWidth ?? 86;
+  /* Stacked rows print their readout on the label line above the row, so the
+     plot keeps the full width. */
+  const valueWidth = stacked ? 0 : (options.valueWidth ?? 120);
 
   const unpriced = models
     .filter((m) => typeof m.inputPerMTok !== 'number')
@@ -165,7 +198,7 @@ export function computeSavingsLadder(
   );
   if (priced.length === 0) return { ...EMPTY, width, unpriced };
 
-  /* Cost each model twice: the naive whole-repo send, and the artifact. */
+  /* Cost each model twice: one read of the whole codebase, one of the artifact. */
   const costed = priced.map((m) => ({
     model: m,
     fullCost: costOf(project.fullTokens, m.inputPerMTok),
@@ -204,11 +237,15 @@ export function computeSavingsLadder(
     (a, b) => a.artifactCost - b.artifactCost || a.model.label.localeCompare(b.model.label),
   );
 
-  const plotTop = stacked ? 8 : 14;
+  /* Room above the first row for the readout's column header (side layout)
+     or the first row's label line (stacked). */
+  const plotTop = stacked ? 8 : 22;
   const rows: LadderRow[] = costed.map((c, i) => {
     const y = plotTop + i * rowHeight + rowHeight / 2;
     const f = xOf(c.fullCost);
     const a = xOf(c.artifactCost);
+    const fullText = fmtLadderUsd(c.fullCost);
+    const artifactText = fmtLadderUsd(c.artifactCost);
     return {
       id: c.model.id,
       label: c.model.label,
@@ -219,15 +256,20 @@ export function computeSavingsLadder(
       fullCost: c.fullCost,
       artifactCost: c.artifactCost,
       savedCost: Math.max(0, c.fullCost - c.artifactCost),
-      valueText: fmtLadderUsd(c.artifactCost),
+      fullText,
+      artifactText,
+      valueText: `${fullText} vs ${artifactText}`,
       flagged: (c.model.confidence ?? 'primary') !== 'primary',
       clampedLow: a.clamped || f.clamped,
     };
   });
 
   const plotBottom = plotTop + costed.length * rowHeight;
-  const axisH = 26;
-  const height = plotBottom + axisH;
+  const tickY = plotBottom + 18;
+  const axisTitle = stacked
+    ? LADDER_AXIS_TITLE.map((text, i) => ({ y: tickY + 18 + i * 14, text }))
+    : [{ y: tickY + 18, text: LADDER_AXIS_TITLE.join(' · ') }];
+  const height = axisTitle[axisTitle.length - 1]!.y + 8;
 
   /* One tick per decade inside the domain. */
   const axisTicks: LadderAxisTick[] = [];
@@ -236,31 +278,23 @@ export function computeSavingsLadder(
     axisTicks.push({ x: xOf(v).x, label: decadeLabel(v) });
   }
 
-  /* The finding, computed rather than asserted: how many models were dearer
-     on the whole codebase than the DEAREST model now is on the artifact. */
-  const dearestArtifact = Math.max(...costed.map((c) => c.artifactCost));
-  const beaten = costed.filter((c) => c.fullCost > dearestArtifact).length;
-  const crossover =
-    beaten > 0
-      ? {
-          x: xOf(dearestArtifact).x,
-          caption: `Every model on the FACTS artifact costs less than ${beaten} of ${costed.length} models did on the whole codebase.`,
-        }
-      : null;
-
   /* The translation is constant by construction, so one ratio describes all. */
   const ratio = project.artifactTokens > 0 ? project.fullTokens / project.artifactTokens : 0;
 
+  /* No "the artifact beats N models" finding: the artifact side excludes the
+     files the change touches, so any comparison against it overstates the
+     saving by an unknown amount. The chart states the two floors and stops. */
   const cheapest = costed[0]!;
   const dearest = costed[costed.length - 1]!;
   const vendorCount = new Set(costed.map((c) => c.model.vendor)).size;
   const ariaSummary =
     `${costed.length} priced model${costed.length === 1 ? '' : 's'} across ` +
     `${vendorCount} vendor${vendorCount === 1 ? '' : 's'}. ` +
-    `Sending the whole codebase costs ${fmtLadderUsd(Math.min(...costed.map((c) => c.fullCost)))} to ` +
-    `${fmtLadderUsd(Math.max(...costed.map((c) => c.fullCost)))} per run; the FACTS artifact costs ` +
-    `${fmtLadderUsd(cheapest.artifactCost)} to ${fmtLadderUsd(dearest.artifactCost)} — ` +
-    `${ratio >= 10 ? Math.round(ratio) : ratio.toFixed(1)} times less for every model. ` +
+    `Minimum cost to read this project once before a change request: the whole codebase costs ` +
+    `${fmtLadderUsd(Math.min(...costed.map((c) => c.fullCost)))} to ` +
+    `${fmtLadderUsd(Math.max(...costed.map((c) => c.fullCost)))}; the FACTS artifact costs ` +
+    `${fmtLadderUsd(cheapest.artifactCost)} to ${fmtLadderUsd(dearest.artifactCost)}, ` +
+    `plus the files the change touches. ` +
     (unpriced.length
       ? unpriced.length === 1
         ? '1 model publishes no per-token price and is listed separately.'
@@ -276,7 +310,8 @@ export function computeSavingsLadder(
     plotBottom,
     rows,
     axisTicks,
-    crossover,
+    tickY,
+    axisTitle,
     unpriced,
     ratio,
     ariaSummary,

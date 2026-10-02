@@ -9,7 +9,7 @@
  * (same contract as agent.json + human.json).
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 import { FACTS_SCHEMA_VERSION } from './agent.js';
 
 export const DiffEndpointSchema = z.object({
@@ -39,11 +39,18 @@ export const DiffDeltaSchema = z.object({
  * critical + one fixed low = +3 (clearly worse), whereas a naive count
  * delta of 0 would suggest no change. PR-comment renderers use this as
  * their headline number.
+ *
+ * `incomplete: true` mirrors `files.incomplete`: one endpoint is a stats-only
+ * snapshot rollup with no advisory list, so the ID-level delta is unknown.
+ * `new`/`fixed` are then empty and `severityShift` is 0, and consumers say
+ * "CVE delta unavailable" instead of reporting every current advisory as new.
+ * Optional + additive (INV4).
  */
 export const VulnDiffSchema = z.object({
   new: z.array(z.string()).default([]),
   fixed: z.array(z.string()).default([]),
   severityShift: z.number().int().default(0),
+  incomplete: z.literal(true).optional(),
 });
 
 export const DiffStatsSchema = z.object({

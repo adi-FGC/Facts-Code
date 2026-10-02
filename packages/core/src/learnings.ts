@@ -32,7 +32,8 @@
  *   - `tail -f .facts/learnings.jsonl | jq` works as a live console.
  */
 
-import { z } from 'zod';
+// jitless-configured zod (no CSP-violating eval probe) — see spec/src/zod.ts.
+import { z } from '@factstack/spec/zod';
 
 export const LEARNINGS_SCHEMA_VERSION = 'factstack-learnings.v1' as const;
 

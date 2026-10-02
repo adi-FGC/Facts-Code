@@ -13,7 +13,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { Dirent, FactsFS, Stats } from '@factstack/spec';
+import { stripLeadingBom, type Dirent, type FactsFS, type Stats } from '@factstack/spec';
 
 export class NodeFS implements FactsFS {
   constructor(private readonly root: string) {}
@@ -29,7 +29,10 @@ export class NodeFS implements FactsFS {
   }
 
   async readText(p: string): Promise<string> {
-    return fs.readFile(this.abs(p), 'utf8');
+    /* Strip ONE leading U+FEFF, as the browser hosts' decoders do (Blob.text,
+       TextDecoder). Keeping it made JSON.parse of a BOM-saved package.json
+       fail on the CLI only, dropping its deps/frameworks/scripts (INV7). */
+    return stripLeadingBom(await fs.readFile(this.abs(p), 'utf8'));
   }
 
   async *readDir(p: string): AsyncIterable<Dirent> {
@@ -89,7 +92,7 @@ export function nodeFS(root: string): FactsFS {
 }
 
 export { pathToFileURL };
-export { mineGitStats, type GitStats } from './git.js';
+export { mineGitStats, type GitStats, type MineOptions } from './git.js';
 export { mineGitTopology, type TopologyOptions } from './topology.js';
 export { repoDisplayName } from './repo-name.js';
 export { gitGlobalExcludes } from './global-excludes.js';

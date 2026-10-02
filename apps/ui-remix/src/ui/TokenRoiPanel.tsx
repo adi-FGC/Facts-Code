@@ -2,9 +2,17 @@
  * TokenRoiPanel — the Overview "what does this project cost an agent"
  * panel, a.k.a. the savings analyzer.
  *
- * The quantified FACTS pitch: whole-repo-in-context vs the artifact map,
- * priced against a researched multi-vendor model catalog, plus a chart
- * putting every model on one axis.
+ * Two questions, each with its own unit, each figure a MINIMUM:
+ *   1. What must an agent read, once, before it can attempt a change request?
+ *      The whole codebase, or the FACTS artifact (the files the change touches
+ *      come later, on top). Priced against a researched multi-vendor model
+ *      catalog, with a chart putting every model on one axis.
+ *   2. What must a code review read to cover every file of this project? Its
+ *      own instructions plus the code once per reviewer it always starts
+ *      (lib/reviewFloor.ts, lib/reviewCatalog.ts). No FACTS column: a review
+ *      has to read the code it reviews.
+ * The captions spell out what is and is not counted. Wording rule: never call
+ * a minimum a cost, a difference a total or a saving, or a floor a saving.
  *
  * THREE PRICE SURFACES, IN ORDER OF TRUST
  *   1. The baked catalog (lib/modelCatalog.ts) — renders with zero network,
@@ -23,11 +31,11 @@
  */
 import type { Handle } from 'remix/ui';
 import { css, on } from 'remix/ui';
-import type { Dataset } from '../lib/loadArtifacts.ts';
+import { artifactCharsOf, type Dataset } from '../lib/loadArtifacts.ts';
+import { ModelCombobox } from './ModelCombobox.tsx';
 import { SankeyDiagram } from './SankeyDiagram.tsx';
 import { SavingsLadder } from './SavingsLadder.tsx';
 import {
-  byVendor,
   DEFAULT_MODEL_ID,
   MODEL_CATALOG,
   modelById,
@@ -40,6 +48,8 @@ import {
   type LiveResult,
   type LiveStatus,
 } from '../lib/livePrices.ts';
+import { REVIEW_CATALOG } from '../lib/reviewCatalog.ts';
+import { nonTestTokensOf, reviewFloor, type ReviewFloor } from '../lib/reviewFloor.ts';
 import {
   computeTokenRoi,
   dollars,
@@ -52,25 +62,6 @@ import {
 
 interface TokenRoiPanelProps {
   data: Dataset;
-}
-
-/**
- * Measure the serialized size of the artifact this page actually ships.
- * The inline <script id="factstack-data"> block IS the artifact (already
- * stringified), so its textContent length is the honest byte count. In
- * dev/fetch mode that block holds the placeholder, so we re-serialize.
- */
-function measureArtifactChars(data: Dataset): number {
-  if (typeof document !== 'undefined') {
-    const el = document.getElementById('factstack-data');
-    const txt = el?.textContent;
-    if (txt && !txt.includes('__INLINE_FACTSTACK_JSON__')) return txt.length;
-  }
-  try {
-    return JSON.stringify(data).length;
-  } catch {
-    return 0;
-  }
 }
 
 /* ─────────── styles ─────────── */
@@ -105,20 +96,6 @@ const controls = css({
   display: 'inline-flex',
   alignItems: 'stretch',
   gap: 'var(--space-2)',
-});
-
-const picker = css({
-  height: '28px',
-  border: '1px solid var(--border)',
-  background: 'transparent',
-  color: 'var(--fg)',
-  fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
-  letterSpacing: '0.06em',
-  paddingInline: 'var(--space-2)',
-  cursor: 'pointer',
-  maxWidth: '18rem',
-  '&:focus-visible': { outline: '2px solid var(--accent)', outlineOffset: '-2px' },
 });
 
 /* The "?" — a real button, square, same height as the picker. */
@@ -188,6 +165,18 @@ const row = css({
   paddingBlock: 'var(--space-3)',
   borderBottom: '1px solid var(--hairline)',
 });
+
+/* Column names over the rows: faint mono, like the other kickers. */
+const colHead = css({
+  paddingBlock: 'var(--space-2)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
+const colHeadNum = css({ textAlign: 'right' });
 
 const rowLabel = css({
   fontFamily: 'var(--font-display)',
@@ -323,11 +312,33 @@ const flowKicker = css({
   marginBottom: 'var(--space-3)',
 });
 
+/**
+ * "Read by 5 reviewers: the main reviewer, and an adversarial sub-agent that
+ * reads non-test code only, plus Testing and Maintainability specialists and a
+ * red-team reviewer at this project's size. 41.7K tokens of instructions come
+ * first." One sentence per fact, so the reviewer count and the fixed overhead
+ * are both readable without the table.
+ */
+function readersText(readers: string, f: ReviewFloor): string {
+  const who =
+    f.passes === 1
+      ? `Read once, by ${readers}.`
+      : `Read by ${f.passes} reviewers: ${readers}` +
+        (f.applied.length
+          ? `, plus ${f.applied.map((t) => t.adds).join(' and ')} at this project’s size.`
+          : '.');
+  return `${who} ${fmtTokens(f.instructionTokens)} tokens of instructions come first.`;
+}
+
 /* ─────────── component ─────────── */
 
 export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
-  /* Measured once: the shipped artifact doesn't change between renders. */
-  const artifactChars = measureArtifactChars(handle.props.data);
+  /* Measured once per dataset, of the dataset on screen: the page's baked
+     block would keep describing the demo after a ⌘O scan swaps in another
+     project (UI-05). See artifactCharsOf in lib/loadArtifacts.ts. */
+  let measuredFor: Dataset | null = null;
+  let artifactChars = 0;
+  let nonTestTokens = 0;
 
   let modelId = DEFAULT_MODEL_ID;
   let helpOpen = false;
@@ -346,7 +357,10 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
       narrow = e.matches;
       void handle.update();
     };
-    if (typeof mq.addEventListener === 'function') mq.addEventListener('change', sync);
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+      handle.signal.addEventListener('abort', () => mq.removeEventListener('change', sync));
+    }
   }
 
   function setModel(id: string) {
@@ -395,6 +409,11 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
 
   return () => {
     const { data } = handle.props;
+    if (data !== measuredFor) {
+      measuredFor = data;
+      artifactChars = artifactCharsOf(data);
+      nonTestTokens = nonTestTokensOf(data.tree);
+    }
     const roi = computeTokenRoi(data.stats.tokens, artifactChars);
     const model = modelById(modelId);
     const rate = effectiveRate(model);
@@ -404,6 +423,38 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
     const fullCost = hasRate ? dollars(roi.fullTokens, { inputPerMTok: rate.input! }) : 0;
     const artifactCost = hasRate ? dollars(roi.artifactTokens, { inputPerMTok: rate.input! }) : 0;
     const savedCost = Math.max(0, fullCost - artifactCost);
+    /* 0 = the vendor states no window; then say nothing rather than guess. */
+    const overflows = model.contextWindow > 0 && roi.fullTokens > model.contextWindow;
+
+    /* The whole project reviewed as new code. The walker's loc counts one
+       more line than git's insertions for every file ending in a newline, so
+       loc − files never exceeds git's count: no size tier is applied that the
+       real diff would not trigger. */
+    const reviewed = {
+      tokens: roi.fullTokens,
+      nonTestTokens,
+      lines: Math.max(0, data.stats.loc - data.stats.files),
+    };
+    const reviewRows = REVIEW_CATALOG.map((s) => {
+      const measuredOn = s.measuredOnModel ? modelById(s.measuredOnModel) : null;
+      return {
+        s,
+        f: reviewFloor(s, reviewed),
+        measuredOn,
+        /* A row measured on one model has no figure for another: its
+           instructions and reviewer count change with the model, so neither
+           its tokens nor its price may stand for the chosen one
+           (reviewCatalog measuredOnModel). */
+        offModel: measuredOn !== null && measuredOn.id !== model.id,
+      };
+    });
+    /* A reviewer's context holds its instructions AND the code. */
+    const reviewOverflows =
+      model.contextWindow > 0 &&
+      reviewRows.some(
+        ({ f, offModel }) =>
+          f !== null && !offModel && roi.fullTokens + f.instructionTokens > model.contextWindow,
+      );
 
     /* Feed the chart live rates where we have them. */
     const ladderModels = MODEL_CATALOG.map((m) => {
@@ -431,35 +482,21 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           <div mix={kicker}>
             Token economics
             <span mix={css({ color: 'var(--fg-faint)' })}> · </span>
-            <span mix={kickerStrong}>cost to put this project in an agent’s context</span>
+            <span mix={kickerStrong}>
+              minimum cost to read this project before a change request
+            </span>
           </div>
           <div mix={controls}>
-            <select
-              mix={[
-                picker,
-                /* 'input', not 'change': the framework's `on` union does not
-                   carry 'change', and on a <select> the two are equivalent —
-                   `input` fires on every committed selection in all modern
-                   browsers. The handler takes no type annotation on purpose:
-                   annotating it collapses the generic to EventType<Element>
-                   and the event name stops type-checking. */
-                on('input', (e) => setModel(e.currentTarget.value)),
-              ]}
-              aria-label="Model to price this project against"
-            >
-              {byVendor().map((g) => (
-                <optgroup key={g.vendor} label={g.vendor}>
-                  {g.models.map((m) => (
-                    <option key={m.id} value={m.id} selected={m.id === modelId}>
-                      {m.label}
-                      {typeof m.inputPerMTok === 'number'
-                        ? ` — $${m.inputPerMTok}/M`
-                        : ' — no price'}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+            {/* A combobox, not a native <select>: the OS drew the select's
+                option list in the system theme, unreadable against the
+                app's own (see ui/ModelCombobox.tsx). */}
+            <ModelCombobox
+              models={MODEL_CATALOG}
+              value={modelId}
+              onSelect={setModel}
+              label="Model to price this project against"
+              priceOf={(m) => effectiveRate(m).input}
+            />
             <button
               type="button"
               mix={[helpBtn, helpOpen ? helpBtnOpen : null, on('click', toggleHelp)]}
@@ -476,9 +513,13 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           <div mix={livePanel}>
             <div mix={liveHead}>Where these prices come from</div>
             <p>
-              The prices on this page are <strong>baked in</strong>: each one was read off the
-              vendor’s own pricing page and carries its own verification date, so the panel works
-              with no network at all. The oldest of those dates is {oldestVerifiedOn()}.
+              The prices on this page are <strong>baked in</strong>: {primaryCount} of{' '}
+              {MODEL_CATALOG.length} were read off the vendor’s own pricing or model page
+              {primaryCount < MODEL_CATALOG.length
+                ? '; the rest, marked *, rest on corroborating sources'
+                : ''}
+              . Each carries its own date, so the panel works with no network at all. The oldest of
+              those dates is {oldestVerifiedOn()}.
             </p>
             <p>
               Pressing <strong>?</strong> fetches current rates from a public price index
@@ -510,12 +551,19 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           </div>
         )}
 
+        {/* Column names: what the two figures on each row are. */}
+        <div mix={[row, colHead]}>
+          <span>Read once, before the change</span>
+          <span mix={colHeadNum}>tokens</span>
+          <span mix={colHeadNum}>{model.label}</span>
+        </div>
+
         {/* Whole repo */}
         <div mix={row}>
           <span mix={rowLabel}>
-            Whole codebase in context
+            Whole codebase
             <span mix={rowSub}>
-              Every source file, tokenized — the naive way to give an agent full context.
+              Every source file, read once. Already includes the files the change will touch.
             </span>
           </span>
           <span mix={num}>{fmtTokens(roi.fullTokens)}</span>
@@ -527,20 +575,27 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
           <span mix={rowLabel}>
             FACTS artifact
             <span mix={rowSub}>
-              The structural map the agent loads instead — then it opens only the files a task
-              touches.
+              The project’s structural map, read once. The agent then opens the files the change
+              touches, on top of this.
             </span>
           </span>
           <span mix={num}>{fmtTokens(roi.artifactTokens)}</span>
           <span mix={numCost}>{hasRate ? fmtUsd(artifactCost) : '—'}</span>
         </div>
 
-        {/* Savings */}
+        {/* The difference on THIS read — not a saving: the caption says what
+            offsets it later (the files the change touches). The badge branches
+            on the ratio, because on a tiny project the measured artifact can be
+            the bigger of the two, and "0.4× smaller" would be false. */}
         <div mix={saveRow}>
           <span mix={saveLabel}>
-            <span mix={saveLead}>You save</span>
+            <span mix={saveLead}>Difference on this read</span>
             <span mix={ratioBadge}>
-              {fmtRatio(roi.ratio)} smaller · {fmtPct(roi.savedFraction)} fewer tokens
+              {roi.ratio > 1
+                ? `${fmtPct(roi.savedFraction)} less to read up front · the artifact is ${fmtRatio(roi.ratio)} smaller`
+                : roi.ratio > 0 && roi.ratio < 1
+                  ? `none · the artifact is ${fmtRatio(1 / roi.ratio)} larger than the codebase`
+                  : 'none'}
             </span>
           </span>
           <span mix={saveNum}>{fmtTokens(roi.savedTokens)}</span>
@@ -592,16 +647,16 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
 
         {roi.savedTokens > 0 && (
           <div mix={flowWrap}>
-            <div mix={flowKicker}>Where the tokens go</div>
+            <div mix={flowKicker}>How the two reads compare</div>
             <SankeyDiagram
               width={760}
               height={148}
               formatValue={fmtTokens}
-              ariaLabel={`Token flow: ${fmtTokens(roi.fullTokens)} for the whole codebase splits into ${fmtTokens(roi.artifactTokens)} loaded as the FACTS artifact plus ${fmtTokens(roi.savedTokens)} saved`}
+              ariaLabel={`Token flow: reading the whole codebase is ${fmtTokens(roi.fullTokens)}; reading the FACTS artifact instead is ${fmtTokens(roi.artifactTokens)}; the difference on this read is ${fmtTokens(roi.savedTokens)}, before the files the change touches.`}
               nodes={[
                 { id: 'full', label: 'Whole codebase', column: 0, color: 'var(--fg-muted)' },
                 { id: 'artifact', label: 'FACTS artifact', column: 1, color: 'var(--accent)' },
-                { id: 'saved', label: 'Tokens saved', column: 1, color: 'var(--ok)' },
+                { id: 'saved', label: 'Difference on this read', column: 1, color: 'var(--ok)' },
               ]}
               links={[
                 {
@@ -617,7 +672,9 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         )}
 
         <div mix={flowWrap}>
-          <div mix={flowKicker}>What this project costs on every model</div>
+          <div mix={flowKicker}>
+            Minimum cost to read this project before a change request, by model
+          </div>
           <SavingsLadder
             models={ladderModels}
             project={{ fullTokens: roi.fullTokens, artifactTokens: roi.artifactTokens }}
@@ -627,26 +684,113 @@ export function TokenRoiPanel(handle: Handle<TokenRoiPanelProps>) {
         </div>
 
         <p mix={caption}>
+          <strong>What “minimum” means here:</strong> what an agent must read, once, before it can
+          start a change request. It is not the cost of making the change. The whole-codebase read
+          already contains the files the change will touch; with the FACTS artifact the agent opens
+          those afterwards, so part of the difference shown is spent later, by an amount that can’t
+          be sized until the change is known. An agent that re-sends its context on every turn pays
+          the read on every turn. Neither figure includes the agent harness’s own system prompt and
+          tool definitions, which it sends with every request whatever the task.{' '}
+          {overflows &&
+            `This project is larger than ${model.label}’s ${fmtTokens(model.contextWindow)}-token context window, so the whole codebase cannot be read in one go. `}
           Both token counts are estimates, measured the same way: the analyzer counts characters and
           divides by 3.5, a rule of thumb it documents as tracking cl100k within about 8%. Neither
           side is a real tokenizer count, so treat the ratio as an order of magnitude, not a
-          measurement. The artifact figure is this dashboard’s own data block — a superset of the
-          lean <span class="mono">agent.json</span>, so the real saving is larger. The artifact
-          replaces dumping the repo every turn; per-task file reads are the same either way.{' '}
+          measurement, and each vendor’s tokenizer counts the same text differently, so a real bill
+          can be higher or lower. “Minimum” describes what is counted, not the token estimate. The
+          artifact figure is this dashboard’s own data block, a superset of the lean{' '}
+          <span class="mono">agent.json</span> that agents actually load, so the FACTS figure here
+          is larger than what an agent reads up front.{' '}
           {primaryCount === MODEL_CATALOG.length ? (
             <>
               Prices are standard list rates for input tokens (not batch, not cached), each read off
-              the vendor’s own pricing page on the date shown.
+              the vendor’s own pricing or model page on the date shown. Where a vendor tiers by
+              prompt length or time of day, the base tier is shown and the rate card says what the
+              others cost.
             </>
           ) : (
             <>
               Prices are standard list rates for input tokens (not batch, not cached).{' '}
-              {primaryCount} of {MODEL_CATALOG.length} were read off the vendor’s own pricing page
-              on the date shown; the rest are marked * and rest on corroborating sources because the
-              vendor’s own page could not be confirmed — see each model’s source link.
+              {primaryCount} of {MODEL_CATALOG.length} were read off the vendor’s own pricing or
+              model page on the date shown; the rest are marked * and rest on corroborating sources
+              because the vendor’s own page could not be confirmed — see each model’s source link.
             </>
           )}
         </p>
+
+        {/* Review floor: a separate question with its own unit. No FACTS
+            column — a review has to read the code it reviews, and the panel
+            must not suggest the artifact shrinks that. */}
+        {REVIEW_CATALOG.length > 0 && (
+          <div mix={flowWrap}>
+            <div mix={flowKicker}>
+              Minimum cost to review every file of this project once, by review setup
+            </div>
+            <div mix={[row, colHead]}>
+              <span>Whole project as new code</span>
+              <span mix={colHeadNum}>tokens</span>
+              <span mix={colHeadNum}>{model.label}</span>
+            </div>
+            {reviewRows.map(({ s, f, offModel }) => {
+              return (
+                <div key={s.id} mix={row}>
+                  <span mix={rowLabel}>
+                    {s.label}
+                    <span mix={rowSub}>
+                      {s.kind === 'harness' ? 'Built in' : 'Skill'} · {s.maker} · {s.version}.{' '}
+                      {offModel
+                        ? `Not measured on ${model.label}, so no figure is shown for it.`
+                        : f
+                          ? readersText(s.readers, f)
+                          : `Read by ${s.readers}.`}{' '}
+                      {s.notes} Measured {s.measuredOn}.{' '}
+                      <a
+                        mix={rateLink}
+                        href={s.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        source ↗
+                      </a>
+                    </span>
+                  </span>
+                  {offModel ? (
+                    <span mix={num} title={`not measured on ${model.label}`}>
+                      <span aria-hidden="true">—</span>
+                      <span class="sr-only">not measured on {model.label}</span>
+                    </span>
+                  ) : (
+                    <span mix={num}>{f ? fmtTokens(f.totalTokens) : 'not measured'}</span>
+                  )}
+                  <span mix={numCost}>
+                    {f && hasRate && !offModel
+                      ? fmtUsd(dollars(f.totalTokens, { inputPerMTok: rate.input! }))
+                      : '—'}
+                  </span>
+                </div>
+              );
+            })}
+            <p mix={caption}>
+              <strong>What “minimum” means here:</strong> the least a review must read to cover
+              every file of this project once. By default each setup reviews a diff; “every file” is
+              the whole project reviewed as new code, the most a review of this project can cover. A
+              reviewer is one model context that reads the code under review. Counted: the setup’s
+              own instructions, counted once, plus the code once for every reviewer it always starts
+              at this size. Instruction sizes were measured from each setup’s own text on the date
+              shown, and all token counts use the same characters ÷ 3.5 estimate as above, so each
+              vendor’s real count can be higher or lower. Not counted: steps that run only
+              sometimes, files read for context beyond the diff, output tokens, and the harness’s
+              own system prompt and tools. A reviewer makes several model calls and re-sends what it
+              has read on each, so a real review is billed for more input than this floor.{' '}
+              {reviewOverflows &&
+                `At this size a review does not fit in ${model.label}’s ${fmtTokens(model.contextWindow)}-token context window, so it has to read the code in parts across several calls. `}
+              Dollar figures price every setup at {model.label}’s input rate, whichever models it
+              actually runs on; by default Claude Code runs Claude models and Codex runs OpenAI
+              models. The FACTS artifact does not lower this floor: a review has to read the code it
+              reviews.
+            </p>
+          </div>
+        )}
       </div>
     );
   };

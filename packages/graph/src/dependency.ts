@@ -7,7 +7,12 @@
 
 import type { FileOutline, Confidence } from '@factstack/spec';
 import type { RawImport } from '@factstack/extractors';
-import { resolveSpecifier, type ResolverContext } from './resolver.js';
+import { resolveImportTargets, type ResolverContext } from './resolver.js';
+
+/** Key of one import in {@link buildDependencyGraph}'s `resolvedOut`. */
+export function resolvedKey(from: string, specifier: string): string {
+  return from + '\u0000' + specifier;
+}
 
 export interface DependencyGraph {
   // `callers` is optional and populated by `buildCallerIndex` after the
@@ -38,6 +43,10 @@ export function buildDependencyGraph(
   outlines: FileOutline[],
   importsByFile: Map<string, RawImport[]>,
   ctx: ResolverContext,
+  /** Optional sink for each import's primary target, keyed by
+   *  {@link resolvedKey}: lets the caller backfill `imports[].resolved`
+   *  without resolving every import a second time. */
+  resolvedOut?: Map<string, string | null>,
 ): DependencyGraph {
   const nodes: DependencyGraph['nodes'] = outlines.map((o) => ({
     id: o.path,
@@ -53,21 +62,23 @@ export function buildDependencyGraph(
 
   for (const [from, imports] of importsByFile) {
     for (const imp of imports) {
-      const to = resolveSpecifier(imp.specifier, from, ctx);
-      if (!to) continue; // external or unresolved
-      if (to === from) continue; // self-loop
+      const targets = resolveImportTargets(imp, from, ctx);
+      resolvedOut?.set(resolvedKey(from, imp.specifier), targets[0] ?? null);
       const kind: DependencyGraph['edges'][number]['kind'] =
         imp.kind === 'dynamic-import'
           ? 'dynamic-import'
           : imp.kind === 'type-import'
             ? 'type-import'
             : 'import';
-      const key = from + '|' + to + '|' + kind;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      // F1 — import edges are read directly from source, so always `extracted`.
-      // Score omitted (implicitly 1.0); F2 sets it for inferred/ambiguous edges.
-      edges.push({ from, to, kind, confidence: 'extracted' });
+      for (const to of targets) {
+        if (to === from) continue; // self-loop
+        const key = from + '|' + to + '|' + kind;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        // F1 — import edges are read directly from source, so always `extracted`.
+        // Score omitted (implicitly 1.0); F2 sets it for inferred/ambiguous edges.
+        edges.push({ from, to, kind, confidence: 'extracted' });
+      }
     }
   }
 

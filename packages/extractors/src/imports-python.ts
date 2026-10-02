@@ -22,7 +22,7 @@ export function isPython(ext: string): boolean {
 /** Extract imports from a Python source file. */
 export function extractPythonImports(source: string): RawImport[] {
   const out: RawImport[] = [];
-  const seen = new Set<string>();
+  const seen = new Map<string, RawImport>();
   // Two line arrays: one stripped (used for `from` / `import` directive
   // matching so we don't false-match inside docstrings) and one raw
   // (used for dynamic-import detection, which needs the string literal
@@ -35,9 +35,32 @@ export function extractPythonImports(source: string): RawImport[] {
     if (stripped) {
       // `from X import Y[, Z, ...]` — we want X. Supports leading dots
       // (relative imports: `from ..mod import x` → specifier = "..mod").
-      const fromMatch = stripped.match(/^from\s+([.\w]+)\s+import\s+/);
+      const fromMatch = stripped.match(/^from\s+([.\w]+)\s+import\b\s*(.*)$/);
       if (fromMatch && fromMatch[1]) {
-        record(fromMatch[1], 'import', i + 1);
+        // The imported member names too: `from . import utils` imports the
+        // SUBMODULE pkg/utils.py, which the resolver can only see from them.
+        // A parenthesized or backslash-continued list spans lines.
+        let tail = fromMatch[2] ?? '';
+        let j = i;
+        if (tail.startsWith('(')) {
+          while (!tail.includes(')') && j + 1 < strippedLines.length)
+            tail += ' ' + strippedLines[++j];
+        } else {
+          while (tail.endsWith('\\') && j + 1 < strippedLines.length)
+            tail = tail.slice(0, -1) + ' ' + strippedLines[++j];
+        }
+        const members = tail
+          .replace(/[()\\]/g, ' ')
+          .split(',')
+          .map(
+            (p) =>
+              p
+                .trim()
+                .split(/\s+as\s+/)[0]
+                ?.trim() ?? '',
+          )
+          .filter((m) => /^\w+$/.test(m));
+        record(fromMatch[1], 'import', i + 1, members);
         continue;
       }
 
@@ -64,13 +87,25 @@ export function extractPythonImports(source: string): RawImport[] {
     if (dyn && dyn[1]) record(dyn[1], 'dynamic-import', i + 1);
   }
 
-  function record(specifier: string, kind: RawImport['kind'], line: number) {
+  function record(specifier: string, kind: RawImport['kind'], line: number, members?: string[]) {
     const key = specifier + '|' + kind;
-    if (seen.has(key)) return;
-    seen.add(key);
+    const prior = seen.get(key);
+    if (prior) {
+      // Two import lines of one module are one row; keep every member. A
+      // row that also imports the package itself (`import pkg`, or
+      // `from pkg import *`) carries the member '*' so that edge survives.
+      if (!members?.length && !prior.members) return;
+      const merged = prior.members ?? ['*'];
+      for (const m of members?.length ? members : ['*']) if (!merged.includes(m)) merged.push(m);
+      prior.members = merged;
+      return;
+    }
     // F2 `names` (local bindings) is JS/TS-only for now — the symbol
     // resolver runs on JS/TS outlines, so Python imports carry no bindings.
-    out.push({ specifier, kind, line, names: [] });
+    const imp: RawImport = { specifier, kind, line, names: [] };
+    if (members?.length) imp.members = [...new Set(members)];
+    seen.set(key, imp);
+    out.push(imp);
   }
 
   return out;

@@ -15,7 +15,7 @@
  *     App on every URL change. Same UX, ~20 lines of glue.
  */
 import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import { css, on } from 'remix/ui';
 import { activeTab, TABS, type TabKey } from './lib/routes.ts';
 import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
 import { Header } from './components/Header.tsx';
@@ -229,7 +229,15 @@ function Shell(handle: Handle<{ data: Dataset }>) {
  * active route. (Blank-on-client-nav fix, 2026-06-03.)
  */
 function RouteView(handle: Handle<{ data: Dataset }>) {
+  /* A tab whose chunk failed to load gets a fresh attempt on every visit and
+     from the error screen's Retry — a dropped connection must not break the
+     tab until reload (UI-11). */
+  const retry = (tab: TabKey) => {
+    routeLoadErrors.delete(tab);
+    void handle.update();
+  };
   const onChange = () => {
+    routeLoadErrors.delete(activeTab(location.pathname));
     void handle.update();
     /* a11y: after the route subtree patches, announce the new view to assistive
        tech and move focus into <main> so a subsequent Tab resumes in the new
@@ -258,8 +266,8 @@ function RouteView(handle: Handle<{ data: Dataset }>) {
     const Route = loadedRoutes.get(tab);
     if (Route) return <Route data={data} />;
     const failed = routeLoadErrors.get(tab);
-    if (failed) return <RouteLoadError message={failed} />;
-    void loadRoute(tab).then(() => handle.update());
+    if (failed) return <RouteLoadError message={failed} onRetry={() => retry(tab)} />;
+    void loadRoute(tab, true).then(() => handle.update());
     return <RouteLoading />;
   };
 }
@@ -306,18 +314,61 @@ const ROUTE_LOADERS: Record<LazyTab, () => Promise<RouteComponent>> = {
   config: () => import('./routes/Config.tsx').then((m) => m.Config as unknown as RouteComponent),
   about: () => import('./routes/About.tsx').then((m) => m.About as unknown as RouteComponent),
 };
+/* Export name per tab, for re-importing a failed chunk by URL (importRoute). */
+const ROUTE_EXPORTS: Record<LazyTab, string> = {
+  architecture: 'Architecture',
+  modules: 'Modules',
+  files: 'FilesTab',
+  docs: 'Docs',
+  review: 'Review',
+  security: 'Security',
+  tests: 'Tests',
+  history: 'History',
+  worktrees: 'Worktrees',
+  config: 'Config',
+  about: 'About',
+};
 const loadedRoutes = new Map<TabKey, RouteComponent>();
 const routeLoadErrors = new Map<TabKey, string>();
 const routeLoads = new Map<TabKey, Promise<void>>();
+/* Chunk URL of each tab whose load failed, read off the browser's error. */
+const failedChunks = new Map<LazyTab, string>();
+let retrySeq = 0;
 
-function loadRoute(tab: LazyTab): Promise<void> {
+/** Import a tab's chunk. A retry can't simply import the same URL again:
+ *  Chromium keeps a failed module fetch in the page's module map, so the
+ *  second import() fails without touching the network (UI-11). A
+ *  query-busted URL is a fresh entry; its own imports still resolve to the
+ *  shared chunks. If one of THOSE failed too, only a reload recovers — the
+ *  error screen says so. */
+function importRoute(tab: LazyTab): Promise<RouteComponent> {
+  const url = failedChunks.get(tab);
+  if (!url) return ROUTE_LOADERS[tab]();
+  const busted = `${url}${url.includes('?') ? '&' : '?'}retry=${++retrySeq}`;
+  return import(/* @vite-ignore */ busted).then((m: Record<string, unknown>) => {
+    const c = m[ROUTE_EXPORTS[tab]];
+    if (typeof c !== 'function') throw new Error(`${busted} has no ${ROUTE_EXPORTS[tab]} export`);
+    return c as RouteComponent;
+  });
+}
+
+/** Load a tab's chunk. Only a load the user is waiting on (`visible`)
+ *  records its failure; an idle prefetch fails silently, so it can't poison
+ *  a tab the user never opened. */
+function loadRoute(tab: LazyTab, visible: boolean): Promise<void> {
   let p = routeLoads.get(tab);
   if (!p) {
-    p = ROUTE_LOADERS[tab]()
-      .then((c) => void loadedRoutes.set(tab, c))
+    p = importRoute(tab)
+      .then((c) => {
+        failedChunks.delete(tab);
+        loadedRoutes.set(tab, c);
+      })
       .catch((e: unknown) => {
-        routeLoads.delete(tab); // a later visit may retry (e.g. after a redeploy)
-        routeLoadErrors.set(tab, e instanceof Error ? e.message : String(e));
+        routeLoads.delete(tab); // a later visit retries (e.g. after a redeploy)
+        const msg = e instanceof Error ? e.message : String(e);
+        const url = /(https?:\/\/[^\s'"]+?\.js)\b/.exec(msg)?.[1];
+        if (url) failedChunks.set(tab, url);
+        if (visible) routeLoadErrors.set(tab, msg);
       });
     routeLoads.set(tab, p);
   }
@@ -338,7 +389,7 @@ function prefetchRoutesWhenIdle(): void {
   const next = () => {
     const tab = queue.shift();
     if (!tab) return;
-    void loadRoute(tab).finally(() => idle(next));
+    void loadRoute(tab, false).finally(() => idle(next));
   };
   // Start after the load event: first paint and the landing tab come first.
   const start = () => setTimeout(() => idle(next), 1500);
@@ -346,18 +397,36 @@ function prefetchRoutesWhenIdle(): void {
   else window.addEventListener('load', start, { once: true });
 }
 
-function RouteLoadError(handle: Handle<{ message: string }>) {
+const retryBtn = css({
+  marginTop: '16px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  padding: '6px 14px',
+  background: 'transparent',
+  color: 'var(--fg)',
+  border: '1px solid var(--border)',
+  cursor: 'pointer',
+  '&:hover': { borderColor: 'var(--accent)', color: 'var(--accent)' },
+});
+
+function RouteLoadError(handle: Handle<{ message: string; onRetry: () => void }>) {
   return () => (
     <div mix={css({ padding: '32px', maxWidth: '640px' })} role="alert">
       <h1 class="serif" mix={css({ fontSize: '24px', marginBottom: '12px' })}>
         This view didn’t load.
       </h1>
       <p mix={css({ color: 'var(--fg-muted)' })}>
-        The site may have been updated since this page opened. Reload to get the latest version.
+        The connection may have dropped, or the site was updated since this page opened. Try again,
+        or reload to get the latest version.
       </p>
       <p class="mono" mix={css({ color: 'var(--fg-subtle)', fontSize: '12px', marginTop: '16px' })}>
         {handle.props.message}
       </p>
+      <button type="button" mix={[retryBtn, on('click', () => handle.props.onRetry())]}>
+        Try again
+      </button>
     </div>
   );
 }

@@ -2,8 +2,9 @@
 <html lang="en">
 <!--
   FACTS — Executive Briefing (deep edition).
-  Canonical copy lives here in docs/. A synced duplicate is served by the
-  dashboard at apps/ui-remix/public/briefing.html (linked from the About tab).
+  The only copy lives here in docs/. It is NOT served by the dashboard: the
+  site's strict CSP blocks its inline <style>/<script>, Google Fonts and the
+  Mermaid CDN, so apps/ui-remix/public/briefing.html is now a pointer here.
   Self-contained except Google Fonts + a Mermaid CDN for the live graph;
   both degrade gracefully offline. Every figure is grounded in the working
   source as of this writing — where docs and code disagreed, the code won.
@@ -610,7 +611,8 @@ flowchart TB
 
         <h3 class="sub">How the secret scanner avoids crying wolf</h3>
         <div class="body">
-          <p>It ships a curated rule set — AWS keys, Google, Stripe, Slack, GitHub, OpenAI, Anthropic tokens, and PEM private-key blocks — but a pattern match alone isn't enough. Each candidate must also clear a <b>Shannon-entropy floor</b> (a measure of randomness): a real <code>AKIA…</code> key looks random; a placeholder like <code>AKIAEXAMPLE</code> does not. That second gate is what keeps the Credentials list signal, not noise.</p>
+          <p>It ships a curated rule set — AWS and Azure storage keys, Google, Stripe (secret and restricted keys), Slack tokens and webhooks, GitHub (classic and fine-grained), GitLab, npm, SendGrid, OpenAI and Anthropic tokens, and PEM / PGP private-key blocks — but a pattern match alone isn't enough. Each candidate must also clear a <b>Shannon-entropy floor</b> (a measure of randomness): a real <code>AKIA…</code> key looks random; a placeholder like <code>AKIAEXAMPLE</code> does not. That second gate is what keeps the Credentials list signal, not noise.</p>
+          <p>Generic matches — a <code>password=</code> / <code>*_TOKEN=</code> config value, a password inside a database URL, a secret-named field — are shown only as ungraded <b>“possible secrets”</b>. They never count toward the grade; only the provider-specific detectors above do.</p>
         </div>
         <p class="tech"><b>On the supply-chain query:</b> OSV.dev is free and needs no auth, and its batch endpoint takes up to 1000 package queries in a single round-trip — a whole repo's dependency set checked in one request, with a pluggable cache. Today <code>npm</code> manifests are fully parsed; PyPI / Cargo / Go / Maven / RubyGems are <em>detected</em> (full dependency parsing is on the roadmap), surfaced honestly rather than skipped in silence.</p>
         <div class="why"><div class="t">Why it matters</div><p>These are exactly the questions a security or compliance review asks. <b>The answer to "does our code leave the building?" is no</b> — and "could this tool itself leak a secret it found?" is <em>structurally</em> no.</p></div>

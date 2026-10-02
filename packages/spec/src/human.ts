@@ -5,7 +5,7 @@
  * Every field maps to a UI block. No field without a screen.
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 import { FACTS_SCHEMA_VERSION, GraphSchema, RiskSchema, StatusSchema } from './agent.js';
 
 export const StackEntrySchema = z.object({

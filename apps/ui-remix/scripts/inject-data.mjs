@@ -14,7 +14,9 @@
  *   1. `--src <path>` — explicit override (legacy behavior preserved)
  *   2. `<repoRoot>/.facts/agent.json` + `<repoRoot>/.facts/human.json`
  *      → adapted via `humanToViz()` from @factstack/emit so the
- *      dashboard renders YOUR project, not the pinned fixture
+ *      dashboard renders YOUR project, not the pinned fixture. Refused
+ *      (exit 1) when agent.json is marked stale or the two files come from
+ *      different analyses: re-run a full `factstack analyze .`
  *   3. `<repoRoot>/legacy/prototype/data/factstack.json` — last-resort
  *      fallback so a fresh-clone build still produces a renderable
  *      static site
@@ -24,16 +26,39 @@
  * it here means dev mode (CLI proxy) and static-deploy mode (this
  * script) produce identical wire output.
  *
+ * Public by default (owner decision 2026-09-24): the bake carries only the
+ * clean current checkout's git topology — no other worktrees, local-only
+ * branches, unpushed commit subjects or stash count (lib/public-bake.mjs), in
+ * the dataset AND the re-encoded pack. With `--src` or the fixture there is
+ * nothing to re-encode from, so no pack is published. `--full-git` keeps
+ * everything, for a private local build only; never deploy it.
+ *
+ * performance#5, OPT-IN (`--split-sections`): serve the heavy sections (tree,
+ * docs metadata, edges, nodeMetrics) beside the page instead of inline — each
+ * in a content-addressed dist/data/sections/ file that <head> preloads,
+ * listed in the inline dataset's `sectionUrls` (lib/dataset-sections.mjs).
+ * dist/data/factstack.json stays complete either way. Off by default because
+ * it measured SLOWER (2026-09-24, perf-report throttling, 5 runs each, this
+ * repo's own bake): median LCP 2628 → 3056 ms over HTTP/2 (2488 → 3016 ms on
+ * perf-report's HTTP/1.1 server), and still 2924 ms with the tree kept
+ * inline. The loader awaits every listed section before the first render, so
+ * the data needs a second round trip that the inline bake avoids. Turn it on
+ * once the first render no longer waits for these sections, and re-measure.
+ *
  * Usage:
  *   node scripts/inject-data.mjs                 # auto-detect (.facts → fixture)
  *   node scripts/inject-data.mjs --src path.json # explicit override
  *   node scripts/inject-data.mjs --root ../..    # custom repo root
+ *   node scripts/inject-data.mjs --dist <dir>    # custom build output (default dist/)
+ *   node scripts/inject-data.mjs --split-sections  # heavy sections beside the page (see above)
  */
 import { existsSync, readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scrubSharedText, shareableDataset } from '@factstack/spec';
+import { SECTIONS_DIR, splitSections, withPreloads } from './lib/dataset-sections.mjs';
+import { publicGitTopology } from './lib/public-bake.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(__dirname, '..');
@@ -47,12 +72,17 @@ function arg(name, fallback) {
 }
 
 const REPO_ROOT = resolve(arg('--root', DEFAULT_REPO_ROOT));
+const DIST = resolve(arg('--dist', resolve(APP_DIR, 'dist')));
+const FULL_GIT = process.argv.includes('--full-git');
+const SPLIT_SECTIONS = process.argv.includes('--split-sections');
 const explicitSrc = arg('--src', null);
-const distHtml = resolve(APP_DIR, 'dist', 'index.html');
+const distHtml = resolve(DIST, 'index.html');
 
 /* Resolve the dataset source. Priority order documented above. */
 let dataset;
 let sourceLabel;
+/** The raw agent artifact, when baking from .facts/ — the public pack is re-encoded from it. */
+let agentForPack = null;
 
 if (explicitSrc) {
   const srcPath = resolve(explicitSrc);
@@ -67,9 +97,27 @@ if (explicitSrc) {
        `factstack ui` server already uses for /data/factstack.json.
        Sharing it here means static-deploy + CLI dev produce
        byte-identical wire output. */
-    const { humanToViz } = await import('@factstack/emit');
+    const { humanToViz, readStaleMark, staleHint } = await import('@factstack/emit');
     const agent = JSON.parse(readFileSync(factsAgent, 'utf8'));
     const human = JSON.parse(readFileSync(factsHuman, 'utf8'));
+    /* One analysis or nothing. The per-edit `analyze --minimal` rewrites
+       human.json (tree, risks, health) and marks agent.json stale; humanToViz
+       would pair that newer, possibly dirty-tree view with the older
+       agent.json's git, stats, docs and vulns, and the pack is re-encoded
+       from agent.json, so the two public files would disagree. */
+    const stale = readStaleMark(join(REPO_ROOT, '.facts'));
+    if (stale || human.generatedAt !== agent.generatedAt) {
+      console.error(
+        `[inject-data] refusing to bake: ${
+          stale
+            ? staleHint(stale)
+            : `.facts/human.json (${human.generatedAt}) and .facts/agent.json (${agent.generatedAt}) are from different analyses.`
+        }`,
+      );
+      console.error('  Run a full `factstack analyze .` (not --minimal), then rebuild.');
+      process.exit(1);
+    }
+    agentForPack = agent;
     dataset = humanToViz(agent, human);
     /* Snapshots: load the history series from .facts/snapshots/ if
        present so the History tab renders. Each snapshot file is
@@ -105,6 +153,17 @@ const shared = shareableDataset(dataset, REPO_ROOT);
 dataset = shared.data;
 const textSubs = shared.textSubs;
 
+/* Public bake: only the current checkout. AFTER the scrub on purpose — the
+   scrub's path substitutions are built from EVERY worktree, so a sibling
+   checkout's path mentioned elsewhere in the data is still rewritten. */
+if (!FULL_GIT && dataset && dataset.git) {
+  const before = (dataset.git.worktrees ?? []).length;
+  dataset.git = publicGitTopology(dataset.git);
+  console.log(
+    `[inject-data] public bake: git topology narrowed to the current checkout (${before} → ${dataset.git.worktrees.length} worktree(s))`,
+  );
+}
+
 /* Lean the inline dataset for the static bake. HTML docs are full
    generated pages (their own <svg>, <style>, <script>); baking their raw
    content bloats index.html ~6x AND the Docs tab iframes them via
@@ -138,7 +197,7 @@ if (dataset && Array.isArray(dataset.docs)) {
  *      cheap pack over HTTP from the deployed site.
  * ─────────────────────────────────────────────────────────────── */
 try {
-  const dataDir = resolve(APP_DIR, 'dist', 'data');
+  const dataDir = resolve(DIST, 'data');
   mkdirSync(dataDir, { recursive: true });
   writeFileSync(join(dataDir, 'factstack.json'), JSON.stringify(dataset), 'utf8');
   console.log(`[inject-data] wrote dist/data/factstack.json (fetchable dataset fallback)`);
@@ -187,11 +246,7 @@ try {
     fullDataset: '/data/factstack.json',
     pack: '/factstack.pack',
   };
-  writeFileSync(
-    resolve(APP_DIR, 'dist', 'data', 'summary.json'),
-    JSON.stringify(digest, null, 2),
-    'utf8',
-  );
+  writeFileSync(resolve(DIST, 'data', 'summary.json'), JSON.stringify(digest, null, 2), 'utf8');
   console.log(`[inject-data] wrote dist/data/summary.json (compact chatbot digest)`);
 } catch (e) {
   console.warn(`[inject-data] could not write dist/data/summary.json: ${e?.message || e}`);
@@ -204,7 +259,7 @@ try {
    tab fetches on demand. Written AFTER dist/data/factstack.json, so the
    fetchable full dataset agents read keeps every body inline. */
 if (dataset && Array.isArray(dataset.docs)) {
-  const docsDir = resolve(APP_DIR, 'dist', 'data', 'docs');
+  const docsDir = resolve(DIST, 'data', 'docs');
   mkdirSync(docsDir, { recursive: true });
   let moved = 0;
   let movedChars = 0;
@@ -229,12 +284,33 @@ if (dataset && Array.isArray(dataset.docs)) {
 
 try {
   const packSrc = join(REPO_ROOT, '.facts', 'agent.pack');
-  if (existsSync(packSrc)) {
+  if (existsSync(packSrc) && !FULL_GIT && !agentForPack) {
+    /* --src or the fixture: no agent.json to re-encode a narrowed pack from,
+       and the raw pack carries every checkout, local branch and the stash
+       count. Publishing it would undo the public bake the JSON just got. */
+    console.log(
+      `[inject-data] public bake: not publishing .facts/agent.pack (dataset is not from .facts/agent.json, so the pack cannot be narrowed; skipping dist/factstack.pack)`,
+    );
+  } else if (existsSync(packSrc)) {
     /* The pack is a separate file (not derived from `dataset`), so it needs
        its own text-level scrub — otherwise /factstack.pack would re-leak the
        same email + paths the JSON scrub just removed. */
-    const packText = scrubPack(readFileSync(packSrc, 'utf8'), textSubs);
-    writeFileSync(resolve(APP_DIR, 'dist', 'factstack.pack'), packText, 'utf8');
+    let raw = readFileSync(packSrc, 'utf8');
+    if (!FULL_GIT && agentForPack?.git) {
+      /* Public bake: re-encode from the agent with the same narrowed topology
+         the dataset got, so the pack's worktrees/branches/features tables
+         agree with /data/factstack.json. The encoder is deterministic —
+         agent.json + the header commit reproduce .facts/agent.pack byte for
+         byte — so nothing else in the pack changes. */
+      const { encodeAgentPack } = await import('@factstack/emit');
+      const commit = raw.split('\n', 1)[0].split('\t')[2];
+      raw = encodeAgentPack(
+        { ...agentForPack, git: publicGitTopology(agentForPack.git) },
+        commit && commit !== '-' ? { snapshotId: commit } : {},
+      );
+    }
+    const packText = scrubPack(raw, textSubs);
+    writeFileSync(resolve(DIST, 'factstack.pack'), packText, 'utf8');
     console.log(`[inject-data] wrote scrubbed .facts/agent.pack → dist/factstack.pack`);
   } else {
     console.log(`[inject-data] no .facts/agent.pack to copy (skipping dist/factstack.pack)`);
@@ -283,6 +359,31 @@ if (anchors !== 1) {
   process.exit(1);
 }
 
+/* performance#5 (opt-in, see the header): serve the heavy sections beside the
+   page. After the anchor checks on purpose, so the "already baked" re-run
+   above writes nothing. Written from the same scrubbed `dataset` as
+   dist/data/factstack.json (the privacy guard in check-bundle-size.mjs scans
+   these files too). The preloads start the fetches while the page's own
+   scripts are still downloading. */
+const { inline: inlineData, files: sectionFiles } = SPLIT_SECTIONS
+  ? splitSections(dataset)
+  : { inline: dataset, files: [] };
+if (sectionFiles.length > 0) {
+  const sectionsDir = resolve(DIST, ...SECTIONS_DIR.split('/'));
+  mkdirSync(sectionsDir, { recursive: true });
+  for (const f of sectionFiles) writeFileSync(join(sectionsDir, f.name), f.body, 'utf8');
+  const withLinks = withPreloads(html, sectionFiles);
+  html = withLinks.html;
+  if (!withLinks.ok)
+    console.warn(
+      `[inject-data] dist/index.html has no </head> — the ${sectionFiles.length} section(s) are not preloaded (the page fetches them itself, later).`,
+    );
+  console.log(
+    `[inject-data] moved ${sectionFiles.length} section(s) out of index.html → dist/${SECTIONS_DIR}/ (${withLinks.ok ? 'preloaded' : 'not preloaded'}): ` +
+      sectionFiles.map((f) => `${f.key} ${(f.body.length / 1024).toFixed(0)} KB`).join(', '),
+  );
+}
+
 /* Escape `<` so a literal `</script>` inside any baked string value (a doc
    body, source snippet, TODO text, …) cannot terminate the inline
    `<script type="application/json">` element early and spill the rest of the
@@ -290,7 +391,7 @@ if (anchors !== 1) {
    JSON.parse in loadArtifacts is unaffected. Without this, any analyzed
    project whose markdown/source contains `</script>` produces a broken
    static export. */
-const replacement = JSON.stringify(dataset).replace(/</g, '\\u003c');
+const replacement = JSON.stringify(inlineData).replace(/</g, '\\u003c');
 /* Function replacer: a plain string replacement interprets `$&`, `$1`, `$$`
    etc. as match backreferences, and the dataset JSON can contain literal `$`
    sequences. A replacer function is inserted verbatim. */

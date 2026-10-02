@@ -4,7 +4,31 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { SyncPackInputSchema } from '../src/mcp.js';
+import {
+  MAX_GLOB_LENGTH,
+  QueryGraphInputSchema,
+  QueryInputSchema,
+  SyncPackInputSchema,
+} from '../src/mcp.js';
+
+describe('graph-query globs are length-capped (MCP-11 defense in depth)', () => {
+  const ok = 'src/**/*.ts';
+  const long = 'a'.repeat(MAX_GLOB_LENGTH + 1);
+  const structured = (start: object, where?: object) =>
+    QueryInputSchema.safeParse({ query: { start, ...(where && { where }) } }).success;
+
+  it('accepts ordinary globs in filter, start.glob and where.pathGlob', () => {
+    expect(QueryGraphInputSchema.safeParse({ verb: 'orphans', filter: ok }).success).toBe(true);
+    expect(structured({ glob: ok }, { pathGlob: ok })).toBe(true);
+    expect(structured({ glob: 'a'.repeat(MAX_GLOB_LENGTH) })).toBe(true);
+  });
+
+  it('rejects a glob one char over the cap in each of the three fields', () => {
+    expect(QueryGraphInputSchema.safeParse({ verb: 'orphans', filter: long }).success).toBe(false);
+    expect(structured({ glob: long })).toBe(false);
+    expect(structured({ id: 'src/a.ts' }, { pathGlob: long })).toBe(false);
+  });
+});
 
 describe('SyncPackInputSchema — `have` input bounds (SEC-4)', () => {
   it('accepts a lowercase-hex trailer sha', () => {

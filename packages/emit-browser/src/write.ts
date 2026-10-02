@@ -61,6 +61,8 @@ export interface BrowserWriteResult {
   /** F8 — `agent.diff.pack` when a prior master was found + the diff
    *  emitted; null on the first save or an unusable prior pack. */
   diffName: string | null;
+  /** Why no diff was written although a prior pack existed (CLI parity). */
+  diffSkipped?: string;
   snapshotName: string | null;
   memoryName: string | null;
   bytesWritten: number;
@@ -83,14 +85,18 @@ export async function writeBrowserArtifacts(
      orchestrator can emit the `agent.diff.pack` sidecar. Mirrors
      readBrowserSnapshots' FSA walk: absent (.facts or agent.pack missing,
      i.e. first save) or any error → undefined → no diff this run. */
-  let prevPackBody: string | undefined;
-  try {
-    const factsDir = await opts.root.getDirectoryHandle('.facts');
-    const packHandle = await factsDir.getFileHandle('agent.pack');
-    prevPackBody = await (await packHandle.getFile()).text();
-  } catch {
-    prevPackBody = undefined;
-  }
+  const readPrior = async (name: string): Promise<string | undefined> => {
+    try {
+      const factsDir = await opts.root.getDirectoryHandle('.facts');
+      return await (await (await factsDir.getFileHandle(name)).getFile()).text();
+    } catch {
+      return undefined;
+    }
+  };
+  const prevPackBody = await readPrior('agent.pack');
+  /* Same for the keep-1 review baseline (CLI parity): the prior agent.json,
+     which the orchestrator parks at BASELINE_AGENT_FILE before replacing it. */
+  const prevAgentBody = await readPrior('agent.json');
 
   const result = await writeArtifactsTo(writer, opts.agent, opts.human, {
     /* Conditional-spread because exactOptionalPropertyTypes rejects
@@ -101,6 +107,7 @@ export async function writeBrowserArtifacts(
     ...(opts.snapshotRetention !== undefined && { snapshotRetention: opts.snapshotRetention }),
     ...(opts.memoryBody !== undefined && { memoryBody: opts.memoryBody }),
     ...(prevPackBody !== undefined && { prevPackBody }),
+    ...(prevAgentBody !== undefined && { prevAgentBody }),
   });
 
   return {
@@ -108,6 +115,7 @@ export async function writeBrowserArtifacts(
     humanName: result.humanName,
     packName: result.packName,
     diffName: result.diffName,
+    ...(result.diffSkipped !== undefined && { diffSkipped: result.diffSkipped }),
     jsonlName: result.jsonlName,
     memoryName: result.memoryName,
     snapshotName: result.snapshotName,
@@ -161,7 +169,9 @@ export async function writeBrowserSkills(opts: BrowserSkillsOptions): Promise<Br
     opts.formats ?? (ALL_FORMATS as SkillFormatId[]),
     /* AGENTS.md is a cross-tool standard teams often hand-author — don't
        overwrite an existing one on Save unless it was explicitly requested
-       via `formats`. The other rules files are FACTS-managed and refresh. */
+       via `formats`. `.cursorrules` / Copilot refresh only when they carry
+       the FACTS-managed marker (read back through FsaFileWriter.readText);
+       a hand-written one is kept. */
     { preserveExisting: opts.formats === undefined ? ['agents'] : [] },
   );
   return {

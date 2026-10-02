@@ -83,6 +83,18 @@ export function buildRationale(
   const out: Rationale[] = [];
   for (const f of files) {
     const fileNodes = nodesByFile.get(f.path) ?? [];
+    /* `id` is the table's primary key (the pack diff throws on a duplicate).
+       Several declarations can share a start line — `export const x = 1,
+       y = 2` under one doc comment, a one-line getter/setter pair, minified
+       code — so a colliding id gains the symbol name, then an ordinal. The
+       first keeps today's id, so existing ids stay stable. */
+    const used = new Set<string>();
+    const uniqueId = (base: string, name: string): string => {
+      let id = used.has(base) ? `${base}:${name}` : base;
+      for (let n = 2; used.has(id); n++) id = `${base}:${name}:${n}`;
+      used.add(id);
+      return id;
+    };
 
     // 1. TODO-family comments → innermost enclosing symbol (or file-level).
     for (const t of f.todos ?? []) {
@@ -90,7 +102,7 @@ export function buildRationale(
       if (!text) continue;
       const sym = enclosing(fileNodes, t.line);
       out.push({
-        id: `${f.path}@${t.line}#${t.kind.toLowerCase()}`,
+        id: uniqueId(`${f.path}@${t.line}#${t.kind.toLowerCase()}`, t.kind.toLowerCase()),
         symbol: sym ? sym.id : null,
         file: f.path,
         line: t.line,
@@ -106,7 +118,7 @@ export function buildRationale(
       const text = cap(d.docstring);
       if (!text) return;
       out.push({
-        id: `${f.path}@${d.startLine}#docstring`,
+        id: uniqueId(`${f.path}@${d.startLine}#docstring`, d.name),
         symbol: symbolId(f.path, d.name, d.startLine),
         file: f.path,
         line: d.startLine,

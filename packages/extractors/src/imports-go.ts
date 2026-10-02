@@ -176,7 +176,7 @@ function braceEnd(lines: string[], start: number): number {
 }
 
 /**
- * Strip `//` line comments and `/* ... *​/` block comments while preserving
+ * Strip `//` line comments and slash-star block comments while preserving
  * line count. String literals ("..." and `...` raw strings, '.' runes) are
  * tracked so a comment marker inside one never eats the rest of the line;
  * their CONTENTS are kept verbatim by default (import paths are strings) or

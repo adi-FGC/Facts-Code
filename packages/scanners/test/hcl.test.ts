@@ -109,4 +109,76 @@ resource "aws_s3_bucket" "data" { name = local_file.config.filename }`;
       expect.objectContaining({ fromName: 'data', toName: 'config' }),
     );
   });
+
+  // SCN-10 — the string ended at the first NESTED quote, so `/*` in the
+  // interpolation's inner string opened a comment that ate the rest of the file.
+  it('keeps resources after a legacy interpolation with a nested quoted "/*"', () => {
+    const tf = `resource "aws_s3_bucket" "b" {
+  bucket = "data"
+}
+resource "aws_iam_policy" "p" {
+  policy = "\${format("arn:aws:s3:::%s/*", aws_s3_bucket.b.id)}"
+}
+resource "aws_iam_role" "r" {
+  name = "role-{\${aws_iam_policy.p.name}}"
+}
+resource "aws_lambda_function" "fn" {
+  role = aws_iam_role.r.arn
+  note = "literal $\${not.interp} and \\"escaped\\""
+}`;
+    const r = parseHcl(tf);
+    expect(r.resources.map((x) => `${x.type}.${x.name}`)).toEqual([
+      'aws_s3_bucket.b',
+      'aws_iam_policy.p',
+      'aws_iam_role.r',
+      'aws_lambda_function.fn',
+    ]);
+    expect(r.dependencies.map((d) => `${d.fromName}->${d.toName}@${d.line}`)).toEqual([
+      'p->b@5',
+      'r->p@8',
+      'fn->r@11',
+    ]);
+  });
+});
+
+/* SCN-REV-1 — the string/template scan recursed once per nested `"${`, so a
+   few thousand levels overflowed the stack and aborted the whole analyze. */
+describe('parseHcl — deeply nested templates', () => {
+  it('does not throw on 10k unterminated nested "${', () => {
+    const tf = 'resource "a" "b" {\n  x = ' + '"${'.repeat(10_000);
+    expect(() => parseHcl(tf)).not.toThrow();
+  });
+
+  it('keeps the resources around a 10k-deep balanced nest', () => {
+    const d = 10_000;
+    const nest = '"${f('.repeat(d) + 'x' + ')}"'.repeat(d);
+    const tf = `resource "a" "b" {\n  x = ${nest}\n}\nresource "c" "d" {\n  y = a.b.id\n}`;
+    const r = parseHcl(tf);
+    expect(r.resources.map((x) => `${x.type}.${x.name}@${x.line}`)).toEqual(['a.b@1', 'c.d@4']);
+    expect(r.dependencies.map((x) => `${x.fromName}->${x.toName}@${x.line}`)).toEqual(['d->b@5']);
+  });
+});
+
+/* SCN-09 — each resource's and reference's line re-counted from offset 0. */
+describe('parseHcl — near-linear on large files', () => {
+  it('parses ~1 MB of generated Terraform quickly, lines intact', () => {
+    const parts: string[] = [];
+    for (let i = 0; i < 6000; i++) {
+      const prev =
+        i > 0 ? `  subnet_id = aws_subnet.s${i - 1}.id\n  vpc_id    = aws_vpc.v${i - 1}.id\n` : '';
+      parts.push(
+        `resource "aws_subnet" "s${i}" {\n${prev}  cidr_block = "10.0.0.0/24"\n  tags = { Name = "subnet-${i}" }\n}\nresource "aws_vpc" "v${i}" {\n  cidr_block = "10.${i % 250}.0.0/16"\n}`,
+      );
+    }
+    const tf = parts.join('\n');
+    expect(tf.length).toBeGreaterThan(900_000);
+    const t0 = performance.now();
+    const r = parseHcl(tf);
+    const ms = performance.now() - t0;
+    expect(r.resources).toHaveLength(12000);
+    expect(r.dependencies).toHaveLength(2 * 5999);
+    const last = r.resources[11998]!; // aws_subnet.s5999
+    expect(last.line).toBe(tf.split('\n').indexOf('resource "aws_subnet" "s5999" {') + 1);
+    expect(ms).toBeLessThan(3000);
+  });
 });

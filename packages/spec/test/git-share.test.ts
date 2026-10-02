@@ -109,7 +109,7 @@ describe('shareableDataset — the one scrub for the site and `factstack export`
 
   it('never substitutes a bare drive or filesystem root', () => {
     expect(localPathSubs('/home').map(([f]) => f)).toEqual([]);
-    expect(localPathSubs('D:\\x').map(([f]) => f)).toEqual(['D:/x', 'D:\\x']);
+    expect(localPathSubs('D:\\x').map(([f]) => f)).toEqual(['D:/x', '/d/x', 'D:\\x']);
   });
 
   it('never mutates its input', () => {
@@ -133,6 +133,22 @@ describe('shareableDataset — every spelling of a local path', () => {
 
   it('matches Windows drive paths case-insensitively', () => {
     expect(scrub('built in d:\\DEV\\App\\WT\\apps')).toBe('built in .\\apps');
+  });
+
+  /* Regression: Git Bash prints a drive path as /d/dev/…, and only the
+     D:/… and D:\… spellings were rewritten, so a doc quoting a path the way
+     this machine's shell prints it shipped the root and its parent as-is. */
+  it('catches the Git Bash (MSYS) spelling of the root, its parent and every checkout', () => {
+    expect(scrub('cd /d/dev/app/wt/src && ls /d/dev/app/other')).toBe('cd ./src && ls ../other');
+    expect(scrub('see /D/Dev/App/WT/README')).toBe('see ./README');
+    const { data } = shareableDataset({ note: `cloned at /d/elsewhere/acme-hotfix/x` }, MAIN);
+    expect(data.note).toBe('cloned at /d/elsewhere/acme-hotfix/x'); // no git: not a checkout here
+    const withGit = shareableDataset(
+      { note: 'cloned at /d/elsewhere/acme-hotfix/x', git: topology() },
+      MAIN,
+    );
+    expect(withGit.data.note).toBe('cloned at «checkout 2»/x');
+    expect(scrub('/d/dev/app/wt-2 stays')).toBe('../wt-2 stays');
   });
 
   it('stops at a name boundary — /repo never eats the front of /repo-2', () => {

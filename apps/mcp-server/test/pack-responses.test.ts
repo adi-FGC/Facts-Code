@@ -8,9 +8,10 @@ import {
   type SubgraphLike,
   type ContextLike,
 } from '../src/pack-responses.js';
-import type { AgentArtifact, SymbolNode, SymbolEdge } from '@factstack/spec';
+import type { SymbolNode, SymbolEdge } from '@factstack/spec';
 import type { QueryResult } from '@factstack/core';
 import type { ExtractedSymbol } from '@factstack/extractors';
+import { makeArtifact } from './helpers/artifact.js';
 
 /**
  * Unit coverage for the pure FactsPack converters in `src/pack-responses.ts`.
@@ -59,29 +60,6 @@ function sedge(
 
 function fileNode(path: string) {
   return { id: path, path, language: 'typescript', loc: 10, tokenCost: 50, status: 'ok' as const };
-}
-
-function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
-  return {
-    $schema: 'https://factstack.dev/schema/agent.v1.json',
-    factsVersion: '0.1.0',
-    generatedAt: SNAP,
-    project: {
-      name: 't',
-      root: '/t',
-      languages: [],
-      frameworks: [],
-      entryPoints: [],
-      monorepo: null,
-    },
-    files: [],
-    graph: { nodes: [], edges: [], cycles: [], symbolNodes: [], symbolEdges: [], ...graph },
-    routes: [],
-    scripts: {},
-    capabilities: [],
-    risks: [],
-    stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
-  } as AgentArtifact;
 }
 
 /** Pull a decoded table by name, failing loudly if the converter dropped it. */
@@ -271,24 +249,24 @@ function citationAnchor(row: (string | null)[]): string {
  */
 describe('verbResultNodes', () => {
   it('flattens + dedups + sorts cycles (string[][])', () => {
-    const r = {
+    const r: QueryResult = {
       verb: 'cycles',
       count: 2,
       results: [
         ['b.ts', 'a.ts'],
         ['a.ts', 'c.ts'],
       ],
-    } as unknown as QueryResult;
+    };
     expect(verbResultNodes(r)).toEqual(['a.ts', 'b.ts', 'c.ts']);
   });
 
   it('passes through a flat string list (orphans / path-between)', () => {
-    const r = { verb: 'orphans', count: 2, results: ['x.ts', 'y.ts'] } as unknown as QueryResult;
+    const r: QueryResult = { verb: 'orphans', count: 2, results: ['x.ts', 'y.ts'] };
     expect(verbResultNodes(r)).toEqual(['x.ts', 'y.ts']);
   });
 
   it('is empty-safe for a non-array result', () => {
-    const r = { verb: 'orphans', count: 0, results: undefined } as unknown as QueryResult;
+    const r: QueryResult = { verb: 'orphans', count: 0, results: undefined };
     expect(verbResultNodes(r)).toEqual([]);
   });
 });

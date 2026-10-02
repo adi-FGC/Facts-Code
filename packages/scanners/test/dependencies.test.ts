@@ -9,15 +9,14 @@
  *     the OSV-query layer, not the scanner layer
  *   - detectManifestEcosystem dispatch correctness across basenames
  *   - non-npm ecosystems detected but emit empty deps (MVP scope)
- *   - flattenManifests dedupe + provenance preservation
+ *
+ * Dedupe + scope of the OSV query list lives in buildOsvQueries
+ * (test/vulnerabilities.test.ts).
  */
 
 import { describe, expect, it } from 'vitest';
-import {
-  scanDependencyManifest,
-  detectManifestEcosystem,
-  flattenManifests,
-} from '../src/dependencies.js';
+import { scanDependencyManifest, detectManifestEcosystem } from '../src/dependencies.js';
+import { buildOsvQueries } from '../src/vulnerabilities.js';
 
 describe('detectManifestEcosystem', () => {
   it('maps known basenames to ecosystems', () => {
@@ -78,6 +77,29 @@ describe('scanDependencyManifest — npm (package.json)', () => {
       react: '^18.0.0',
       fsevents: '^2.0.0',
     });
+  });
+
+  it('SCN-P2-06: a peer also in devDependencies stays dev-only; a dependencies range beats a peer range', () => {
+    const text = JSON.stringify({
+      name: 'lib',
+      dependencies: { core: '^2.0.0' },
+      peerDependencies: { react: '>=17', core: '^1.0.0 || ^2.0.0', vue: '^3.0.0' },
+      devDependencies: { react: '^18.2.0' },
+    });
+    const m = scanDependencyManifest('package.json', text)!;
+    expect(m.dependencies).toEqual({ core: '^2.0.0', vue: '^3.0.0' });
+    expect(m.devDependencies).toEqual({ react: '^18.2.0' });
+    // …so the CVE scan tags react `dev` (shown, not graded); a peer-only dep stays direct.
+    const { queries } = buildOsvQueries([m]);
+    const find = (name: string) => queries.find((x) => x.name === name);
+    expect(find('react')).toMatchObject({ version: '18.2.0', scope: 'dev' });
+    expect(find('vue')).toMatchObject({ version: '3.0.0', scope: 'direct' });
+    expect(find('core')).toMatchObject({ version: '2.0.0', scope: 'direct' });
+  });
+
+  it('ignores a non-object peerDependencies value', () => {
+    const m = scanDependencyManifest('package.json', JSON.stringify({ peerDependencies: 'x' }));
+    expect(m!.dependencies).toEqual({});
   });
 
   it('returns nulls for missing name/version (root workspaces)', () => {
@@ -188,83 +210,5 @@ describe('scanDependencyManifest — non-npm ecosystems', () => {
   it('returns null for unknown file types', () => {
     expect(scanDependencyManifest('LICENSE', 'MIT')).toBeNull();
     expect(scanDependencyManifest('src/index.ts', 'export {}')).toBeNull();
-  });
-});
-
-describe('flattenManifests — dedupe + provenance', () => {
-  it('emits one entry per (ecosystem, name, version) across manifests', () => {
-    /* In a monorepo with consistent versioning, the same dep shows up
-       in every workspace package's manifest. flattenManifests collapses
-       these to a single OSV query while preserving which manifests
-       declared it. */
-    const manifests = [
-      {
-        path: 'package.json',
-        ecosystem: 'npm' as const,
-        name: null,
-        version: null,
-        dependencies: { lodash: '4.17.21' },
-        devDependencies: {},
-      },
-      {
-        path: 'apps/cli/package.json',
-        ecosystem: 'npm' as const,
-        name: '@x/cli',
-        version: '1.0.0',
-        dependencies: { lodash: '4.17.21' },
-        devDependencies: {},
-      },
-    ];
-    const flat = flattenManifests(manifests);
-    expect(flat).toHaveLength(1);
-    expect(flat[0]!.name).toBe('lodash');
-    expect(flat[0]!.version).toBe('4.17.21');
-    expect(flat[0]!.manifestPaths).toEqual(['package.json', 'apps/cli/package.json']);
-  });
-
-  it('emits separate entries for different versions of the same package', () => {
-    /* This is the OSV-relevant case — `react@17` and `react@18` are
-       distinct queries. Provenance still tracked per-version. */
-    const manifests = [
-      {
-        path: 'a/package.json',
-        ecosystem: 'npm' as const,
-        name: null,
-        version: null,
-        dependencies: { react: '17.0.0' },
-        devDependencies: {},
-      },
-      {
-        path: 'b/package.json',
-        ecosystem: 'npm' as const,
-        name: null,
-        version: null,
-        dependencies: { react: '18.0.0' },
-        devDependencies: {},
-      },
-    ];
-    const flat = flattenManifests(manifests);
-    expect(flat).toHaveLength(2);
-    const versions = flat.map((e) => e.version).sort();
-    expect(versions).toEqual(['17.0.0', '18.0.0']);
-  });
-
-  it('walks both deps and devDeps', () => {
-    const manifests = [
-      {
-        path: 'package.json',
-        ecosystem: 'npm' as const,
-        name: null,
-        version: null,
-        dependencies: { express: '4.0.0' },
-        devDependencies: { vitest: '4.0.0' },
-      },
-    ];
-    const flat = flattenManifests(manifests);
-    expect(flat.map((e) => e.name).sort()).toEqual(['express', 'vitest']);
-  });
-
-  it('returns empty array for empty input', () => {
-    expect(flattenManifests([])).toEqual([]);
   });
 });

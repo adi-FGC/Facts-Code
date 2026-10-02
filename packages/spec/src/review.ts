@@ -15,7 +15,7 @@
  * Additive-only within a major version, same contract as agent/human/diff.
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 import { FACTS_SCHEMA_VERSION } from './agent.js';
 import { DiffEndpointSchema } from './diff.js';
 
@@ -92,7 +92,9 @@ export const ChangeVerdictSchema = z.object({
   generatedAt: z.string(),
   from: DiffEndpointSchema,
   to: DiffEndpointSchema,
-  /** Rolled-up severity = the max finding severity, or `none`. */
+  /** Rolled-up severity = the max GRADED finding severity, or `none`. A
+   *  listed-only dev/transitive advisory finding never raises it (see the
+   *  severity model below). */
   severity: ReviewSeveritySchema,
   /** One-line, severity-prefixed summary suitable for a PR-comment title. */
   headline: z.string(),
@@ -111,12 +113,19 @@ export type ChangeVerdict = z.infer<typeof ChangeVerdictSchema>;
 // bundle from pulling the whole analyzer just to reuse a handful of constants.
 //
 //   - A leaked secret is the worst thing a change can add → `high`.
-//   - A new vulnerability inherits the advisory's own severity.
+//   - A new vulnerability reached through a DIRECT dependency (or an
+//     unlabelled legacy row, `Vulnerability.scope` absent) inherits the
+//     advisory's own severity.
+//   - A new advisory reached only through `dev` or `transitive` dependencies
+//     (`Vulnerability.scope`) is LISTED — one `low` finding, appended after
+//     the roll-up — but never sets the verdict level: shown, not graded, the
+//     same rule the health score applies (owner decision 2026-09-24).
 //   - A new dependency cycle is a structural regression → `medium`.
 //   - A widely-depended-on file (big blast radius) is a `medium` caution at
 //     HOTSPOT_MEDIUM transitive dependents, a `low` note at HOTSPOT_LOW.
 //   - Any other net-new risk finding → `low`.
-//   - The rolled-up verdict severity is the MAX finding severity.
+//   - The rolled-up verdict severity is the MAX GRADED finding severity
+//     (`rollupSeverity` runs before the listed-only finding is appended).
 
 /* The severity constants + helpers live in `review-severity.ts` (zod-free,
    so the dashboard can import them without dragging the schemas into first

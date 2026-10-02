@@ -1,14 +1,18 @@
 ###############################################################################
 # Netlify configuration — FACTS public demo
 #
-# What gets deployed: the Remix v3 React app at `apps/ui-remix/`.
+# What gets deployed: the Remix v3 app at `apps/ui-remix/` (its own VDOM
+# runtime, not React). The primary host is Cloudflare Pages
+# (factstack.pages.dev, docs/DEPLOY.md); this Netlify site is an older
+# mirror (its live build predates 2026-09-23 — see docs/DEPLOY.md § Netlify).
 # The legacy single-file prototype lives at `legacy/prototype/` and is
 # no longer the deploy target — it's reference material while the new
 # app finishes porting (see apps/ui-remix/TASKS.md).
 #
 # The hosted demo is read-only — no /api/reanalyze, no SSE, no /api/file.
-# Visitors get FACTS's own analysis baked into the HTML at build time
-# (78 KB inline). The CLI (`factstack ui /your/project`) remains the
+# Visitors get FACTS's own analysis baked into index.html at build time
+# (~700 KB inline; doc bodies load on demand from /data/docs/, see
+# inject-data.mjs). The CLI (`factstack ui /your/project`) remains the
 # live, interactive entry point with re-analyze + watch.
 ###############################################################################
 
@@ -18,11 +22,16 @@ publish = "apps/ui-remix/dist"
 # `pnpm install` + filtered build keeps the deploy fast — Netlify
 # caches node_modules between runs and only rebuilds the @factstack
 # workspace deps the UI app actually consumes.
-# OPD-3: pin the same pnpm CI validates (package.json packageManager: 11.3.0)
+# OPD-3: pin the same pnpm CI validates (package.json packageManager: 12.8.1)
 # so Netlify's frozen-lockfile install matches. OPD-5: build:static emits no
 # source maps (the default `build` mode does), so production doesn't publicly
 # serve the full TypeScript source — matching the Cloudflare deploy.
-command = "corepack enable && corepack use pnpm@11.3.0 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static"
+# The trailing `gen-fb-config.mjs --require` is the publish gate deploy:cf
+# has too: build:static only WARNS when no Firebase web config is found, and
+# a site published without dist/mcp-auth-config.json breaks MCP sign-in. fb.mjs
+# is gitignored, so this site needs FACTS_FB_WEB_CONFIG in its Netlify env;
+# without it the build fails and Netlify keeps serving the previous deploy.
+command = "corepack enable && corepack use pnpm@12.8.1 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static && node apps/ui-remix/scripts/gen-fb-config.mjs --require"
 
 [build.environment]
 # Pin Node high enough for Remix v3 + Vite 8. Remix 3 requires >=24.3.0.
@@ -33,18 +42,23 @@ NODE_VERSION = "24"
 #   - HTML stays uncached so Remix-app updates ship instantly. The inline
 #     dataset is embedded in /index.html; same rule applies.
 #   - Hashed asset URLs (Vite emits `assets/index-*.js` with content hashes)
-#     are immutable and get the long-term cache.
+#     and the content-addressed dataset sections (/data/sections/*) are
+#     immutable and get the long-term cache.
 ###############################################################################
 
 [[headers]]
 for = "/*.html"
 [headers.values]
-# must-revalidate keeps a redeploy instant; stale-while-revalidate lets a
-# returning visitor paint from cache in the same second while the browser
-# checks for a newer bake in the background. MUST match
-# apps/ui-remix/public/_headers — the build guard enforces CSP parity but
-# NOT cache parity, so this one drifts silently.
-Cache-Control = "public, max-age=0, must-revalidate, stale-while-revalidate=604800"
+# must-revalidate keeps a redeploy instant. No stale-while-revalidate: next to
+# must-revalidate it never applies (HTML_CACHE_CONTROL in
+# apps/ui-remix/scripts/lib/cf-headers.mjs). Mirrors the `/*.html` rule in
+# apps/ui-remix/public/_headers. Clean URLs (`/`, `/review`) never match
+# `/*.html`: their cache rules are generated into dist/_headers
+# (generate-discovery.mjs), which Netlify applies too, under this file — so
+# they are deliberately NOT repeated here. check-bundle-size.mjs simulates
+# both hosts (apps/ui-remix/scripts/lib/cf-headers.mjs + netlify-headers.mjs)
+# and fails the build when any path's Cache-Control or CSP differs between them.
+Cache-Control = "public, max-age=0, must-revalidate"
 
 # Self-hosted woff2 (apps/ui-remix/src/styles/fonts.css). Content never changes
 # under a given name — replacing a face means a new filename, not new bytes.
@@ -75,6 +89,14 @@ Content-Type = "application/manifest+json"
 for = "/data/*"
 [headers.values]
 Cache-Control = "public, max-age=0, must-revalidate"
+# Content-addressed dataset sections (performance#5; written only by
+# `inject-data.mjs --split-sections`, off by default): a name never gets new
+# bytes, so immutable. Mirrors the /data/sections/* rule in _headers; BELOW
+# /data/* so its Cache-Control replaces that rule's (later value wins here).
+[[headers]]
+for = "/data/sections/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
 
 ###############################################################################
 # Security headers — baseline hardening; the SPA doesn't accept any
@@ -104,19 +126,31 @@ Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none
 
 # Scoped CSP for the MCP Google sign-in page ONLY (Firebase SDK from gstatic +
 # Google popup + POST to the local loopback). Kept separate so the main app CSP
-# above stays strict. Must stay byte-equal to the /mcp-auth.html block in
+# above stays strict. Must stay byte-equal to the /mcp-auth* blocks in
 # apps/ui-remix/public/_headers — check-bundle-size.mjs enforces the parity.
-# (Netlify serves .html verbatim, so unlike _headers there is no /mcp-auth
-# clean-URL block here; that key is Cloudflare-only.)
+#
+# BOTH keys, and both BELOW `/*`: Netlify serves the page at `/mcp-auth.html`
+# and at the clean `/mcp-auth`, and for the same header a later netlify.toml
+# rule replaces an earlier one — and netlify.toml replaces dist/_headers. With
+# only the .html key here, `/*` above overrode the _headers /mcp-auth block and
+# the clean URL got the strict app CSP, which blocks the Firebase SDK (seen
+# live 2026-09-24). apps/ui-remix/scripts/lib/netlify-headers.mjs models this; the build
+# fails if either URL would get anything but the scoped policy.
 [[headers]]
 for = "/mcp-auth.html"
 [headers.values]
 Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com"
 
+[[headers]]
+for = "/mcp-auth"
+[headers.values]
+Content-Security-Policy = "default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.googleapis.com http://127.0.0.1:* http://localhost:*; frame-src https://facts-stack.firebaseapp.com https://accounts.google.com"
+
 ###############################################################################
-# SPA-style fallback: client-side routing in React Router v7 owns paths
-# like /graph, /files, /library, etc. Unknown paths serve index.html so
-# the router can take over.
+# SPA-style fallback: the app's client-side router (src/lib/routes.ts) owns
+# paths like /review, /files, /docs, etc. Unknown paths serve index.html so
+# the router can take over. Not forced, so an existing file (the data,
+# /mcp-auth-config.json, /mcp-auth.html) is always served as itself.
 ###############################################################################
 
 [[redirects]]

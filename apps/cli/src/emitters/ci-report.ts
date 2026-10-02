@@ -62,17 +62,60 @@ export interface CiReportDiagram {
   focus?: string;
 }
 
-export function renderCiReport(
-  diff: DiffArtifact,
-  opts: { diagram?: CiReportDiagram } = {},
-): string {
+/** One finding class compared one by one (core `diffFindings`): counts plus
+ *  the FILE PATHS of the new ones — never a value or a preview. */
+export interface CiFindingDelta {
+  new: number;
+  fixed: number;
+  newFiles: string[];
+}
+
+/**
+ * Set-based finding deltas between two FULL artifacts. A net count hides a
+ * swap — one leaked key removed, another added reads as "0 change" — so when
+ * the CLI can compare findings (neither endpoint is a stats-only snapshot
+ * rollup) it passes these and the headline uses them.
+ */
+export interface CiReportFindings {
+  /** Exposed secrets only (the graded set). */
+  secrets: CiFindingDelta;
+  /** Every other finding except import cycles. */
+  risks: CiFindingDelta;
+  /** Exposed secrets in files both sides have that cannot be graded — the
+   *  two sides were scanned under different secret rules — with the reason
+   *  (a clause). Present only when non-empty. Listed and headlined, never
+   *  read as "no change". */
+  ungradedSecrets?: CiFindingDelta & { reason: string };
+}
+
+export interface CiReportOptions {
+  diagram?: CiReportDiagram;
+  findings?: CiReportFindings;
+  /** An endpoint is a snapshot rollup, which carries no CVE list: the
+   *  vulnerability delta is unknown, not "everything is new" (correctness#2). */
+  vulnsUnavailable?: boolean;
+  /** The severity shift the headline grades. Owner decision 2026-09-24:
+   *  dev/transitive advisories are listed, not graded, so the CLI passes the
+   *  shift over direct runtime advisories only (cli-r3-2). Defaults to
+   *  `diff.vulns.severityShift`. */
+  gradedShift?: number;
+  /** Listed-but-not-graded advisory IDs → their note (e.g. "transitive:
+   *  shown, not graded"). Plain text the CLI builds from fixed wording. */
+  notGraded?: Readonly<Record<string, string>>;
+}
+
+export function renderCiReport(diff: DiffArtifact, opts: CiReportOptions = {}): string {
   const lines: string[] = [];
-  const shift = diff.vulns.severityShift;
+  const vulnsUnavailable = opts.vulnsUnavailable === true;
+  const shift = vulnsUnavailable ? 0 : (opts.gradedShift ?? diff.vulns.severityShift);
+  const notGraded = opts.notGraded ?? {};
+  const vulnItem = (id: string): string =>
+    Object.hasOwn(notGraded, id) ? `- ${codeSpan(id)} — ${notGraded[id]}` : `- ${codeSpan(id)}`;
 
   /* ── Header ──────────────────────────────────────────────────── */
-  lines.push(`## FACTS diff — ${pickVerdict(diff)}`);
+  lines.push(`## FACTS diff — ${pickVerdict(diff, opts)}`);
   lines.push('');
-  lines.push(`Comparing \`${diff.from.at}\` → \`${diff.to.at}\``);
+  lines.push(`Comparing ${codeSpan(diff.from.at)} → ${codeSpan(diff.to.at)}`);
   lines.push('');
 
   /* ── Headline stats table ───────────────────────────────────── */
@@ -84,21 +127,53 @@ export function renderCiReport(
   lines.push(row('Risks', diff.stats.risks));
   lines.push(row('TODOs', diff.stats.todos));
   lines.push(row('Secrets', diff.stats.secrets));
-  lines.push(row('Vulnerabilities', diff.stats.vulns));
+  lines.push(
+    vulnsUnavailable
+      ? `| Vulnerabilities | n/a | ${diff.stats.vulns.after} | n/a |`
+      : row('Vulnerabilities', diff.stats.vulns),
+  );
   lines.push('');
+
+  /* ── Finding detail (set-based) ────────────────────────────────
+   *
+   * Only when the CLI could compare findings one by one. Paths only. */
+  const f = opts.findings;
+  const u = f?.ungradedSecrets;
+  const ungradedChanged = u !== undefined && (u.new > 0 || u.fixed > 0);
+  if (f && (f.secrets.new || f.secrets.fixed || f.risks.new || f.risks.fixed || ungradedChanged)) {
+    lines.push('### Findings');
+    lines.push('');
+    lines.push(`- **Secrets:** ${findingLine(f.secrets)}`);
+    if (ungradedChanged) {
+      lines.push(
+        `- **Secrets in existing files — not graded** (${u.reason}; re-save the baseline with a full \`factstack analyze\`): ${findingLine(u)}`,
+      );
+    }
+    lines.push(`- **Other risks:** ${findingLine(f.risks)}`);
+    lines.push('');
+  }
 
   /* ── Vulnerability detail ──────────────────────────────────────
    *
    * Show new/fixed ID sets and the shift score. This is the most
    * dependency-vulnerable surface a PR can change, so we list IDs
-   * explicitly (capped) rather than just counts. */
-  if (diff.vulns.new.length > 0 || diff.vulns.fixed.length > 0 || shift !== 0) {
+   * explicitly (capped) rather than just counts. A snapshot endpoint has
+   * no CVE list, so there is nothing to compare — say so. */
+  if (vulnsUnavailable) {
+    lines.push('### Vulnerability changes');
+    lines.push('');
+    lines.push(
+      '_Vulnerability diff unavailable — one endpoint is a snapshot rollup, which records no CVE list. ' +
+        'Compare two full `agent.json` files (e.g. `.facts/baseline/agent.json`)._',
+    );
+    lines.push('');
+  } else if (diff.vulns.new.length > 0 || diff.vulns.fixed.length > 0 || shift !== 0) {
     lines.push('### Vulnerability changes');
     lines.push('');
     if (diff.vulns.new.length > 0) {
       lines.push(`**New (${diff.vulns.new.length}):**`);
       for (const id of diff.vulns.new.slice(0, VULN_LIST_CAP)) {
-        lines.push(`- \`${escapeInlineCode(id)}\``);
+        lines.push(vulnItem(id));
       }
       if (diff.vulns.new.length > VULN_LIST_CAP) {
         lines.push(`- _…${diff.vulns.new.length - VULN_LIST_CAP} more (see diff.json)_`);
@@ -108,7 +183,7 @@ export function renderCiReport(
     if (diff.vulns.fixed.length > 0) {
       lines.push(`**Fixed (${diff.vulns.fixed.length}):**`);
       for (const id of diff.vulns.fixed.slice(0, VULN_LIST_CAP)) {
-        lines.push(`- \`${escapeInlineCode(id)}\``);
+        lines.push(vulnItem(id));
       }
       if (diff.vulns.fixed.length > VULN_LIST_CAP) {
         lines.push(`- _…${diff.vulns.fixed.length - VULN_LIST_CAP} more (see diff.json)_`);
@@ -120,7 +195,13 @@ export function renderCiReport(
      * advisory mid-flight. */
     if (diff.vulns.new.length === 0 && diff.vulns.fixed.length === 0 && shift !== 0) {
       lines.push(
-        `_Severity reclassification on existing advisories shifted the score by ${shift >= 0 ? '+' : ''}${shift}._`,
+        `_Severity reclassification (or a scope change) on existing advisories shifted the graded score by ${shift >= 0 ? '+' : ''}${shift}._`,
+      );
+      lines.push('');
+    }
+    if (Object.keys(notGraded).length > 0) {
+      lines.push(
+        '_Advisories on dev or transitive dependencies are listed, not graded — they do not move the severity shift._',
       );
       lines.push('');
     }
@@ -141,12 +222,18 @@ export function renderCiReport(
     lines.push('');
     lines.push(renderDiagramLede(opts.diagram));
     lines.push('');
-    lines.push('```mermaid');
     /* Strip trailing newline from the Mermaid source — we add our
      * own after the closing fence so there's exactly one blank line
      * before the files block. */
-    lines.push(opts.diagram.source.replace(/\n+$/, ''));
-    lines.push('```');
+    const source = opts.diagram.source.replace(/\n+$/, '');
+    /* Labels come from file paths, and a path can hold a newline and
+     * a run of backticks. Fence with a run longer than any in the source, so
+     * no line of it can close the block and leave attacker markdown live in
+     * the PR comment (the code-span rule codeSpan applies, for blocks). */
+    const fence = '`'.repeat(Math.max(3, longestBacktickRun(source) + 1));
+    lines.push(`${fence}mermaid`);
+    lines.push(source);
+    lines.push(fence);
     lines.push('');
   }
 
@@ -177,7 +264,7 @@ export function renderCiReport(
     if (diff.files.added.length > 0) {
       lines.push('**Added:**');
       for (const p of diff.files.added.slice(0, FILE_LIST_CAP)) {
-        lines.push(`- \`${p}\``);
+        lines.push(`- ${codeSpan(p)}`);
       }
       if (diff.files.added.length > FILE_LIST_CAP) {
         lines.push(`- _…${diff.files.added.length - FILE_LIST_CAP} more_`);
@@ -187,7 +274,7 @@ export function renderCiReport(
     if (diff.files.removed.length > 0) {
       lines.push('**Removed:**');
       for (const p of diff.files.removed.slice(0, FILE_LIST_CAP)) {
-        lines.push(`- \`${p}\``);
+        lines.push(`- ${codeSpan(p)}`);
       }
       if (diff.files.removed.length > FILE_LIST_CAP) {
         lines.push(`- _…${diff.files.removed.length - FILE_LIST_CAP} more_`);
@@ -200,7 +287,7 @@ export function renderCiReport(
       lines.push('**Changed (top by token delta):**');
       for (const c of diff.files.changed.slice(0, FILE_LIST_CAP)) {
         lines.push(
-          `- \`${escapeInlineCode(c.path)}\` — LOC ${signed(c.locDelta)}, tokens ${signed(c.tokenDelta)}`,
+          `- ${codeSpan(c.path)} — LOC ${signed(c.locDelta)}, tokens ${signed(c.tokenDelta)}`,
         );
       }
       if (diff.files.changed.length > FILE_LIST_CAP) {
@@ -224,22 +311,44 @@ export function renderCiReport(
 /* ─────────── helpers ─────────── */
 
 /** Pick the headline verdict based on severity-shift sign with a
- *  risk-count fallback. Reviewer scans this first; everything else is
+ *  risk fallback. Reviewer scans this first; everything else is
  *  detail. Extracted from a 4-level nested ternary that was hard to
- *  read at a glance. */
-function pickVerdict(diff: DiffArtifact): string {
-  const shift = diff.vulns.severityShift;
+ *  read at a glance. With set-based findings a swapped secret (one new,
+ *  one fixed) still reads as "new risks" — a net count called it 0. */
+function pickVerdict(diff: DiffArtifact, opts: CiReportOptions): string {
+  const unavailable = opts.vulnsUnavailable === true;
+  const shift = unavailable ? 0 : (opts.gradedShift ?? diff.vulns.severityShift);
   if (shift > 0) return `⚠️ Risk surface grew (severity shift **+${shift}**)`;
   if (shift < 0) return `✅ Risk surface improved (severity shift **${shift}**)`;
-  /* Shift is 0 — fall back to non-vuln risk deltas so a new TODO or
-   * hardcoded secret still surfaces in the headline. */
-  if (diff.stats.risks.delta > 0 || diff.stats.secrets.delta > 0) {
-    return `⚠️ New risks introduced (no vuln severity change)`;
-  }
-  if (diff.stats.risks.delta < 0 || diff.stats.secrets.delta < 0) {
-    return `✅ Risks cleaned up`;
-  }
-  return `✓ No risk-surface change`;
+  /* Shift is 0 (or unknown) — fall back to non-vuln findings so a new TODO
+   * or hardcoded secret still surfaces in the headline. */
+  const f = opts.findings;
+  const added = f ? f.secrets.new + f.risks.new : undefined;
+  const fixed = f ? f.secrets.fixed + f.risks.fixed : undefined;
+  const grew =
+    added !== undefined ? added > 0 : diff.stats.risks.delta > 0 || diff.stats.secrets.delta > 0;
+  const shrank =
+    fixed !== undefined ? fixed > 0 : diff.stats.risks.delta < 0 || diff.stats.secrets.delta < 0;
+  const vulnNote = unavailable ? 'vuln diff unavailable' : 'no vuln severity change';
+  /* Secrets core could not grade (the sides were scanned under
+   * different rules) are a change too — never "no risk-surface change". */
+  const u = f?.ungradedSecrets;
+  const ungraded = u ? `⚠️ Secrets changed in existing files — not graded (${u.reason})` : '';
+  if (grew) return `⚠️ New risks introduced (${vulnNote})`;
+  if (u && u.new > 0) return ungraded;
+  if (shrank) return `✅ Risks cleaned up`;
+  if (u && u.fixed > 0) return ungraded;
+  return unavailable
+    ? `✓ No risk-surface change (vuln diff unavailable)`
+    : `✓ No risk-surface change`;
+}
+
+/** "2 new (`a.ts`, `b.ts`), 1 fixed" — paths only, capped. */
+function findingLine(d: CiFindingDelta): string {
+  const files = d.newFiles.slice(0, FILE_LIST_CAP).map(codeSpan);
+  const more =
+    d.newFiles.length > FILE_LIST_CAP ? `, …${d.newFiles.length - FILE_LIST_CAP} more` : '';
+  return `${d.new} new${files.length ? ` (${files.join(', ')}${more})` : ''}, ${d.fixed} fixed`;
 }
 
 /** Format a signed integer for display: `+5`, `-3`, `0`. Used by both
@@ -249,13 +358,26 @@ function signed(n: number): string {
   return n > 0 ? `+${n}` : String(n);
 }
 
-/** Escape backticks in user-supplied strings before embedding them in
- *  inline-code markdown spans. A vuln ID or file path containing a
- *  literal `` ` `` would otherwise terminate the code span and
- *  scramble the rest of the line. Backslash-escape is the GFM-safe
- *  approach. */
-function escapeInlineCode(s: string): string {
-  return s.replace(/`/g, '\\`');
+/**
+ * A CommonMark code span that holds `s` VERBATIM (CLI-08). Backslash escapes
+ * do not work inside code spans, so a path like ``src/x`@team`.ts`` used to
+ * close the span early and render a live @mention or link in the PR comment.
+ * Instead: fence with one more backtick than the longest run inside, pad with
+ * a space when `s` starts or ends with a backtick (CommonMark strips exactly
+ * one), and fold line breaks (a code span cannot cross a list item).
+ */
+export function codeSpan(s: string): string {
+  const text = String(s).replaceAll(/[\r\n]+/g, ' ');
+  const fence = '`'.repeat(longestBacktickRun(text) + 1);
+  const pad = text.startsWith('`') || text.endsWith('`') ? ' ' : '';
+  return `${fence}${pad}${text}${pad}${fence}`;
+}
+
+/** Length of the longest run of backticks in `s` (0 when none). */
+function longestBacktickRun(s: string): number {
+  let longest = 0;
+  for (const run of s.match(/`+/g) ?? []) longest = Math.max(longest, run.length);
+  return longest;
 }
 
 /** One-line description of what the embedded diagram is showing.
@@ -268,7 +390,7 @@ function renderDiagramLede(d: CiReportDiagram): string {
       return '_Top hubs view_ — most-imported files + their direct importers.';
     case 'focal':
       return d.focus
-        ? `_Focal view_ — callers of \`${escapeInlineCode(d.focus)}\` (this PR's primary change site).`
+        ? `_Focal view_ — callers of ${codeSpan(d.focus)} (this PR's primary change site).`
         : "_Focal view_ — caller graph rooted on this PR's primary change.";
   }
 }

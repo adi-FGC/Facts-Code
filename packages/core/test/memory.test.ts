@@ -23,7 +23,13 @@ import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
 
 // ── Fixture builders (mirror diff.test.ts pattern) ────────────────────
 
-function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
+type Graph = AgentArtifact['graph'];
+/** Fixture overrides: `graph` may omit the schema-defaulted F2/F11 arrays. */
+type AgentOverrides = Omit<Partial<AgentArtifact>, 'graph'> & {
+  graph?: Pick<Graph, 'nodes' | 'edges' | 'cycles'> & Partial<Graph>;
+};
+
+function makeAgent({ graph, ...overrides }: AgentOverrides = {}): AgentArtifact {
   return {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
@@ -37,14 +43,47 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+      ...graph,
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
     ...overrides,
-  } as AgentArtifact;
+  };
+}
+
+/** A graph node with only what buildMemory could read; importance/community absent. */
+function node(path: string): Graph['nodes'][number] {
+  return { id: path, path, language: 'typescript', loc: 10, tokenCost: 100, status: 'ok' };
+}
+
+/** An import edge (plain by default), extracted (the only confidence an import edge carries). */
+function edge(
+  from: string,
+  to: string,
+  kind: Graph['edges'][number]['kind'] = 'import',
+): Graph['edges'][number] {
+  return { from, to, kind, confidence: 'extracted' };
+}
+
+/** UTF-8 byte length without Node's Buffer: the test program has no
+ *  @types/node (the package is isomorphic, INV1). */
+function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length;
 }
 
 function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
@@ -225,8 +264,8 @@ describe('buildMemory — section presence + ordering', () => {
           file('src/util.ts', 'typescript', 50, 500),
         ],
         graph: {
-          nodes: [{ id: 'src/index.ts' }, { id: 'src/util.ts' }],
-          edges: [{ from: 'src/util.ts', to: 'src/index.ts', kind: 'import' }],
+          nodes: [node('src/index.ts'), node('src/util.ts')],
+          edges: [edge('src/util.ts', 'src/index.ts')],
           cycles: [],
         },
         routes: [
@@ -432,12 +471,8 @@ describe('buildMemory — content correctness', () => {
           file('d.ts', 'typescript', 10, 100),
         ],
         graph: {
-          nodes: [{ id: 'a.ts' }, { id: 'b.ts' }, { id: 'c.ts' }, { id: 'd.ts' }],
-          edges: [
-            { from: 'c.ts', to: 'a.ts', kind: 'import' },
-            { from: 'c.ts', to: 'b.ts', kind: 'import' },
-            { from: 'd.ts', to: 'a.ts', kind: 'import' },
-          ],
+          nodes: [node('a.ts'), node('b.ts'), node('c.ts'), node('d.ts')],
+          edges: [edge('c.ts', 'a.ts'), edge('c.ts', 'b.ts'), edge('d.ts', 'a.ts')],
           cycles: [],
         },
       }),
@@ -704,7 +739,7 @@ describe('buildMemory — determinism', () => {
 describe('buildMemory — length budgets', () => {
   it('empty fixture renders under 2 KB', () => {
     const out = buildMemory(makeAgent(), makeHuman());
-    expect(Buffer.byteLength(out, 'utf8')).toBeLessThan(2 * 1024);
+    expect(byteLength(out)).toBeLessThan(2 * 1024);
   });
 
   it('large fixture (200 files, 30 frameworks, 50 risks) stays under 10 KB', () => {
@@ -742,7 +777,7 @@ describe('buildMemory — length budgets', () => {
       }),
       makeHuman({ activity }),
     );
-    expect(Buffer.byteLength(out, 'utf8')).toBeLessThan(10 * 1024);
+    expect(byteLength(out)).toBeLessThan(10 * 1024);
   });
 });
 
@@ -916,5 +951,25 @@ describe('buildMemory — Working context (F9)', () => {
     expect(out).toContain('\\[click me\\]');
     expect(out).toContain('\\`rm -rf\\`');
     expect(out).toContain('\\<img src=x\\>');
+  });
+});
+
+describe('buildMemory — "imported by N" counts importing files (HUNT-CORE-16)', () => {
+  it('counts a type import + a value import from one file once', () => {
+    const agent = makeAgent({
+      files: [
+        file('a.ts', 'typescript', 5, 20),
+        file('b.ts', 'typescript', 5, 20),
+        file('c.ts', 'typescript', 5, 20),
+      ],
+      graph: {
+        nodes: [node('a.ts'), node('b.ts'), node('c.ts')],
+        edges: [edge('a.ts', 'b.ts', 'type-import'), edge('a.ts', 'b.ts'), edge('c.ts', 'b.ts')],
+        cycles: [],
+      },
+    });
+    const out = buildMemory(agent, makeHuman());
+    expect(out).toContain('`b.ts` (imported by 2');
+    expect(out).not.toContain('(imported by 3');
   });
 });

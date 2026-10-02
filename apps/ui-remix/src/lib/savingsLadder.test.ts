@@ -55,12 +55,52 @@ describe('ordering and readouts', () => {
     expect(layout.rows.map((r) => r.id)).toEqual(['cheap', 'mid', 'dear']);
   });
 
-  it('reports the saving as the gap between the two costs', () => {
+  it('reports the gap between the two costs on this read', () => {
     const layout = computeSavingsLadder([m('x', 10)], project, opts);
     const row = layout.rows[0]!;
     expect(row.fullCost).toBeCloseTo(14, 6); // 1.4M tok * $10/M
     expect(row.artifactCost).toBeCloseTo(0.58, 6); // 58k tok * $10/M
     expect(row.savedCost).toBeCloseTo(13.42, 6);
+  });
+
+  it('prints both figures, in legend order, so nothing needs a hover', () => {
+    const row = computeSavingsLadder([m('x', 10)], project, opts).rows[0]!;
+    expect(row.fullText).toBe('$14.00');
+    expect(row.artifactText).toBe('$0.58');
+    expect(row.valueText).toBe('$14.00 vs $0.58');
+  });
+
+  it('gives a stacked layout the full width, since its readout sits on the label line', () => {
+    const side = computeSavingsLadder([m('a', 1), m('b', 10)], project, { width: 380 });
+    const stacked = computeSavingsLadder([m('a', 1), m('b', 10)], project, {
+      width: 380,
+      stacked: true,
+    });
+    expect(stacked.plotLeft).toBe(0);
+    expect(stacked.plotRight).toBe(380);
+    expect(side.plotRight).toBeLessThan(380);
+  });
+
+  it('puts the axis title below the tick labels, inside the drawing', () => {
+    for (const o of [opts, { width: 380, stacked: true }]) {
+      const layout = computeSavingsLadder([m('a', 1), m('b', 10)], project, o);
+      expect(layout.tickY).toBeGreaterThan(layout.plotBottom);
+      for (const t of layout.axisTitle) {
+        expect(t.y).toBeGreaterThan(layout.tickY);
+        expect(layout.height).toBeGreaterThan(t.y);
+      }
+    }
+  });
+
+  it('keeps every axis-title line inside the chart width, phones included', () => {
+    // Mono at --fs-10 (~10.4px) advances ~0.6em per character. A line wider
+    // than the drawing is clipped at both ends on a phone.
+    const charW = 10.4 * 0.6;
+    for (const o of [opts, { width: 380, stacked: true }]) {
+      const layout = computeSavingsLadder([m('a', 1), m('b', 10)], project, o);
+      const plot = layout.plotRight - layout.plotLeft;
+      for (const t of layout.axisTitle) expect(t.text.length * charW, t.text).toBeLessThan(plot);
+    }
   });
 
   it('flags a price that is not from a primary vendor source', () => {
@@ -122,27 +162,20 @@ describe('degenerate inputs produce geometry, not NaN', () => {
   });
 });
 
-describe('the computed finding', () => {
-  it('counts how many models were dearer on the repo than the dearest is on the artifact', () => {
-    // artifact costs: 0.0087 / 0.116 / 0.58 ; full costs: 0.21 / 2.8 / 14.
-    // Dearest artifact cost is $0.58, so only b ($2.80) and c ($14.00) were
-    // dearer on the whole codebase — a's whole-repo run ($0.21) genuinely was
-    // cheaper. The count must be 2 of 3, not a flattering 3 of 3.
-    const layout = computeSavingsLadder([m('a', 0.15), m('b', 2), m('c', 10)], project, opts);
-    expect(layout.crossover).not.toBeNull();
-    expect(layout.crossover!.caption).toContain('2 of 3');
-  });
-
-  it('states no finding when the artifact beats nothing', () => {
-    const flat = { fullTokens: 1000, artifactTokens: 1000 };
-    const layout = computeSavingsLadder([m('a', 1)], flat, opts);
-    expect(layout.crossover).toBeNull();
-  });
-
+describe('the summary', () => {
   it('describes the whole chart for a screen reader', () => {
     const layout = computeSavingsLadder([m('a', 1), m('b', 10), m('c', null)], project, opts);
     expect(layout.ariaSummary).toMatch(/2 priced models/);
     expect(layout.ariaSummary).toMatch(/publishes? no per-token price/);
+  });
+
+  it('names the figures as minimums and says what the artifact side leaves out', () => {
+    // The artifact side excludes the files the change touches, so the summary
+    // must not present the gap as the saving, or say "N times less".
+    const s = computeSavingsLadder([m('a', 1), m('b', 10)], project, opts).ariaSummary;
+    expect(s).toContain('Minimum cost to read this project once before a change request');
+    expect(s).toContain('plus the files the change touches');
+    expect(s).not.toMatch(/times less|saves/);
   });
 
   it('pluralises the model and vendor counts too', () => {

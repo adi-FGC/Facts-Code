@@ -9,9 +9,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { inferIntent, joinList } from '../src/index.js';
+import { aOrAn, inferIntent, joinList } from '../src/index.js';
 import type { AgentArtifact, HumanArtifact } from '@factstack/spec';
-import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
+import { AgentArtifactSchema, FACTS_SCHEMA_VERSION, HumanArtifactSchema } from '@factstack/spec';
 
 function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
   const base: AgentArtifact = {
@@ -27,12 +27,24 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [], callerIndex: {}, workspaces: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
   };
   /* Deep-merge `project` so callers can override just one field
      (e.g. frameworks) without restating the whole project block. */
@@ -44,8 +56,8 @@ function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact {
 }
 
 function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
-  const base = {
-    $schema: 'https://factstack.dev/schema/human.v1.json' as const,
+  const base: HumanArtifact = {
+    $schema: 'https://factstack.dev/schema/human.v1.json',
     factsVersion: FACTS_SCHEMA_VERSION,
     generatedAt: '2026-05-02T12:00:00.000Z',
     summary: {
@@ -55,13 +67,41 @@ function makeHuman(overrides: Partial<HumanArtifact> = {}): HumanArtifact {
       health: { broken: 0, stale: 0, todos: 0, secrets: 0, headline: '' },
     },
     stack: [],
-    tree: { name: '.', path: '.', kind: 'dir' as const, children: [] },
-    graph: { nodes: [], edges: [], cycles: [], callerIndex: {}, workspaces: [] },
+    tree: {
+      id: '.',
+      name: '.',
+      path: '.',
+      kind: 'directory',
+      language: null,
+      loc: 0,
+      tokenCost: 0,
+      bundleSizeGzip: null,
+      status: 'ok',
+      children: [],
+    },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     activity: [],
     risks: [],
   };
-  return { ...base, ...overrides } as HumanArtifact;
+  return { ...base, ...overrides };
 }
+
+describe('test fixtures', () => {
+  /* "Minimal but valid" (header) is checked, not assumed: a stale key or a
+     wrong enum here would otherwise hide behind the TS types. */
+  it('makeAgent and makeHuman build schema-valid artifacts', () => {
+    expect(AgentArtifactSchema.safeParse(makeAgent()).error).toBeUndefined();
+    expect(HumanArtifactSchema.safeParse(makeHuman()).error).toBeUndefined();
+  });
+});
 
 describe('inferIntent — null branches (no signal)', () => {
   it('returns null for an empty project (no frameworks, no files)', () => {
@@ -208,7 +248,7 @@ describe('inferIntent — JS server frameworks', () => {
         },
       ],
     });
-    expect(inferIntent(agent, makeHuman())).toBe('A Express application with 2 routes.');
+    expect(inferIntent(agent, makeHuman())).toBe('An Express application with 2 routes.');
   });
 
   it('Next.js application with routes', () => {
@@ -396,9 +436,57 @@ describe('inferIntent — monorepo', () => {
         },
       ],
     });
+    // correctness#55: the brand keeps its casing and the phrase its article.
     expect(inferIntent(agent, makeHuman())).toBe(
-      'A turbo monorepo with fastAPI service with 1 route.',
+      'A turbo monorepo with a FastAPI service with 1 route.',
     );
+  });
+
+  it('keeps brand casing and picks a/an by sound in the monorepo sentence (correctness#55)', () => {
+    const mono = (manager: string, frameworks: string[], files: string[] = []) =>
+      makeAgent({
+        project: {
+          name: 'mono',
+          root: '.',
+          languages: [],
+          frameworks,
+          entryPoints: [],
+          monorepo: { manager, workspaces: [] },
+        } as AgentArtifact['project'],
+        files: files.map((path) => ({ path })) as unknown as AgentArtifact['files'],
+      });
+    expect(inferIntent(mono('pnpm', ['Vite', 'React']), makeHuman())).toBe(
+      'A pnpm monorepo with a Vite-built React UI.',
+    );
+    expect(inferIntent(mono('nx', ['Astro']), makeHuman())).toBe(
+      'An nx monorepo with an Astro UI.',
+    );
+    expect(inferIntent(mono('npm', [], ['src/cli.ts']), makeHuman())).toBe(
+      'An npm monorepo with a Node CLI tool.',
+    );
+    expect(inferIntent(mono('nx', [], ['apps/cli/src/main.ts']), makeHuman())).toBe(
+      'An nx monorepo containing a CLI.',
+    );
+  });
+});
+
+describe('aOrAn (correctness#55)', () => {
+  it.each([
+    ['Express application', 'an'],
+    ['Astro UI', 'an'],
+    ['MCP server', 'an'],
+    ['HTTP API', 'an'],
+    ['nx', 'an'],
+    ['npm', 'an'],
+    ['UI', 'a'],
+    ['CLI', 'a'],
+    ['pnpm', 'a'],
+    ['FastAPI service', 'a'],
+    ['Next.js application', 'a'],
+    ['esbuild-built Vue UI', 'an'],
+    ['user flow', 'a'],
+  ])('%s → %s', (phrase, article) => {
+    expect(aOrAn(phrase)).toBe(article);
   });
 });
 

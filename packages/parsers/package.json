@@ -15,9 +15,9 @@
   },
   "dependencies": {
     "@factstack/spec": "workspace:*",
-    "web-tree-sitter": "^0.24.3"
+    "web-tree-sitter": "^0.27.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0"
+    "typescript": "^6.0.3"
   }
 }

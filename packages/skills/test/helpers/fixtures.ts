@@ -24,7 +24,17 @@ export function makeAgent(overrides: Partial<AgentArtifact> = {}): AgentArtifact
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    /* The schema-defaulted graph arrays are present on every parsed artifact,
+       so tests that spread this graph get the full typed shape. */
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     routes: [],
     scripts: {},
     capabilities: [],

@@ -7,6 +7,12 @@
 
 **Last updated**: 2026-05-01 (after `67e3b48` GitHub source + Supabase persistence; revised by [`plan.md`](./plan.md) feasibility analysis)
 
+**Code paths (2026-09-24)**: the file lists below follow the current layout. Each CLI command is
+a module in `apps/cli/src/commands/` that `apps/cli/src/cli.ts` registers; MCP tools live in
+`apps/mcp-server/src/create-server.ts` (`server.ts` is only the stdio bin). The old
+`prototype/index.html` is `legacy/prototype/index.html` now and the hosted dashboard is
+`apps/ui-remix`, so UI items still aimed at the prototype need re-targeting before they are built.
+
 ---
 
 ## Current state
@@ -62,8 +68,8 @@ Every later phase assumes these. Violate any one and the bug-to-PR loop won't cl
 ```
 packages/core/src/memory.ts          (NEW — generates the markdown)
 packages/core/src/index.ts           (call memory generator at end of analyze())
-apps/cli/src/cli.ts                  (NEW subcommand: `factstack memory init` / `regen`)
-apps/mcp-server/src/server.ts        (NEW MCP tool: read_memory())
+apps/cli/src/commands/memory.ts      (NEW subcommand: `factstack memory init` / `regen`)
+apps/mcp-server/src/create-server.ts (NEW MCP tool: read_memory())
 packages/core/test/memory.test.ts    (NEW — pure-function tests)
 ```
 
@@ -88,7 +94,7 @@ packages/core/test/memory.test.ts    (NEW — pure-function tests)
 
 ```
 packages/core/src/since.ts           (NEW — diff against snapshot or previous artifact)
-apps/mcp-server/src/server.ts        (NEW MCP tool: since(timestamp))
+apps/mcp-server/src/create-server.ts (NEW MCP tool: since(timestamp))
 packages/core/test/since.test.ts     (NEW — multiple-snapshot fixtures)
 ```
 
@@ -112,7 +118,7 @@ packages/core/test/since.test.ts     (NEW — multiple-snapshot fixtures)
 
 ```
 packages/core/src/agents.ts          (NEW — read/write agent session files)
-apps/mcp-server/src/server.ts        (NEW: register_agent, log_decision tools)
+apps/mcp-server/src/create-server.ts (NEW: register_agent, log_decision tools)
 packages/core/test/agents.test.ts
 ```
 
@@ -136,7 +142,7 @@ packages/core/test/agents.test.ts
 
 ```
 packages/core/src/learnings.ts       (NEW — append + query helpers)
-apps/mcp-server/src/server.ts        (NEW MCP tool: log_learning, query_learnings)
+apps/mcp-server/src/create-server.ts (NEW MCP tool: log_learning, query_learnings)
 packages/core/test/learnings.test.ts
 ```
 
@@ -196,7 +202,7 @@ packages/graph/test/symbol-graph.test.ts
 packages/extractors/src/config-schema.ts (NEW — env-var + Zod/Pydantic detector)
 packages/spec/src/agent.ts               (NEW top-level `config: { envVars: EnvVar[], schemas: ConfigSchema[] }`)
 prototype/index.html                     (Config tab gets a "Required env vars" panel)
-apps/mcp-server/src/server.ts            (NEW MCP tool: get_config)
+apps/mcp-server/src/create-server.ts     (NEW MCP tool: get_config)
 packages/extractors/test/config-schema.test.ts
 ```
 
@@ -226,7 +232,7 @@ packages/extractors/test/config-schema.test.ts
 packages/graph/src/test-coverage.ts     (NEW — walks import graph from test files)
 packages/spec/src/agent.ts              (NEW top-level `testCoverage: { [subject]: testFile[] }`)
 prototype/index.html                    (Tests tab: per-test "covers N files" + per-file "tested by")
-apps/mcp-server/src/server.ts           (NEW MCP tool: tests_for(filePath))
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: tests_for(filePath))
 packages/graph/test/test-coverage.test.ts
 ```
 
@@ -327,8 +333,8 @@ packages/core/test/role.test.ts
 
 ```
 packages/emit/src/docs.ts            (NEW — markdown generator)
-apps/cli/src/cli.ts                  (NEW subcommand: `factstack docs`)
-apps/mcp-server/src/server.ts        (NEW MCP tool: read_docs())
+apps/cli/src/commands/docs.ts        (NEW subcommand: `factstack docs`)
+apps/mcp-server/src/create-server.ts (NEW MCP tool: read_docs())
 packages/emit/test/docs.test.ts
 ```
 
@@ -357,7 +363,7 @@ packages/scanners/src/dependencies.ts   (NEW — registry + OSV API client)
 packages/scanners/src/index.ts          (export new scanner)
 packages/core/src/index.ts              (call dependency scanner during analyze)
 prototype/index.html                    (NEW Supply Chain tab)
-apps/mcp-server/src/server.ts           (NEW MCP tool: dependency_risks())
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: dependency_risks())
 packages/scanners/test/dependencies.test.ts (with mocked HTTP)
 ```
 
@@ -413,7 +419,7 @@ packages/scanners/test/taint.test.ts
 packages/scanners/src/staleness.ts      (NEW — git blame + pattern comparison)
 packages/fs-node/src/git.ts             (extend mineGitStats with AI-author detection)
 prototype/index.html                    (Staleness section in Risks tab)
-apps/mcp-server/src/server.ts           (NEW MCP tool: staleness_report())
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: staleness_report())
 packages/scanners/test/staleness.test.ts
 ```
 
@@ -443,7 +449,7 @@ packages/scanners/test/staleness.test.ts
 ```
 packages/graph/src/api-surface.ts        (NEW — classifies exports as public/private)
 packages/spec/src/agent.ts               (extend exports with `visibility: 'public' | 'private'`)
-apps/mcp-server/src/server.ts            (NEW MCP tool: unused(scope?))
+apps/mcp-server/src/create-server.ts     (NEW MCP tool: unused(scope?))
 prototype/index.html                     (Library tab: gray out private exports; new Dead Code map under Files breakdown)
 packages/graph/test/api-surface.test.ts
 ```
@@ -472,7 +478,7 @@ packages/graph/test/api-surface.test.ts
 
 ```
 packages/core/src/impact.ts             (uses graph + symbols + callers from v0.3.5)
-apps/mcp-server/src/server.ts           (NEW MCP tool: impact_of)
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: impact_of)
 packages/core/test/impact.test.ts
 ```
 
@@ -500,7 +506,7 @@ packages/core/test/impact.test.ts
 
 ```
 packages/core/src/examples.ts           (NEW — symbol → ranked usage list)
-apps/mcp-server/src/server.ts           (NEW MCP tool: find_examples(api, n=5))
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: find_examples(api, n=5))
 prototype/index.html                    (when a symbol is selected: "How it's used" inline panel)
 packages/core/test/examples.test.ts
 ```
@@ -526,7 +532,7 @@ packages/core/test/examples.test.ts
 
 ```
 packages/scanners/src/risk-explain.ts   (NEW — rule registry + per-rule explainer fns)
-apps/mcp-server/src/server.ts           (NEW MCP tool: risk_explain(ruleId, filePath))
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: risk_explain(ruleId, filePath))
 prototype/index.html                    (Risks tab: each row gets a "Why?" disclosure)
 packages/scanners/test/risk-explain.test.ts
 ```
@@ -553,7 +559,7 @@ packages/scanners/test/risk-explain.test.ts
 
 ```
 packages/core/src/arch-lint.ts          (NEW — rule loader + graph evaluator)
-apps/cli/src/cli.ts                     (NEW subcommand: `factstack lint` exits non-zero on violations)
+apps/cli/src/commands/lint.ts           (NEW subcommand: `factstack lint` exits non-zero on violations)
 .facts/rules.toml.example               (NEW — sample rules)
 packages/core/test/arch-lint.test.ts
 ```
@@ -647,7 +653,7 @@ Per [`plan.md`](./plan.md): cheaply unlocked once v0.3.5 symbol graph lands, so 
 
 ```
 packages/core/src/conventions.ts       (NEW — sample-based pattern inference)
-apps/mcp-server/src/server.ts          (NEW MCP tool: code_conventions)
+apps/mcp-server/src/create-server.ts   (NEW MCP tool: code_conventions)
 packages/core/test/conventions.test.ts
 ```
 
@@ -673,7 +679,7 @@ Where should I add this? + Just-the-neighborhood query.
 ```
 packages/core/src/suggest.ts           (NEW — path-frequency + role match)
 packages/core/src/neighborhood.ts      (NEW — focus + N-hop graph query)
-apps/mcp-server/src/server.ts          (NEW MCP tools)
+apps/mcp-server/src/create-server.ts   (NEW MCP tools)
 ```
 
 **Definition of done**:
@@ -696,7 +702,7 @@ Project-defined types as plain shapes. Pulls from TS interfaces, Zod, Prisma, Py
 
 ```
 packages/extractors/src/data-shapes.ts  (NEW — extracts type defs across formats)
-apps/mcp-server/src/server.ts           (NEW MCP tool: data_shapes())
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: data_shapes())
 packages/extractors/test/data-shapes.test.ts
 ```
 
@@ -720,7 +726,7 @@ packages/extractors/test/data-shapes.test.ts
 
 ```
 packages/core/src/trace-data.ts        (NEW — graph traversal between two anchors)
-apps/mcp-server/src/server.ts          (NEW MCP tool: trace_data(from, to))
+apps/mcp-server/src/create-server.ts   (NEW MCP tool: trace_data(from, to))
 packages/core/test/trace-data.test.ts
 ```
 
@@ -746,7 +752,7 @@ packages/core/test/trace-data.test.ts
 ```
 packages/core/src/tour.ts              (NEW — pick stops by churn + role + edge centrality)
 prototype/index.html                   (NEW Tour tab + per-stop "next" navigation)
-apps/mcp-server/src/server.ts          (NEW MCP tool: get_tour())
+apps/mcp-server/src/create-server.ts   (NEW MCP tool: get_tour())
 packages/core/test/tour.test.ts
 ```
 
@@ -773,7 +779,7 @@ packages/core/test/tour.test.ts
 packages/scanners/src/pr-archaeology.ts (NEW — git log → PR numbers + GH API fetch)
 packages/spec/src/agent.ts              (extend FileOutline with `recentPRs: PRRef[]`)
 prototype/index.html                    (file outline header: "Last edited in PR #1241")
-apps/mcp-server/src/server.ts           (NEW MCP tool: prs_for(filePath))
+apps/mcp-server/src/create-server.ts    (NEW MCP tool: prs_for(filePath))
 packages/scanners/test/pr-archaeology.test.ts (mocked HTTP)
 ```
 
@@ -826,7 +832,7 @@ packages/scanners/test/clones.test.ts
 
 ```
 packages/core/src/semantic-diff.ts     (NEW — pair declarations across snapshots; classify the change)
-apps/cli/src/cli.ts                    (extend `factstack diff --semantic`)
+apps/cli/src/commands/diff.ts          (extend `factstack diff --semantic`)
 prototype/index.html                   (History tab: per-file semantic-diff view)
 packages/core/test/semantic-diff.test.ts
 ```
@@ -855,7 +861,7 @@ packages/extractors/src/openapi-server.ts (NEW — derive OpenAPI from route han
 packages/extractors/src/openapi-client.ts (NEW — derive expected shapes from call sites)
 packages/scanners/src/spec-drift.ts       (NEW — diff the two specs)
 prototype/index.html                      (Routes tab: drift indicator per route)
-apps/mcp-server/src/server.ts             (NEW MCP tool: spec_drift())
+apps/mcp-server/src/create-server.ts      (NEW MCP tool: spec_drift())
 packages/scanners/test/spec-drift.test.ts
 ```
 
@@ -882,7 +888,7 @@ The optional second mode for ARCHITECTURE.md generation: an LLM pass that drafts
 
 ```
 packages/emit/src/docs-llm.ts          (NEW — LLM client + prompt templates)
-apps/cli/src/cli.ts                    (NEW: `factstack docs --llm` flag)
+apps/cli/src/commands/docs.ts          (NEW: `factstack docs --llm` flag)
 .facts/config.json                     (LLM provider + key configuration)
 packages/emit/test/docs-llm.test.ts    (mocked LLM responses)
 ```
@@ -929,8 +935,8 @@ packages/emit/test/docs-llm.test.ts    (mocked LLM responses)
 
 ```
 packages/core/src/tickets.ts            (NEW — file-based store)
-apps/cli/src/cli.ts                     (NEW commands: tickets create/list/show)
-apps/mcp-server/src/server.ts           (NEW MCP tools: list_tickets, show_ticket, create_ticket)
+apps/cli/src/commands/tickets.ts        (NEW commands: tickets create/list/show)
+apps/mcp-server/src/create-server.ts    (NEW MCP tools: list_tickets, show_ticket, create_ticket)
 .facts/tickets/                         (NEW directory — JSON-per-ticket)
 packages/spec/src/ticket.ts             (NEW Zod schema)
 packages/core/test/tickets.test.ts
@@ -978,7 +984,7 @@ This is THE unknown — depends on AI capability and how much sandboxing you acc
 
 ```
 packages/core/src/reproduce.ts          (NEW — orchestrator: ticket → test draft)
-apps/cli/src/cli.ts                     (NEW: `factstack bug verify <ticket-id>`)
+apps/cli/src/commands/bug.ts            (NEW: `factstack bug verify <ticket-id>`)
 .facts/sandbox/                         (NEW — runs tests in isolation)
 ```
 
@@ -1004,7 +1010,7 @@ apps/cli/src/cli.ts                     (NEW: `factstack bug verify <ticket-id>`
 
 ```
 packages/core/src/propose-fix.ts        (NEW — orchestrator)
-apps/cli/src/cli.ts                     (NEW: `factstack bug fix <ticket-id>`)
+apps/cli/src/commands/bug.ts            (NEW: `factstack bug fix <ticket-id>`)
 ```
 
 **Definition of done**:

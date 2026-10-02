@@ -1,6 +1,10 @@
 /**
- * FACTS MCP auth — one-time Google sign-in, so each user's MCP data
- * (learnings, usage) is stored PRIVATELY per-identity in Firebase Firestore.
+ * FACTS MCP auth — an OPTIONAL one-time Google sign-in that turns on the
+ * cloud mirror of learnings (a private per-account Firestore subtree).
+ *
+ * Owner decision 2026-09-24: sign-in is optional. Every local tool and
+ * resource works signed out; the session is consulted only by the mirror, so
+ * a signed-out, offline or expired user never loses a local tool.
  *
  * Why this shape: this environment can't install the `firebase` SDK (broken
  * pnpm workspace), so we avoid it entirely. The browser does the Google
@@ -21,23 +25,65 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
+import { MCP_NPM_PACKAGE, MCP_NPX, MCP_PUBLISHED } from '@factstack/spec';
 
-/** Hosted page that runs the Google popup + POSTs the ID token to the loopback. */
-const AUTH_PAGE = process.env.FACTS_AUTH_URL || 'https://factstack-demo.netlify.app/mcp-auth.html';
+/** Hosted page that runs the Google popup + POSTs the ID token to the loopback.
+ *  Stays on the Netlify host until the Cloudflare /mcp-auth page and its
+ *  config JSON are live (deploy-infra#1, owner call); FACTS_AUTH_URL overrides. */
+const DEFAULT_AUTH_PAGE = 'https://factstack-demo.netlify.app/mcp-auth.html';
+
+/** Read per call so an env override set after import (tests) still applies. */
+function authPage(): string {
+  return process.env.FACTS_AUTH_URL || DEFAULT_AUTH_PAGE;
+}
+
+/** Every network call here is bounded: a black-holed network must not hang
+ *  the tool call that is waiting on the (optional) cloud mirror. */
+const NET_TIMEOUT_MS = 5_000;
+
+/** The one sign-in command, derived from the published npx pair. */
+export const LOGIN_COMMAND = `${MCP_NPX} login`;
+
+/** Whether `factstack-mcp` is on npm yet: @factstack/spec's one flag, which
+ *  the registry's `mcp.published` reads too (the owner flips it on publish).
+ *  Until then no hint offers the npx form as runnable: the name is unclaimed,
+ *  and an agent running `npx -y` on it would install whatever claimed it,
+ *  unprompted (MCP-R4). */
+export { MCP_PUBLISHED };
+
+/** The sign-in to actually run today: the npx one once published, else the
+ *  from-a-clone launch (the registry's `mcp.cloneLaunchCommand` + `login`). */
+export const SIGN_IN_COMMAND = MCP_PUBLISHED
+  ? LOGIN_COMMAND
+  : 'npx tsx apps/mcp-server/src/server.ts login';
+
+/** Short, honest hint for the optional cloud sync. */
+export function loginHint(): string {
+  const what =
+    `signs in with Google to mirror learnings to your private account. ` +
+    `Every local tool works without it.`;
+  return MCP_PUBLISHED
+    ? `Optional: \`${SIGN_IN_COMMAND}\` ${what}`
+    : `Optional: \`${SIGN_IN_COMMAND}\` (from a clone of the FACTS repo) ${what} ` +
+        `${MCP_NPM_PACKAGE} is not on npm yet, so \`${LOGIN_COMMAND}\` won't work until it is published.`;
+}
 
 /**
  * Fetch the PUBLIC Firebase web config (apiKey + projectId) from the deployed
  * auth origin — the same `/mcp-auth-config.json` the sign-in page reads, built
  * from the owner's local (gitignored) fb.mjs. Kept out of this repo; a fresh
  * clone needs no local config because it reads it from the live site. Cached
- * after the first successful fetch. Null on failure → callers fail closed.
+ * after the first successful fetch. Null on failure (including an HTML SPA
+ * fallback, which fails the JSON parse) → the mirror pauses.
  */
 let _fbConfig: { apiKey: string; projectId: string } | null = null;
 async function getFbConfig(): Promise<{ apiKey: string; projectId: string } | null> {
   if (_fbConfig) return _fbConfig;
   try {
-    const origin = new URL(AUTH_PAGE).origin;
-    const res = await fetch(`${origin}/mcp-auth-config.json`);
+    const origin = new URL(authPage()).origin;
+    const res = await fetch(`${origin}/mcp-auth-config.json`, {
+      signal: AbortSignal.timeout(NET_TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const j = (await res.json()) as { apiKey?: string; projectId?: string };
     if (!j.apiKey || !j.projectId) return null;
@@ -48,8 +94,14 @@ async function getFbConfig(): Promise<{ apiKey: string; projectId: string } | nu
   }
 }
 
-const AUTH_DIR = join(homedir(), '.factstack');
-const AUTH_FILE = join(AUTH_DIR, 'auth.json');
+/** `$FACTS_HOME`, else `~/.factstack`. Read per call so tests can isolate it. */
+function authDir(): string {
+  return process.env.FACTS_HOME || join(homedir(), '.factstack');
+}
+
+function authFile(): string {
+  return join(authDir(), 'auth.json');
+}
 
 export interface Session {
   uid: string;
@@ -62,72 +114,86 @@ export interface Session {
 
 export function loadSession(): Session | null {
   try {
-    if (!existsSync(AUTH_FILE)) return null;
-    return JSON.parse(readFileSync(AUTH_FILE, 'utf8')) as Session;
+    const file = authFile();
+    if (!existsSync(file)) return null;
+    const s = JSON.parse(readFileSync(file, 'utf8')) as Partial<Session> | null;
+    // A hand-edited or truncated file is "signed out", not a crash later on.
+    if (
+      !s ||
+      typeof s.uid !== 'string' ||
+      typeof s.idToken !== 'string' ||
+      typeof s.refreshToken !== 'string'
+    ) {
+      return null;
+    }
+    return {
+      uid: s.uid,
+      email: typeof s.email === 'string' ? s.email : null,
+      idToken: s.idToken,
+      refreshToken: s.refreshToken,
+      expiresAt: Number.isFinite(s.expiresAt) ? (s.expiresAt as number) : 0,
+    };
   } catch {
     return null;
   }
 }
 
 function saveSession(s: Session): void {
-  mkdirSync(AUTH_DIR, { recursive: true });
+  mkdirSync(authDir(), { recursive: true });
   // 0o600: token file readable only by the owner.
-  writeFileSync(AUTH_FILE, JSON.stringify(s, null, 2), { mode: 0o600 });
+  writeFileSync(authFile(), JSON.stringify(s, null, 2), { mode: 0o600 });
 }
 
+/** Where the optional cloud mirror stands. `paused` = signed in, but the token
+ *  could not be refreshed right now (offline, auth host unreachable, revoked):
+ *  local tools are unaffected and the mirror resumes once refresh works. */
+export type CloudSession =
+  | { state: 'signed-out' }
+  | { state: 'paused'; reason: string }
+  | { state: 'ready'; session: Session };
+
 /**
- * Return a session with a fresh ID token, refreshing via the Secure Token REST
- * endpoint when the current one is near expiry. Null when not signed in / the
- * refresh token is dead (the caller should then prompt `login`).
+ * Resolve the cloud-mirror session, refreshing the ID token via the Secure
+ * Token REST endpoint when it is near expiry. Never throws.
  */
-export async function validSession(): Promise<Session | null> {
+export async function cloudSession(): Promise<CloudSession> {
   const s = loadSession();
-  if (!s) return null;
-  if (Date.now() < s.expiresAt - 60_000) return s; // still fresh (60s skew)
+  if (!s) return { state: 'signed-out' };
+  if (Date.now() < s.expiresAt - 60_000) return { state: 'ready', session: s }; // 60s skew
   const cfg = await getFbConfig();
-  if (!cfg) return null; // can't refresh the token without the web config
+  if (!cfg) return { state: 'paused', reason: 'sign-in config unreachable (offline?)' };
   try {
     const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${cfg.apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(s.refreshToken)}`,
+      signal: AbortSignal.timeout(NET_TIMEOUT_MS),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return {
+        state: 'paused',
+        reason: `token refresh failed (HTTP ${res.status}); run \`${SIGN_IN_COMMAND}\` again`,
+      };
+    }
     const j = (await res.json()) as {
-      id_token: string;
+      id_token?: string;
       refresh_token?: string;
-      expires_in: string;
+      expires_in?: string;
     };
+    if (!j.id_token) return { state: 'paused', reason: 'token refresh returned no id_token' };
     const next: Session = {
       ...s,
       idToken: j.id_token,
       refreshToken: j.refresh_token || s.refreshToken,
-      expiresAt: Date.now() + Number(j.expires_in) * 1000,
+      // A missing/garbled expires_in must not yield NaN (which would force a
+      // refresh on every call); Firebase ID tokens live 1 h.
+      expiresAt: Date.now() + (Number(j.expires_in) || 3600) * 1000,
     };
     saveSession(next);
-    return next;
+    return { state: 'ready', session: next };
   } catch {
-    return null;
+    return { state: 'paused', reason: 'token refresh unreachable (offline?)' };
   }
-}
-
-/** The MCP tool result returned when the caller isn't signed in. */
-export function authRequiredResult(): { isError: true; content: { type: 'text'; text: string }[] } {
-  return {
-    isError: true,
-    content: [
-      {
-        type: 'text',
-        text:
-          'FACTS MCP needs a one-time Google sign-in so your analysis + learnings are stored ' +
-          'privately to your account (no one else can read them).\n\n' +
-          'Authenticate (opens your browser):\n\n' +
-          '    npx -y @factstack/mcp-server login\n\n' +
-          'Then retry. Your data lives per-account in Firebase (Firestore); this is the only ' +
-          'thing gated — the public FACTS site + CLI stay open.',
-      },
-    ],
-  };
 }
 
 /** Loopback Google sign-in: open the hosted page, receive the Firebase ID token.
@@ -143,11 +209,12 @@ export function authRequiredResult(): { isError: true; content: { type: 'text'; 
  *   2. origin-locked CORS — the preflight only green-lights the hosted page's exact
  *      origin, so the browser blocks a cross-origin POST from any other page. */
 export async function login(): Promise<Session> {
+  const page = authPage();
   return new Promise<Session>((resolve, reject) => {
     const state = randomBytes(32).toString('hex');
     let allowedOrigin = '';
     try {
-      allowedOrigin = new URL(AUTH_PAGE).origin;
+      allowedOrigin = new URL(page).origin;
     } catch {
       /* malformed FACTS_AUTH_URL — fall back to no origin lock (state nonce still applies) */
     }
@@ -244,8 +311,11 @@ export async function login(): Promise<Session> {
     server.listen(0, '127.0.0.1', () => {
       const addr = server.address();
       const port = typeof addr === 'object' && addr ? addr.port : 0;
-      const target = `${AUTH_PAGE}?port=${port}&state=${state}`;
-      process.stderr.write(`[factstack-mcp] Sign in with Google (opening browser):\n  ${target}\n`);
+      const target = `${page}?port=${port}&state=${state}`;
+      process.stderr.write(
+        `[factstack-mcp] Sign in with Google (opening your browser):\n  ${target}\n` +
+          `[factstack-mcp] If the page says the link is missing its parameters, open the FULL URL above (including &state=…) yourself.\n`,
+      );
       openBrowser(target);
     });
     // Give up after 5 minutes rather than hang forever.
@@ -256,12 +326,26 @@ export async function login(): Promise<Session> {
   });
 }
 
+/**
+ * How to open `url` in the default browser, as a program + argv (no shell).
+ * Pure so the argv is unit-testable. Windows goes through rundll32's URL
+ * handler, NOT `cmd /c start`: cmd.exe parses the (unquoted) URL and cuts it
+ * at the first `&`, dropping `&state=…`, so the sign-in page disabled itself.
+ */
+export function buildOpenCommand(
+  platform: NodeJS.Platform,
+  url: string,
+): { command: string; args: string[] } {
+  if (platform === 'win32')
+    return { command: 'rundll32', args: ['url.dll,FileProtocolHandler', url] };
+  if (platform === 'darwin') return { command: 'open', args: [url] };
+  return { command: 'xdg-open', args: [url] };
+}
+
 function openBrowser(url: string): void {
-  const platform = process.platform;
-  const cmd = platform === 'win32' ? 'cmd' : platform === 'darwin' ? 'open' : 'xdg-open';
-  const args = platform === 'win32' ? ['/c', 'start', '', url] : [url];
+  const { command, args } = buildOpenCommand(process.platform, url);
   try {
-    spawn(cmd, args, { stdio: 'ignore', detached: true }).unref();
+    spawn(command, args, { stdio: 'ignore', detached: true }).unref();
   } catch {
     /* headless / no browser — the URL is printed to stderr for manual open. */
   }
@@ -288,6 +372,7 @@ export async function firestoreSet(
       method: 'PATCH',
       headers: { Authorization: `Bearer ${session.idToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ fields: toFirestoreFields(fields) }),
+      signal: AbortSignal.timeout(NET_TIMEOUT_MS),
     });
     return res.ok;
   } catch {

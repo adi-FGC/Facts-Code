@@ -18,6 +18,7 @@
  *     instead of overwriting a file the user hand-edited.
  */
 
+import { MCP_NPX, rootArgOf, withRootArg } from '@factstack/spec';
 import type { SkillFormatId } from './types.js';
 
 /** Agents the installer knows how to wire end-to-end. */
@@ -32,13 +33,16 @@ export interface McpServerCommand {
   args: string[];
 }
 
-/** Default for a published install: `npx -y factstack-mcp` resolves the bin
- *  shipped by the mcp-server package. The CLI may override (e.g. a local
- *  `node <repo>/apps/mcp-server/dist/server.js` during development). */
-export const DEFAULT_MCP_COMMAND: McpServerCommand = {
-  command: 'npx',
-  args: ['-y', 'factstack-mcp'],
-};
+/** Default for a published install: `MCP_NPX` from @factstack/spec — the one
+ *  launch name every installer, hint, manifest and doc shares (owner
+ *  decision 2026-09-24; three spellings had drifted apart). The package is
+ *  not on npm until the owner publishes it (spec's MCP_PUBLISHED; the CLI's
+ *  mcpServerNote is the one place that gates install's "not on npm yet" note
+ *  on it) — until then the CLI's `--server-command` override is the working
+ *  path: build the
+ *  single-file server bundle first (`pnpm --filter ./apps/mcp-server build`
+ *  from the repo root), then pass `node <repo>/apps/mcp-server/dist/server.js`. */
+export const DEFAULT_MCP_COMMAND: McpServerCommand = parseServerCommand(MCP_NPX)!;
 
 /** Key under which FACTS registers in every agent's MCP config. */
 export const MCP_SERVER_KEY = 'factstack';
@@ -64,7 +68,7 @@ export const INSTALL_TARGETS: Record<InstallAgent, InstallTarget> = {
     agent: 'claude',
     skillFormats: ['claude', 'agents'],
     mcpConfigPath: '.mcp.json',
-    instructionNote: '.claude/skills/factstack-project/SKILL.md + AGENTS.md',
+    instructionNote: '.claude/skills/factstack-<project>/SKILL.md + AGENTS.md',
     supportsHooks: true,
   },
   cursor: {
@@ -129,6 +133,41 @@ export function parseServerCommand(raw: string): McpServerCommand | null {
   return { command: tokens[0], args: tokens.slice(1) };
 }
 
+/** True for a POSIX (`/…`), drive (`C:\…`, `C:/…`) or UNC (`\\host\…`) path.
+ *  Pure string test — this module never imports node:path (INV1). */
+function isAbsolutePath(p: string): boolean {
+  return p.startsWith('/') || /^[A-Za-z]:[\\/]/.test(p) || p.startsWith('\\\\');
+}
+
+/** `${workspaceFolder}`, `${HOME}/x`: a client variable, expanded by the
+ *  client before launch — not a path relative to its cwd. */
+function isClientVariable(p: string): boolean {
+  return /^\$\{[^}]+\}/.test(p);
+}
+
+/**
+ * Pin the server to one project: `--root <projectRoot>` after its args. The
+ * MCP server no longer analyzes whatever cwd a client launches it from (it
+ * walks up to .git / package.json, or refuses), so an installed config names
+ * its project. A root already in the args (a `--server-command … --root X`
+ * override) is the user's explicit choice and is kept as given — if it is
+ * absolute or a client variable. Returns null for a relative root, given or
+ * named in the args: it would resolve against the client's cwd, the very
+ * ambiguity the flag removes. The `--root` grammar (which args name a root,
+ * how one is appended) is @factstack/spec's, the one the server reads.
+ */
+export function withProjectRoot(
+  server: McpServerCommand,
+  projectRoot: string,
+): McpServerCommand | null {
+  if (!isAbsolutePath(projectRoot)) return null;
+  const named = rootArgOf(server.args);
+  if (named === undefined) {
+    return { command: server.command, args: withRootArg(server.args, projectRoot) };
+  }
+  return isAbsolutePath(named) || isClientVariable(named) ? server : null;
+}
+
 /** Parse a config that may not exist yet; {} when absent/blank. */
 function parseExisting(existing: string | null): Record<string, unknown> | null {
   if (existing === null || existing.trim() === '') return {};
@@ -157,13 +196,27 @@ function configRootKey(agent: InstallAgent): string {
 /**
  * Merge the FACTS MCP server into an agent config. Preserves every unrelated
  * key + every other registered server; idempotent (`changed: false` when the
- * entry already matches byte-for-byte after normalization).
+ * entry already matches byte-for-byte after normalization). `projectRoot`
+ * (absolute — `factstack install` passes its resolved target) pins the server
+ * with `--root`, see withProjectRoot.
  */
 export function mergeMcpConfig(
   agent: InstallAgent,
   existing: string | null,
   server: McpServerCommand = DEFAULT_MCP_COMMAND,
+  projectRoot?: string,
 ): MergeResult {
+  const pinned = projectRoot === undefined ? server : withProjectRoot(server, projectRoot);
+  if (!pinned) {
+    const cwdNote = "the MCP server would resolve it against the client's working directory";
+    return {
+      ok: false,
+      reason:
+        projectRoot !== undefined && isAbsolutePath(projectRoot)
+          ? `the server command's --root "${rootArgOf(server.args)}" is not an absolute path — ${cwdNote}; give an absolute path, or drop --root so install pins the project root`
+          : `project root "${projectRoot}" is not an absolute path — ${cwdNote}`,
+    };
+  }
   const root = parseExisting(existing);
   if (root === null) {
     return {
@@ -184,7 +237,7 @@ export function mergeMcpConfig(
     };
   }
   const servers = (root[key] as Record<string, unknown> | undefined) ?? {};
-  const next = serverEntry(agent, server);
+  const next = serverEntry(agent, pinned);
   const changed = JSON.stringify(servers[MCP_SERVER_KEY]) !== JSON.stringify(next);
   const merged = { ...root, [key]: { ...servers, [MCP_SERVER_KEY]: next } };
   return { ok: true, content: JSON.stringify(merged, null, 2) + '\n', changed };

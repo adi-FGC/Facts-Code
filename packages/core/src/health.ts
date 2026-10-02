@@ -14,8 +14,11 @@
  * agent AFTER analyze(), so callers that restore them (CLI/MCP) recompute health.
  *
  * Scoring — start at 100, subtract capped penalties, clamp [0,100]:
- *   secrets exposed     −25 each   (cap 60)
+ *   secrets exposed     −25 each   (cap 60)   ← graded detectors only; fixture
+ *                                              (`low`) + possible (`info`) hits
+ *                                              are counted on the headline
  *   known vulns         by severity (cap 50): critical 20 · high 12 · medium 5 · low/unknown 2
+ *                       ← direct deps only; dev/transitive shown, not graded
  *   broken imports      −8 each    (cap 32)
  *   import cycles       −3 each    (cap 18)
  *   oversized files     −2 each    (cap 10)
@@ -24,6 +27,8 @@
  * Letter: A≥90 · B≥80 · C≥70 · D≥60 · else F.
  */
 import type { AgentArtifact, HealthFactor, HealthHeadline } from '@factstack/spec';
+import { isGradedVulnerability } from '@factstack/scanners';
+import { isExposedSecret } from './diff.js';
 
 /** Points each vulnerability subtracts, by severity (before the category cap). */
 const VULN_WEIGHT: Record<string, number> = {
@@ -81,18 +86,34 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
      do not cost the grade. They are never silent, though: each is listed with
      its file + line, and the count rides the headline so a real key committed
      under test/ cannot hide behind the downgrade. */
-  const allSecrets = risks.filter((r) => r.category === 'secret').length;
-  const secrets = risks.filter((r) => r.category === 'secret' && r.severity !== 'low').length;
-  const fixtureSecrets = allSecrets - secrets;
+  /* Owner decision 2026-09-24 — a generic heuristic hit (secret-named field,
+     password in a connection URL) is a POSSIBLE secret at `info`: ungraded
+     like a fixture, and likewise counted on the headline. */
+  const secrets = risks.filter(isExposedSecret).length;
+  const fixtureSecrets = risks.filter(
+    (r) => r.category === 'secret' && r.severity === 'low',
+  ).length;
+  const possibleSecrets = risks.filter(
+    (r) => r.category === 'secret' && r.severity === 'info',
+  ).length;
   const oversized = risks.filter((r) => r.category === 'large-file').length;
   const stale = files.filter((f) => f.status === 'stale').length;
   const todos = files.reduce((sum, f) => sum + (f.todos?.length ?? 0), 0);
   const cycles = agent.graph?.cycles?.length ?? 0;
-  const vulnPenalty = vulns.reduce((sum, v) => sum + (VULN_WEIGHT[v.severity] ?? 2), 0);
+  /* Owner call: only direct runtime findings cost points. dev and transitive
+     ones are shown (Vulnerabilities view, scan-vulns) and counted on the
+     headline, never graded. Untagged pre-lockfile findings stay graded. */
+  const gradedVulns = vulns.filter(isGradedVulnerability);
+  const ungradedVulns = vulns.length - gradedVulns.length;
+  const vulnPenalty = gradedVulns.reduce((sum, v) => sum + (VULN_WEIGHT[v.severity] ?? 2), 0);
 
   const candidates: HealthFactor[] = [
     { label: 'secrets exposed', count: secrets, penalty: clamp(secrets * 25, 60) },
-    { label: 'known vulnerabilities', count: vulns.length, penalty: clamp(vulnPenalty, 50) },
+    {
+      label: 'known vulnerabilities',
+      count: gradedVulns.length,
+      penalty: clamp(vulnPenalty, 50),
+    },
     { label: 'broken imports', count: broken, penalty: clamp(broken * 8, 32) },
     { label: 'import cycles', count: cycles, penalty: clamp(cycles * 3, 18) },
     { label: 'oversized files', count: oversized, penalty: clamp(oversized * 2, 10) },
@@ -115,10 +136,19 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     factors.length === 0
       ? 'clean — no blockers detected'
       : factors.map((f) => phrase(f.count, f.label)).join(', ');
-  const fixtureNote =
+  // Ungraded counts ride the headline so nothing kept out of the grade is
+  // silent. Each note is absent at 0, so older consumers see the old shape.
+  const notes = [
     fixtureSecrets > 0
       ? ` · ${fixtureSecrets} ${fixtureSecrets === 1 ? 'secret' : 'secrets'} in test/fixture files, not graded`
-      : '';
+      : '',
+    possibleSecrets > 0
+      ? ` · ${possibleSecrets} possible ${possibleSecrets === 1 ? 'secret' : 'secrets'}, not graded`
+      : '',
+    ungradedVulns > 0
+      ? ` · ${ungradedVulns} dev/transitive ${ungradedVulns === 1 ? 'vulnerability' : 'vulnerabilities'}, not graded`
+      : '',
+  ].join('');
 
   return {
     broken,
@@ -129,6 +159,6 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     score,
     grade,
     factors,
-    headline: `${grade} · ${score} — ${tail}${fixtureNote}`,
+    headline: `${grade} · ${score} — ${tail}${notes}`,
   };
 }

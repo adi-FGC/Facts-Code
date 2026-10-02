@@ -278,6 +278,76 @@ describe('computeHealth — secrets in test/fixture files', () => {
   });
 });
 
+/* Owner decision 2026-09-24 — generic heuristic hits are POSSIBLE secrets,
+   emitted at `info` by analyze(): counted on the headline, never graded, and
+   kept apart from the fixture count. */
+describe('computeHealth — possible secrets (info)', () => {
+  const possible = (file: string) =>
+    risk('secret', { severity: 'info', file, rule: 'generic-secret' });
+  const fixtureSecret = (file: string) =>
+    risk('secret', { severity: 'low', file, rule: 'github-token' });
+
+  it('counts them on the headline without costing the grade', () => {
+    const h = computeHealth(agentWith({ risks: [possible('.env'), possible('src/db.ts')] }));
+    expect(h.score).toBe(100);
+    expect(h.secrets).toBe(0);
+    expect(h).not.toHaveProperty('fixtureSecrets');
+    expect(h.headline).toBe(
+      'A · 100 — clean — no blockers detected · 2 possible secrets, not graded',
+    );
+  });
+
+  it('keeps exposed, fixture and possible counts apart, singular at 1', () => {
+    const h = computeHealth(
+      agentWith({
+        risks: [secretRisk('src/a.ts'), fixtureSecret('test/x.ts'), possible('.env')],
+      }),
+    );
+    expect(h.secrets).toBe(1);
+    expect(h.fixtureSecrets).toBe(1);
+    expect(h.headline).toBe(
+      'C · 75 — 1 secret exposed · 1 secret in test/fixture files, not graded · 1 possible secret, not graded',
+    );
+  });
+});
+
+/* Owner call: only direct runtime vulnerabilities cost points; dev and
+   transitive ones are shown and counted on the headline, never graded.
+   Untagged findings (pre-lockfile artifacts) came from direct deps. */
+describe('computeHealth — dev/transitive vulnerabilities are not graded', () => {
+  const scoped = (severity: string, scope: string) => ({ ...vuln(severity), scope });
+
+  it('costs nothing for dev and transitive findings, and says so', () => {
+    const h = computeHealth(
+      agentWith({
+        vulnerabilities: [scoped('critical', 'dev'), scoped('high', 'transitive')],
+      }),
+    );
+    expect(h.score).toBe(100);
+    expect(h.factors).toEqual([]);
+    expect(h.headline).toBe(
+      'A · 100 — clean — no blockers detected · 2 dev/transitive vulnerabilities, not graded',
+    );
+  });
+
+  it('grades direct and untagged findings only, and counts only them in the factor', () => {
+    const h = computeHealth(
+      agentWith({
+        vulnerabilities: [
+          scoped('critical', 'direct'),
+          vuln('medium'),
+          scoped('critical', 'transitive'),
+        ],
+      }),
+    );
+    expect(h.score).toBe(75); // −20 critical, −5 medium
+    expect(h.factors).toEqual([{ label: 'known vulnerabilities', count: 2, penalty: 25 }]);
+    expect(h.headline).toBe(
+      'C · 75 — 2 known vulnerabilities · 1 dev/transitive vulnerability, not graded',
+    );
+  });
+});
+
 describe('computeHealth — purity & determinism (INV1/INV2)', () => {
   it('derives stale from file.status, not the clock', () => {
     const fresh = computeHealth(agentWith({ files: [okFile(), okFile()] }));

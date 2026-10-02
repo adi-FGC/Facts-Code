@@ -168,6 +168,42 @@ describe('walk — gitignore', () => {
     expect(paths).not.toContain('src/b.log');
   });
 
+  it('anchors a nested .gitignore rule that contains a slash to its own directory', async () => {
+    // create-next-app writes '/out/' + '/build' into apps/web/.gitignore; git
+    // anchors them at apps/web, not at the repo root.
+    const fs = memoryFS({
+      'packages/a/.gitignore': '/gen\nsrc/out/\nlib/gen.ts\n/.env\n',
+      'packages/a/gen/x.ts': 'x',
+      'packages/a/src/out/y.ts': 'y',
+      'packages/a/src/keep.ts': 'k',
+      'packages/a/lib/gen.ts': 'g',
+      'packages/a/lib/ok.ts': 'o',
+      'packages/a/.env': 'KEY=1',
+      'packages/a/sub/gen/z.ts': 'anchored /gen does not match deeper',
+      'gen/root.ts': 'a nested /gen must not hide the root gen/',
+    });
+    const paths = (await collect(walk(fs))).sort();
+    expect(paths).toEqual([
+      'gen/root.ts',
+      'packages/a/lib/ok.ts',
+      'packages/a/src/keep.ts',
+      'packages/a/sub/gen/z.ts',
+    ]);
+  });
+
+  it('lets a nested "!" re-include what a parent ignored, and a deeper file override a parent', async () => {
+    const fs = memoryFS({
+      '.gitignore': '*.log\n!important.txt\n',
+      'pkg/.gitignore': '!keep.log\nimportant.txt\n',
+      'pkg/keep.log': 'k',
+      'pkg/drop.log': 'd',
+      'pkg/important.txt': 'deeper file wins',
+      'important.txt': 'root keeps it',
+    });
+    const paths = (await collect(walk(fs))).sort();
+    expect(paths).toEqual(['important.txt', 'pkg/keep.log']);
+  });
+
   it('reads .factsignore on top of .gitignore', async () => {
     const fs = memoryFS({
       'src/a.ts': 'x',

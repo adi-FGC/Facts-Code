@@ -10,6 +10,8 @@
  */
 
 import { builtinModules } from 'node:module';
+import { dirname, posix, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 
@@ -22,7 +24,115 @@ const NODE_BUILTINS = [
   ...new Set(builtinModules.flatMap((m) => (m.startsWith('node:') ? [m] : [m, `node:${m}`]))),
 ];
 
-export default tseslint.config(
+/* ── Closing the bypasses ─────────────────────────────────────────────────
+   `no-restricted-imports` only sees static `import` / `export … from`. Probes
+   on 2026-09-24 linted CLEAN for `await import('@factstack/core')` in spec,
+   `require('node:fs')` in core and `../../core/src/…` from spec. This local
+   rule takes each block's OWN no-restricted-imports options (wired below, so
+   the two can never disagree) and applies them to `import('x')`,
+   `require('x')` and `process.getBuiltinModule('x')`; it also rejects a
+   relative import that climbs into ANOTHER workspace package, which C2 cannot
+   see. A non-literal specifier cannot be checked statically and is skipped.
+   test/boundaries.test.mjs proves every probe fails (run by lint:boundaries). */
+const ROOT_DIR = dirname(fileURLToPath(import.meta.url));
+
+/** gitignore-style `group` matcher (the semantics no-restricted-imports uses):
+ *  last matching entry wins, `!` re-includes, and a match on a parent
+ *  (`@factstack/fs-node`) covers its subpaths (`@factstack/fs-node/x`). */
+function groupMatcher(group) {
+  const entries = group.map((g) => {
+    const neg = g.startsWith('!');
+    const body = (neg ? g.slice(1) : g)
+      .split(/(\*\*|\*)/)
+      .map((p) =>
+        p === '**' ? '.*' : p === '*' ? '[^/]*' : p.replace(/[.+?^${}()|[\]\\]/g, '\\$&'),
+      )
+      .join('');
+    return { neg, re: new RegExp(`^${body}$`) };
+  });
+  const ignored = (s) => entries.reduce((acc, e) => (e.re.test(s) ? !e.neg : acc), false);
+  return (spec) => {
+    const segs = spec.split('/');
+    for (let i = 1; i <= segs.length; i++) if (ignored(segs.slice(0, i).join('/'))) return true;
+    return false;
+  };
+}
+
+/** `packages/core` / `apps/cli` for a repo-relative path, else null. */
+const workspaceOf = (rel) => rel.match(/^((?:packages|apps)\/[^/]+)(?:\/|$)/)?.[1] ?? null;
+
+const boundaryBypassRule = {
+  meta: {
+    type: 'problem',
+    schema: false,
+    docs: {
+      description: 'C1/C2 for dynamic import(), require() and relative cross-package imports',
+    },
+  },
+  create(context) {
+    const opts = context.options[0] ?? {};
+    const paths = new Map((opts.paths ?? []).map((p) => [p.name, p.message]));
+    const groups = (opts.patterns ?? []).map((p) => ({
+      test: groupMatcher(p.group),
+      message: p.message,
+    }));
+    const fileRel = relative(ROOT_DIR, context.filename).split('\\').join('/');
+    const home = workspaceOf(fileRel);
+    const literal = (n) =>
+      n?.type === 'Literal' && typeof n.value === 'string'
+        ? n.value
+        : n?.type === 'TemplateLiteral' && n.expressions.length === 0
+          ? n.quasis[0].value.cooked
+          : null;
+    const checkDynamic = (node, spec, how) => {
+      const message = paths.get(spec) ?? groups.find((g) => g.test(spec))?.message;
+      if (message) context.report({ node, message: `${message} (also applies to ${how})` });
+    };
+    const checkRelative = (node, spec) => {
+      if (!home || !spec.startsWith('.')) return;
+      const target = posix.normalize(posix.join(posix.dirname(fileRel), spec));
+      const there = workspaceOf(target);
+      if (there && there !== home)
+        context.report({
+          node,
+          message: `Constraint C2: ${home} reaches into ${there} by relative path ('${spec}'). Import it by package name so the C2 allow-list applies.`,
+        });
+    };
+    const fromSource = (node) => {
+      const spec = literal(node.source);
+      if (spec != null) checkRelative(node, spec);
+    };
+    return {
+      ImportDeclaration: fromSource,
+      ExportNamedDeclaration: fromSource,
+      ExportAllDeclaration: fromSource,
+      ImportExpression(node) {
+        const spec = literal(node.source);
+        if (spec == null) return;
+        checkDynamic(node, spec, 'import()');
+        checkRelative(node, spec);
+      },
+      CallExpression(node) {
+        const c = node.callee;
+        const how =
+          c.type === 'Identifier' && c.name === 'require'
+            ? 'require()'
+            : c.type === 'MemberExpression' &&
+                !c.computed &&
+                c.property?.name === 'getBuiltinModule'
+              ? 'process.getBuiltinModule()'
+              : null;
+        if (!how) return;
+        const spec = literal(node.arguments[0]);
+        if (spec == null) return;
+        checkDynamic(node, spec, how);
+        checkRelative(node, spec);
+      },
+    };
+  },
+};
+
+const baseConfig = tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   /* ── Constraints C1 + C2, enforced together ─────────────────────────────
@@ -54,8 +164,9 @@ export default tseslint.config(
      + devDependencies), last synced 2026-09-24. They are static: importing a
      newly declared dep fails lint until it is added here, and a dropped dep
      stays allowed until removed here. A package may import exactly what it
-     declares. Relative cross-package imports (`../../core/src/…`) are NOT
-     caught — use the package name. */
+     declares. Dynamic `import()`, `require()`, `process.getBuiltinModule()`
+     and relative cross-package imports (`../../core/src/…`) are held to the
+     same lists by the local `factstack/no-boundary-bypass` rule (above). */
   {
     // C1 + C2 for the WHOLE package, tests included (see the header above).
     files: ['packages/core/**/*.{ts,tsx,mts,cts}'],
@@ -711,6 +822,7 @@ export default tseslint.config(
         performance: 'readonly',
         structuredClone: 'readonly',
         AbortController: 'readonly',
+        AbortSignal: 'readonly',
         crypto: 'readonly',
         document: 'readonly',
         window: 'readonly',
@@ -729,6 +841,7 @@ export default tseslint.config(
         MutationObserver: 'readonly',
         ResizeObserver: 'readonly',
         IntersectionObserver: 'readonly',
+        PerformanceObserver: 'readonly',
         Worker: 'readonly',
         Blob: 'readonly',
         File: 'readonly',
@@ -806,8 +919,24 @@ export default tseslint.config(
       '**/probe*.mjs',
       '**/_scrub-test*.mjs',
       'fb.mjs',
+      // Generated esbuild bundle of @babel/parser (scripts/sync-ui.mjs; gitignored).
+      'apps/cli/src/ui/vendor/**',
       // Vendored agent skill packs — third-party content, not project source.
       '.agents/**',
     ],
   },
 );
+
+/* Every block that sets C1/C2 no-restricted-imports gets the bypass rule with
+   the SAME options, so there is one allow-list per package, not two. */
+export default [
+  { plugins: { factstack: { rules: { 'no-boundary-bypass': boundaryBypassRule } } } },
+  ...baseConfig.map((c) =>
+    c.rules?.['no-restricted-imports']
+      ? {
+          ...c,
+          rules: { ...c.rules, 'factstack/no-boundary-bypass': c.rules['no-restricted-imports'] },
+        }
+      : c,
+  ),
+];

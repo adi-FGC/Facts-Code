@@ -347,6 +347,60 @@ describe('mineGitTopology', () => {
     expect(fs.existsSync(marker)).toBe(false); // ...but its config never ran
   });
 
+  it("never runs a scanned repo's filter driver during git status", () => {
+    /* `git status` pipes every stat-dirty file through its clean filter, a
+       shell command from the repo's own config (+ .git/info/attributes).
+       SAFE_GIT_ARGS alone does not cover it; the status probe must disarm it
+       and still count the change. */
+    const host = path.join(tmp, 'filter-host');
+    fs.mkdirSync(host, { recursive: true });
+    git(host, 'init');
+    write(path.join(host, 'a.ts'), 'export const a = 1;\n');
+    git(host, 'add', '-A');
+    git(host, 'commit', '-q', '-m', 'chore: host');
+    const marker = path.join(tmp, 'filter-marker.txt');
+    git(host, 'config', 'filter.evil.clean', `touch '${norm(marker)}'; cat`);
+    git(host, 'config', 'filter.evil.required', 'true');
+    write(path.join(host, '.git', 'info', 'attributes'), '* filter=evil\n');
+    // Same size, new content, later mtime: only a content check can tell.
+    write(path.join(host, 'a.ts'), 'export const a = 2;\n');
+    const later = Date.now() / 1000 + 5;
+    fs.utimesSync(path.join(host, 'a.ts'), later, later);
+
+    const g = mineGitTopology(host, { homeDir: home, now: NOW, agentRequests: false })!;
+    expect(fs.existsSync(marker)).toBe(false);
+    expect(g.worktrees[0]!.dirty.modified).toBe(1); // the probe still saw the edit
+  });
+
+  it("never recurses into a submodule, whose own config the overrides don't cover", () => {
+    const sub = path.join(tmp, 'sub-src');
+    fs.mkdirSync(sub, { recursive: true });
+    git(sub, 'init');
+    write(path.join(sub, 'x.ts'), 'export const x = 1;\n');
+    git(sub, 'add', '-A');
+    git(sub, 'commit', '-q', '-m', 'chore: sub');
+    const top = path.join(tmp, 'sub-top');
+    fs.mkdirSync(top, { recursive: true });
+    git(top, 'init');
+    write(path.join(top, 'a.ts'), 'export const a = 1;\n');
+    git(top, 'add', '-A');
+    git(top, 'commit', '-q', '-m', 'chore: top');
+    git(top, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', norm(sub), 'mod');
+    git(top, 'commit', '-q', '-m', 'chore: add mod');
+    const marker = path.join(tmp, 'submodule-marker.txt');
+    git(path.join(top, 'mod'), 'config', 'filter.evil.clean', `touch '${norm(marker)}'; cat`);
+    write(path.join(top, '.git', 'modules', 'mod', 'info', 'attributes'), '* filter=evil\n');
+    // Edit in place: the checkout may have written CRLF (core.autocrlf), and
+    // only a SAME-size edit makes git read the content through the filter.
+    const x = path.join(top, 'mod', 'x.ts');
+    fs.writeFileSync(x, fs.readFileSync(x, 'utf8').replace('= 1', '= 2'));
+    const later = Date.now() / 1000 + 5;
+    fs.utimesSync(x, later, later);
+
+    mineGitTopology(top, { homeDir: home, now: NOW, agentRequests: false });
+    expect(fs.existsSync(marker)).toBe(false);
+  });
+
   it('keeps the remote default branch when it does not exist locally', () => {
     /* A clone whose default is `master` plus a local-only `main` used to elect
        `main` as the default and measure every verdict against the wrong line. */

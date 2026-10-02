@@ -3,8 +3,11 @@
   "version": "0.1.0",
   "license": "UNLICENSED",
   "private": true,
-  "description": "FACTS CLI — `factstack` binary. Node 20+ & Deno 2+ compatible. Primary v0.1 surface. Composes @factstack/core via @factstack/fs-node and spawns @factstack/ui-remix server.",
+  "description": "FACTS CLI — `factstack` binary (Node ≥ 24.3). Composes @factstack/core via @factstack/fs-node; `ui` / `export` / `quick` serve the hardened legacy prototype built by scripts/sync-ui.mjs (inline CSS, system fonts, vendored @babel/parser, strict CSP).",
   "type": "module",
+  "engines": {
+    "node": ">=24.3.0"
+  },
   "bin": {
     "factstack": "./dist/cli.js"
   },
@@ -19,11 +22,13 @@
   },
   "scripts": {
     "build": "pnpm run sync:ui && tsc -p tsconfig.json",
+    "bundle": "node scripts/bundle.mjs",
+    "pack:dry-run": "node scripts/bundle.mjs --pack-dry-run",
     "dev": "tsx src/cli.ts",
     "sync:ui": "node scripts/sync-ui.mjs",
     "test": "vitest run",
     "lint": "echo 'no lint yet' && exit 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "@factstack/core": "workspace:*",
@@ -33,14 +38,19 @@
     "@factstack/scanners": "workspace:*",
     "@factstack/skills": "workspace:*",
     "@factstack/spec": "workspace:*",
-    "chokidar": "^4.0.1",
-    "commander": "^12.1.0",
+    "chokidar": "^5.0.0",
+    "commander": "^15.0.0",
     "kleur": "^4.1.5",
-    "open": "^10.1.0"
+    "open": "^11.0.4"
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
-    "tsx": "^4.19.1",
-    "typescript": "^5.6.0"
+    "@babel/parser": "^7.29.9",
+    "@tailwindcss/cli": "^4.3.3",
+    "@types/node": "^26.6.3",
+    "esbuild": "^0.28.2",
+    "playwright": "1.63.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3"
   }
 }

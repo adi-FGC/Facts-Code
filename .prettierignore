@@ -6,6 +6,9 @@ node_modules/
 legacy/
 bench/corpus/
 **/dist/
+# npm package folders assembled by apps/*/scripts (gitignored per app; Prettier
+# only reads the root ignore files).
+apps/*/publish/
 .facts/
 .claude/
 prototype/

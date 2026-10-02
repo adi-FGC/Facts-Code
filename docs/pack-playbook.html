@@ -339,7 +339,8 @@
         <div class="bar"><i></i><i></i><i></i><span>leg 2 · wire the MCP (the strong lever)</span></div>
 <pre><span class="c">// .mcp.json at the project root</span>
 { <span class="w">"mcpServers"</span>: { <span class="k">"factstack"</span>: {
-    <span class="w">"command"</span>: <span class="g">"factstack-mcp"</span>, <span class="w">"args"</span>: [<span class="g">"."</span>] } } }
+    <span class="w">"command"</span>: <span class="g">"npx"</span>, <span class="w">"args"</span>: [<span class="g">"-y"</span>, <span class="g">"factstack-mcp"</span>, <span class="g">"--root"</span>, <span class="g">"."</span>] } } }
+<span class="c">// npx -y factstack-mcp — not yet published to npm; sign-in is optional</span>
 
 <span class="c"># MCP tools the agent then reaches for (all read the pack):</span>
 <span class="k">get_outline  query_graph  list_risks  review_change</span>
@@ -365,7 +366,7 @@
         <div class="bar"><i></i><i></i><i></i><span>.claude/settings.json · the per-turn Stop hook</span></div>
 <pre>{ <span class="w">"hooks"</span>: { <span class="k">"Stop"</span>: [ { <span class="w">"hooks"</span>: [
   { <span class="w">"type"</span>: <span class="g">"command"</span>,
-    <span class="w">"command"</span>: <span class="g">"factstack analyze --minimal . &gt;/dev/null 2&gt;&amp;1 || true"</span> }
+    <span class="w">"command"</span>: <span class="g">"npx factstack analyze --minimal . &gt;/dev/null 2&gt;&amp;1 || true"</span> }
 ] } ] } }</pre>
       </div>
     </section>
@@ -444,7 +445,7 @@
           <dd><span class="k"><code>factstack watch .</code></span><span class="v">chokidar live refresh</span></dd>
           <dd><span class="k"><code>factstack export-skills .</code></span><span class="v">root rules files (.cursorrules, copilot, SKILL.md)</span></dd>
           <dd><span class="k"><code>factstack query &lt;verb&gt;</code></span><span class="v">callers / imports / cycles / orphans</span></dd>
-          <dd><span class="k"><code>factstack-mcp .</code></span><span class="v">MCP server (stdio) over the artifacts</span></dd>
+          <dd><span class="k"><code>factstack-mcp --root .</code></span><span class="v">MCP server (stdio) over the artifacts</span></dd>
         </div>
         <div class="grp">
           <dt>Key files</dt>

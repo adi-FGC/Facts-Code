@@ -193,3 +193,44 @@ describe('extractSymbols — edge cases', () => {
     expect(fmts.length).toBeLessThanOrEqual(2);
   });
 });
+
+describe('extractSymbols — export lists and `export default Name` (HUNT-CORE-11)', () => {
+  it('marks declarations named by an export list as exported, without duplicates', () => {
+    const src = `function a() {}\nclass C {}\nexport { a };\nexport default C;\n`;
+    const syms = extractSymbols(src, '.ts');
+    expect(syms.map((s) => [s.name, s.kind, s.exported, s.isDefault === true])).toEqual([
+      ['a', 'function', true, false],
+      ['C', 'class', true, true],
+    ]);
+  });
+
+  it('promotes a bare const that `export default` names, keeping its component kind', () => {
+    const src = `const App = () => <div />;\nconst helper = 1;\nexport default App;\n`;
+    const syms = extractSymbols(src, '.jsx');
+    expect(syms).toHaveLength(1);
+    expect(syms[0]).toMatchObject({
+      name: 'App',
+      kind: 'component',
+      exported: true,
+      isDefault: true,
+    });
+  });
+
+  it('handles `export { x as default }` and only the listed declarators of a multi-const', () => {
+    const src = `const x = 1, y = 2;\nexport { x as default };\n`;
+    const syms = extractSymbols(src, '.ts');
+    expect(syms.map((s) => [s.name, s.isDefault === true])).toEqual([['x', true]]);
+  });
+
+  it('keeps a default export of an imported binding visible', () => {
+    const syms = extractSymbols(`import App from './App';\nexport default App;\n`, '.ts');
+    expect(syms).toEqual([
+      expect.objectContaining({ name: 'App', exported: true, isDefault: true }),
+    ]);
+  });
+
+  it('flags a named default function as the default export', () => {
+    const fn = extractSymbols('export default function main() {}', '.ts')[0];
+    expect(fn).toMatchObject({ name: 'main', exported: true, isDefault: true });
+  });
+});

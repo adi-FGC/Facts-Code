@@ -11,6 +11,10 @@
  * --------------------------------------------------------------------- */
 
 :root {
+  /* No theme chosen: follow the system. A chosen theme pins the scheme
+     below, so browser-drawn UI (native <select> lists, scrollbars, form
+     controls) matches the app instead of the OS. Without the pin, dark on
+     a light OS drew native option lists white under near-white text. */
   color-scheme: light dark;
 
   /* ─── Light theme — warm tinted neutrals, hue=65° (orange family) ─── */
@@ -146,7 +150,13 @@
  *   warn     yellow oklch(82% 0.16 90) — was a duplicate of orange before
  *   highlight new — same yellow, used for hovers + dense-data marks
  */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
+
   /* Pushed L higher (15% vs 11%) AND chroma higher (0.075 vs 0.045)
      so the blue actually reads as blue, not near-black. At L=11 with
      low chroma the eye perceives "very dark gray" — Bloomberg's

@@ -37,13 +37,25 @@ function baseAgent(): AgentArtifact {
       monorepo: null,
     },
     files: [],
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     routes: [],
     scripts: {},
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
-  } as AgentArtifact;
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
+  };
 }
 
 function makeHuman(): HumanArtifact {
@@ -71,11 +83,19 @@ function makeHuman(): HumanArtifact {
       status: 'ok',
       children: [],
     },
-    graph: { nodes: [], edges: [], cycles: [] },
+    graph: {
+      nodes: [],
+      edges: [],
+      cycles: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
+    },
     activity: [],
     risks: [],
     glossary: [],
-  } as HumanArtifact;
+  };
 }
 
 /** A repo whose pack has `n` risk rows — a realistic stand-in for a
@@ -91,7 +111,7 @@ function agentWithRisks(n: number): AgentArtifact {
       file: `src/module-${i}/component-${i}.ts`,
       line: i + 1,
     })),
-  } as AgentArtifact;
+  };
 }
 
 const bytes = (s: string) => new TextEncoder().encode(s).byteLength;

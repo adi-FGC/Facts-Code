@@ -13,6 +13,9 @@ export {
   scanFileLicense,
   scanManifestLicense,
   deriveLicenseRisks,
+  detectLicenseText,
+  isLicenseFileName,
+  type DeriveLicenseOptions,
   type LicenseScanResult,
   type LicenseRisk,
 } from './licenses.js';

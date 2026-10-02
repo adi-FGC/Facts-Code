@@ -33,8 +33,11 @@ export const claudeRenderer: SkillRenderer = {
     /* Path is project-keyed so a workspace with multiple checked-out
        FACTS projects (rare but possible) doesn't have them collide
        on the same `.claude/skills/factstack-project/SKILL.md`.
-       The slug is the same one the frontmatter `name:` uses. */
-    const slug = slugify(spec.name);
+       The slug is the same one the frontmatter `name:` uses, and it is
+       host-independent: a browser GitHub scan names the project
+       `owner/repo@ref` where the CLI says `repo`, and two slugs meant two
+       skill folders side by side, one drifting stale (FSB-11). */
+    const slug = slugify(skillProjectName(spec.name));
     return {
       [`.claude/skills/factstack-${slug}/SKILL.md`]: renderSkillMd(spec, slug),
     };
@@ -182,8 +185,18 @@ function buildDescription(spec: SkillSpec): string {
    * ~200 chars to fit Claude's picker UI. */
   const stack = spec.languages.length ? `${spec.languages[0]!.id}` : 'this codebase';
   const frameworks = spec.frameworks.length ? ` with ${spec.frameworks.slice(0, 3).join('/')}` : '';
-  const intent = spec.intent ? ` — ${spec.intent}` : '';
+  // The intent is a sentence; its own full stop would double the one below.
+  const sentence = spec.intent?.trimEnd();
+  const intent = sentence ? ` — ${sentence.endsWith('.') ? sentence.slice(0, -1) : sentence}` : '';
   return `Project context for ${spec.name} (${stack}${frameworks})${intent}. Use when working in this codebase; read the FACTS pack (.facts/agent.pack) first, with the FACTS MCP for live queries.`;
+}
+
+/** The repo part of a project name: `owner/repo@ref` (a browser GitHub
+ *  scan) → `repo`. Any other name (the CLI's folder name, which may itself
+ *  contain `@`) is returned unchanged. */
+function skillProjectName(name: string): string {
+  const m = /^[^/@\s]+\/([^/@\s]+)(?:@.*)?$/.exec(name);
+  return m ? m[1]! : name;
 }
 
 function slugify(s: string): string {

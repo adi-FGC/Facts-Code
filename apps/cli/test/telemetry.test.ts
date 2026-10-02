@@ -8,16 +8,41 @@
  * no homedir writes and no network.
  */
 
-import { describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   createTelemetry,
+  isLockContention,
   rootIdOf,
   shouldSendRemote,
   type TelemetryState,
 } from '../src/telemetry.js';
+
+/* Lock fault injection (CLI-09): opening metrics.lock throws the queued
+   error codes first, then behaves normally. Everything else is the real
+   node:fs/promises, so every other test is unaffected. */
+const lockFaults = vi.hoisted(() => ({ codes: [] as string[] }));
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const real = await importOriginal<typeof import('node:fs/promises')>();
+  type Open = typeof real.open;
+  const open = async (
+    file: Parameters<Open>[0],
+    flags?: Parameters<Open>[1],
+    mode?: Parameters<Open>[2],
+  ): ReturnType<Open> => {
+    const code = String(file).endsWith('metrics.lock') ? lockFaults.codes.shift() : undefined;
+    if (code) throw Object.assign(new Error(`${code}: injected`), { code });
+    return real.open(file, flags, mode);
+  };
+  return { ...real, open, default: { ...real, open } };
+});
+afterEach(() => {
+  lockFaults.codes.length = 0;
+});
 
 function tempDir(): string {
   return mkdtempSync(join(tmpdir(), 'facts-tel-'));
@@ -330,6 +355,147 @@ describe('createTelemetry — lifecycle', () => {
     try {
       const t = createTelemetry({ dir, remoteUrl: null });
       await expect(t.recordEvent('')).resolves.toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+/**
+ * CLI-09: the freshness hook runs analyzes concurrently. Unlocked
+ * read-modify-write lost most events, and a torn read "recovered" the file
+ * to empty defaults — wiping the counters and the attribution ring.
+ */
+describe('createTelemetry — concurrent writers (CLI-09)', () => {
+  /* Three rounds against one file: every round re-creates and deletes the
+     lock 60 times under contention, so a Windows delete-pending EPERM that
+     drops an event shows up as a short count (58/60 under full-suite load
+     before withLock waited those out). */
+  it(
+    'keeps every event when many writers interleave',
+    async () => {
+      const dir = tempDir();
+      try {
+        const writers = Array.from({ length: 6 }, () => createTelemetry({ dir, remoteUrl: null }));
+        for (let round = 1; round <= 3; round++) {
+          await Promise.all(
+            writers.map(async (t) => {
+              for (let i = 0; i < 10; i++)
+                await t.recordEvent('analyze.complete', { fileCount: i });
+            }),
+          );
+          const m = await writers[0]!.loadMetrics();
+          expect(m.events['analyze.complete'], `round ${round}`).toBe(60 * round);
+          expect(m.recent).toHaveLength(50); // the ring is full, not wiped
+          expect(existsSync(join(dir, 'metrics.lock'))).toBe(false);
+        }
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    LOOP_TIMEOUT_MS * 2,
+  );
+
+  it('treats a delete-pending lock as contention on Windows only', () => {
+    expect(isLockContention('EEXIST', 'linux')).toBe(true);
+    expect(isLockContention('EEXIST', 'win32')).toBe(true);
+    for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+      expect(isLockContention(code, 'win32'), code).toBe(true);
+      expect(isLockContention(code, 'linux'), code).toBe(false);
+      expect(isLockContention(code, 'darwin'), code).toBe(false);
+    }
+    expect(isLockContention('EROFS', 'win32')).toBe(false);
+    expect(isLockContention('ENOSPC', 'win32')).toBe(false);
+    expect(isLockContention(undefined, 'win32')).toBe(false);
+  });
+
+  it('waits out EPERM / EACCES / EBUSY on the lock (Windows) instead of dropping the event', async () => {
+    const dir = tempDir();
+    try {
+      const t = createTelemetry({ dir, remoteUrl: null, platform: 'win32' });
+      lockFaults.codes.push('EPERM', 'EPERM', 'EACCES', 'EBUSY', 'EPERM');
+      await t.recordEvent('analyze.complete', { durationMs: 7 });
+      expect(lockFaults.codes).toEqual([]); // every injected failure was retried
+      const m = await t.loadMetrics();
+      expect(m.events['analyze.complete']).toBe(1);
+      expect(m.durationsMs).toEqual([7]);
+      expect(existsSync(join(dir, 'metrics.lock'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips the event at once on a POSIX permission error (no stall)', async () => {
+    const dir = tempDir();
+    try {
+      const t = createTelemetry({ dir, remoteUrl: null, platform: 'linux' });
+      lockFaults.codes.push('EACCES');
+      const t0 = Date.now();
+      await t.recordEvent('analyze.complete');
+      expect(Date.now() - t0).toBeLessThan(1_000); // not the 2 s lock wait
+      expect(existsSync(join(dir, 'metrics.json'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('keeps every event across separate processes', () => {
+    const dir = tempDir();
+    try {
+      const cliRoot = join(import.meta.dirname, '..');
+      const tsx = join(cliRoot, 'node_modules', 'tsx', 'dist', 'cli.mjs');
+      const script = join(dir, 'writer.mts');
+      const src = pathToFileURL(join(cliRoot, 'src', 'telemetry.ts')).href;
+      writeFileSync(
+        script,
+        `import { createTelemetry } from ${JSON.stringify(src)};\n` +
+          `const t = createTelemetry({ dir: ${JSON.stringify(dir)}, remoteUrl: null });\n` +
+          `for (let i = 0; i < 15; i++) await t.recordEvent('hook', { durationMs: i });\n`,
+      );
+      const PROCS = 4;
+      const code = [
+        `const { spawn } = require('node:child_process');`,
+        `let left = ${PROCS}, bad = 0;`,
+        `for (let i = 0; i < ${PROCS}; i++) {`,
+        `  const c = spawn(process.execPath, [${JSON.stringify(tsx)}, ${JSON.stringify(script)}], { stdio: 'inherit' });`,
+        `  c.on('exit', (s) => { if (s !== 0) bad++; if (--left === 0) process.exit(bad); });`,
+        `}`,
+      ].join('\n');
+      const r = spawnSync(process.execPath, ['-e', code], { stdio: 'inherit', timeout: 60_000 });
+      expect(r.status).toBe(0);
+      const m = JSON.parse(readFileSync(join(dir, 'metrics.json'), 'utf8'));
+      expect(m.events.hook).toBe(PROCS * 15);
+      expect(m.durationsMs).toHaveLength(PROCS * 15);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 90_000);
+
+  it('leaves an unreadable metrics file alone instead of resetting it', async () => {
+    const dir = tempDir();
+    try {
+      writeFileSync(join(dir, 'metrics.json'), '{"events": {"analyze": 241}, "recent": [');
+      const t = createTelemetry({ dir, remoteUrl: null });
+      await t.recordEvent('analyze', { durationMs: 1 });
+      expect(readFileSync(join(dir, 'metrics.json'), 'utf8')).toBe(
+        '{"events": {"analyze": 241}, "recent": [',
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('breaks a stale lock left by a crashed process', async () => {
+    const dir = tempDir();
+    try {
+      const lock = join(dir, 'metrics.lock');
+      writeFileSync(lock, '');
+      const old = new Date(Date.now() - 60_000);
+      utimesSync(lock, old, old);
+      const t = createTelemetry({ dir, remoteUrl: null });
+      await t.recordEvent('a');
+      expect((await t.loadMetrics()).events.a).toBe(1);
+      expect(existsSync(lock)).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

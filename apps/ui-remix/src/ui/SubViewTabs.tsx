@@ -14,7 +14,9 @@
  * those old URLs onto the new parent tab; this component then reads
  * `location.pathname` on mount to pre-select the matching view, so an
  * old bookmark to `/credentials` still lands on the Secrets view inside
- * Security. After mount, the choice persists to localStorage.
+ * Security. After mount, the choice persists to localStorage. The URL keeps
+ * winning after mount too: an in-app nav or back/forward to a view's path
+ * (e.g. `/files?p=x` while Packages is showing) switches to that view.
  *
  * The bar aligns to the same `--content-max` + `--gutter` insets the
  * inner pages use, and a negative top-margin on the inner view tightens
@@ -121,6 +123,14 @@ const rail = css({
   pointerEvents: 'none',
 });
 
+/** The view whose deep-link `path` is `pathname`, if any. */
+export function viewForPath(
+  views: ReadonlyArray<Pick<SubView, 'key' | 'path'>>,
+  pathname: string,
+): string | undefined {
+  return views.find((v) => v.path && v.path === pathname)?.key;
+}
+
 /* ─────────── component ─────────── */
 
 export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
@@ -129,18 +139,49 @@ export function SubViewTabs(handle: Handle<SubViewTabsProps>) {
   /* Initial view: legacy-path match wins (deep link), then the stored
      choice, then the first view. */
   const pathMatch =
-    typeof location !== 'undefined'
-      ? views.find((v) => v.path && v.path === location.pathname)?.key
-      : undefined;
+    typeof location !== 'undefined' ? viewForPath(views, location.pathname) : undefined;
   const stored = readStored(storageKey);
   const validStored = views.some((v) => v.key === stored) ? (stored as string) : undefined;
   let active = pathMatch ?? validStored ?? views[0]!.key;
+
+  const currentUrl = () =>
+    typeof location !== 'undefined' ? location.pathname + location.search : '';
+  let seenUrl = currentUrl();
 
   function setActive(key: string) {
     if (key === active) return;
     active = key;
     writeStored(storageKey, key);
+    /* Only URL changes after this pick count. A view may have rewritten the
+       URL in place since the last nav (DocsBrowse's ?doc= replaceState), and
+       the next fragment nav must not read that as a nav away. */
+    seenUrl = currentUrl();
     void handle.update();
+  }
+
+  /* URL-driven switches after mount (UI-06): the same instance survives a
+     nav inside its tab, so re-read the path on every URL change. A popstate
+     counts only when the path or query changed (not a fragment jump); an
+     in-app link nav always counts, even to the URL already shown — that is
+     the user picking it again. Neither is persisted — the stored choice is
+     what the user clicked. */
+  if (typeof window !== 'undefined') {
+    const onUrl = (e: Event) => {
+      const url = currentUrl();
+      if (url === seenUrl && e.type !== 'factstack:nav') return;
+      seenUrl = url;
+      const key = viewForPath(handle.props.views, location.pathname);
+      if (key && key !== active) {
+        active = key;
+        void handle.update();
+      }
+    };
+    window.addEventListener('popstate', onUrl);
+    window.addEventListener('factstack:nav', onUrl);
+    handle.signal.addEventListener('abort', () => {
+      window.removeEventListener('popstate', onUrl);
+      window.removeEventListener('factstack:nav', onUrl);
+    });
   }
 
   return () => {

@@ -37,7 +37,7 @@ import {
   type SkillFormatId,
 } from '@factstack/emit-browser';
 import type { GitHubFetchSpec } from '@factstack/fs-browser';
-import type { ScanRequest, ScanResponse } from '../scanner.worker.ts';
+import type { ScanMeta, ScanRequest, ScanResponse } from '../scanner.worker.ts';
 import type { Dataset } from './loadArtifacts.ts';
 
 export interface ScanProgress {
@@ -53,7 +53,9 @@ export interface ScanResult {
   agent: AgentArtifact;
   human: HumanArtifact;
   dataset: Dataset;
-  meta: { filesScanned: number; filesSkipped: number; elapsedMs: number };
+  /** `meta.warnings` is set when the scan is known to be incomplete (a
+   *  GitHub download with failed files or a truncated tree). */
+  meta: ScanMeta;
 }
 
 export interface BrowserFileEntry {
@@ -64,6 +66,12 @@ export interface BrowserFileEntry {
 let workerSingleton: Worker | null = null;
 let nextRequestId = 1;
 
+/** Reject functions of every scan still waiting on the worker, by id. */
+const pending = new Map<string, (err: Error) => void>();
+
+const WORKER_DIED =
+  'The scanner stopped unexpectedly (it failed to load or crashed) — reload the page and retry.';
+
 /* The worker is type:'module' so Vite emits one chunk per imported
  * module + a small worker bootstrap. import.meta.url + new URL is the
  * documented pattern Vite recognizes for worker discovery — string
@@ -71,22 +79,28 @@ let nextRequestId = 1;
  * worker chunk un-built. */
 function getWorker(): Worker {
   if (workerSingleton) return workerSingleton;
-  workerSingleton = new Worker(new URL('../scanner.worker.ts', import.meta.url), {
+  const worker = new Worker(new URL('../scanner.worker.ts', import.meta.url), {
     type: 'module',
     name: 'factstack-scanner',
   });
-  /* If the worker dies (uncaught throw, OOM), null the singleton so
-     the next scan request gets a fresh worker instead of posting into
-     a dead one. We don't surface the error — the per-scan promise
-     will reject via the `error` message below if there's an in-flight
-     request, or the user retries and gets a fresh worker if not. */
-  workerSingleton.addEventListener('error', () => {
-    if (workerSingleton) {
-      workerSingleton.terminate();
-      workerSingleton = null;
-    }
-  });
-  return workerSingleton;
+  /* A worker that fails to load (a stale chunk after a redeploy is served
+     index.html), throws at top level, or runs out of memory never posts an
+     `error` message, so its in-flight scans would wait forever with the
+     Open modal stuck on "scanning". Reject every one of them, and null the
+     singleton so the next scan gets a fresh worker instead of posting into
+     a dead one. `messageerror` (a reply that could not be deserialized)
+     loses a scan's answer just as surely. */
+  const onDeath = (): void => {
+    if (workerSingleton === worker) workerSingleton = null;
+    worker.terminate();
+    const err = new Error(WORKER_DIED);
+    for (const reject of pending.values()) reject(err);
+    pending.clear();
+  };
+  worker.addEventListener('error', onDeath);
+  worker.addEventListener('messageerror', onDeath);
+  workerSingleton = worker;
+  return worker;
 }
 
 interface RunOptions {
@@ -285,8 +299,18 @@ export async function pickWriteDirectory(): Promise<FileSystemDirectoryHandle | 
 /* ─────────── private ─────────── */
 
 function runScan(req: ScanRequest, opts: RunOptions): Promise<ScanResult> {
-  const worker = getWorker();
   return new Promise<ScanResult>((resolve, reject) => {
+    let worker: Worker;
+    try {
+      worker = getWorker();
+    } catch (err) {
+      reject(new Error(`Could not start the scanner: ${err instanceof Error ? err.message : err}`));
+      return;
+    }
+    const settle = (): void => {
+      worker.removeEventListener('message', onMessage);
+      pending.delete(req.id);
+    };
     const onMessage = (ev: MessageEvent<ScanResponse>) => {
       const msg = ev.data;
       /* Multiplex on `id` so a stale scan's late progress messages don't
@@ -303,7 +327,7 @@ function runScan(req: ScanRequest, opts: RunOptions): Promise<ScanResult> {
         });
         return;
       }
-      worker.removeEventListener('message', onMessage);
+      settle();
       if (msg.type === 'error') {
         reject(new Error(msg.message));
         return;
@@ -316,7 +340,17 @@ function runScan(req: ScanRequest, opts: RunOptions): Promise<ScanResult> {
         reject(err instanceof Error ? err : new Error(String(err)));
       }
     };
+    pending.set(req.id, (err) => {
+      settle();
+      reject(err);
+    });
     worker.addEventListener('message', onMessage);
-    worker.postMessage(req);
+    try {
+      worker.postMessage(req);
+    } catch (err) {
+      /* e.g. DataCloneError — the request never reached the worker. */
+      settle();
+      reject(err instanceof Error ? err : new Error(String(err)));
+    }
   });
 }

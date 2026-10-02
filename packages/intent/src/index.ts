@@ -42,7 +42,8 @@ export function inferIntent(agent: AgentArtifact, human: HumanArtifact): string 
   if (monorepo) {
     return monorepoIntent(agent, human, monorepo.manager);
   }
-  return singleAppIntent(agent, human);
+  const phrase = singleAppPhrase(agent, human);
+  return phrase ? `${capFirst(aOrAn(phrase))} ${phrase}.` : null;
 }
 
 /* ───────────────────────────────────────────────────────────────────
@@ -57,22 +58,19 @@ function monorepoIntent(
   manager: string,
 ): string | null {
   const subApps = enumerateSubApps(agent);
+  const lead = `${capFirst(aOrAn(manager))} ${manager} monorepo`;
   if (subApps.length > 0) {
     /* "A pnpm monorepo containing a CLI, an MCP server, and a
        Remix dashboard." — the prefix names the manager + monorepo
        shape; the tail is the comma-list of sub-apps. */
-    return `A ${manager} monorepo containing ${joinList(subApps)}.`;
+    return `${lead} containing ${joinList(subApps)}.`;
   }
   /* Monorepo with no recognizable apps/ — fall back to single-app
      framework detection but keep the manager prefix so a CXO at
-     least knows the topology. */
-  const single = singleAppIntent(agent, human);
-  if (single) {
-    // Convert "A X" → "A pnpm monorepo with X" by lowercasing the
-    // first letter and prepending.
-    const tail = single.replace(/^A\s+/i, '').replace(/\.$/, '');
-    return `A ${manager} monorepo with ${lowerFirst(tail)}.`;
-  }
+     least knows the topology. The phrase keeps its own casing
+     (brand names: "a FastAPI service", never "fastAPI"). */
+  const phrase = singleAppPhrase(agent, human);
+  if (phrase) return `${lead} with ${aOrAn(phrase)} ${phrase}.`;
   return null;
 }
 
@@ -159,7 +157,10 @@ function labelForAppDir(dir: string, agent: AgentArtifact): string | null {
  * and capability hints.
  * ─────────────────────────────────────────────────────────────── */
 
-function singleAppIntent(agent: AgentArtifact, _human: HumanArtifact): string | null {
+/** The project's noun phrase WITHOUT an article ("FastAPI service with 3
+ *  routes", "Vite-built React UI"), so each sentence picks its own article
+ *  and never has to re-case a brand name. */
+function singleAppPhrase(agent: AgentArtifact, _human: HumanArtifact): string | null {
   const fwks = agent.project.frameworks;
 
   /* Strongest signals first. The test suite pins each branch so any
@@ -175,7 +176,7 @@ function singleAppIntent(agent: AgentArtifact, _human: HumanArtifact): string | 
           ? ` with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}`
           : '';
       const noun = py === 'Django' ? 'web app' : 'service';
-      return `A ${py} ${noun}${tail}.`;
+      return `${py} ${noun}${tail}`;
     }
   }
 
@@ -190,7 +191,7 @@ function singleAppIntent(agent: AgentArtifact, _human: HumanArtifact): string | 
     'Fastify',
   ]);
   if (jsServer && agent.routes.length > 0) {
-    return `A ${jsServer} application with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}.`;
+    return `${jsServer} application with ${agent.routes.length} route${agent.routes.length === 1 ? '' : 's'}`;
   }
 
   // Pure UI: React/Vue/etc + a build tool
@@ -199,13 +200,13 @@ function singleAppIntent(agent: AgentArtifact, _human: HumanArtifact): string | 
   const buildFw = findFirst(fwks, Array.from(BUILD_FRAMEWORKS));
   const uiFw = reactFw ?? otherUi;
   if (uiFw) {
-    if (buildFw) return `A ${buildFw}-built ${uiFw} UI.`;
-    return `A ${uiFw} UI.`;
+    if (buildFw) return `${buildFw}-built ${uiFw} UI`;
+    return `${uiFw} UI`;
   }
 
   // CLI-only (no frameworks but a cli.ts file)
   if (hasCliFile(agent)) {
-    return 'A Node CLI tool.';
+    return 'Node CLI tool';
   }
 
   /* Last fallback intentionally returns null — a generic "A
@@ -246,7 +247,29 @@ export function joinList(items: string[]): string {
   return items.slice(0, -1).join(', ') + ', and ' + items[items.length - 1];
 }
 
-function lowerFirst(s: string): string {
-  if (s.length === 0) return s;
-  return s[0]!.toLowerCase() + s.slice(1);
+function capFirst(s: string): string {
+  return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+}
+
+/** Letters whose spoken NAME starts with a vowel sound (eff, aitch, em…),
+ *  for acronyms read letter by letter: "an MCP server", "an HTTP API". */
+const VOWEL_SOUND_LETTERS = new Set('AEFHILMNORSX');
+
+/**
+ * The indefinite article for a phrase, by the SOUND of its first word:
+ * "an Express application", "an Astro UI", "an nx monorepo", "an npm
+ * monorepo", but "a UI", "a pnpm monorepo", "a Vite-built React UI".
+ */
+export function aOrAn(phrase: string): 'a' | 'an' {
+  const word = /^[A-Za-z0-9.]+/.exec(phrase)?.[0] ?? '';
+  if (!word) return 'a';
+  // Lower-case tool names spelled out letter by letter.
+  if (/^(npm|nx|nvm)$/.test(word)) return 'an';
+  // Acronyms (MCP, HTTP, UI, CLI) are read letter by letter.
+  if (word.length >= 2 && /^[A-Z0-9]+$/.test(word)) {
+    return VOWEL_SOUND_LETTERS.has(word[0]!) ? 'an' : 'a';
+  }
+  if (/^(uni|use|usa|euro|one\b|once)/i.test(word)) return 'a'; // "you-", "wun-"
+  if (/^(hour|honest|honou?r|heir)/i.test(word)) return 'an'; // silent h
+  return /^[aeiou]/i.test(word) ? 'an' : 'a';
 }

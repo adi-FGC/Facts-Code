@@ -57,6 +57,23 @@ describe('buildReviewVerdict — posture', () => {
     expect(v.severity).toBe('low');
   });
 
+  /* "shown but never graded" (secretClass.ts): a possible secret is
+     listed after the roll-up, marked not graded, so it never sets the level
+     and never wears a LOW chip beside its own "not graded" title. */
+  it('lists a possible (generic, info) secret as its own ungraded finding, never as exposed', () => {
+    const possible = { ...secretRisk, severity: 'info', rule: 'env-secret-pair', file: '.env' };
+    const v = buildReviewVerdict(ds({ risks: [possible, secretRisk] as Dataset['risks'] }), null);
+    expect(v.posture.secrets).toBe(1); // only the provider-shaped one
+    const f = v.findings.filter((x) => x.kind === 'secret');
+    expect(f.map((x) => x.title)).toEqual(['1 exposed secret', '1 possible secret, not graded']);
+    expect(f.map((x) => x.graded)).toEqual([undefined, false]);
+    const alone = buildReviewVerdict(ds({ risks: [possible] as Dataset['risks'] }), null);
+    expect(alone.posture.secrets).toBe(0);
+    expect(alone.severity).toBe('none');
+    expect(alone.findings.map((x) => x.graded)).toEqual([false]);
+    expect(alone.headline).toBe('No risk: 1 possible secret, not graded.');
+  });
+
   it('detects a dependency cycle (a↔b) and scores it medium', () => {
     const edges: Dataset['edges'] = [
       { from: 'a.ts', to: 'b.ts', kind: 'import' },
@@ -81,6 +98,92 @@ describe('buildReviewVerdict — posture', () => {
     expect(v.posture.vulnerabilities).toBe(2);
     expect(v.findings.find((f) => f.kind === 'vulnerability')?.severity).toBe('critical');
     expect(v.severity).toBe('critical');
+  });
+
+  /* correctness#8 / CG-R4 — an advisory OSV gave no score for (or whose
+     detail fetch failed) grades as medium here too, as in the CLI/MCP verdict
+     (INV7): the page must never call it low. */
+  it.each([
+    ['direct', { id: 'CVE-U', severity: 'unknown', scope: 'direct' }],
+    ['unlabelled', { id: 'CVE-U', severity: 'unknown' }],
+  ])('grades a %s advisory of unknown severity as medium', (_label, row) => {
+    const v = buildReviewVerdict(
+      ds({ vulnerabilities: [row] as NonNullable<Dataset['vulnerabilities']> }),
+      null,
+    );
+    expect(v.posture.vulnerabilities).toBe(1);
+    const f = v.findings.filter((x) => x.kind === 'vulnerability');
+    expect(f.map((x) => x.severity)).toEqual(['medium']);
+    expect(f[0]!.graded).toBeUndefined();
+    expect(v.severity).toBe('medium');
+  });
+
+  /* Owner call: dev / transitive advisories are listed, not counted toward
+     the verdict level. A dev-only CRITICAL used to read "Critical risk". */
+  it('lists dev / transitive advisories without letting them set the verdict', () => {
+    const vulnerabilities = [
+      { id: 'CVE-DEV', severity: 'critical', scope: 'dev' },
+      { id: 'CVE-TRANS', severity: 'high', scope: 'transitive' },
+    ] as NonNullable<Dataset['vulnerabilities']>;
+    const v = buildReviewVerdict(ds({ vulnerabilities }), null);
+    expect(v.severity).toBe('none');
+    expect(v.posture.vulnerabilities).toBe(0);
+    const f = v.findings.filter((x) => x.kind === 'vulnerability');
+    expect(f.map((x) => x.title)).toEqual(['2 dev/transitive advisories (shown, not graded)']);
+    expect(f[0]!.severity).toBe('low');
+    /* The `low` is a schema placeholder: the marker tells the page to show
+       "not graded" instead of a LOW chip (UI-R3-REV-03). */
+    expect(f[0]!.graded).toBe(false);
+    expect(f[0]!.evidence).toEqual({ count: 2, ids: ['CVE-DEV', 'CVE-TRANS'] });
+    expect(v.headline).toBe('No risk: 2 dev/transitive advisories (shown, not graded).');
+
+    /* Beside graded ones (direct, or a legacy row with no scope), only those
+       score; an id with ANY direct row is graded (core review.ts's rule), and
+       the listed-only finding comes last, after the roll-up. */
+    const mixed = buildReviewVerdict(
+      ds({
+        vulnerabilities: [
+          ...vulnerabilities,
+          { id: 'CVE-DIRECT', severity: 'medium', scope: 'direct' },
+          { id: 'CVE-DIRECT', severity: 'critical', scope: 'dev' },
+          { id: 'CVE-LEGACY', severity: 'low' },
+        ] as NonNullable<Dataset['vulnerabilities']>,
+      }),
+      null,
+    );
+    expect(mixed.severity).toBe('medium');
+    expect(mixed.posture.vulnerabilities).toBe(2);
+    expect(mixed.findings.map((x) => x.title)).toEqual([
+      '2 known vulnerabilities',
+      '2 dev/transitive advisories (shown, not graded)',
+    ]);
+    expect(mixed.findings[0]!.evidence).toEqual({ count: 2, ids: ['CVE-DIRECT', 'CVE-LEGACY'] });
+    // Only the listed-only finding carries the marker; graded ones never do.
+    expect(mixed.findings.map((x) => x.graded)).toEqual([undefined, false]);
+  });
+
+  it('marks nothing but listed-only advisories and possible secrets as not graded', () => {
+    const fixture = { ...secretRisk, severity: 'low', file: 'test/keys.ts' };
+    const possible = { ...secretRisk, severity: 'info', rule: 'env-secret-pair', file: '.env' };
+    const edges: Dataset['edges'] = [
+      { from: 'a.ts', to: 'b.ts', kind: 'import' },
+      { from: 'b.ts', to: 'a.ts', kind: 'import' },
+    ];
+    const v = buildReviewVerdict(
+      ds({
+        edges,
+        risks: [secretRisk, fixture, possible] as Dataset['risks'],
+        vulnerabilities: [{ id: 'CVE-1', severity: 'high' }] as NonNullable<
+          Dataset['vulnerabilities']
+        >,
+      }),
+      null,
+    );
+    expect(v.findings.length).toBeGreaterThan(0);
+    const ungraded = v.findings.filter((f) => f.graded !== undefined);
+    expect(ungraded.map((f) => [f.title, f.graded])).toEqual([
+      ['1 possible secret, not graded', false],
+    ]);
   });
 
   it('computes blast radius (transitive dependents) but only flags a hotspot past the threshold', () => {

@@ -370,7 +370,7 @@
 
       <!-- ═══════════════ 7 · CLI ═══════════════ -->
       <h2 id="cli">7 · CLI verbs</h2>
-      <p>The <code>factstack</code> binary (Node 20+ / Deno 2+). Top-level <code>--json</code> switches analyze/diff/query/scan-vulns/export-skills/ci-report/export-diagram into machine-readable mode (structured stdout, no TTY chrome).</p>
+      <p>The <code>factstack</code> binary (Node 24.3+; launched as <code>npx factstack</code> once published). Top-level <code>--json</code> switches analyze/diff/query/scan-vulns/export-skills/ci-report/export-diagram into machine-readable mode (structured stdout, no TTY chrome).</p>
 
       <table>
         <thead><tr><th>Verb</th><th>Logic</th><th>Use case</th></tr></thead>
@@ -380,13 +380,13 @@
           <tr><td>watch</td><td><code>ui --watch</code>: chokidar watches source, debounced re-analyze, pushes updates via SSE.</td><td>Live dashboard while you code.</td></tr>
           <tr><td>export</td><td>Emits the self-contained HTML report (CDN-stripped) to <code>./dist</code>.</td><td>Share a report with no server.</td></tr>
           <tr><td>scan-vulns</td><td>Queries OSV.dev against <code>dependencyManifests</code>, persists <code>vulnerabilities[]</code> into agent.json. <code>--prod-only</code>, <code>--no-cache</code>.</td><td>Opt-in network step: "check my deps for CVEs."</td></tr>
-          <tr><td>diff</td><td>Compares two analyses (snapshots or live agent.json). Zero-arg = previous snapshot vs current. TTY delta table or <code>--json</code>.</td><td>"What changed?" between two points in time.</td></tr>
-          <tr><td>review</td><td>The Change Verdict — head vs the latest snapshot: one severity + grounded findings (new secrets/CVEs/cycles + blast radius). <code>--format markdown|json</code>.</td><td>"Is this change risky?" — for a PR or an agent, in one line.</td></tr>
+          <tr><td>diff</td><td>Compares two analyses (snapshots or live agent.json). Zero-arg = the review baseline (<code>.facts/baseline/agent.json</code>; before one exists, the previous snapshot) vs current. TTY delta table or <code>--json</code>.</td><td>"What changed?" between two points in time.</td></tr>
+          <tr><td>review</td><td>The Change Verdict — head vs the previous analysis (<code>.facts/baseline/agent.json</code>, kept by every full analyze; the per-edit <code>--minimal</code> hook never replaces it): one severity + grounded findings (new secrets/CVEs/cycles + blast radius). <code>--format markdown|json</code>.</td><td>"Is this change risky?" — for a PR or an agent, in one line.</td></tr>
           <tr><td>query</td><td>Graph queries: <code>callers</code> / <code>imports</code> / <code>cycles</code> / <code>orphans</code>, with <code>--filter</code> / <code>--limit</code> / <code>--depth</code>.</td><td>"What depends on this file?" from the terminal.</td></tr>
           <tr><td>export-skills</td><td>Emits the 3 agent skill files at the project root. <code>--format claude,cursor,copilot</code>.</td><td>Generate AI-agent onboarding files.</td></tr>
           <tr><td>ci-report</td><td>Markdown diff report (head vs <code>--base</code>) for PR comments. <code>--with-diagram</code>, <code>--fail-on-shift &lt;n&gt;</code>.</td><td>Gate PRs on risk delta in CI.</td></tr>
           <tr><td>export-diagram</td><td>Mermaid flowchart: <code>--view package|hub|focal</code>, <code>--focus &lt;path&gt;</code>, <code>--depth</code>, <code>--out file.md</code> (auto-wraps in a mermaid fence).</td><td>Generate a shareable architecture diagram.</td></tr>
-          <tr><td>doctor</td><td>Verifies the host can run FACTS (Node ≥ 20, <code>node:sqlite</code> availability).</td><td>Pre-flight "will this work on my machine?"</td></tr>
+          <tr><td>doctor</td><td>Verifies the host can run FACTS (Node ≥ 24.3, <code>node:sqlite</code> availability).</td><td>Pre-flight "will this work on my machine?"</td></tr>
         </tbody>
       </table>
 
@@ -409,7 +409,7 @@
           <tr><td>get_config</td><td>Every env var the codebase reads, with read sites + defaults.</td><td>"What does this need from its environment?"</td></tr>
           <tr><td>log_learning</td><td>Appends a proposal/outcome event to learnings.jsonl.</td><td>Record what the agent proposed + whether it was accepted.</td></tr>
           <tr><td>query_learnings</td><td>Filters the learnings log (since/agent/outcome/tag).</td><td>"What has this codebase's agents been right about?"</td></tr>
-          <tr><td>review_change</td><td>The Change Verdict (severity + findings + blast radius) for head vs the latest snapshot; <code>format:"markdown"</code> for a PR block.</td><td>"Is this change risky?" — without re-reading the diff.</td></tr>
+          <tr><td>review_change</td><td>The Change Verdict (severity + findings + blast radius) for head vs the previous full analysis (<code>.facts/baseline/agent.json</code>; falls back to the newest older full snapshot); <code>format:"markdown"</code> for a PR block.</td><td>"Is this change risky?" — without re-reading the diff.</td></tr>
         </tbody>
       </table>
 
@@ -422,7 +422,7 @@
         <thead><tr><th>Tab</th><th>Shows / logic</th><th>Question it answers</th></tr></thead>
         <tbody>
           <tr><td>Overview</td><td>Intent one-liner, stack, headline stats, one-click health badge → /risks.</td><td>"What is this and is it healthy?"</td></tr>
-          <tr><td>Review</td><td>The Change Verdict — head vs the latest snapshot: severity + grounded findings (new secrets/CVEs/cycles + blast radius).</td><td>"Is this change risky?"</td></tr>
+          <tr><td>Review</td><td>The Change Verdict in the browser — current posture from the live graph (secrets, CVEs, cycles, blast radius) plus count deltas vs a History snapshot you pick (default: the newest prior one). Snapshots are count rollups, so it cannot diff files the way <code>review</code> does; severity uses the same scoring as the CLI and MCP.</td><td>"Is this change risky?"</td></tr>
           <tr><td>Graph</td><td>Sugiyama DAG of the dependency graph; draggable nodes, contained scroll. <strong>Copy Mermaid</strong> (fenced, to the clipboard) + <strong>Download .mmd</strong> (raw source) export the package-level flowchart.</td><td>"How do the modules connect?" — and "let me paste that into the PR / open it in a Mermaid editor."</td></tr>
           <tr><td>Flow</td><td>Data-flow views: swimlanes, sequence (entry-point picker), entities, text. Tier-classified.</td><td>"How does data move through the system?"</td></tr>
           <tr><td>Files</td><td>Every file ranked by weight (LOC/tokens); per-file outline.</td><td>"What's the heaviest / where do I start?"</td></tr>

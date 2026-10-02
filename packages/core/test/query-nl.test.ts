@@ -21,7 +21,7 @@ function sym(id: string, path: string, name: string, kind: string, s: number): S
 }
 function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
   return {
-    $schema: 'x',
+    $schema: 'https://factstack.dev/schema/agent.v1.json',
     factsVersion: '0.1.0',
     generatedAt: '2026-06-08T00:00:00Z',
     project: {
@@ -39,6 +39,10 @@ function makeArtifact(graph: Partial<AgentArtifact['graph']>): AgentArtifact {
     capabilities: [],
     risks: [],
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
   } as AgentArtifact;
 }
 function fileNode(path: string) {

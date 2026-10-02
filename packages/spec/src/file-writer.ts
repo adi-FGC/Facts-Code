@@ -64,4 +64,15 @@ export interface FileWriter {
    * implement directory deletion; the orchestrator never needs it.
    */
   removeEntry(dir: string, name: string): Promise<void>;
+
+  /**
+   * Optional: read back a text file under the writer's root. Resolves `null`
+   * when there is no file at `path`; other failures (permission denied,
+   * I/O) reject. Lets a writer-agnostic orchestrator decide whether an
+   * existing file is FACTS-managed before replacing it (`buildSkillsTo`
+   * refreshes a `.cursorrules` / Copilot file only when it carries the
+   * FACTS marker). Callers must work without it — a writer that lacks it
+   * simply never has its existing files read.
+   */
+  readText?(path: string): Promise<string | null>;
 }

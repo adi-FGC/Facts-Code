@@ -22,12 +22,15 @@
  *      about — useful for "what changed since my last MEMORY.md
  *      generation" without dumping everything in the snapshot history.
  *
- * Pure / isomorphic. The CLI / MCP server provides the prior artifact
- * (loaded from `.facts/snapshots/<ts>/agent.json` or the most-recent).
+ * Pure / isomorphic. The CLI / MCP server provides the prior artifact: the
+ * previous full analysis kept at `.facts/baseline/agent.json`
+ * (BASELINE_AGENT_FILE in @factstack/spec), which analyze rotates in just
+ * before it writes the new `agent.json`.
  */
 
 import type { AgentArtifact, FileOutline, Risk, RouteDecl } from '@factstack/spec';
 import { byCodeUnit } from '@factstack/spec';
+import { diffRiskSets, secretGrading, withoutFingerprint } from './diff.js';
 
 export interface SinceFileSummary {
   path: string;
@@ -35,7 +38,8 @@ export interface SinceFileSummary {
   tokenCost: number;
   status: FileOutline['status'];
   /** When `lastModifiedMs` is known, ISO timestamp of the last change.
-   *  Null when the file's mtime wasn't captured. */
+   *  Null when unknown: the file's mtime wasn't captured, or (baseline
+   *  mode) it has uncommitted edits and its timestamp is the last commit's. */
   lastModified: string | null;
   /** v0.3.8 — `'added'`, `'modified'`, or `'removed'` depending on
    *  whether this file appears in the baseline. In the mtime-only mode
@@ -151,15 +155,6 @@ function fileKey(p: string): string {
   return p.replace(/\\/g, '/');
 }
 
-function risksKey(r: Risk): string {
-  // (rule, file, line, message-prefix-32) is a stable-enough key
-  // to identify a risk across two runs without false matches when
-  // the same rule fires on two different lines of the same file.
-  return [r.rule, r.file ?? '', r.line ?? '', (r.messageTechnical ?? r.message).slice(0, 32)].join(
-    '|',
-  );
-}
-
 function routeKey(r: RouteDecl): string {
   return `${r.framework}|${r.method ?? ''}|${r.path}|${r.handlerFile}`;
 }
@@ -183,11 +178,20 @@ export function sinceFromBaseline(
   let tokenCostInWindow = 0;
   let declarationsAdded = 0;
 
+  /* A baseline taken at or after the cutoff means every difference from it
+     happened inside the window, whatever the file's timestamp says — and
+     that timestamp is the git COMMIT time when git was mined, so an
+     uncommitted edit to a tracked file carries an old one. Only a baseline
+     older than the cutoff needs the timestamp to place a change. */
+  const priorAt = Date.parse(prior.generatedAt);
+  const baselineInWindow = Number.isFinite(priorAt) && priorAt >= sinceMs;
+
   // Added + modified — only if their mtime is after the cutoff.
   for (const f of current.files) {
     const k = fileKey(f.path);
     const wasInPrior = priorByPath.has(k);
-    const mtimeOK = f.lastModifiedMs == null ? true : f.lastModifiedMs > sinceMs;
+    const mtimeOK =
+      baselineInWindow || f.lastModifiedMs == null ? true : f.lastModifiedMs > sinceMs;
     if (!wasInPrior) {
       if (!mtimeOK) continue;
       files.push({
@@ -200,17 +204,24 @@ export function sinceFromBaseline(
       });
       tokenCostInWindow += f.tokenCost;
       declarationsAdded += f.declarations.length;
-    } else if (mtimeOK) {
+    } else {
       // Touched in window. Cheap proxy for "modified": mtime is after
       // the cutoff. Could deepen this with content hash later.
       const beforeF = priorByPath.get(k)!;
-      if (f.bytes !== beforeF.bytes || f.loc !== beforeF.loc) {
+      const changed = f.bytes !== beforeF.bytes || f.loc !== beforeF.loc;
+      /* Content moved but the timestamp did not: it is the last COMMIT's,
+         and the edit is uncommitted. It happened after the baseline, and the
+         timestamp cannot say whether before or after the cutoff — report it
+         (time unknown) rather than hide the edit the caller asked about. */
+      const stale =
+        changed && f.lastModifiedMs != null && f.lastModifiedMs === beforeF.lastModifiedMs;
+      if (changed && (mtimeOK || stale)) {
         files.push({
           path: f.path,
           loc: f.loc,
           tokenCost: f.tokenCost,
           status: f.status,
-          lastModified: toIso(f.lastModifiedMs),
+          lastModified: stale ? null : toIso(f.lastModifiedMs),
           kind: 'modified',
         });
         tokenCostInWindow += f.tokenCost;
@@ -244,13 +255,23 @@ export function sinceFromBaseline(
   for (const [k, r] of currentRoutes) if (!priorRoutes.has(k)) routesAdded.push(r);
   for (const [k, r] of priorRoutes) if (!currentRoutes.has(k)) routesRemoved.push(r);
 
-  // Risks diff. Same approach.
-  const priorRisks = new Map(prior.risks.map((r) => [risksKey(r), r]));
-  const currentRisks = new Map(current.risks.map((r) => [risksKey(r), r]));
-  const risksAdded: Risk[] = [];
-  const risksRemoved: Risk[] = [];
-  for (const [k, r] of currentRisks) if (!priorRisks.has(k)) risksAdded.push(r);
-  for (const [k, r] of priorRisks) if (!currentRisks.has(k)) risksRemoved.push(r);
+  // Risks diff: matched one by one on the full fingerprint (a truncated
+  // message key merged distinct risks, e.g. every 2-file cycle under src/),
+  // without the line so a finding that merely moved is not "new". Secret
+  // fingerprints are trusted only between artifacts scanned under the same
+  // secret rules revision (SV-6): across a scheme or coverage change every
+  // secret would read as removed + added.
+  // Same rule as diffFindings: graded keeps the default (digests only when
+  // both sides carry them).
+  const riskSets = diffRiskSets(
+    prior.risks,
+    current.risks,
+    secretGrading(prior, current).graded ? {} : { useDigest: false },
+  );
+  // The report goes to agents (MCP `since`): the fingerprint used to match
+  // secrets above stays behind (SV-8).
+  const risksAdded: Risk[] = riskSets.new.map(withoutFingerprint);
+  const risksRemoved: Risk[] = riskSets.fixed.map(withoutFingerprint);
 
   // Sort files: added first, then modified, then removed.
   // Within each group, most recent first.

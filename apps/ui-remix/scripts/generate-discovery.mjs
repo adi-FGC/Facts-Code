@@ -30,9 +30,10 @@
  *   node scripts/generate-discovery.mjs          # auto (root package.json version)
  *   node scripts/generate-discovery.mjs --root ../..
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withRouteCacheRules } from './lib/cf-headers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(__dirname, '..');
@@ -84,6 +85,21 @@ console.log(
   `[generate-discovery] wrote ${Object.keys(result.files).length} artifacts into dist/ (${(result.bytesWritten / 1024).toFixed(1)} KB)`,
 );
 for (const p of Object.keys(result.files).sort()) console.log(`  + ${p}`);
+
+/* Per-route HTML cache rules for Cloudflare. It serves clean URLs (`/`,
+   `/review`), so the `/*.html` rule in public/_headers never reached a served
+   page. One rule per catalog route (plus its deep links), generated from the
+   same route list as the sitemap so a new tab is covered automatically;
+   check-bundle-size.mjs verifies every sitemap route ends up with exactly one
+   HTML_CACHE_CONTROL (lib/cf-headers.mjs). Re-runs replace the block. */
+const headersPath = join(DIST, '_headers');
+if (existsSync(headersPath)) {
+  const routePaths = reg.routes.map((r) => r.path);
+  writeFileSync(headersPath, withRouteCacheRules(readFileSync(headersPath, 'utf8'), routePaths));
+  console.log(
+    `[generate-discovery] appended ${routePaths.length} route cache rules to dist/_headers`,
+  );
+}
 
 /* Splice the <meta> fragment into dist/index.html at the placeholder
    comment. Anchored replace (like inject-data.mjs) so a re-run is a no-op

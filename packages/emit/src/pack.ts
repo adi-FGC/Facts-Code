@@ -41,7 +41,13 @@
  */
 
 import type { AgentArtifact } from '@factstack/spec';
-import { encode, type PackHeader, type PackRow, type PackTable } from '@factstack/factspack';
+import {
+  encode,
+  mapLiteralDashes,
+  type PackHeader,
+  type PackRow,
+  type PackTable,
+} from '@factstack/factspack';
 
 const PRODUCER = 'factstack/0.3.10';
 // agent-v2 (F1/F2): `imports` gained a `conf` column; `symbols`/`calls` tables.
@@ -101,7 +107,11 @@ export function encodeAgentPack(agent: AgentArtifact, opts: { snapshotId?: strin
       buildWorktreesTable(agent),
       buildBranchesTable(agent),
       buildFeaturesTable(agent),
-    ],
+      /* One S12 pass over EVERY table: an exact "-" in any literal column
+         (an env default, a file named `-`, a `// TODO -` comment) becomes
+         "- " instead of aborting the whole artifact write. Patching columns
+         one by one kept missing the next free-text column. */
+    ].map(mapLiteralDashes),
   });
 }
 
@@ -130,7 +140,7 @@ function buildLegend(agent: AgentArtifact): string[] {
       ') read(estimated read-through minutes)',
     'imports: id F(from file) T(to file) kind(import|dynamic-import|type-import) conf(edge provenance: extracted=read from source, inferred=resolved, ambiguous=name-match only)',
     'routes: id framework method path(URL path, not a file) F(handler file) sym(handler symbol)',
-    'risks: id sev(critical|high|medium|low) cat rule F(file; - = project-wide) line msg(plain-language) tech(technical detail)',
+    'risks: id sev(critical|high|medium|low|info) cat rule F(file; - = project-wide) line msg(plain-language) tech(technical detail). info is never graded. Secret rows: info = POSSIBLE secret (generic heuristic; verify before calling it a leak), low = test/fixture match (not graded), other sev = graded exposed secret.',
     'envs: id N(env-var name) F(reading file) line access default(- = none)',
     'declarations: id F(file) name kind start end exp(1 = exported, 0 = not)',
     'symbols: id(path#name@line) F(file) name kind start end exp(1 = exported)',
@@ -588,12 +598,6 @@ function buildEntityEdgesTable(agent: AgentArtifact): PackTable {
 
 const num = (n: number | null | undefined): string | null => (n == null ? null : String(n));
 const flag = (b: boolean | null | undefined): string | null => (b == null ? null : b ? '1' : '0');
-/** A literal cell that is exactly `-` decodes back as null (spec §10/S12), so
- *  the encoder rejects it — and that rejection aborts the ENTIRE artifact write
- *  for something as ordinary as a commit subject of "-" or a one-word prompt.
- *  Map it to dash-space: reads the same, never the null sentinel. */
-const lit = (s: string | null | undefined): string | null =>
-  s == null ? null : s === '-' ? '- ' : s;
 
 function buildWorktreesTable(agent: AgentArtifact): PackTable {
   /* One row per checkout of the repo: the main worktree, every linked
@@ -604,9 +608,9 @@ function buildWorktreesTable(agent: AgentArtifact): PackTable {
      cells (`targets`, `gaps`) are comma-joined short codes; the
      per-worktree feature list lives in the `features` table. */
   const rows: PackRow[] = (agent.git?.worktrees ?? []).map((w) => [
-    lit(w.path),
+    w.path,
     w.kind,
-    lit(w.branch),
+    w.branch,
     w.head,
     w.headAt,
     w.tree,
@@ -615,7 +619,7 @@ function buildWorktreesTable(agent: AgentArtifact): PackTable {
     String(w.dirty.untracked),
     String(w.dirty.conflicts),
     w.inProgress,
-    lit(w.upstream),
+    w.upstream,
     num(w.ahead),
     num(w.behind),
     num(w.uniqueCount),
@@ -665,10 +669,10 @@ function buildBranchesTable(agent: AgentArtifact): PackTable {
   /* One row per local branch. `W` (the worktree it is checked out in)
      repeats across rows and is interned in its own `W` namespace. */
   const rows: PackRow[] = (agent.git?.branches ?? []).map((b) => [
-    lit(b.name),
+    b.name,
     b.head,
     b.headAt,
-    lit(b.upstream),
+    b.upstream,
     num(b.ahead),
     num(b.behind),
     num(b.uniqueCount),
@@ -676,7 +680,7 @@ function buildBranchesTable(agent: AgentArtifact): PackTable {
     flag(b.containedInOrigin),
     flag(b.containedInLocal),
     b.worktree,
-    lit(b.subject),
+    b.subject,
     flag(b.deletable),
   ]);
   return {
@@ -713,8 +717,7 @@ function buildFeaturesTable(agent: AgentArtifact): PackTable {
      uniqueness while keeping the id stable and readable. */
   const rows: PackRow[] = [];
   (agent.git?.worktrees ?? []).forEach((w, wi) => {
-    for (const f of w.features)
-      rows.push([`w${wi}:${f.id}`, lit(w.path), f.source, f.at, lit(f.label)]);
+    for (const f of w.features) rows.push([`w${wi}:${f.id}`, w.path, f.source, f.at, f.label]);
   });
   return {
     name: 'features',

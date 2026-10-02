@@ -36,12 +36,13 @@ export function resolveSyncPack(
   // REQUIRES + verifies the integrity trailer, so a trailerless / truncated /
   // corrupt master throws here and is caught below; on success the trailer is
   // guaranteed present.
-  let currentSha: string;
+  let master: ReturnType<typeof decode>;
   try {
-    currentSha = decode(masterBody).trailer!.sha256;
+    master = decode(masterBody);
   } catch {
     return { status: 'error', error: 'unreadable or trailerless master pack' };
   }
+  const currentSha = master.trailer!.sha256;
 
   // Already current — nothing to send but the confirmation + the sha held.
   if (have && have === currentSha) {
@@ -49,12 +50,24 @@ export function resolveSyncPack(
   }
 
   // One step behind — return the diff only when it bridges the caller's held
-  // master to the current one (its parent == what they hold). Best-effort: an
+  // master to the CURRENT one: its parent is what they hold AND it was built
+  // for this master (the producer stamps a diff with its target's identity).
+  // A sidecar left by an earlier run, or read between the pack write and the
+  // diff write, targets an older master; applying it would leave the caller
+  // on that master while recording the current sha. Best-effort: an
   // unreadable or non-bridging diff falls through to the full master.
   if (have && diffBody) {
     try {
       const d = decode(diffBody);
-      if (d.header.kind === 'diff' && d.header.parent === have) {
+      const h = d.header;
+      const m = master.header;
+      if (
+        h.kind === 'diff' &&
+        h.parent === have &&
+        h.snapshotId === m.snapshotId &&
+        h.schema === m.schema &&
+        (h.generated === undefined || m.generated === undefined || h.generated === m.generated)
+      ) {
         return { status: 'diff', sha: currentSha, pack: diffBody };
       }
     } catch {

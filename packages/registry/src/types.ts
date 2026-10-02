@@ -61,8 +61,10 @@ export interface SiteRegistry {
   cli: {
     binName: string;
     publishedPackage: string;
-    /** Ready-to-paste one-liner (e.g. `npx -y @factstack/cli`). */
+    /** Ready-to-paste one-liner once published (`npx factstack`). */
     command: string;
+    /** The command that works today, from a clone of the repo. */
+    cloneCommand: string;
     /** Whether `publishedPackage` actually exists on npm yet. Renderers gate
      *  the `npx` call-to-action on this so the site never advertises a 404. */
     published: boolean;
@@ -71,7 +73,10 @@ export interface SiteRegistry {
   mcp: {
     binName: string;
     publishedPackage: string;
+    /** The npx launch once published (`npx -y factstack-mcp`). */
     launchCommand: McpLaunchCommand;
+    /** The stdio launch that works today, from a clone of the repo. */
+    cloneLaunchCommand: McpLaunchCommand;
     /** Every shipped tool, in ListTools order (from MCP_TOOL_CATALOG). */
     tools: readonly McpToolMeta[];
     /** Concrete MCP resources (from McpResourceCatalog). */

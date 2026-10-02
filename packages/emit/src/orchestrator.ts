@@ -21,9 +21,70 @@
  */
 
 import type { AgentArtifact, FileWriter, HumanArtifact } from '@factstack/spec';
-import { AgentArtifactSchema, HumanArtifactSchema } from '@factstack/spec';
+import { AgentArtifactSchema, BASELINE_AGENT_FILE, HumanArtifactSchema } from '@factstack/spec';
 import { computeDiff, decode, encodeIncremental, type PackHeader } from '@factstack/factspack';
 import { encodeAgentPack } from './pack.js';
+import {
+  RAW_JSON_ARTIFACTS,
+  StaleResaveError,
+  buildStaleMark,
+  packGeneratedAt,
+  staleMarkName,
+  type RawJsonArtifact,
+} from './stale-mark.js';
+
+const BASELINE_DIR = BASELINE_AGENT_FILE.slice(0, BASELINE_AGENT_FILE.lastIndexOf('/'));
+/** Left next to the baseline by earlier builds, whose --minimal rewrote
+ *  agent.json: "agent.json is a --minimal head, do not park it". Only read
+ *  (then removed) by a full write; minimal no longer touches agent.json. */
+const LEGACY_MINIMAL_HEAD_MARK = 'minimal-head';
+
+/** An error as one short line for `diffSkipped` (messages can be multi-line
+ *  or quote a whole pack row). */
+function oneLine(err: unknown): string {
+  const msg = (err instanceof Error ? err.message : String(err)).replace(/\s+/g, ' ').trim();
+  return msg.length > 200 ? `${msg.slice(0, 199)}…` : msg || 'unknown error';
+}
+
+/** Top-level `generatedAt` of a serialized agent.json; null when the body is
+ *  not a parseable artifact. */
+function generatedAtOf(body: string): string | null {
+  try {
+    const at = (JSON.parse(body) as { generatedAt?: unknown } | null)?.generatedAt;
+    return typeof at === 'string' ? at : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Is a refused write a re-save of the analysis agent.json holds (same
+ *  `generatedAt`), rather than a new analysis? Only asked on the refusal
+ *  path, so reading the multi-MB agent.json costs nothing on a normal run.
+ *  Unknown (no reader, a read error) keeps the guard's original re-save
+ *  wording; no agent.json at all means a new analysis. */
+async function isResaveOfDiskAgent(
+  writer: FileWriter,
+  generatedAt: string,
+  prevAgentBody: string | undefined,
+): Promise<boolean> {
+  let body: string | null | undefined = prevAgentBody;
+  if (body === undefined && writer.readText) {
+    body = await writer.readText('agent.json').catch(() => undefined);
+  }
+  if (body === undefined) return true;
+  return body !== null && generatedAtOf(body) === generatedAt;
+}
+
+/** Is the agent.pack on disk (still) the one this run wrote? Unknown (no
+ *  reader, a read error, no header stamp) counts as yes: the caller then
+ *  writes a stale mark, and a needless mark is the safe side. */
+async function packIsStill(writer: FileWriter, generatedAt: string): Promise<boolean> {
+  if (!writer.readText) return true;
+  const body = await writer.readText('agent.pack').catch(() => undefined);
+  if (body === undefined || body === null) return true;
+  const at = packGeneratedAt(body);
+  return at === null || Date.parse(at) === Date.parse(generatedAt);
+}
 
 /**
  * Emit profile — controls which artifacts land on disk.
@@ -38,6 +99,13 @@ import { encodeAgentPack } from './pack.js';
  *     `MEMORY.md` (cold-start brief) when a body is supplied. Drops the
  *     three redundant encodings: `agent.json` (pack supersedes it),
  *     `agent.jsonl` (derivable), and the snapshot (History-tab only).
+ *     "Drops" means never WRITES: an `agent.json` / `agent.jsonl` an
+ *     earlier full run left stays as it is (rewriting ~8 MB on every
+ *     per-edit hook run was performance#1), and is marked stale with a
+ *     tiny `<file>.stale` BEFORE the newer pack lands, so no reader serves
+ *     it as current (see `stale-mark.ts`). Since minimal never replaces
+ *     agent.json, it also never touches the review baseline: agent.json
+ *     stays the last full analysis, parked by the next full run.
  *
  * Explicit `streamable` / `writeSnapshot` options still WIN over the
  * profile when set — the profile only changes their *defaults*. This
@@ -84,10 +152,41 @@ export interface WriteArtifactsToOptions {
    * written — the sidecar is purely additive and best-effort.
    */
   prevPackBody?: string;
+  /**
+   * The PREVIOUS `agent.json` body, pre-read by the caller (like
+   * `prevPackBody`). When this run writes a new `agent.json`, the old one
+   * is kept first at `BASELINE_AGENT_FILE` (keep-1), so `review` /
+   * `review_change` / `since` compare two full artifacts. Omit it on a
+   * first run — nothing to keep. Not parked when it is the same analysis
+   * (same `generatedAt`) or unparseable. Unused by `minimal`, which never
+   * replaces agent.json.
+   */
+  prevAgentBody?: string;
+  /**
+   * Treat this write as a new analysis for the review baseline. Default
+   * true. Pass false for a write that must not move the baseline — a re-save
+   * of an analysis already on disk (scan-vulns, the MCP CVE refresh), or a
+   * refresh during a hold: the baseline is then left exactly as it is,
+   * whatever `generatedAt` the rewritten artifact carries. Only about the
+   * baseline; see `refuseUnderNewerPack` for the stale-write guard.
+   */
+  rotateBaseline?: boolean;
+  /**
+   * Refuse the write with a `StaleResaveError` (nothing written) when
+   * `prevPackBody` shows a NEWER analysis in agent.pack than `agent`: a
+   * --minimal hook run landed after this analysis was loaded or made, and
+   * writing it would revert agent.pack, human.json and MEMORY.md. Default:
+   * on exactly when `rotateBaseline` is false (the historical coupling,
+   * which the CLI refresh and MCP warm-up rely on). Set it explicitly to
+   * decouple the two: `true` guards a rotating write too, `false` lets a
+   * non-rotating one overwrite (last writer wins).
+   */
+  refuseUnderNewerPack?: boolean;
 }
 
 export interface WriteArtifactsResult {
-  /** `agent.json`, or null in the `minimal` profile (pack supersedes it). */
+  /** `agent.json`, or null in the `minimal` profile (pack supersedes it;
+   *  one an earlier run left is marked stale instead — see `staleLeft`). */
   agentName: 'agent.json' | null;
   /** Always written: `human.json`. */
   humanName: 'human.json';
@@ -96,8 +195,18 @@ export interface WriteArtifactsResult {
   /** F8 — `agent.diff.pack` when a usable `prevPackBody` was supplied and
    *  the diff emitted; null otherwise (cold run, or an unusable prev). */
   diffName: 'agent.diff.pack' | null;
+  /** Why no diff was written although a previous pack was supplied (an
+   *  unreadable or pre-v0.2 prev, a schema change, a computeDiff failure
+   *  such as a duplicate primary key). Absent when the diff was written or
+   *  there was no previous pack. One line, for the caller to print dimmed:
+   *  the write itself still succeeded. */
+  diffSkipped?: string;
   /** `agent.jsonl`, or null when streamable: false / minimal profile. */
   jsonlName: string | null;
+  /** Raw-JSON artifacts an earlier run left that this run did NOT refresh,
+   *  so they now carry a `<file>.stale` mark (older than the pack). Absent
+   *  when there are none. For the caller to mention, dimmed. */
+  staleLeft?: RawJsonArtifact[];
   /** `MEMORY.md`, or null when memoryBody is omitted/empty. */
   memoryName: string | null;
   /** Name of the snapshot file under `snapshots/`, or null when
@@ -112,9 +221,14 @@ export interface WriteArtifactsResult {
  * Orchestrator entry point. Pure delegation to the `FileWriter`.
  *
  * 1. Validate `agent` + `human` against their Zod schemas. Throws
- *    if either is malformed — we never ship a broken artifact.
- * 2. Write the three always-on files (agent.json, human.json, pack).
- * 3. Conditionally write jsonl, MEMORY.md, snapshot.
+ *    if either is malformed — we never ship a broken artifact. Refuse a
+ *    write under a newer pack (`StaleResaveError`, see
+ *    `refuseUnderNewerPack`).
+ * 2. Mark a leftover agent.json / agent.jsonl this run won't refresh
+ *    stale, then write agent.json + agent.jsonl (legacy; clearing their
+ *    marks), human.json, the pack; re-check the marks a concurrent run
+ *    may have cleared meanwhile.
+ * 3. Conditionally write the diff sidecar, MEMORY.md, snapshot.
  * 4. If snapshots are on AND retention is positive, prune oldest.
  *
  * Returns a flat `WriteArtifactsResult` with the names (not paths)
@@ -133,6 +247,24 @@ export async function writeArtifactsTo(
 
   const profile: EmitProfile = options.profile ?? 'legacy';
   const isMinimal = profile === 'minimal';
+  const rotate = options.rotateBaseline ?? true;
+  const refuseUnderNewer = options.refuseUnderNewerPack ?? !rotate;
+
+  /* Never revert a NEWER analysis (see `refuseUnderNewerPack`). When
+     agent.pack is ahead of this one, refuse before anything is touched —
+     and say whether this was a re-save of a stale agent.json or a new
+     analysis that was overtaken (EMIT-REV-2: the old wording blamed
+     agent.json for both). */
+  if (refuseUnderNewer && options.prevPackBody !== undefined) {
+    const onDisk = packGeneratedAt(options.prevPackBody);
+    if (onDisk !== null && Date.parse(onDisk) > Date.parse(agent.generatedAt)) {
+      throw new StaleResaveError(
+        agent.generatedAt,
+        onDisk,
+        await isResaveOfDiskAgent(writer, agent.generatedAt, options.prevAgentBody),
+      );
+    }
+  }
 
   const humanBody = JSON.stringify(human, null, 2);
   /* FactsPack is the canonical AI surface (~80% fewer tokens than the
@@ -141,19 +273,141 @@ export async function writeArtifactsTo(
 
   let bytes = 0;
 
-  /* agent.json: the raw-JSON encoding. Redundant with agent.pack for
-     AI consumption, but several CLI commands (scan-vulns, diff,
-     export-skills/diagram, ci-report) read it back as their source of
-     truth, and external tooling may parse it. So it stays in `legacy`
-     and is dropped in `minimal`. */
+  /* What an earlier run left at the artifact root (listKeys returns [] for
+     a missing dir). null = the listing failed: then assume anything may
+     exist — a needless stale mark is harmless, a missing one would let an
+     old agent.json pass as current. */
+  const listed = await writer.listKeys('').then(
+    (keys) => new Set(keys),
+    () => null,
+  );
+  const mayExist = (name: string): boolean => listed === null || listed.has(name);
+
+  /* An agent.diff.pack from an earlier run describes an OLDER master. Drop
+     it before any artifact lands: a run that builds no diff (cold, unusable
+     prev, schema change, computeDiff failure) must not leave a sidecar that
+     sync_pack would pair with this master, and a reader landing mid-write
+     sees "no diff" rather than new master + old diff. Best-effort, like the
+     FSA adapter: a Windows EBUSY/EPERM (indexer, antivirus) must not abort
+     the write — sync_pack refuses a diff whose snapshotId doesn't match. */
+  await writer.removeEntry('', 'agent.diff.pack').catch(() => undefined);
+
+  /* The raw-JSON encodings this run refreshes. agent.json is redundant with
+     agent.pack for AI consumption, but several CLI commands (scan-vulns,
+     diff, review, export-skills/diagram, ci-report) read it back as their
+     source of truth, and external tooling may parse it — so `legacy` writes
+     it. `minimal` never writes either: rewriting them on every per-edit hook
+     run cost ~5x the bytes (performance#1). An explicit `streamable` still
+     wins for agent.jsonl. */
+  const refreshes: Record<RawJsonArtifact, boolean> = {
+    'agent.json': !isMinimal,
+    'agent.jsonl': options.streamable ?? !isMinimal,
+  };
+
+  /* One an earlier run left and this run does not refresh is now older than
+     the pack: mark it stale BEFORE any newer artifact lands, so no reader
+     ever sees a newer pack beside an unmarked older agent.json (a crash in
+     between leaves a conservative mark). Only the first run of a streak
+     writes it — `staleSince` stays the first newer analysis — so later hook
+     runs add no bytes. A mark whose file is gone is dropped. */
+  const staleLeft: RawJsonArtifact[] = [];
+  for (const file of RAW_JSON_ARTIFACTS) {
+    if (refreshes[file]) continue; // its mark is cleared once the file lands
+    const mark = staleMarkName(file);
+    if (mayExist(file)) {
+      if (listed !== null) staleLeft.push(file);
+      if (!(listed?.has(mark) ?? false)) {
+        bytes += await writer.writeText(mark, buildStaleMark(file, agent.generatedAt));
+      }
+    } else if (mayExist(mark)) {
+      await writer.removeEntry('', mark).catch(() => undefined);
+    }
+  }
+  /* After `file` itself landed. Best-effort: a mark that survives a locked
+     delete only makes readers say "stale" of a fresh file (the safe side),
+     and the next full run retries. */
+  const clearStaleMark = async (file: RawJsonArtifact): Promise<void> => {
+    const mark = staleMarkName(file);
+    if (mayExist(mark)) await writer.removeEntry('', mark).catch(() => undefined);
+  };
+
   let agentName: 'agent.json' | null = null;
-  if (!isMinimal) {
+  if (refreshes['agent.json']) {
+    /* Keep-1 review baseline: the previous agent.json, parked just before
+       it is replaced. It is always a FULL analysis — minimal never writes
+       agent.json, so after a hook streak it still holds the last full run.
+       A rewrite of the SAME analysis (scan-vulns, CVE refresh) parks nothing
+       — the MCP reader drops a baseline equal to the head — and neither does
+       an unparseable body. rotateBaseline:false skips all of it (a re-save,
+       or a refresh during a hold). An earlier build's --minimal DID rewrite
+       agent.json and left LEGACY_MINIMAL_HEAD_MARK: that head is not parked,
+       once. */
+    const held =
+      rotate &&
+      (await writer.listKeys(BASELINE_DIR).catch((): string[] => [])).includes(
+        LEGACY_MINIMAL_HEAD_MARK,
+      );
+    const prev = rotate ? options.prevAgentBody : undefined;
+    const prevAt = prev !== undefined ? generatedAtOf(prev) : null;
+    const sameAnalysis = prevAt === agent.generatedAt;
+    if (prev !== undefined && !held && prevAt !== null && !sameAnalysis) {
+      bytes += await writer.writeText(BASELINE_AGENT_FILE, prev);
+    }
     bytes += await writer.writeText('agent.json', JSON.stringify(agent, null, 2));
     agentName = 'agent.json';
+    await clearStaleMark('agent.json');
+    if (held && !sameAnalysis) {
+      await writer.removeEntry(BASELINE_DIR, LEGACY_MINIMAL_HEAD_MARK).catch(() => undefined);
+    }
+  }
+
+  /* agent.jsonl: streamable per-file. Profile sets the default (legacy on,
+     minimal off — one an earlier run left is marked stale above); an
+     explicit `streamable` still wins. Written — and its mark cleared —
+     BEFORE the pack, like agent.json (EMIT-REV-6): a run clears marks only
+     while its own pack has not landed yet, so a concurrent --minimal run
+     whose pack lands later always sees the cleared mark in its post-pack
+     check below. Cleared after the pack, a mark could vanish beside an
+     older agent.jsonl and a newer pack. */
+  let jsonlName: string | null = null;
+  if (refreshes['agent.jsonl']) {
+    // One file per line for streamable consumption by LLMs on tight
+    // context windows.
+    const lines = agent.files.map((f) => JSON.stringify(f)).join('\n') + '\n';
+    bytes += await writer.writeText('agent.jsonl', lines);
+    jsonlName = 'agent.jsonl';
+    await clearStaleMark('agent.jsonl');
   }
 
   bytes += await writer.writeText('human.json', humanBody);
   bytes += await writer.writeText('agent.pack', packBody);
+
+  /* EMIT-REV-6 — the pre-write marks above are check-then-act: this run
+     listed the root, found a mark and skipped writing it, and a concurrent
+     full run may have cleared it since (after writing its OLDER agent.json,
+     before this pack landed). Re-list now that the pack is down: a raw file
+     this run did not refresh that sits unmarked beside our pack gets its
+     mark back. Skipped when a later run already replaced our pack (that run
+     owns the marks), which only a reader can tell: see packIsStill. One
+     directory listing per run; a failed listing keeps what the pre-write
+     pass did (it marked conservatively when ITS listing failed). */
+  const unrefreshed = RAW_JSON_ARTIFACTS.filter((file) => !refreshes[file]);
+  if (unrefreshed.length > 0) {
+    const now = await writer.listKeys('').then(
+      (keys) => new Set(keys),
+      () => null,
+    );
+    const cleared = unrefreshed.filter((f) => now?.has(f) && !now.has(staleMarkName(f)));
+    if (cleared.length > 0 && (await packIsStill(writer, agent.generatedAt))) {
+      for (const file of cleared) {
+        bytes += await writer.writeText(
+          staleMarkName(file),
+          buildStaleMark(file, agent.generatedAt),
+        );
+        if (!staleLeft.includes(file)) staleLeft.push(file);
+      }
+    }
+  }
 
   /* F8 — incremental diff sidecar. When the caller supplies the previous
      master, emit `agent.diff.pack`: the row-level delta from it to this
@@ -166,13 +420,19 @@ export async function writeArtifactsTo(
      Best-effort by design: any failure (a corrupt / pre-v0.2 / truncated
      prev, a schema drift, a duplicate PK) skips the diff and leaves the
      master as the source of truth. The emit step must never fail because
-     the accelerator couldn't build. The diff header's producer/schema/
-     snapshotId come from re-decoding the master we just wrote, so the
-     sidecar's identity can never drift from the pack it describes. */
+     the accelerator couldn't build — but it says why (`diffSkipped`), so a
+     producer bug such as a duplicate primary key is visible instead of
+     silently costing every consumer the small diff. The diff header's
+     producer/schema/snapshotId come from re-decoding the master we just
+     wrote, so the sidecar's identity can never drift from the pack it
+     describes. */
   let diffName: 'agent.diff.pack' | null = null;
+  let diffSkipped: string | undefined;
   if (options.prevPackBody) {
+    let stage = 'previous agent.pack is unreadable';
     try {
       const prev = decode(options.prevPackBody); // strict: throws on corrupt/legacy/truncated
+      stage = 'the new agent.pack does not decode';
       const next = decode(packBody);
       // Only diff a verifiable, same-schema master: the trailer sha anchors
       // the chain (the consumer verifies it before applying), and a schema
@@ -180,11 +440,14 @@ export async function writeArtifactsTo(
       // PACK-3: the prev MUST be a master — diffing against a diff (kind:'diff')
       // would compute a delta-of-a-delta the consumer could never apply. decode
       // treats an absent kind as a legacy master, so reject only explicit diffs.
-      if (
-        prev.trailer &&
-        prev.header.kind !== 'diff' &&
-        prev.header.schema === next.header.schema
-      ) {
+      if (!prev.trailer) {
+        diffSkipped = 'previous agent.pack has no integrity trailer (pre-v0.2)';
+      } else if (prev.header.kind === 'diff') {
+        diffSkipped = 'previous agent.pack is a diff, not a master';
+      } else if (prev.header.schema !== next.header.schema) {
+        diffSkipped = `pack schema changed (${prev.header.schema} → ${next.header.schema})`;
+      } else {
+        stage = 'computing the diff failed';
         const header: PackHeader = {
           producer: next.header.producer,
           schema: next.header.schema,
@@ -196,23 +459,14 @@ export async function writeArtifactsTo(
           ...(next.header.generated !== undefined && { generated: next.header.generated }),
         };
         const diffBody = encodeIncremental({ header, tables: computeDiff(prev, next) });
+        stage = 'writing agent.diff.pack failed';
         bytes += await writer.writeText('agent.diff.pack', diffBody);
         diffName = 'agent.diff.pack';
       }
-    } catch {
+    } catch (err) {
       /* accelerator failed — master is still authoritative, carry on */
+      diffSkipped = `${stage}: ${oneLine(err)}`;
     }
-  }
-
-  /* agent.jsonl: streamable per-file. Profile sets the default
-     (legacy on, minimal off); an explicit `streamable` still wins. */
-  let jsonlName: string | null = null;
-  if (options.streamable ?? !isMinimal) {
-    // One file per line for streamable consumption by LLMs on tight
-    // context windows.
-    const lines = agent.files.map((f) => JSON.stringify(f)).join('\n') + '\n';
-    bytes += await writer.writeText('agent.jsonl', lines);
-    jsonlName = 'agent.jsonl';
   }
 
   let memoryName: string | null = null;
@@ -248,7 +502,9 @@ export async function writeArtifactsTo(
     humanName: 'human.json',
     packName: 'agent.pack',
     diffName,
+    ...(diffSkipped !== undefined && { diffSkipped }),
     jsonlName,
+    ...(staleLeft.length > 0 && { staleLeft }),
     memoryName,
     snapshotName,
     bytesWritten: bytes,

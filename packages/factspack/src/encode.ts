@@ -40,6 +40,7 @@ import {
   type PackHeader,
   type PackMeta,
   type PackRow,
+  type PackTable,
 } from './types.js';
 
 export class PackEncodeError extends Error {
@@ -64,6 +65,7 @@ export function encode(opts: EncodeOptions): string {
       "encode() produces a 'master'; use encodeIncremental() for kind='diff'",
     );
   }
+  assertUntypedNamesUnambiguous(opts.meta, opts.tables);
   const enc = new Encoder();
   /* For each baseline table, declare schema once then emit a `-` line
      per row. The encoder interns repeated values for any column whose
@@ -124,6 +126,7 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
       `diff header rowCount must be the 0 sentinel (or null), got ${opts.header.rowCount}`,
     );
   }
+  assertUntypedNamesUnambiguous(opts.meta, opts.tables);
   const enc = new Encoder();
   const tableLines: string[] = [];
   for (const table of opts.tables) {
@@ -159,6 +162,28 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
       tables: distinctTableCount(opts.tables),
     },
   );
+}
+
+/**
+ * Producer-side S12 mapping for a whole table: every cell that is exactly
+ * `-` becomes `- ` (dash-space). In a LITERAL (lowercase) column a bare `-`
+ * is the null sentinel, so encode() rejects it — and a producer that patches
+ * columns one by one aborts its entire write the first time ordinary data
+ * (an env default of `-`, a file named `-`, a `// TODO -` comment) lands
+ * in a column nobody thought to patch. Interned (uppercase) cells could keep
+ * `-` (the dictionary holds it verbatim), but are mapped too so one value is
+ * spelled the same in every table: `declarations.F` must still join
+ * `files.path` for a file named `-`. Returns the input table when nothing
+ * needed mapping.
+ */
+export function mapLiteralDashes(table: PackTable): PackTable {
+  let rows: PackRow[] | null = null;
+  table.rows.forEach((row, r) => {
+    if (!row.includes('-')) return;
+    rows ??= table.rows.slice();
+    rows[r] = row.map((cell) => (cell === '-' ? '- ' : cell));
+  });
+  return rows ? { ...table, rows } : table;
 }
 
 /* ───────────────────── private helpers ───────────────────── */
@@ -269,6 +294,16 @@ function declSchemaLine(name: string, columns: PackColumn[]): string {
         );
       }
     }
+    /* Keys are `${namespace}${counter}`. If one namespace were another plus
+       trailing digits (`F` and `F1`), the 11th F literal and the 1st F1
+       literal would both mint `F11` and the decoder would reject the pack
+       ("duplicate dictionary key"). Forbidding a trailing digit makes the
+       keys prefix-free with no wire change. */
+    if (isInternedColumn(c.name) && /\d$/.test(c.internGroup ?? c.name)) {
+      throw new PackEncodeError(
+        `Interned namespace '${c.internGroup ?? c.name}' on column '${c.name}' ends in a digit (its dictionary keys would collide with another namespace's)`,
+      );
+    }
     if (c.internGroup !== undefined) {
       /* internGroup is encoder-side metadata for interned columns only.
          On a literal (lowercase) column it would silently do nothing —
@@ -357,12 +392,39 @@ function withCapsTyped(
 ): PackMeta | undefined {
   const hasTyped = tables.some((t) => t.columns.some((c) => c.type !== undefined));
   if (!hasTyped) return meta;
-  const legend = meta?.legend ?? [];
-  const declared = legend.some(
+  if (declaresCapsTyped(meta)) return meta;
+  return { ...meta, legend: ['caps typed', ...(meta?.legend ?? [])] };
+}
+
+/** The same exact-token `; caps … typed` test the decoder applies. */
+function declaresCapsTyped(meta: PackMeta | undefined): boolean {
+  return (meta?.legend ?? []).some(
     (l) => l.startsWith('caps ') && l.slice(5).split(/\s+/).includes('typed'),
   );
-  if (declared) return meta;
-  return { ...meta, legend: ['caps typed', ...legend] };
+}
+
+/**
+ * Once the pack is typed (any typed column, or a caller-declared `; caps
+ * typed`), the decoder splits EVERY schema token on ':' — so an untyped
+ * column named `ns:key` would come back as `{name:'ns', type:'key'}`, i.e.
+ * different data. Refuse it at emit instead.
+ */
+function assertUntypedNamesUnambiguous(
+  meta: PackMeta | undefined,
+  tables: ReadonlyArray<{ columns: PackColumn[] }>,
+): void {
+  const typed =
+    declaresCapsTyped(meta) || tables.some((t) => t.columns.some((c) => c.type !== undefined));
+  if (!typed) return;
+  for (const t of tables) {
+    for (const c of t.columns) {
+      if (c.type === undefined && c.name.indexOf(':') >= 0) {
+        throw new PackEncodeError(
+          `Untyped column '${c.name}' contains ':' in a typed pack — the decoder would split it into name:type`,
+        );
+      }
+    }
+  }
 }
 
 function distinctTableCount(tables: ReadonlyArray<{ name: string }>): number {

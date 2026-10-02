@@ -110,10 +110,20 @@ describe('the baked catalog keeps its own rules', () => {
     expect(new Set(MODEL_CATALOG.map((m) => m.id)).size).toBe(MODEL_CATALOG.length);
   });
 
-  it('marks a row whose sources disagreed as less than primary', () => {
-    // Inkling: five hosted providers vs a conflicting vendor-page reading.
-    expect(modelById('inkling').confidence).not.toBe('primary');
-    expect(modelById('inkling').notes).toMatch(/disagree/i);
+  it('explains every row that rests on less than the vendor’s own page', () => {
+    // A non-primary row is starred in the chart; its rate card must say why.
+    for (const m of MODEL_CATALOG) {
+      if (m.confidence !== 'primary') expect(m.notes.length, m.id).toBeGreaterThan(0);
+    }
+  });
+
+  it('never keys a live refresh to a reseller whose rate differs from the vendor’s', () => {
+    // Inkling Small's resellers charge $0.45-$0.50 input against the vendor's
+    // $0.30; a reseller key would let "?" replace the vendor price with theirs.
+    for (const m of MODEL_CATALOG) {
+      if (m.vendor !== 'Thinking Machines') continue;
+      expect(m.litellmKey, m.id).toBe('');
+    }
   });
 });
 

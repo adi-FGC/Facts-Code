@@ -46,6 +46,9 @@ export interface ExtractedSymbol {
    */
   docstring?: string | undefined;
   children?: ExtractedSymbol[] | undefined;
+  /** True for the module's default export (`export default function App`,
+   *  `export default App`, `export { App as default }`). */
+  isDefault?: boolean | undefined;
 }
 
 /**
@@ -73,9 +76,62 @@ export function extractSymbols(
   // pass. WeakSet resets naturally each call + leaves the AST pristine.
   const fromExport = new WeakSet<object>();
 
+  /* Names exported apart from their declaration: an export LIST
+     (`export { a, b as c }`, no `from`) or `export default Name`. The
+     declaration itself carries no `export`, so without this pass `a` read
+     as un-exported and `export default App` invented a second symbol. */
+  const listed = new Set<string>();
+  let defaultName: string | null = null;
+  let defaultNode: AnyNode | null = null;
   for (const node of body) {
-    const syms = visitTopLevel(node, fromExport);
-    for (const s of syms) out.push(s);
+    if (node?.type === 'ExportNamedDeclaration' && !node.declaration && !node.source) {
+      for (const sp of (Array.isArray(node.specifiers) ? node.specifiers : []) as AnyNode[]) {
+        const local = (sp?.local as AnyNode | undefined)?.name;
+        const exported = sp?.exported as AnyNode | undefined;
+        if (sp?.type !== 'ExportSpecifier' || typeof local !== 'string') continue;
+        listed.add(local);
+        if ((exported?.name ?? exported?.value) === 'default') defaultName = local;
+      }
+    } else if (
+      node?.type === 'ExportDefaultDeclaration' &&
+      node.declaration?.type === 'Identifier' &&
+      typeof node.declaration.name === 'string'
+    ) {
+      listed.add(node.declaration.name);
+      defaultName = node.declaration.name;
+      defaultNode = node;
+    }
+  }
+
+  for (const node of body) {
+    let syms: ExtractedSymbol[];
+    if (node?.type === 'VariableDeclaration' && listed.size > 0) {
+      // A bare top-level const is emitted only when an export list names it.
+      fromExport.add(node as object);
+      syms = visitTopLevel(node, fromExport).filter((s) => listed.has(s.name));
+    } else {
+      syms = visitTopLevel(node, fromExport);
+    }
+    for (const s of syms) {
+      const isDefault = s.isDefault === true || (defaultName !== null && s.name === defaultName);
+      out.push(
+        listed.has(s.name) || isDefault
+          ? { ...s, exported: true, ...(isDefault ? { isDefault: true } : {}) }
+          : s,
+      );
+    }
+  }
+  // `export default x` of a binding declared elsewhere (an import): keep
+  // one entry so the default export stays visible.
+  if (defaultNode && defaultName && !out.some((s) => s.name === defaultName)) {
+    out.push({
+      name: defaultName,
+      kind: 'variable',
+      startLine: lineOf(defaultNode, 'start'),
+      endLine: lineOf(defaultNode, 'end'),
+      exported: true,
+      isDefault: true,
+    });
   }
 
   return dedupe(out);
@@ -116,6 +172,7 @@ function visitTopLevel(
         ...s,
         name: s.name || 'default',
         exported: true,
+        isDefault: true,
       }));
       return inferred;
     }
@@ -127,20 +184,12 @@ function visitTopLevel(
           startLine: lineOf(node, 'start'),
           endLine: lineOf(node, 'end'),
           exported: true,
+          isDefault: true,
         },
       ];
     }
-    if (inner_type === 'Identifier' && typeof inner.name === 'string') {
-      return [
-        {
-          name: inner.name,
-          kind: 'variable',
-          startLine: lineOf(node, 'start'),
-          endLine: lineOf(node, 'end'),
-          exported: true,
-        },
-      ];
-    }
+    // `export default Name` marks the existing declaration (extractSymbols'
+    // export-list pass) instead of inventing a second symbol here.
     return [];
   }
 

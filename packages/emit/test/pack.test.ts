@@ -6,10 +6,61 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { decode } from '@factstack/factspack';
-import type { AgentArtifact } from '@factstack/spec';
-import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
+import { analyze } from '@factstack/core';
+import { computeDiff, decode } from '@factstack/factspack';
+import type { AgentArtifact, Dirent, FactsFS, Stats } from '@factstack/spec';
+import { FACTS_SCHEMA_VERSION, RiskSchema } from '@factstack/spec';
 import { encodeAgentPack } from '../src/pack.js';
+
+/** Minimal in-memory FactsFS (emit does not depend on @factstack/fs-memory). */
+class FixtureFS implements FactsFS {
+  private readonly dirs = new Set<string>(['.']);
+  constructor(private readonly files: Record<string, string>) {
+    for (const p of Object.keys(files)) {
+      const parts = p.split('/');
+      for (let i = 1; i < parts.length; i++) this.dirs.add(parts.slice(0, i).join('/'));
+    }
+  }
+  async readFile(p: string): Promise<Uint8Array> {
+    return new TextEncoder().encode(await this.readText(p));
+  }
+  async readText(p: string): Promise<string> {
+    const text = this.files[this.normalize(p)];
+    if (text === undefined) throw new Error(`ENOENT: ${p}`);
+    return text;
+  }
+  async *readDir(p: string): AsyncIterable<Dirent> {
+    const dir = this.normalize(p);
+    const prefix = dir === '.' ? '' : `${dir}/`;
+    const seen = new Set<string>();
+    for (const key of [...Object.keys(this.files), ...this.dirs]) {
+      if (!key.startsWith(prefix) || key === dir) continue;
+      const name = key.slice(prefix.length).split('/')[0]!;
+      if (!name || seen.has(name)) continue;
+      seen.add(name);
+      const isDir = this.dirs.has(prefix + name);
+      yield { name, path: prefix + name, isFile: !isDir, isDirectory: isDir, isSymlink: false };
+    }
+  }
+  async stat(p: string): Promise<Stats> {
+    const n = this.normalize(p);
+    const text = this.files[n];
+    if (text === undefined && !this.dirs.has(n)) throw new Error(`ENOENT: ${p}`);
+    const size = text === undefined ? 0 : new TextEncoder().encode(text).byteLength;
+    const isFile = text !== undefined;
+    return { size, mtimeMs: 1, ctimeMs: 1, isFile, isDirectory: !isFile, isSymlink: false };
+  }
+  async readlink(): Promise<string | null> {
+    return null;
+  }
+  normalize(p: string): string {
+    const n = p.replace(/\\/g, '/').replace(/\/+$/, '').replace(/^\.\//, '');
+    return n === '' ? '.' : n;
+  }
+  join(...segments: string[]): string {
+    return segments.filter(Boolean).join('/').replace(/\/+/g, '/');
+  }
+}
 
 function makeAgent(): AgentArtifact {
   return {
@@ -67,12 +118,14 @@ function makeAgent(): AgentArtifact {
     graph: {
       nodes: [],
       edges: [
-        { from: 'src/auth.ts', to: 'src/users.ts', kind: 'import' },
-        { from: 'src/auth.ts', to: 'src/users.ts', kind: 'type-import' },
+        { from: 'src/auth.ts', to: 'src/users.ts', kind: 'import', confidence: 'extracted' },
+        { from: 'src/auth.ts', to: 'src/users.ts', kind: 'type-import', confidence: 'extracted' },
       ],
       cycles: [],
-      callerIndex: {},
-      workspaces: [],
+      symbolNodes: [],
+      symbolEdges: [],
+      entities: [],
+      entityEdges: [],
     },
     routes: [
       {
@@ -118,6 +171,10 @@ function makeAgent(): AgentArtifact {
       ],
       schemas: [],
     },
+    dependencyManifests: [],
+    vulnerabilities: [],
+    docs: [],
+    rationale: [],
   };
 }
 
@@ -364,6 +421,43 @@ describe('encodeAgentPack — top table ranking (agent-v4)', () => {
   });
 });
 
+describe('encodeAgentPack — the risks legend covers every severity (data-model#11)', () => {
+  /* Owner decision 2026-09-24: a generic-heuristic secret ships at `info`
+     (possible, ungraded) and a test/fixture match at `low` (ungraded). The
+     legend said sev(critical|high|medium|low), so a pack-only agent met
+     `info` secret rows it had no meaning for and read them as real leaks. */
+  it('lists every schema severity and says what info / low mean on a secret row', () => {
+    const agent = makeAgent();
+    agent.risks.push(
+      {
+        severity: 'info',
+        category: 'secret',
+        rule: 'generic-secret-assignment',
+        file: 'src/config.ts',
+        line: 3,
+        message:
+          'Secret-named value (entropy 3.9) — not graded; verify whether it is a real credential.',
+      },
+      {
+        severity: 'low',
+        category: 'secret',
+        rule: 'aws-access-key',
+        file: 'test/fixtures/keys.ts',
+        line: 1,
+        message: 'AWS access key-shaped value in a test/fixture file.',
+      },
+    );
+    const pack = encodeAgentPack(agent);
+    const legend = pack.split('\n').find((l) => l.startsWith('; risks: '))!;
+    const sevs = /sev\(([^;)]*)/.exec(legend)![1]!.split('|');
+    expect([...sevs].sort()).toEqual([...RiskSchema.shape.severity.options].sort());
+    for (const row of decode(pack).tables.get('risks')!.rows) expect(sevs).toContain(row[1]);
+    expect(legend).toContain('info is never graded');
+    expect(legend).toContain('Secret rows: info = POSSIBLE secret (generic heuristic;');
+    expect(legend).toContain('low = test/fixture match (not graded)');
+  });
+});
+
 describe('encodeAgentPack — byte cost', () => {
   it('data rows beat JSON; the fixed self-description overhead stays bounded', () => {
     const agent = makeAgent();
@@ -380,8 +474,9 @@ describe('encodeAgentPack — byte cost', () => {
     const dataLength = pack.length - meta.length;
     expect(dataLength).toBeLessThan(json.length);
     /* v0.3.11 added three tables + a gap-code line to the legend (~1.8 KB);
-       the block is still fixed-size and amortizes on real repos. */
-    expect(meta.length).toBeLessThan(5600);
+       data-model#11 what info/low mean on a secret row (~190 B). The block
+       is still fixed-size and amortizes on real repos. */
+    expect(meta.length).toBeLessThan(5750);
     /* The 50%-on-real-data measurement happens in the workspace-level
        integration test against .facts/agent.json. */
   });
@@ -645,5 +740,161 @@ describe('encodeAgentPack — worktrees / branches / features (v0.3.11)', () => 
     const pack = encodeAgentPack(agent);
     expect(pack.startsWith('# factstack/0.3.10\tagent-v4\t')).toBe(true);
     expect(pack).toMatch(/; end rows=\d+ tables=16 sha256=[0-9a-f]{12}/);
+  });
+});
+
+describe('encodeAgentPack — a literal "-" value never aborts the write (spec S12)', () => {
+  /* Ordinary code produces an exact "-" in every free-text column:
+     `process.env.SEP ?? '-'` (envs.default), a stray `curl -o -` file named
+     `-` (files/top/nodeMetrics path), `// TODO -` (rationale text). The codec
+     rejects a literal "-" cell (it would decode as null), and that rejection
+     used to abort the WHOLE artifact write. */
+  function dashAgent(): AgentArtifact {
+    const agent = makeAgent();
+    const f = agent.files[0]!;
+    agent.files.push({ ...f, path: '-', declarations: [{ ...f.declarations[0]!, name: '-' }] });
+    agent.graph.nodes = [
+      {
+        id: '-',
+        path: '-',
+        language: 'typescript',
+        loc: 1,
+        tokenCost: 1,
+        status: 'ok',
+        importance: 1,
+        community: 0,
+      },
+    ];
+    agent.routes!.push({
+      framework: 'express',
+      method: 'GET',
+      path: '-',
+      handlerFile: 'src/auth.ts',
+      handlerSymbol: '-',
+    });
+    agent.risks[0]!.message = '-';
+    agent.config!.envVars[0]!.reads[0]!.defaultValue = '-';
+    agent.rationale = [
+      { id: 'r0', symbol: '-', kind: 'todo', text: '-', file: 'src/auth.ts', line: 1 },
+    ];
+    return agent;
+  }
+
+  it('encodes, and every "-" value decodes as "- " (never null)', () => {
+    const agent = dashAgent();
+    let pack = '';
+    expect(() => (pack = encodeAgentPack(agent))).not.toThrow();
+    const d = decode(pack);
+    const col = (t: string, c: string): Array<string | null> => {
+      const tbl = d.tables.get(t)!;
+      const i = tbl.columns.findIndex((x) => x.name === c);
+      return tbl.rows.map((r) => r[i] ?? null);
+    };
+    expect(col('files', 'path')).toContain('- ');
+    expect(col('top', 'path')).toContain('- ');
+    expect(col('nodeMetrics', 'path')).toContain('- ');
+    expect(col('declarations', 'name')).toContain('- ');
+    expect(col('routes', 'path')).toContain('- ');
+    expect(col('routes', 'sym')).toContain('- ');
+    expect(col('risks', 'msg')).toEqual(['- ']);
+    expect(col('envs', 'default')[0]).toBe('- ');
+    expect(col('rationale', 'text')).toEqual(['- ']);
+    expect(col('rationale', 'sym')).toEqual(['- ']);
+    // Interned references spell it the same way, so joins on the path hold (EMIT-R5).
+    expect(col('declarations', 'F')).toContain('- ');
+    expect(col('declarations', 'F')).not.toContain('-');
+    const paths = new Set(col('files', 'path'));
+    for (const f of col('declarations', 'F')) expect(paths.has(f)).toBe(true);
+  });
+});
+
+describe('encodeAgentPack — column 0 is a primary key in EVERY table (data-model#3)', () => {
+  /* computeDiff keys every table on column 0 and throws on a duplicate; the
+     orchestrator then writes no agent.diff.pack. Two shapes used to collide:
+     one docstring on a multi-declarator `export const` (one rationale id per
+     line) and a getter/setter pair (one symbol id per name + line). */
+  const SOURCES: Record<string, string> = {
+    'package.json': '{"name":"pk-fixture","version":"1.0.0"}',
+    'src/consts.ts': '/** doc */ export const x = 1, y = 2;\n',
+    'src/box.ts': 'export class Box { get value(){return 1} set value(n){} }\n',
+    'src/index.ts':
+      "import { x } from './consts';\nimport { Box } from './box';\nexport const z = x + new Box().value;\n",
+  };
+
+  it('an analyze() --symbols artifact encodes with unique column-0 ids, so the diff builds', async () => {
+    const { agent } = await analyze(new FixtureFS(SOURCES), {
+      symbols: true,
+      generatedAt: '2026-09-24T00:00:00.000Z',
+    });
+    // The fixture really exercises both shapes: two same-line `value`
+    // accessors, and one docstring shared by two declarators.
+    const box = agent.files.find((f) => f.path === 'src/box.ts')!;
+    expect(box.declarations[0]!.children!.map((c) => c.name)).toEqual(['value', 'value']);
+    expect(agent.rationale.filter((r) => r.file === 'src/consts.ts')).toHaveLength(2);
+    expect(agent.graph.symbolNodes.length).toBeGreaterThan(0);
+
+    const pack = decode(encodeAgentPack(agent));
+    for (const [name, table] of pack.tables) {
+      const ids = table.rows.map((r) => r[0]);
+      const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+      expect({ table: name, dupes }).toEqual({ table: name, dupes: [] });
+    }
+    expect(() => computeDiff(pack, pack)).not.toThrow();
+  });
+});
+
+/* security#6 — a service-account JSON carries its private key on ONE line,
+   with literal `\n` escapes. core's analyze test pins agent/human/MEMORY.md;
+   core cannot import emit, so the encoded agent.pack is pinned here. */
+describe('encodeAgentPack — a one-line service-account key never ships (security#6)', () => {
+  // Same generator as packages/core/test/analyze.test.ts: base64-alphabet
+  // material from a fixed LCG (high bits), built at runtime so no key shape is
+  // ever committed. Six 64-char lines, joined by the literal `\n` escape.
+  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let seed = 20260924;
+  const keyLines = Array.from({ length: 6 }, () =>
+    Array.from({ length: 64 }, () => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return B64[Math.floor(seed / 65536) % 64];
+    }).join(''),
+  );
+  const oneLine =
+    '-----BEGIN ' +
+    'PRIVATE KEY-----\\n' +
+    keyLines.join('\\n') +
+    '\\n-----END ' +
+    'PRIVATE KEY-----\\n';
+  const serviceAccount = JSON.stringify({
+    type: 'service_account',
+    project_id: 'demo',
+    private_key: 'PLACEHOLDER',
+  }).replace('PLACEHOLDER', oneLine);
+
+  it('keeps every 16-char window of the key body out of the encoded pack', async () => {
+    const { agent } = await analyze(
+      new FixtureFS({
+        'package.json': JSON.stringify({ name: 'app', license: 'MIT' }),
+        'README.md': '# App\n\nService account:\n\n```json\n' + serviceAccount + '\n```\n',
+        'src/config.ts': `export const key = process.env.SA_KEY ?? "${oneLine}";\n`,
+      }),
+      { root: '.', projectName: 'app', generatedAt: '2026-09-24T00:00:00.000Z' },
+    );
+    // Both copies are found, so the pack's risks table really carries rows
+    // about the key — the property is that none of them quotes it.
+    const found = agent.risks.filter((k) => k.category === 'secret');
+    expect([...new Set(found.map((k) => k.file))].sort()).toEqual(['README.md', 'src/config.ts']);
+    const pack = encodeAgentPack(agent);
+    expect(decode(pack).tables.get('risks')!.rows.length).toBeGreaterThan(0);
+    for (const line of keyLines) {
+      expect(line).toHaveLength(64);
+      for (let i = 0; i + 16 <= line.length; i++) {
+        const window = line.slice(i, i + 16);
+        expect(pack.includes(window), window).toBe(false);
+      }
+    }
+    // Control: a leaked line WOULD show up verbatim, so the check above bites.
+    const leaky = structuredClone(agent);
+    leaky.risks[0]!.messageTechnical = keyLines[0]!;
+    expect(encodeAgentPack(leaky)).toContain(keyLines[0]!.slice(0, 16));
   });
 });

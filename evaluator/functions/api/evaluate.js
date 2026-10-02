@@ -141,6 +141,23 @@ function weightedTotal(dims) {
   for (const k of DIMS) acc += WEIGHTS[k] * clamp01(dims[k]);
   return +acc.toFixed(4);
 }
+// Everything below comes from the MODEL, which a manual can prompt-inject.
+// Return only known keys, as plain bounded strings; the page renders them with
+// textContent, and this keeps the response shape honest for any other client.
+function plainText(v, max) {
+  if (v == null) return '';
+  return (typeof v === 'string' ? v : typeof v === 'object' ? JSON.stringify(v) : String(v)).slice(
+    0,
+    max,
+  );
+}
+function cleanNotes(notes) {
+  const out = {};
+  if (!notes || typeof notes !== 'object') return out;
+  for (const k of DIMS) if (notes[k] != null) out[k] = plainText(notes[k], 300);
+  return out;
+}
+const dimKey = (v) => (DIMS.includes(v) ? v : '');
 
 export async function onRequestOptions() {
   return new Response(null, { headers: cors() });
@@ -217,8 +234,8 @@ export async function onRequestPost(context) {
     return json({
       mode,
       model,
-      improved: parsed.improved || '',
-      changelog: parsed.changelog || '',
+      improved: plainText(parsed.improved, 120000),
+      changelog: plainText(parsed.changelog, 4000),
     });
   }
   // score mode: recompute total + rollups server-side from the dims (deterministic, no LLM arithmetic)
@@ -228,11 +245,11 @@ export async function onRequestPost(context) {
     mode,
     model,
     dims,
-    notes: parsed.notes || {},
+    notes: cleanNotes(parsed.notes),
     total: weightedTotal(dims),
     rollups: rollupScores(dims),
-    verdict: parsed.verdict || '',
-    strongest: parsed.strongest || '',
-    weakest: parsed.weakest || '',
+    verdict: plainText(parsed.verdict, 2000),
+    strongest: dimKey(parsed.strongest),
+    weakest: dimKey(parsed.weakest),
   });
 }

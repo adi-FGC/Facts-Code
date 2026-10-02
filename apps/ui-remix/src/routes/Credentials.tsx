@@ -31,94 +31,22 @@ import { Section } from '../ui/Section.tsx';
 import { RiskRow } from '../ui/RiskRow.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 import { LabelNumberRow, LabelNumber } from '../ui/LabelNumber.tsx';
+import { splitSecrets } from '../lib/secretClass.ts';
+import { POSSIBLE_RULE_COUNT, PROVIDER_RULE_COUNT, SECRET_RULES } from '../lib/secretRules.ts';
+import { SECRET_SCAN_MAX_BYTES } from '@factstack/spec/fs'; // leaf subpath, no zod
 
 interface CredentialsProps {
   data: Dataset;
 }
 
-/* The secret rules from packages/scanners/src/secrets.ts. Kept in
-   sync manually because we want the page to be self-contained — the
-   scanner runs at analyze-time (CLI / worker), the UI runs static.
-   When a rule is added in the scanner, also add it here. */
-interface RuleRef {
-  id: string;
-  label: string;
-  pattern: string;
-  notes: string;
-  /** v0.6 — link to the provider's credential-rotation docs. Per-finding
-   *  rotation guidance is the actionable next step once a leak is
-   *  surfaced; embedding the URL here keeps the user one click from "go
-   *  rotate this." Null for rules whose target has no canonical rotation
-   *  flow (private-key blocks are project-specific, no one URL fits). */
-  rotateUrl: string | null;
-}
-const SECRET_RULES: readonly RuleRef[] = [
-  {
-    id: 'aws-access-key',
-    label: 'AWS access key ID',
-    pattern: 'AKIA + 16 alnum',
-    notes: 'IAM static access keys; gated on Shannon entropy ≥ 3.2.',
-    rotateUrl:
-      'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey',
-  },
-  {
-    id: 'aws-secret-key',
-    label: 'AWS secret access key',
-    pattern: '40 base64-ish near `secret`/`key`',
-    notes: 'Lexical proximity heuristic; gated on entropy ≥ 4.0.',
-    rotateUrl:
-      'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey',
-  },
-  {
-    id: 'google-api-key',
-    label: 'Google API key',
-    pattern: 'AIza + 35 alnum/_-',
-    notes: 'Maps/Cloud APIs; entropy ≥ 3.5.',
-    rotateUrl: 'https://console.cloud.google.com/apis/credentials',
-  },
-  {
-    id: 'stripe-secret-key',
-    label: 'Stripe secret key',
-    pattern: 'sk_live_ / sk_test_ + 24+',
-    notes: 'Server-side keys only; publishable pk_ keys ignored.',
-    rotateUrl: 'https://dashboard.stripe.com/apikeys',
-  },
-  {
-    id: 'slack-token',
-    label: 'Slack token',
-    pattern: 'xox[baprs]- prefix',
-    notes: 'All Slack token classes (bot/app/user/refresh/scoped).',
-    rotateUrl: 'https://api.slack.com/authentication/token-types#rotation',
-  },
-  {
-    id: 'github-token',
-    label: 'GitHub token',
-    pattern: 'gh[pousr]_ + 36+',
-    notes: 'PAT, OAuth, server-to-server, user-to-server, refresh.',
-    rotateUrl: 'https://github.com/settings/tokens',
-  },
-  {
-    id: 'openai-api-key',
-    label: 'OpenAI API key',
-    pattern: 'sk- + 20+',
-    notes: 'High-entropy gate (3.5) to filter test strings.',
-    rotateUrl: 'https://platform.openai.com/api-keys',
-  },
-  {
-    id: 'anthropic-api-key',
-    label: 'Anthropic API key',
-    pattern: 'sk-ant- + 20+',
-    notes: 'High-entropy gate (3.5).',
-    rotateUrl: 'https://console.anthropic.com/settings/keys',
-  },
-  {
-    id: 'private-key-header',
-    label: 'Private key block',
-    pattern: '-----BEGIN ... PRIVATE KEY-----',
-    notes: 'RSA, OpenSSH, DSA, EC, PKCS#8 (incl. encrypted), PGP — header alone is the signal.',
-    rotateUrl: null,
-  },
-];
+/* The secret-scan size ceiling, from the one constant core and the browser
+   GitHub fetch share — the copy said 1 MB for the browser after the fetch
+   moved to 16 MB. */
+const SECRET_SCAN_MB = SECRET_SCAN_MAX_BYTES / (1024 * 1024);
+
+/* The rule reference (one row per scanner rule id, generic heuristics
+   marked "possible · not graded") lives in lib/secretRules.ts, where a
+   test pins it against packages/scanners/src/secrets.ts. */
 
 const kicker = css({
   fontFamily: 'var(--font-mono)',
@@ -182,6 +110,16 @@ const rulePattern = css({
   textOverflow: 'ellipsis',
 });
 
+/* "possible · not graded" tag on a generic heuristic's row. */
+const rulePossible = css({
+  display: 'block',
+  marginTop: '2px',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.12em',
+  textTransform: 'uppercase',
+  color: 'var(--fg-faint)',
+});
+
 const ruleNotes = css({
   fontFamily: 'var(--font-body)',
   fontSize: 'var(--fs-12)',
@@ -220,16 +158,20 @@ export function Credentials(handle: Handle<CredentialsProps>) {
        NOT also include category === 'leak' or other adjacent labels
        to keep the page focused on what the secrets scanner produced. */
     const findings = data.risks.filter((r) => r.category === 'secret');
-    /* analyze() emits a match in a test/fixture path at `low` and keeps it
-       out of the grade. It is still a finding with an exact path, so it is
-       listed — in its own section, so the "rotate these now" framing only
-       covers the matches that actually count as exposed. */
-    const exposed = findings.filter((r) => r.severity !== 'low');
-    const fixtures = findings.filter((r) => r.severity === 'low');
+    /* analyze() emits a match in a test/fixture path at `low`, and a generic
+       "possible secret" hit (password=, a DB URL, a secret-named field) at
+       `info`; both stay out of the grade. Each is still a finding with an
+       exact path, so it is listed — in its own section, so the "rotate these
+       now" framing only covers the matches that actually count as exposed. */
+    const {
+      exposed,
+      fixture: fixtures,
+      possible,
+    } = splitSecrets<(typeof findings)[number]>(findings);
     const counts: Record<string, number> = {};
     for (const f of exposed) counts[f.severity] = (counts[f.severity] ?? 0) + 1;
 
-    const SEV_ORDER = ['critical', 'high', 'medium', 'info'] as const;
+    const SEV_ORDER = ['critical', 'high', 'medium'] as const;
     const bySev = new Map<string, typeof findings>();
     for (const f of exposed) {
       const arr = bySev.get(f.severity) ?? [];
@@ -253,11 +195,17 @@ export function Credentials(handle: Handle<CredentialsProps>) {
        Reusing the reference renderer below keeps it consistent. */
     const ruleRef = (
       <>
-        <div mix={sectionLabel}>Rule reference · {SECRET_RULES.length} patterns</div>
+        <div mix={sectionLabel}>
+          Rule reference · {PROVIDER_RULE_COUNT} patterns · {POSSIBLE_RULE_COUNT} possible-secret
+          heuristics
+        </div>
         <div mix={ruleTable}>
           {SECRET_RULES.map((r) => (
             <>
-              <span mix={ruleLabel}>{r.label}</span>
+              <span mix={ruleLabel}>
+                {r.label}
+                {r.possible && <span mix={rulePossible}>possible · not graded</span>}
+              </span>
               <span mix={rulePattern} title={r.pattern}>
                 {r.pattern}
               </span>
@@ -291,12 +239,11 @@ export function Credentials(handle: Handle<CredentialsProps>) {
             <h1 mix={headline}>Nothing leaked.</h1>
             <p mix={lede}>
               The secrets scanner ran the patterns below across every text file in this analysis —
-              any file type, including files too large to parse (up to 16 MB from the CLI; a GitHub
-              scan in the browser fetches files up to 1 MB). Obvious placeholders such as
-              sk-your-key-here are ignored. Not covered: binary files, and folders the analyzer
-              never walks (node_modules, dist, build, vendor, .vscode, .idea). The next analysis
-              will re-check; if a real secret lands in a commit, this page will be the first place
-              it surfaces.
+              any file type, including files too large to parse (up to {SECRET_SCAN_MB} MB, from the
+              CLI or a GitHub scan in the browser). Obvious placeholders such as sk-your-key-here
+              are ignored. Not covered: binary files, and folders the analyzer never walks
+              (node_modules, dist, build, vendor, .vscode, .idea). The next analysis will re-check;
+              if a real secret lands in a commit, this page will be the first place it surfaces.
             </p>
             {ruleRef}
           </div>
@@ -305,7 +252,8 @@ export function Credentials(handle: Handle<CredentialsProps>) {
               {new Date(data.generatedAt).toISOString().slice(0, 19).replace('T', ' ')}
             </FootnoteChip>
             <FootnoteChip label="Coverage">
-              {SECRET_RULES.length} rules · entropy-gated
+              {PROVIDER_RULE_COUNT} rules · entropy-gated · {POSSIBLE_RULE_COUNT} possible-secret
+              heuristics, not graded
             </FootnoteChip>
             <FootnoteChip label="Re-scan" aside="from Open dialog">
               CLI: factstack analyze · Browser: ⌘O
@@ -318,29 +266,44 @@ export function Credentials(handle: Handle<CredentialsProps>) {
     /* Has findings — lead with the headline + counts, then severity-
        grouped list (mirroring Risks page hierarchy), then the rule
        reference so the user can map a finding back to its rule. */
+    const title =
+      exposed.length > 0
+        ? 'Rotate these now.'
+        : possible.length === 0
+          ? 'Only test and fixture matches.'
+          : fixtures.length === 0
+            ? 'Only possible secrets to check.'
+            : 'Nothing counts as exposed.';
+    const ledeSentences = [
+      exposed.length > 0
+        ? 'Every exposed match fits a provider’s key format (key-shaped values must also pass an entropy check; obvious placeholders are ignored). Treat each one as leaked: rotate the credential at its source, then remove or invalidate the copy.'
+        : /* Never repeat the headline word for word (UI-R7). */
+          title === 'Nothing counts as exposed.'
+          ? ''
+          : 'Nothing counts as exposed.',
+      fixtures.length > 0
+        ? `${fixtures.length} ${fixtures.length === 1 ? 'match sits' : 'matches sit'} in test or fixture files, so ${fixtures.length === 1 ? 'it is' : 'they are'} listed with the exact path but kept out of the health grade — confirm each is a fixture, not a real key that happens to live under test/.`
+        : '',
+      possible.length > 0
+        ? `${possible.length} ${possible.length === 1 ? 'value looks' : 'values look'} like a credential only by name or shape (a password=, a connection URL, a secret-named field) — a possible secret, not graded. The preview is masked in full; open the file and check whether each is real.`
+        : '',
+    ].filter((s) => s !== '');
     return (
       <ContentWithMargin>
         <div mix={css({ gridColumn: '1' })}>
           <div mix={kicker}>
             Credentials · {exposed.length} exposed
             {fixtures.length > 0 ? ` · ${fixtures.length} in test/fixture files` : ''}
+            {possible.length > 0 ? ` · ${possible.length} possible, not graded` : ''}
           </div>
-          <h1 mix={headline}>
-            {exposed.length > 0 ? 'Rotate these now.' : 'Only test and fixture matches.'}
-          </h1>
-          <p mix={lede}>
-            {exposed.length > 0
-              ? 'Every exposed match fits a provider’s key format (key-shaped values must also pass an entropy check; obvious placeholders are ignored). Treat each one as leaked: rotate the credential at its source, then remove or invalidate the copy.'
-              : 'Nothing counts as exposed.'}
-            {fixtures.length > 0
-              ? ` ${fixtures.length} ${fixtures.length === 1 ? 'match sits' : 'matches sit'} in test or fixture files, so ${fixtures.length === 1 ? 'it is' : 'they are'} listed with the exact path but kept out of the health grade — confirm each is a fixture, not a real key that happens to live under test/.`
-              : ''}
-          </p>
+          <h1 mix={headline}>{title}</h1>
+          <p mix={lede}>{ledeSentences.join(' ')}</p>
           <LabelNumberRow>
             <LabelNumber label="Critical" value={counts.critical ?? 0} />
             <LabelNumber label="High" value={counts.high ?? 0} />
             <LabelNumber label="Medium" value={counts.medium ?? 0} />
-            <LabelNumber label="Test/fixture" value={fixtures.length} last />
+            <LabelNumber label="Test/fixture" value={fixtures.length} />
+            <LabelNumber label="Possible" value={possible.length} last />
           </LabelNumberRow>
 
           {SEV_ORDER.filter((s) => bySev.has(s)).map((sev) => (
@@ -348,6 +311,9 @@ export function Credentials(handle: Handle<CredentialsProps>) {
               {bySev.get(sev)!.map(row)}
             </Section>
           ))}
+          {possible.length > 0 && (
+            <Section label="possible secrets · not graded">{possible.map(row)}</Section>
+          )}
           {fixtures.length > 0 && (
             <Section label="test / fixture files · not graded">{fixtures.map(row)}</Section>
           )}
@@ -364,6 +330,9 @@ export function Credentials(handle: Handle<CredentialsProps>) {
               : 'Nothing needs rotation.'}
             {fixtures.length > 0
               ? ` ${fixtures.length} test/fixture match${fixtures.length === 1 ? '' : 'es'} to confirm.`
+              : ''}
+            {possible.length > 0
+              ? ` ${possible.length} possible secret${possible.length === 1 ? '' : 's'} to check.`
               : ''}{' '}
             Each row shows file + line.
           </FootnoteChip>

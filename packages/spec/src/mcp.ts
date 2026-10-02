@@ -6,7 +6,7 @@
  * a thin adapter over @factstack/core rather than a re-design.
  */
 
-import { z } from 'zod';
+import { z } from './zod.js';
 import { ConfidenceSchema } from './agent.js';
 
 export const FACTS_MCP_URI_SCHEME = 'facts' as const;
@@ -57,7 +57,15 @@ export const McpResourceCatalog = [
 export const AnalyzeInputSchema = z.object({
   path: z.string().default('.'),
   useCache: z.boolean().default(true),
+  /** Build the symbol graph (the CLI's `--symbols`). Omitted = keep the
+   *  existing artifact's mode (the MCP server decides). */
+  symbols: z.boolean().optional(),
 });
+
+/** Longest glob / filter string the graph-query inputs accept. The matcher is
+ *  linear, so this is defense in depth: no real glob comes close, and it
+ *  bounds the work one crafted input can ask for. */
+export const MAX_GLOB_LENGTH = 256;
 
 export const ReanalyzeFileInputSchema = z.object({
   path: z.string(),
@@ -116,7 +124,7 @@ export type EdgeKind = z.infer<typeof EdgeKindSchema>;
 export const NodeSelectorSchema = z
   .object({
     id: z.string().optional(),
-    glob: z.string().optional(),
+    glob: z.string().max(MAX_GLOB_LENGTH).optional(),
     name: z.string().optional(),
     kind: z.string().optional(),
   })
@@ -138,7 +146,7 @@ export const GraphWhereSchema = z.object({
   /** Keep only nodes of this symbol kind (function/class/…); ignored for files. */
   kind: z.string().optional(),
   /** Keep only nodes whose path matches this glob. */
-  pathGlob: z.string().optional(),
+  pathGlob: z.string().max(MAX_GLOB_LENGTH).optional(),
   /** Drop edges below this certainty during traversal (`extracted` > `inferred`
    *  > `ambiguous`). */
   minConfidence: ConfidenceSchema.optional(),
@@ -187,7 +195,7 @@ export const QueryGraphInputSchema = z
     direction: z.enum(['out', 'in', 'both']).optional(),
     /** Glob-style filter matching file paths in the graph. Optional; when
      *  present, further restricts the result set for any verb. */
-    filter: z.string().optional(),
+    filter: z.string().max(MAX_GLOB_LENGTH).optional(),
     /** Maximum nodes to return. Default prevents accidentally huge responses. */
     limit: z.number().int().positive().default(200),
     /** Include transitive imports up to this depth from each matching node.

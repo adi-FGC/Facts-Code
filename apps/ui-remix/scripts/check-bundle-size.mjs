@@ -8,22 +8,43 @@
  *   1. REPORT the built bundle — per chunk and per tier, raw and gzipped — so
  *      the number is visible on every build. Nothing fails on size.
  *   2. ENFORCE the guards that catch silent breakage: the CSP inline-script
- *      hash, full CSP directive parity between the Cloudflare (`public/_headers`)
- *      and Netlify (`netlify.toml`) policies, the scoped /mcp-auth policy,
+ *      hash, SEC-3 style-src and the scoped /mcp-auth policy in both the
+ *      Cloudflare (`public/_headers`) and Netlify (`netlify.toml`) files
+ *      (lib/csp-guard.mjs), the headers each host actually sends per path
+ *      (one CSP each, the HTML cache policy on every route, and every header, CSP included,
+ *      identical on Cloudflare and Netlify),
+ *      strict-CSP-safe HTML pages, the dataset sections served beside
+ *      index.html (present, content-addressed, preloaded, immutable),
  *      discovery-kit freshness, and a privacy scan of every public sink (no
  *      home-directory paths, no agent prompts). These exit non-zero.
+ *
+ * Usage: node scripts/check-bundle-size.mjs [--dist <dir>]   (default dist/)
  */
-import { readFileSync, readdirSync, statSync } from 'node:fs';
-import { createHash } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cloudflareHeaderProblems, effectiveHeaders, parseHeadersFile } from './lib/cf-headers.mjs';
+import { AUTH_PATHS, bootScriptToken, cspFor, cspPolicyProblems } from './lib/csp-guard.mjs';
+import { SECTIONS_DIR, inlineDataset, sectionProblems } from './lib/dataset-sections.mjs';
+import { strictPageProblems } from './lib/html-guard.mjs';
+import { LEAKS, localRootPatterns } from './lib/privacy-guard.mjs';
+import {
+  hostParityProblems,
+  netlifyHeaderProblems,
+  parseNetlifyTomlHeaders,
+} from './lib/netlify-headers.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const APP_DIR = resolve(here, '..');
 /** The repo root the build baked from (inject-data's default --root). */
 const APP_DIR_ROOT = resolve(APP_DIR, '..', '..');
-const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
+const distAt = process.argv.indexOf('--dist');
+const DIST =
+  distAt > 0 && process.argv[distAt + 1]
+    ? resolve(process.argv[distAt + 1])
+    : join(APP_DIR, 'dist');
+const ASSETS_DIR = join(DIST, 'assets');
 
 /* Size is REPORTED here, never capped.
  *
@@ -53,7 +74,10 @@ const ASSETS_DIR = join(APP_DIR, 'dist', 'assets');
  *     125.5 -> 59.6 KB gz. Keep new tabs out of main the same way.
  *   - Nothing the first screen doesn't show belongs in index.html: doc bodies
  *     live in dist/data/docs/ and load on demand (inject-data.mjs). The same
- *     2026-09-24 pass took LCP 4.9 s -> 3.0 s on throttled mobile.
+ *     2026-09-24 pass took LCP 4.9 s -> 3.0 s on throttled mobile. Moving
+ *     the heavy dataset sections out too (performance#5) measured SLOWER while
+ *     the loader awaits them before the first render (LCP +0.4 s), so it is
+ *     opt-in: inject-data.mjs --split-sections (lib/dataset-sections.mjs).
  *
  * The CSP guards and discovery-kit freshness check further down are NOT
  * budgets — they catch silent breakage (a blocked boot script, a drifted
@@ -171,210 +195,191 @@ console.log(
   `  ${'CSS'.padEnd(48)}  ${fmt(totals.cssRaw).padStart(10)}  ${fmt(totals.cssGz).padStart(10)} (gz)`,
 );
 
+/* First-paint bytes: dist/index.html carries the inline dataset, and nothing
+   runs until all of it has parsed (660 KB raw / ~100 KB br on 2026-09-24).
+   Sections an --split-sections build preloads are reported on their own
+   line: the app awaits them before its first render too, and they need a
+   round trip of their own (why the split is opt-in). Reported
+   brotli-compressed, as Cloudflare serves them. FACTS_WARN_FIRST_PAINT_KB
+   sets an optional warn line for index.html — still report-only, never a
+   failure (the owner removed size caps 2026-09-23). */
+try {
+  const br = (buf) =>
+    brotliCompressSync(buf, {
+      params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 11 },
+    }).byteLength;
+  const html = readFileSync(join(DIST, 'index.html'));
+  const firstPaintBr = br(html);
+  console.log(
+    `  ${'index.html (first-paint bytes, incl. inline data)'.padEnd(48)}  ${fmt(html.byteLength).padStart(10)}  ${fmt(firstPaintBr).padStart(10)} (br)`,
+  );
+  const sectionUrls = Object.values(inlineDataset(html.toString('utf8'))?.sectionUrls ?? {});
+  const sectionBufs = sectionUrls
+    .map((u) => join(DIST, ...String(u).split('/').filter(Boolean)))
+    .filter((f) => existsSync(f))
+    .map((f) => readFileSync(f));
+  if (sectionBufs.length > 0) {
+    const raw = sectionBufs.reduce((n, b) => n + b.byteLength, 0);
+    const brSum = sectionBufs.reduce((n, b) => n + br(b), 0);
+    console.log(
+      `  ${`dataset sections (${sectionBufs.length} preloaded)`.padEnd(48)}  ${fmt(raw).padStart(10)}  ${fmt(brSum).padStart(10)} (br)`,
+    );
+  }
+  const warnKb = Number(process.env.FACTS_WARN_FIRST_PAINT_KB);
+  if (warnKb > 0 && firstPaintBr > warnKb * 1024) {
+    const msg = `index.html is ${fmt(firstPaintBr)} br — over the ${warnKb} KB first-paint warn line (report-only).`;
+    console.warn(
+      process.env.GITHUB_ACTIONS ? `::warning title=First-paint bytes::${msg}` : `  WARN ${msg}`,
+    );
+  }
+} catch {
+  /* no index.html — the CSP guard below reports it */
+}
+
 /* No size entries are ever pushed here — see the note at the top of the file.
    `failures` collects only correctness problems (CSP drift, a blocked boot
    script, a stale discovery manifest, a privacy leak) from the guards below. */
 const failures = [];
 
-/* ── CSP inline-script hash guard ──────────────────────────────────────────
- * The CSP in public/_headers (and netlify.toml) pins the ONE inline boot
- * script — the no-flash theme init in index.html — by SHA-256, so it survives
- * a strict `script-src` with no 'unsafe-inline'. If that script ever changes
- * and the hash isn't updated, the browser SILENTLY blocks it (flash of wrong
- * theme) with no test to catch it. Re-derive the hash from the built HTML and
- * fail the build unless the shipped _headers CSP carries the matching token. */
-const DIST = join(APP_DIR, 'dist');
+/* ── CSP guard ─────────────────────────────────────────────────────────────
+ * public/_headers (Cloudflare) and netlify.toml (Netlify) pin the ONE inline
+ * boot script, the no-flash theme init in index.html, by SHA-256, so it
+ * survives a strict `script-src` with no 'unsafe-inline'. If that script
+ * changes and the hash isn't updated, the browser SILENTLY blocks it (flash
+ * of the wrong theme) and no test catches it. lib/csp-guard.mjs re-derives
+ * the hash from the built HTML, keeps 'unsafe-inline' out of the main
+ * style-src (SEC-3) and holds every /mcp-auth* block to one scoped policy, in
+ * both files. Each file is parsed once, by the same models the header
+ * simulation below uses; a non-Netlify checkout (no netlify.toml) checks
+ * _headers only. */
 try {
   const html = readFileSync(join(DIST, 'index.html'), 'utf8');
-  const m = html.match(/<script>([\s\S]*?)<\/script>/); // first bare inline script = the theme boot IIFE
-  if (!m) {
+  const headers = readFileSync(join(DIST, '_headers'), 'utf8');
+  let netlifyToml = null;
+  try {
+    netlifyToml = readFileSync(join(APP_DIR_ROOT, 'netlify.toml'), 'utf8');
+  } catch {
+    /* no netlify.toml here — nothing to keep in sync */
+  }
+  const rules = parseHeadersFile(headers);
+  const hosts = [{ file: '_headers', rules }];
+  if (netlifyToml)
+    hosts.push({ file: 'netlify.toml', rules: parseNetlifyTomlHeaders(netlifyToml) });
+  const bootToken = bootScriptToken(html);
+  if (!bootToken)
     failures.push(
       'CSP guard: no inline boot <script> found in dist/index.html — cannot verify the script-src hash.',
     );
-  } else {
-    const token = `sha256-${createHash('sha256').update(m[1], 'utf8').digest('base64')}`;
-    const headers = readFileSync(join(DIST, '_headers'), 'utf8');
-    if (!headers.includes(token)) {
-      failures.push(
-        `CSP guard: inline boot script drifted — script-src must pin '${token}'. ` +
-          `Update the Content-Security-Policy hash in apps/ui-remix/public/_headers AND netlify.toml.`,
-      );
-    }
-    // CSP value extractor — both files describe directives in prose comments too,
-    // so isolate the actual policy string before matching directives.
-    //   _headers form:     `Content-Security-Policy: <value>` (to EOL)
-    //   netlify.toml form: `Content-Security-Policy = "<value>"`
-    const cspValue = (s) => {
-      const quoted = s.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
-      if (quoted) return quoted[1];
-      // Anchor to a real header line (start-of-line, optional indent) so a prose
-      // comment that merely mentions `Content-Security-Policy:` can't be mistaken
-      // for the policy value.
-      const bare = s.match(/^[ \t]*Content-Security-Policy:[ \t]*(.+)$/m);
-      return bare ? bare[1] : null;
-    };
-    const styleSrc = (s) => {
-      const csp = cspValue(s);
-      if (!csp) return null;
-      const mm = csp.match(/style-src ([^;]*)/);
-      return mm ? mm[1].trim() : null;
-    };
-    // SEC-3: style-src must NOT carry 'unsafe-inline'. The css() runtime injects
-    // rules via constructable adoptedStyleSheets (CSSOM — CSP-exempt), and every
-    // inline style= attribute was converted to a css() class or SVG presentation
-    // attribute, so the dashboard renders fully under a strict style-src.
-    // Re-adding 'unsafe-inline' would silently undo that hardening — fail here.
-    const headersStyle = styleSrc(headers);
-    if (headersStyle && headersStyle.includes("'unsafe-inline'")) {
-      failures.push(
-        "CSP guard: _headers style-src must not contain 'unsafe-inline' (SEC-3) — " +
-          'inline styles were eliminated; the css() runtime uses adopted stylesheets.',
-      );
-    }
-    // OPD-1/OPD-4: the Netlify CSP (root netlify.toml) must stay in lockstep
-    // with the Cloudflare CSP (_headers). They drifted once — netlify.toml's
-    // connect-src omitted the GitHub origins, silently breaking the in-browser
-    // GitHub scan on every Netlify deploy. Assert BOTH the script-src hash and
-    // the connect-src directive match. Skip silently when netlify.toml is absent
-    // (a non-Netlify checkout); only enforce parity when the file exists.
-    let netlifyToml = null;
-    try {
-      netlifyToml = readFileSync(join(APP_DIR, '..', '..', 'netlify.toml'), 'utf8');
-    } catch {
-      /* no netlify.toml here — nothing to keep in sync */
-    }
-    if (netlifyToml) {
-      if (!netlifyToml.includes(token)) {
-        failures.push(
-          `CSP guard: netlify.toml script-src must also pin '${token}' (drifted from _headers).`,
-        );
-      }
-      // connect-src + style-src parity reuse the hoisted cspValue extractor.
-      const connectSrc = (s) => {
-        const csp = cspValue(s);
-        if (!csp) return null;
-        const mm = csp.match(/connect-src ([^;]*)/);
-        return mm ? mm[1].trim().split(/\s+/).sort().join(' ') : null;
-      };
-      const hc = connectSrc(headers);
-      const nc = connectSrc(netlifyToml);
-      if (hc && nc && hc !== nc) {
-        failures.push(
-          `CSP guard: connect-src drift — _headers has [${hc}] but netlify.toml has [${nc}]. Keep the two CSPs in sync.`,
-        );
-      }
-      // SEC-3: style-src must also stay byte-equal across the two hosts (and thus
-      // both free of 'unsafe-inline' — netlify can't pass if it diverges from the
-      // _headers value already asserted clean above).
-      const ns = styleSrc(netlifyToml);
-      const norm = (v) => v.trim().split(/\s+/).sort().join(' ');
-      if (headersStyle && ns && norm(headersStyle) !== norm(ns)) {
-        failures.push(
-          `CSP guard: style-src drift — _headers has [${headersStyle}] but netlify.toml has [${ns}]. Keep the two CSPs in sync.`,
-        );
-      }
-      // Review #1: the three checks above cover only script-src / connect-src /
-      // style-src. Assert FULL parity so frame-ancestors, object-src, img-src,
-      // base-uri, form-action, default-src, font-src, worker-src, manifest-src
-      // can never silently drift between the two byte-identical hosts.
-      const parseCsp = (s) => {
-        const csp = cspValue(s);
-        if (!csp) return null;
-        const map = {};
-        for (const part of csp.split(';')) {
-          const toks = part.trim().split(/\s+/).filter(Boolean);
-          if (toks.length) map[toks[0]] = toks.slice(1).sort().join(' ');
-        }
-        return map;
-      };
-      const hCsp = parseCsp(headers);
-      const nCsp = parseCsp(netlifyToml);
-      if (hCsp && nCsp) {
-        for (const d of new Set([...Object.keys(hCsp), ...Object.keys(nCsp)])) {
-          if (hCsp[d] !== nCsp[d]) {
-            failures.push(
-              `CSP guard: directive '${d}' drift — _headers=[${hCsp[d] ?? '(absent)'}] ` +
-                `netlify.toml=[${nCsp[d] ?? '(absent)'}]. Every CSP directive must match across hosts.`,
-            );
-          }
-        }
-      }
+  for (const p of cspPolicyProblems(hosts, { bootToken })) failures.push(`CSP guard: ${p}`);
 
-      // ── Scoped mcp-auth CSP coverage ──────────────────────────────────────
-      // Everything above inspects only the FIRST CSP occurrence (the main /* app
-      // policy). The MCP Google-sign-in page ships its OWN relaxed CSP, keyed
-      // /mcp-auth.html (both hosts) + /mcp-auth (Cloudflare clean-URL only). The
-      // comments in _headers/netlify.toml promise those stay byte-equal — so
-      // ENFORCE it here; otherwise the scoped policy can silently drift or regain
-      // 'unsafe-inline' in script-src with nothing to catch it. Parse every CSP
-      // block keyed by its path from each host file (not just the first).
-      const headerCsps = (txt) => {
-        const map = {};
-        let curPath = null;
-        for (const line of txt.split(/\r?\n/)) {
-          if (/^\/\S/.test(line)) {
-            curPath = line.trim();
-            continue;
-          } // e.g. "/mcp-auth.html"
-          const mm = line.match(/^\s+Content-Security-Policy:\s*(.+)$/);
-          if (mm && curPath) map[curPath] = mm[1].trim();
-        }
-        return map;
-      };
-      const netlifyCsps = (txt) => {
-        const map = {};
-        for (const blk of txt.split(/\[\[headers\]\]/).slice(1)) {
-          const f = blk.match(/for\s*=\s*"([^"]*)"/);
-          const c = blk.match(/Content-Security-Policy\s*=\s*"([^"]*)"/);
-          if (f && c) map[f[1]] = c[1].trim();
-        }
-        return map;
-      };
-      const hMap = headerCsps(headers);
-      const nMap = netlifyCsps(netlifyToml);
-      // (1) The login flow's /mcp-auth.html scoped CSP must exist on BOTH hosts and match.
-      if (!hMap['/mcp-auth.html'])
-        failures.push('CSP guard: _headers is missing the /mcp-auth.html scoped CSP block.');
-      if (!nMap['/mcp-auth.html'])
-        failures.push('CSP guard: netlify.toml is missing the /mcp-auth.html scoped CSP block.');
-      if (
-        hMap['/mcp-auth.html'] &&
-        nMap['/mcp-auth.html'] &&
-        hMap['/mcp-auth.html'] !== nMap['/mcp-auth.html']
-      ) {
-        failures.push(
-          'CSP guard: /mcp-auth.html scoped CSP drift between _headers and netlify.toml — keep them byte-equal.',
-        );
-      }
-      // (2) Cloudflare serves the page at the clean URL /mcp-auth (it 308s .html →
-      //     there), so _headers MUST key it too or the page falls back to the strict
-      //     main CSP and Firebase sign-in breaks. Netlify serves .html verbatim, so
-      //     netlify.toml deliberately omits /mcp-auth — not an error.
-      if (!hMap['/mcp-auth']) {
-        failures.push(
-          'CSP guard: _headers is missing the /mcp-auth clean-URL block — Cloudflare 308s /mcp-auth.html there and would fall back to the strict main CSP, breaking Firebase sign-in.',
-        );
-      }
-      // (3) Every scoped block, wherever it appears, must equal the one canonical
-      //     scoped policy — no per-key drift, no re-introduced 'unsafe-inline' in script-src.
-      const canonicalAuthCsp =
-        hMap['/mcp-auth.html'] || nMap['/mcp-auth.html'] || hMap['/mcp-auth'];
-      for (const [label, map] of [
-        ['_headers', hMap],
-        ['netlify.toml', nMap],
-      ]) {
-        for (const [p, v] of Object.entries(map)) {
-          if (p.startsWith('/mcp-auth') && canonicalAuthCsp && v !== canonicalAuthCsp) {
-            failures.push(
-              `CSP guard: ${label} ${p} scoped CSP differs from the canonical mcp-auth policy — all /mcp-auth* blocks must be byte-equal.`,
-            );
-          }
-        }
-      }
-    }
+  // ── What each host actually SENDS ─────────────────────────────────────
+  // Comparing blocks is not enough: the block checks passed while /mcp-auth
+  // shipped two CSPs (Cloudflare applies every matching rule and appends
+  // repeats, so the `/*` policy rode along and blocked the Firebase SDK).
+  // Simulate the merge per path: one CSP per page, the right one, and exactly
+  // one HTML_CACHE_CONTROL on every route the sitemap lists (the rules
+  // generate-discovery appends).
+  let routePaths = [];
+  try {
+    const sitemap = readFileSync(join(DIST, 'sitemap.xml'), 'utf8');
+    routePaths = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map((mm) => new URL(mm[1]).pathname);
+  } catch {
+    /* a missing sitemap is reported by the discovery-kit guard below */
+  }
+  const expected = {
+    authPaths: AUTH_PATHS,
+    authCsp: cspFor(rules, '/mcp-auth'),
+    appPaths: ['/', '/index.html', ...routePaths],
+    appCsp: cspFor(rules, '/*'),
+    routePaths,
+  };
+  for (const p of cloudflareHeaderProblems(headers, expected))
+    failures.push(`header guard (Cloudflare): ${p}`);
+  // Dataset sections are content-addressed, so they must be cached as
+  // immutable — and only once: `/data/*` matches them too, and without the
+  // detach Cloudflare appends its must-revalidate value (performance#5).
+  // A synthetic name keeps the rule checked on a build that split nothing.
+  const sectionPaths = [
+    ...new Set([
+      `/${SECTIONS_DIR}/tree.0123456789ab.json`,
+      ...Object.values(inlineDataset(html)?.sectionUrls ?? {}).map(String),
+    ]),
+  ];
+  for (const p of sectionPaths) {
+    const got = effectiveHeaders(rules, p).get('cache-control') ?? [];
+    if (got.length !== 1 || !/\bimmutable\b/.test(got[0]))
+      failures.push(
+        `header guard (Cloudflare): ${p} receives Cache-Control [${got.join(' | ') || 'none'}] — ` +
+          'dataset sections are content-addressed and must get exactly one immutable policy.',
+      );
+  }
+  // Netlify publishes the same dist/_headers, merged UNDER netlify.toml
+  // (lib/netlify-headers.mjs). Same expectations, then the two hosts must
+  // agree on every header either file sets (CSP included, byte for byte)
+  // for the paths people load.
+  if (netlifyToml) {
+    for (const p of netlifyHeaderProblems(headers, netlifyToml, expected))
+      failures.push(`header guard (Netlify): ${p}`);
+    const probes = [
+      ...new Set([
+        ...expected.appPaths,
+        ...expected.authPaths,
+        ...routePaths.filter((p) => p !== '/').map((p) => `${p}/x`),
+        '/assets/index-x.js',
+        '/fonts/x.woff2',
+        '/data/factstack.json',
+        ...sectionPaths,
+        '/factstack.pack',
+        '/site.webmanifest',
+        '/mcp-auth-config.json',
+      ]),
+    ];
+    for (const p of hostParityProblems(headers, netlifyToml, probes))
+      failures.push(`header guard (Cloudflare vs Netlify): ${p}`);
   }
 } catch (e) {
   failures.push(`CSP guard: could not read built files (${e?.message || e}).`);
+}
+
+/* Strict-CSP page guard. Every HTML page the site serves runs under the main
+   CSP (style-src 'self', hash-pinned script-src, no third-party origins) —
+   except mcp-auth.html, which has its own scoped policy. A page that needs
+   inline <style>, style= attributes, inline scripts or a CDN renders broken in
+   production (briefing.html shipped that way). Fail the build instead. */
+try {
+  const htmlFiles = [];
+  const walk = (dir, rel) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) walk(join(dir, e.name), r);
+      else if (e.name.endsWith('.html') && r !== 'mcp-auth.html') htmlFiles.push(r);
+    }
+  };
+  walk(DIST, '');
+  for (const rel of htmlFiles) {
+    const page = readFileSync(join(DIST, ...rel.split('/')), 'utf8');
+    for (const p of strictPageProblems(page, { allowBootScript: rel === 'index.html' }))
+      failures.push(`strict-CSP page guard: dist/${rel} ${p}`);
+  }
+} catch (e) {
+  failures.push(`strict-CSP page guard: could not scan dist/ (${e?.message || e}).`);
+}
+
+/* Dataset sections guard (performance#5). The loader awaits every section the
+   inline dataset lists before the first render and fails the load on a missing
+   or unparsable one, so a listed file that is absent, renamed, not the bytes
+   its hash names (it is cached as immutable) or not preloaded is a broken or
+   slow site. lib/dataset-sections.mjs holds the contract. */
+try {
+  const html = readFileSync(join(DIST, 'index.html'), 'utf8');
+  const readDistFile = (rel) => {
+    const f = join(DIST, ...rel.split('/'));
+    return existsSync(f) ? readFileSync(f, 'utf8') : null;
+  };
+  for (const p of sectionProblems(html, readDistFile))
+    failures.push(`dataset sections guard: ${p}`);
+} catch (e) {
+  failures.push(`dataset sections guard: could not read dist/index.html (${e?.message || e}).`);
 }
 
 /* Discovery-kit freshness (agent-discoverability feature). generate-discovery.mjs
@@ -421,35 +426,15 @@ try {
 
 /* Privacy leak guard. inject-data.mjs scrubs every public sink; this proves it
    on the built bytes, so a new field or a new sink that bypasses the scrub
-   fails the build instead of publishing a home directory or agent prompts. */
-const LEAKS = [
-  [/[A-Za-z]:[\\/]+Users[\\/]+[^\\/"<\s]+/i, 'a Windows home-directory path'],
-  // Case-SENSITIVE on purpose: macOS homes are `/Users/`, and a lowercase
-  // `/users/<name>/` is usually a URL (api.github.com/users/octocat/…).
-  [/\/(?:home|Users)\/[A-Za-z0-9._-]+\//, 'a POSIX home-directory path'],
-  [/"requests":\[\{/, 'agent session prompts (git.worktrees[].requests)'],
-  [/"source":"request"/, 'a request-derived feature (an agent prompt)'],
-];
-/* The checkout this build ran in, and its parent, in every spelling a sink
-   could carry — any separator run (`/`, `\\`, JSON- or pack-escaped
-   `\\\\`), any case. The home-directory patterns above cannot see a repo that
-   lives outside a home dir (D:/dev/… on the maintainer's machine), so match the
-   actual paths too, the same way @factstack/spec's scrub does. */
-const localRoots = [APP_DIR_ROOT, dirname(APP_DIR_ROOT)]
-  .map((p) => p.split(/[\\/]+/).filter(Boolean))
-  .filter((segs) => segs.length >= 2)
-  .map(
-    (segs) =>
-      new RegExp(
-        segs.map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[\\\\/]+') +
-          '(?![A-Za-z0-9_-])',
-        'i',
-      ),
-  );
+   fails the build instead of publishing a home directory or agent prompts.
+   The patterns (home directories in Windows, Git Bash and POSIX spellings;
+   this checkout and its parent in every spelling) live in lib/privacy-guard.mjs. */
+const localRoots = localRootPatterns([APP_DIR_ROOT, dirname(APP_DIR_ROOT)]);
 const publicSinks = ['index.html', 'factstack.pack'];
-for (const dir of ['data', 'data/docs']) {
-  // data/docs/ holds the per-doc bodies moved out of index.html — a public
-  // sink like any other, so the guard proves it too.
+for (const dir of ['data', 'data/docs', SECTIONS_DIR]) {
+  // data/docs/ holds the per-doc bodies and data/sections/ the dataset
+  // sections moved out of index.html — public sinks like any other, so the
+  // guard proves them too.
   try {
     for (const f of readdirSync(join(DIST, ...dir.split('/')))) {
       if (f.endsWith('.json')) publicSinks.push(`${dir}/${f}`);

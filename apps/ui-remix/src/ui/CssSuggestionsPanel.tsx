@@ -334,7 +334,11 @@ export function CssSuggestionsPanel(handleRef: Handle<{ data: Dataset }>) {
 
   return () => {
     const styles = handleRef.props.data.styles;
-    if (!styles) return <></>;
+    /* A hidden host node, not an empty fragment: this panel is the Shell's
+       last child, and once it rendered nothing at all the NEXT dataset
+       swap wiped the whole #root (runtime lost its anchor) — a second ⌘O
+       scan of a CSS-less project blanked the dashboard. */
+    if (!styles) return <span hidden />;
 
     const findings: StyleFinding[] = styles.findings
       .slice()

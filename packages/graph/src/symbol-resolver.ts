@@ -31,7 +31,7 @@ import type {
   Confidence,
 } from '@factstack/spec';
 import { symbolId } from '@factstack/spec';
-import type { RawRef } from '@factstack/extractors';
+import { isTestOrExamplePath, type RawRef } from '@factstack/extractors';
 
 export interface SymbolGraph {
   symbolNodes: SymbolNode[];
@@ -86,19 +86,6 @@ function enclosing(nodes: readonly SymbolNode[], line: number): SymbolNode | und
 const byIdAsc = (a: { id: string }, b: { id: string }): number =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 
-/** Path-shape predicate for "this is test/fixture code, not application code."
- *  Inlined to keep @factstack/graph dependency-free (mirrors the helper in
- *  core's query engine). Artifact paths are already POSIX-normalized by the
- *  analyzer, so no backslash handling is needed here. */
-function isTestPath(p: string): boolean {
-  const n = p.toLowerCase();
-  if (
-    /(?:^|\/)(?:__tests__|__test__|tests|test|cypress|e2e|playwright|examples|fixtures)\//.test(n)
-  )
-    return true;
-  return /\.(test|spec)\.[a-z]+$/.test(n);
-}
-
 /**
  * Build the symbol graph from file outlines + per-file references.
  *
@@ -114,8 +101,16 @@ export function buildSymbolGraph(
   // 1. Nodes + indexes -----------------------------------------------------
   const allNodes: SymbolNode[] = [];
   const nodesByFile = new Map<string, SymbolNode[]>();
+  /* A node id is path#name@line, so two declarations of one name on one line
+     (a one-line getter/setter pair) share it. Keep the first: the id is the
+     table's primary key, and edges address nodes by id only. */
+  const seenIds = new Set<string>();
   for (const o of outlines) {
-    const flat = flattenDecls(o.path, o.declarations);
+    const flat = flattenDecls(o.path, o.declarations).filter((n) => {
+      if (seenIds.has(n.id)) return false;
+      seenIds.add(n.id);
+      return true;
+    });
     nodesByFile.set(o.path, flat);
     for (const n of flat) allNodes.push(n);
   }
@@ -192,7 +187,7 @@ export function buildSymbolGraph(
           // false edge; genuine test↔test refs resolve via the import path
           // above, not this fallback.
           const others = (byName.get(ref.name) ?? []).filter(
-            (c) => c.path !== o.path && !isTestPath(c.path),
+            (c) => c.path !== o.path && !isTestOrExamplePath(c.path),
           );
           if (others.length === 1) {
             to = others[0];

@@ -47,8 +47,11 @@ const m2 = master([
   ['c.ts', '3'],
 ]); // b changed, c added
 const sha2 = decode(m2).trailer!.sha256;
+/* The producer stamps a diff with its TARGET master's identity (orchestrator:
+   producer/schema/snapshotId re-decoded from the master it just wrote), so the
+   m1→m2 diff carries m2's snapshotId. */
 const diff = encodeIncremental({
-  header: { ...HEADER, snapshotId: 's2', rowCount: 0, seq: 2, parent: sha1, kind: 'diff' },
+  header: { ...HEADER, rowCount: 0, seq: 2, parent: sha1, kind: 'diff' },
   tables: computeDiff(decode(m1), decode(m2)),
 });
 
@@ -114,6 +117,34 @@ describe('resolveSyncPack — current / diff / full decision', () => {
     expect(r.status).toBe('error');
     expect(r.pack).toBeUndefined();
     expect(r.sha).toBeUndefined();
+  });
+
+  it('falls through to full when the diff targets an older master (stale sidecar)', () => {
+    /* correctness#1 / data-model#2 — a run that writes no new diff (schema
+       bump, corrupt prev, a failed computeDiff) leaves the previous run's
+       sidecar next to a NEWER master, and a read between the pack write and
+       the diff write sees the same pairing. Its parent still matches what the
+       caller holds, but applying it lands on the old master while the caller
+       records the new sha — a permanent silent desync. */
+    const m3 = encode({
+      header: { ...HEADER, snapshotId: 's3', generated: 'g3' },
+      tables: [
+        {
+          name: 'files',
+          columns: [{ name: 'path' }, { name: 'loc' }],
+          rows: [
+            ['a.ts', '1'],
+            ['b.ts', '9'],
+            ['c.ts', '3'],
+            ['d.ts', '4'],
+          ],
+        },
+      ],
+    });
+    // The m1→m2 diff, still on disk next to the newer m3.
+    const r = resolveSyncPack(m3, diff, sha1);
+    expect(r.status).toBe('full');
+    expect(r.pack).toBe(m3);
   });
 
   it('round-trip: applying the returned diff onto the held master reproduces the current master', () => {

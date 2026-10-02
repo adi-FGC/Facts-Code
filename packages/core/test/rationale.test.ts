@@ -124,3 +124,22 @@ describe('buildRationale (F10)', () => {
     expect(JSON.stringify(buildRationale([f1, f2], []))).toBe(JSON.stringify(r));
   });
 });
+
+describe('buildRationale — unique primary keys (data-model#3)', () => {
+  it('gives each docstring of declarations sharing a start line its own id', () => {
+    // `/** shared doc */ export const x = 1, y = 2;` → two decls on line 2.
+    const r = buildRationale([
+      outline('src/e.ts', [], [decl('x', 2, 2, 'shared doc'), decl('y', 2, 2, 'shared doc')]),
+    ]);
+    const ids = r.map((x) => x.id);
+    expect(ids).toEqual(['src/e.ts@2#docstring', 'src/e.ts@2#docstring:y']);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('stays unique for a one-line getter/setter pair with the same name', () => {
+    const box = { ...decl('Box', 1, 1, 'A box'), kind: 'class' } as SymbolDecl;
+    box.children = [decl('value', 1, 1, 'get'), decl('value', 1, 1, 'set')];
+    const ids = buildRationale([outline('src/box.ts', [], [box])]).map((x) => x.id);
+    expect(new Set(ids).size).toBe(3);
+  });
+});

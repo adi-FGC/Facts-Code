@@ -29,6 +29,10 @@
 
 import type { DependencyManifest, ManifestEcosystem } from '@factstack/spec';
 
+/* Lockfile parsing (installed versions + transitive packages) is part of the
+   same dependency surface; re-exported here so the package index picks it up. */
+export * from './lockfiles.js';
+
 /** Map a file path to a manifest ecosystem. Returns null when the path
  *  doesn't match any known manifest basename — so a caller's "is this
  *  a manifest?" check is one ternary. */
@@ -129,15 +133,29 @@ function parseNpmPackageJson(path: string, text: string): DependencyManifest | n
     version: typeof json.version === 'string' ? json.version : null,
     /* Merge peer + optional into deps. Most CI gates treat them the
        same as deps for security purposes — peer deps end up installed
-       in the consuming project; optional deps may install. The OSV
-       query handles them uniformly. */
+       (npm >= 7 installs them); optional deps may install. The OSV
+       query handles them uniformly. SCN-P2-06, two exceptions:
+         - a peer ALSO in devDependencies is the library pattern (the dev
+           install satisfies it locally; consumers bring their own copy),
+           so it stays dev-only — shown, not graded;
+         - a key in both dependencies and peerDependencies keeps its
+           dependencies range, which is what npm installs.
+       Optional still overrides dependencies, as npm does. */
     dependencies: sanitizeDeps({
+      ...peersNotInDev(json.peerDependencies, json.devDependencies),
       ...(json.dependencies ?? {}),
-      ...(json.peerDependencies ?? {}),
       ...(json.optionalDependencies ?? {}),
     }),
     devDependencies: sanitizeDeps(json.devDependencies ?? {}),
   };
+}
+
+/** peerDependencies minus the keys devDependencies also declares. */
+function peersNotInDev(peers: unknown, dev: unknown): Record<string, unknown> {
+  if (!peers || typeof peers !== 'object') return {};
+  const devMap = dev && typeof dev === 'object' ? dev : {};
+  // fromEntries defines own properties — a `__proto__` key stays data.
+  return Object.fromEntries(Object.entries(peers).filter(([k]) => !Object.hasOwn(devMap, k)));
 }
 
 /** Strip non-string values, normalize keys, drop empty-string versions. */
@@ -151,56 +169,5 @@ function sanitizeDeps(raw: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-/* ─────────── batch helper ─────────── */
-
-/**
- * Aggregate every dep across every manifest into a single
- * `{ ecosystem, name, version, manifestPath }[]` list. Useful for the
- * OSV query layer which wants a flat array of "things to look up."
- *
- * The dedupe key is (ecosystem, name, version) — the same package@version
- * declared in two manifests only generates one OSV query. Provenance
- * (which manifests declared it) is preserved via a `manifestPaths` array.
- */
-export interface DependencyEntry {
-  ecosystem: ManifestEcosystem;
-  name: string;
-  version: string;
-  /** All manifests that declared this exact (name, version). Mostly
-   *  size 1; size >1 happens in monorepos with consistent versioning. */
-  manifestPaths: string[];
-}
-
-export function flattenManifests(manifests: DependencyManifest[]): DependencyEntry[] {
-  const map = new Map<string, DependencyEntry>();
-  for (const m of manifests) {
-    /* Walk both runtime and dev deps. The CLI's scan-vulns command
-       takes a `--prod-only` flag if a user wants to skip dev deps,
-       but the default is "scan everything that ships." */
-    for (const [name, version] of Object.entries(m.dependencies)) {
-      addEntry(map, m.ecosystem, name, version, m.path);
-    }
-    for (const [name, version] of Object.entries(m.devDependencies)) {
-      addEntry(map, m.ecosystem, name, version, m.path);
-    }
-  }
-  return [...map.values()];
-}
-
-function addEntry(
-  map: Map<string, DependencyEntry>,
-  ecosystem: ManifestEcosystem,
-  name: string,
-  version: string,
-  manifestPath: string,
-): void {
-  const key = `${ecosystem}|${name}@${version}`;
-  const existing = map.get(key);
-  if (existing) {
-    if (!existing.manifestPaths.includes(manifestPath)) {
-      existing.manifestPaths.push(manifestPath);
-    }
-    return;
-  }
-  map.set(key, { ecosystem, name, version, manifestPaths: [manifestPath] });
-}
+/* The OSV query list (dedupe, lockfile resolution, direct/transitive/dev
+   scope) is built by buildOsvQueries in vulnerabilities.ts. */

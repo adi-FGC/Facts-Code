@@ -25,9 +25,12 @@
  *     scan all benefit from a single paste-driven path that always works.
  *
  * Bundle hygiene:
- *   - The osvScanner module is dynamic-imported on the Scan button
- *     click — none of the OSV-protocol types, parsing, or caching code
- *     ships in the main bundle. First paint stays under cap.
+ *   - This route is a lazy tab chunk, so the OSV client it imports never
+ *     ships in the main bundle. It is imported statically (~4 KB gz on the
+ *     Security tab) because every row is graded with the SHARED
+ *     bucketSeverity / pickFixedVersion / isGradedVulnerability — local
+ *     copies drifted from the CLI (a GHSA graded critical here, high in
+ *     agent.json; a "fixed in" that was a downgrade).
  */
 import type { Handle } from 'remix/ui';
 import { css, on, ref } from 'remix/ui';
@@ -38,10 +41,8 @@ import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 import { LabelNumberRow, LabelNumber } from '../ui/LabelNumber.tsx';
 import { SankeyDiagram } from '../ui/SankeyDiagram.tsx';
 import { vulnSeveritySankey } from '../lib/vulnFlow.ts';
-/* Type-only import — runtime symbols are dynamic-imported below so the
- * OSV client + cache + parser code only downloads when the user actually
- * hits Scan. */
-import type { OsvQuery, OsvResult, OsvVuln, SeverityBucket } from '../lib/osvScanner.ts';
+import * as osv from '../lib/osvScanner.ts';
+import type { OsvQuery, OsvResult, OsvVuln } from '../lib/osvScanner.ts';
 
 interface VulnerabilitiesProps {
   data: Dataset;
@@ -326,6 +327,120 @@ const sectionLabel = css({
 const pkgName = css({ color: 'var(--accent)' });
 const pkgVersion = css({ color: 'var(--fg-muted)', marginLeft: '8px' });
 const pkgAside = css({ color: 'var(--fg-faint)', marginLeft: '8px' });
+/* Provenance badge: "declared range (…)" / "dev: shown, not graded". */
+const pkgLabel = css({
+  display: 'inline-block',
+  marginLeft: '8px',
+  paddingInline: '4px',
+  border: '1px solid var(--hairline)',
+  color: 'var(--fg-muted)',
+  fontSize: 'var(--fs-10)',
+});
+const degradedNote = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  color: 'var(--warn)',
+  marginTop: 'var(--space-3)',
+});
+
+/** The shared provenance labels (vulnerabilityLabels — the CLI and MCP print
+ *  the same wording) for one package row: a live query or an artifact row.
+ *  A plain array, not a component: a component that renders an empty
+ *  fragment as its parent's last child trips the remix/ui beta reconciler
+ *  (see CssSuggestionsPanel). */
+function provenanceLabels(of: {
+  scope?: osv.DependencyScope | undefined;
+  versionSource?: osv.VersionSource | undefined;
+}) {
+  return osv.vulnerabilityLabels(of).map((l) => (
+    <span key={l} mix={pkgLabel}>
+      {l}
+    </span>
+  ));
+}
+
+type ArtifactVuln = NonNullable<Dataset['vulnerabilities']>[number];
+
+/** Artifact rows grouped by package@version, in first-seen order. */
+function groupByPackage(rows: readonly ArtifactVuln[]): Map<string, ArtifactVuln[]> {
+  const out = new Map<string, ArtifactVuln[]>();
+  for (const v of rows) {
+    const key = `${v.ecosystem}|${v.package}@${v.installedVersion}`;
+    const arr = out.get(key) ?? [];
+    arr.push(v);
+    out.set(key, arr);
+  }
+  return out;
+}
+
+const pkgHeader = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  color: 'var(--fg)',
+  paddingInline: 'var(--space-3)',
+  paddingBlock: 'var(--space-2)',
+  background: 'var(--surface-1)',
+  borderTop: '1px solid var(--hairline)',
+});
+
+/** One block per package@version of artifact rows: the baked scan's list,
+ *  and the transitive rows a weekly re-check carries. A plain array,
+ *  like provenanceLabels, not a component. */
+function artifactPackageRows(byPackage: Map<string, ArtifactVuln[]>) {
+  return [...byPackage.entries()].map(([key, group]) => {
+    const head = group[0]!;
+    return (
+      <div key={key}>
+        <div mix={pkgHeader}>
+          <strong mix={pkgName}>{head.package}</strong>
+          <span mix={pkgVersion}>@ {head.installedVersion}</span>
+          <span mix={pkgAside}>
+            · {group.length} {group.length === 1 ? 'advisory' : 'advisories'}
+          </span>
+          {head.manifestPath && <span mix={pkgAside}>· {head.manifestPath}</span>}
+          {provenanceLabels(head)}
+        </div>
+        {group.map((v) => {
+          const pillStyle =
+            v.severity === 'critical'
+              ? sevPillCritical
+              : v.severity === 'high'
+                ? sevPillHigh
+                : v.severity === 'medium'
+                  ? sevPillMedium
+                  : v.severity === 'low'
+                    ? sevPillLow
+                    : sevPillUnknown;
+          return (
+            <div key={v.id} mix={vulnRow}>
+              <span mix={[sevPill, pillStyle]}>{v.severity}</span>
+              <div>
+                <a
+                  href={v.advisoryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  mix={[vulnId, vulnLink]}
+                >
+                  {v.id}
+                </a>
+                {v.summary && <div mix={vulnSummary}>{v.summary}</div>}
+              </div>
+              <div mix={vulnMeta}>
+                installed {v.installedVersion}
+                {v.fixedVersion && (
+                  <>
+                    <br />
+                    fixed in {v.fixedVersion}
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  });
+}
 
 /* ─────────── component ─────────── */
 
@@ -344,6 +459,12 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
   let resultsAt = 0;
   let autoRefreshing = false;
   let autoNote = '';
+  /* The dataset the weekly re-check belongs to. The page outlives a ⌘O
+     hot-swap, and a re-check of the previous project must never be shown
+     as the new one's verdict (UI-04); the generation drops a re-check that
+     finishes after its dataset was swapped out. */
+  let weeklyFor: Dataset = handle.props.data;
+  let weeklyGen = 0;
 
   /**
    * Keep the advisory list honest on a deployed snapshot.
@@ -357,31 +478,44 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
    *
    * Never blocks the page: it runs after first render, and any failure leaves
    * the baked result showing with a quiet note rather than an error.
+   *
+   * `force` (the Force refresh button on a weekly result) skips the weekly
+   * decision and asks OSV again now.
    */
-  async function weeklyRefresh(data: Dataset): Promise<void> {
-    if (typeof window === 'undefined' || autoRefreshing || results) return;
+  async function weeklyRefresh(data: Dataset, force = false): Promise<void> {
+    if (typeof window === 'undefined' || autoRefreshing || (results && !force)) return;
     const manifests = data.dependencyManifests ?? [];
     if (manifests.length === 0) return;
     const bakedAt = data.vulnerabilityScan?.scannedAt
       ? Date.parse(data.vulnerabilityScan.scannedAt) || 0
       : 0;
 
+    const gen = weeklyGen;
+    const current = () => gen === weeklyGen;
     autoRefreshing = true;
+    if (force) {
+      autoNote = '';
+      void handle.update();
+    }
     try {
-      const osv = await import('../lib/osvScanner.ts');
       const queries = osv.queriesFromManifests(manifests);
       if (queries.length === 0) return;
       const fingerprint = osv.manifestFingerprint(queries);
       const cached = osv.readAutoRefresh(fingerprint);
-      const decision = osv.weeklyRefreshDecision({
-        bakedAt,
-        cachedAt: cached?.at,
-        now: Date.now(),
-        online: navigator.onLine !== false,
-        queryCount: queries.length,
-      });
+      const decision = force
+        ? 'refresh'
+        : osv.weeklyRefreshDecision({
+            bakedAt,
+            cachedAt: cached?.at,
+            /* Derived from the stored answer itself, so a partial record an
+               older build cached for the week is also held for an hour only. */
+            cachedPartial: cached ? osv.isPartialAnswer(cached.results) : false,
+            now: Date.now(),
+            online: navigator.onLine !== false,
+            queryCount: queries.length,
+          });
 
-      if (decision === 'skip') return;
+      if (decision === 'skip' || !current()) return;
       if (decision === 'use-cache' && cached) {
         results = cached.results;
         resultsSource = 'weekly';
@@ -390,45 +524,81 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
       }
 
       const fresh = await osv.queryOsvBatch(queries, { bypassCache: true });
+      if (!current()) return;
       results = fresh;
       resultsSource = 'weekly';
       resultsAt = Date.now();
+      /* SCN-16: an answer with advisories that loaded id-only is shown (with
+         a note) and reused for an hour, never the week — severity 'unknown'
+         is not served for seven days, and an advisory whose detail never
+         loads does not cost an OSV round trip on every page view
+         (weeklyRefreshDecision reads the partial state back). */
       osv.writeAutoRefresh({ at: resultsAt, fingerprint, results: fresh });
     } catch (err) {
-      /* The baked scan stays on screen; say why it was not topped up. */
-      autoNote = `Could not reach OSV.dev to re-check (${err instanceof Error ? err.message : String(err)}).`;
+      /* Whatever was on screen stays there — the baked scan, or on a forced
+         re-check the previous re-check; render names which (UI-R2). */
+      if (current()) {
+        autoNote = `Could not reach OSV.dev to re-check (${err instanceof Error ? err.message : String(err)}).`;
+      }
     } finally {
-      autoRefreshing = false;
+      if (current()) autoRefreshing = false;
       void handle.update();
     }
+  }
+
+  /** Re-run the weekly re-check for a dataset swapped in after mount. */
+  function onDatasetSwap(data: Dataset): void {
+    weeklyFor = data;
+    weeklyGen++;
+    autoRefreshing = false;
+    autoNote = '';
+    if (resultsSource === 'weekly') {
+      results = null;
+      resultsSource = null;
+      resultsAt = 0;
+    }
+    queueMicrotask(() => void weeklyRefresh(data));
   }
 
   async function runScan() {
     if (scanning) return;
     if (!pasteText.trim()) {
-      scanError =
-        'Paste a package.json (or other supported manifest) into the box above before scanning.';
+      scanError = 'Paste a package.json into the box above before scanning.';
       void handle.update();
       return;
     }
-    scanning = true;
-    scanError = '';
-    results = null;
-    void handle.update();
-
+    /* Parse before touching what is on screen: a paste with nothing to query
+       (a Detected-manifests hint, non-JSON text) used to clear the results
+       first, and with them a weekly re-check only a reload brought back. */
+    let queries: OsvQuery[];
     try {
-      /* Dynamic import — pulls in the OSV client + parser only on first
-         scan. Subsequent scans in the same session reuse the already-
-         downloaded chunk. */
-      const osv = await import('../lib/osvScanner.ts');
-      resultsSource = 'paste';
-      resultsAt = Date.now();
-      const queries: OsvQuery[] = osv.parseNpmManifestForOsv(pasteText, 'pasted-manifest');
+      queries = osv.parseNpmManifestForOsv(pasteText, 'pasted-manifest');
       if (queries.length === 0) {
         throw new Error(
           'Could not extract any dependencies. Make sure the pasted content is a valid package.json with a `dependencies` or `devDependencies` block.',
         );
       }
+    } catch (err) {
+      scanError = err instanceof Error ? err.message : String(err);
+      bypassCache = false;
+      void handle.update();
+      return;
+    }
+
+    scanning = true;
+    scanError = '';
+    results = null;
+    /* A paste supersedes a weekly re-check still in flight: without this, a
+       re-check finishing after the paste scan replaced its results. Its
+       failure note goes too — the paste verdict now leads the page. */
+    weeklyGen++;
+    autoRefreshing = false;
+    autoNote = '';
+    resultsSource = 'paste';
+    resultsAt = Date.now();
+    void handle.update();
+
+    try {
       results = await osv.queryOsvBatch(queries, { bypassCache });
     } catch (err) {
       scanError = err instanceof Error ? err.message : String(err);
@@ -451,6 +621,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
 
   return () => {
     const { data } = handle.props;
+    if (data !== weeklyFor) onDatasetSwap(data);
     const files = flattenFiles(data.tree);
     const manifests = detectManifests(files);
 
@@ -470,23 +641,41 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
        result rendered below is the live one. */
     const weekly = resultsSource === 'weekly' && results ? results : null;
     const weeklyClean = weekly !== null && weekly.every((r) => r.vulns.length === 0);
+    /* A finished paste scan leads the kicker, headline and lede — ahead of the
+       baked verdict, which it would otherwise sit under unseen (a pasted
+       CRITICAL under "No known vulnerabilities", UI-R1). The artifact's own
+       rows stay listed below, labelled as the artifact's. */
+    const pasted = resultsSource === 'paste' && results ? results : null;
     const showArtifact = hasArtifactVulns && weekly === null;
     const scannedClean = !hasArtifactVulns && scan !== null && weekly === null;
+    /* Deps that changed while OSV.dev was answering were never checked: the
+       scan found nothing, but it is not a clean answer for those. */
+    const unscanned = scan?.unscanned ?? 0;
     const scanAge = scan
       ? fmtAge(Math.max(0, Date.now() - (Date.parse(scan.scannedAt) || Date.now())))
       : null;
-    /* Aggregate counts from the artifact for the headline + LabelNumbers. */
+    /* Aggregate counts from the artifact for the headline + LabelNumbers.
+       Only graded findings count; dev / transitive ones are listed with a
+       "shown, not graded" label (owner call, shared isGradedVulnerability). */
     const artifactCounts = { critical: 0, high: 0, medium: 0, low: 0, unknown: 0 };
-    for (const v of artifactVulns) artifactCounts[v.severity] = artifactCounts[v.severity] + 1;
+    let artifactUngraded = 0;
+    for (const v of artifactVulns) {
+      if (osv.isGradedVulnerability(v)) artifactCounts[v.severity] = artifactCounts[v.severity] + 1;
+      else artifactUngraded++;
+    }
     /* Group by package for the rendered output — same shape as the
        paste-flow renderer expects. */
-    const artifactByPackage = new Map<string, typeof artifactVulns>();
-    for (const v of artifactVulns) {
-      const key = `${v.ecosystem}|${v.package}@${v.installedVersion}`;
-      const arr = artifactByPackage.get(key) ?? [];
-      arr.push(v);
-      artifactByPackage.set(key, arr);
-    }
+    const artifactByPackage = groupByPackage(artifactVulns);
+    /* The weekly re-check asks about the manifests' direct + dev packages
+       only (the browser has no lockfile text), so it cannot speak for a
+       transitive advisory the build's lockfile scan found. Those rows stay
+       listed under the re-check, labelled as the build's, and the page says
+       "clean" only when the re-check covered what the build scanned. */
+    const carried = weekly ? artifactVulns.filter((v) => v.scope === 'transitive') : [];
+    const bakedQueried = scan?.packagesQueried ?? 0;
+    const weeklyNarrower =
+      weekly !== null &&
+      ((scan?.lockfiles?.length ?? 0) > 0 || bakedQueried > weekly.length || carried.length > 0);
     /* Freshness — relative time since the most recent lastChecked.
        Stale data (older than 24h) gets a softer tone in the freshness
        chip; very stale (>7d) suggests re-running scan-vulns. */
@@ -498,32 +687,12 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
     const freshness = ageMs === null ? null : fmtAge(ageMs);
 
     /* Aggregate stats from the live-scan result set — same logic as
-       artifact counts, kept separate so users can see both surfaces
-       side-by-side when they re-scan a pasted manifest. */
-    let totalVulns = 0;
-    let critical = 0,
-      high = 0,
-      medium = 0,
-      low = 0;
-    let cleanPackages = 0,
-      vulnerablePackages = 0;
-    if (results) {
-      for (const r of results) {
-        if (r.vulns.length === 0) {
-          cleanPackages++;
-          continue;
-        }
-        vulnerablePackages++;
-        totalVulns += r.vulns.length;
-        for (const v of r.vulns) {
-          const b = bucketSeverityLocal(v);
-          if (b === 'critical') critical++;
-          else if (b === 'high') high++;
-          else if (b === 'medium') medium++;
-          else if (b === 'low') low++;
-        }
-      }
-    }
+       artifact counts (graded only, shared severity bucketer), kept separate
+       so users can see both surfaces side-by-side when they re-scan a pasted
+       manifest. */
+    const live = osv.summarizeOsvResults(results ?? []);
+    const { critical, high, medium, low, cleanPackages, vulnerablePackages } = live;
+    const totalVulns = live.total;
 
     return (
       <ContentWithMargin>
@@ -531,39 +700,88 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
           <div mix={kicker}>
             Vulnerabilities{' '}
             {weekly
-              ? `· ${weeklyClean ? 'clean' : `${vulnerablePackages} vulnerable`} · re-checked in your browser`
-              : hasArtifactVulns
-                ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
-                : scannedClean
-                  ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · clean`
-                  : results
-                    ? `· ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
+              ? `· ${weeklyClean ? (weeklyNarrower ? 'direct + dev: none vulnerable' : 'clean') : `${vulnerablePackages} vulnerable`} · re-checked in your browser`
+              : pasted
+                ? `· pasted manifest · ${vulnerablePackages} vulnerable / ${cleanPackages + vulnerablePackages} scanned`
+                : hasArtifactVulns
+                  ? `· ${artifactByPackage.size} vulnerable package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`
+                  : scannedClean
+                    ? `· ${scan!.packagesQueried} package${scan!.packagesQueried === 1 ? '' : 's'} scanned · ${unscanned > 0 ? `partial, ${unscanned} not scanned` : 'clean'}`
                     : '· ready to scan'}
           </div>
           <h1 mix={headline}>
             {weekly
-              ? weeklyClean
+              ? weeklyClean && carried.length === 0
                 ? 'No known vulnerabilities at the queried versions.'
-                : renderHeadline(critical, high, totalVulns)
-              : hasArtifactVulns
-                ? renderHeadline(artifactCounts.critical, artifactCounts.high, artifactVulns.length)
-                : scannedClean
-                  ? 'No known vulnerabilities at the queried versions.'
-                  : results
-                    ? renderHeadline(critical, high, totalVulns)
+                : /* Carried rows are transitive: listed, never graded. */
+                  renderHeadline(
+                    critical,
+                    high,
+                    totalVulns + carried.length,
+                    live.ungraded + carried.length,
+                  )
+              : pasted
+                ? renderHeadline(critical, high, totalVulns, live.ungraded)
+                : hasArtifactVulns
+                  ? renderHeadline(
+                      artifactCounts.critical,
+                      artifactCounts.high,
+                      artifactVulns.length,
+                      artifactUngraded,
+                    )
+                  : scannedClean
+                    ? unscanned > 0
+                      ? `No known vulnerabilities in the packages scanned; ${unscanned} ${unscanned === 1 ? 'dependency was' : 'dependencies were'} not checked.`
+                      : 'No known vulnerabilities at the queried versions.'
                     : 'Check your dependencies against the OSV database.'}
           </h1>
           <p mix={lede}>
             {weekly ? (
               <>
-                The build's scan had passed a week, so this page re-checked {weekly.length} package
-                {weekly.length === 1 ? '' : 's'} against{' '}
+                The build's scan had passed a week, so this page re-checked {weekly.length}
+                {bakedQueried > weekly.length ? ` of ${bakedQueried}` : ''} package
+                {(bakedQueried > weekly.length ? bakedQueried : weekly.length) === 1 ? '' : 's'}
+                {weeklyNarrower ? (
+                  <>
+                    {' '}
+                    (direct + dev; lockfile packages need{' '}
+                    <code class="mono">factstack scan-vulns</code>)
+                  </>
+                ) : (
+                  ''
+                )}{' '}
+                against{' '}
                 <a href="https://osv.dev" mix={vulnLink}>
                   OSV.dev
                 </a>{' '}
                 from your browser · {fmtAge(Math.max(0, Date.now() - resultsAt))}. Only package
-                names and versions left the page. It re-checks at most once a week per browser;{' '}
+                names and versions left the page. It re-checks at most once a week per browser
+                (after an hour, when OSV.dev answered only in part);{' '}
                 <code class="mono">factstack scan-vulns</code> refreshes the artifact itself.
+                {carried.length > 0
+                  ? ` The build scan's ${carried.length} transitive ${carried.length === 1 ? 'advisory is' : 'advisories are'} still listed below, as the build found ${carried.length === 1 ? 'it' : 'them'}.`
+                  : ''}
+              </>
+            ) : pasted ? (
+              <>
+                This verdict is for the pasted manifest: {pasted.length} package
+                {pasted.length === 1 ? '' : 's'} checked against{' '}
+                <a href="https://osv.dev" mix={vulnLink}>
+                  OSV.dev
+                </a>{' '}
+                (answers are cached in this browser for 6h). Only package names and versions left
+                the page.
+                {hasArtifactVulns ? (
+                  <>
+                    {' '}
+                    The project's own <code class="mono">factstack scan-vulns</code> findings are
+                    still listed below.
+                  </>
+                ) : scan ? (
+                  ` The project's own scan (${scanAge}) found no known advisories.`
+                ) : (
+                  ''
+                )}
               </>
             ) : hasArtifactVulns ? (
               <>
@@ -589,7 +807,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             ) : (
               <>
                 We detected {manifests.length} manifest{manifests.length === 1 ? '' : 's'} in this
-                project. Paste one into the box below to query{' '}
+                project. Paste a package.json into the box below to query{' '}
                 <a href="https://osv.dev" mix={vulnLink}>
                   OSV.dev
                 </a>{' '}
@@ -600,12 +818,20 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             )}
           </p>
 
-          {autoNote !== '' && (
-            <p mix={lede}>
-              {autoNote} Showing the scan baked at build time; re-run{' '}
-              <code class="mono">factstack scan-vulns</code> for a fresh one.
-            </p>
-          )}
+          {/* The note names what is actually on screen: a failed Force
+              refresh keeps the previous re-check, not the baked scan (UI-R2). */}
+          {autoNote !== '' &&
+            (weekly ? (
+              <p mix={lede}>
+                {autoNote} Still showing this browser's earlier re-check ·{' '}
+                {fmtAge(Math.max(0, Date.now() - resultsAt))}.
+              </p>
+            ) : (
+              <p mix={lede}>
+                {autoNote} Showing the scan baked at build time; re-run{' '}
+                <code class="mono">factstack scan-vulns</code> for a fresh one.
+              </p>
+            ))}
 
           {showArtifact && (
             <>
@@ -614,6 +840,9 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                 <LabelNumber label="High" value={artifactCounts.high} />
                 <LabelNumber label="Medium" value={artifactCounts.medium} />
                 <LabelNumber label="Low" value={artifactCounts.low} />
+                {artifactUngraded > 0 && (
+                  <LabelNumber label="Not graded" value={artifactUngraded} />
+                )}
                 <LabelNumber label="Packages" value={artifactByPackage.size} last />
               </LabelNumberRow>
 
@@ -623,7 +852,11 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                   title={`${artifactByPackage.size} package${artifactByPackage.size === 1 ? '' : 's'} · ${artifactVulns.length} ${artifactVulns.length === 1 ? 'advisory' : 'advisories'}`}
                 >
                   {(() => {
-                    const sankey = vulnSeveritySankey(artifactVulns);
+                    /* Ungraded rows flow from "Not graded", as the counts
+                       above file them, not from their raw severity. */
+                    const sankey = vulnSeveritySankey(
+                      artifactVulns.map((v) => ({ ...v, graded: osv.isGradedVulnerability(v) })),
+                    );
                     return (
                       <SankeyDiagram
                         nodes={sankey.nodes}
@@ -637,68 +870,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
               )}
 
               <Section label="Vulnerable (from artifact)">
-                {[...artifactByPackage.entries()].map(([key, group]) => {
-                  const head = group[0]!;
-                  return (
-                    <div key={key}>
-                      <div
-                        mix={css({
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 'var(--fs-12)',
-                          color: 'var(--fg)',
-                          paddingInline: 'var(--space-3)',
-                          paddingBlock: 'var(--space-2)',
-                          background: 'var(--surface-1)',
-                          borderTop: '1px solid var(--hairline)',
-                        })}
-                      >
-                        <strong mix={pkgName}>{head.package}</strong>
-                        <span mix={pkgVersion}>@ {head.installedVersion}</span>
-                        <span mix={pkgAside}>
-                          · {group.length} {group.length === 1 ? 'advisory' : 'advisories'}
-                        </span>
-                        {head.manifestPath && <span mix={pkgAside}>· {head.manifestPath}</span>}
-                      </div>
-                      {group.map((v) => {
-                        const pillStyle =
-                          v.severity === 'critical'
-                            ? sevPillCritical
-                            : v.severity === 'high'
-                              ? sevPillHigh
-                              : v.severity === 'medium'
-                                ? sevPillMedium
-                                : v.severity === 'low'
-                                  ? sevPillLow
-                                  : sevPillUnknown;
-                        return (
-                          <div key={v.id} mix={vulnRow}>
-                            <span mix={[sevPill, pillStyle]}>{v.severity}</span>
-                            <div>
-                              <a
-                                href={v.advisoryUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                mix={[vulnId, vulnLink]}
-                              >
-                                {v.id}
-                              </a>
-                              {v.summary && <div mix={vulnSummary}>{v.summary}</div>}
-                            </div>
-                            <div mix={vulnMeta}>
-                              installed {v.installedVersion}
-                              {v.fixedVersion && (
-                                <>
-                                  <br />
-                                  fixed in {v.fixedVersion}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
+                {artifactPackageRows(artifactByPackage)}
               </Section>
             </>
           )}
@@ -718,8 +890,13 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                         /* We can't read the file contents (artifact has
                          metadata only) — show a helpful nudge as
                          placeholder text instead. The user opens the
-                         actual file locally and pastes its contents. */
-                        pasteText = `// Open ${m.path} in your editor and paste its contents here.\n// Detected ecosystem: ${m.ecosystem}\n`;
+                         actual file locally and pastes its contents.
+                         The paste flow parses package.json only, so any
+                         other manifest says so up front (UI-R6). */
+                        pasteText =
+                          m.ecosystem === 'npm'
+                            ? `// Open ${m.path} in your editor and paste its contents here.\n// Detected ecosystem: ${m.ecosystem}\n`
+                            : `// Open a package.json in your editor and paste its contents here.\n// Detected ecosystem: ${m.ecosystem} — only package.json pastes are scanned here today;\n// run \`factstack scan-vulns\` to check ${m.path}.\n`;
                         if (pasteEl) {
                           pasteEl.value = pasteText;
                           pasteEl.focus();
@@ -740,7 +917,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
           <div mix={sectionLabel}>Scan a manifest</div>
           <div mix={scanForm}>
             <label for="manifest-paste" mix={scanLabel}>
-              Paste package.json (or supported manifest) contents
+              Paste package.json contents
             </label>
             <textarea
               id="manifest-paste"
@@ -775,11 +952,18 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
               {results && (
                 <button
                   type="button"
-                  disabled={scanning}
+                  disabled={scanning || autoRefreshing}
                   title="Bypass the local cache and re-query OSV.dev"
                   mix={[
                     secondaryBtn,
                     on('click', () => {
+                      /* A weekly re-check has no pasted text to re-scan:
+                         re-run the re-check itself (it used to fail with
+                         "Paste a package.json…"). */
+                      if (resultsSource === 'weekly') {
+                        void weeklyRefresh(handle.props.data, true);
+                        return;
+                      }
                       bypassCache = true;
                       void runScan();
                     }),
@@ -817,8 +1001,17 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                 <LabelNumber label="High" value={high} />
                 <LabelNumber label="Medium" value={medium} />
                 <LabelNumber label="Low" value={low} />
+                {live.ungraded > 0 && <LabelNumber label="Not graded" value={live.ungraded} />}
                 <LabelNumber label="Clean" value={cleanPackages} last />
               </LabelNumberRow>
+
+              {live.degraded > 0 && (
+                <p role="status" mix={degradedNote}>
+                  {live.degraded} {live.degraded === 1 ? 'advisory' : 'advisories'} could not be
+                  fully loaded from OSV.dev (severity and fix shown as unknown) — use Force refresh
+                  to retry.
+                </p>
+              )}
 
               {vulnerablePackages > 0 ? (
                 <Section label="Vulnerable">
@@ -842,11 +1035,9 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
                           <span mix={pkgAside}>
                             · {r.vulns.length} {r.vulns.length === 1 ? 'advisory' : 'advisories'}
                           </span>
+                          {provenanceLabels(r.query)}
                         </div>
                         {r.vulns.map((v) => {
-                          /* Inline the severity bucketing + advisory URL
-                           pulls — kept the helpers in osvScanner.ts but
-                           we call them via the dynamic-imported module. */
                           return (
                             <VulnRowView
                               key={v.id}
@@ -896,6 +1087,12 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
               )}
             </>
           )}
+
+          {carried.length > 0 && (
+            <Section label="Transitive (from the build scan, not re-checked)">
+              {artifactPackageRows(groupByPackage(carried))}
+            </Section>
+          )}
         </div>
 
         <MarginColumn>
@@ -906,7 +1103,7 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             6h TTL in localStorage. Force refresh to re-query.
           </FootnoteChip>
           <FootnoteChip label="Ecosystems">
-            npm, PyPI, Cargo, Go, Maven, RubyGems (parser today: npm)
+            npm, PyPI, Cargo, Go, Maven, RubyGems (paste box: package.json only)
           </FootnoteChip>
           <FootnoteChip label="Privacy" tone="ok">
             Only package names + versions leave the browser. No file contents, no PII.
@@ -926,21 +1123,16 @@ interface VulnRowProps {
   pkgName: string;
 }
 
-/* Defining VulnRowView as a remix component closure ensures the
-   dynamic-import boundary stays clean — this component only reads OSV
-   types via type-only imports above. */
+/* The row grades with the SHARED helpers (bucketSeverity, pickFixedVersion,
+   pickAdvisoryUrl): the same advisory reads the same here, in agent.json and
+   in the CLI/MCP (INV7). The fixed-version pick gets the installed version,
+   so it names the fix on the installed release line — never a downgrade. */
 function VulnRowView(handle: Handle<VulnRowProps>) {
   return () => {
     const { vuln, installedVersion, pkgName } = handle.props;
-    /* Compute bucket + advisory URL inline (no need for osvScanner
-       import at render-time — these are pure transforms over OSV
-       types we already have as types). The osvScanner helpers run
-       inside the dynamic-imported scan path; here we re-implement
-       the minimum needed for display to keep this file self-contained
-       on first paint. */
-    const bucket = bucketSeverityLocal(vuln);
-    const advisoryUrl = pickAdvisoryUrlLocal(vuln);
-    const fixedIn = pickFixedVersionLocal(vuln, pkgName);
+    const bucket = osv.bucketSeverity(vuln);
+    const advisoryUrl = osv.pickAdvisoryUrl(vuln);
+    const fixedIn = osv.pickFixedVersion(vuln, pkgName, installedVersion);
     const pillStyle =
       bucket === 'critical'
         ? sevPillCritical
@@ -975,65 +1167,6 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
   };
 }
 
-/* Local copies of the bucket/URL helpers — kept here so the row
-   component renders without dynamic-import overhead. Source of truth
-   lives in osvScanner.ts; these track its behavior. ~10 lines, worth
-   the duplication to keep the first-paint chunk lean. */
-function bucketSeverityLocal(v: OsvVuln): SeverityBucket {
-  /* Mirror of scanners' bucketSeverity (INV7 parity): prefer the newest CVSS
-     version, and handle CVSS v4's VC/VI/VA impact metrics — the v3-shaped
-     [/:]C:H regex never matches a v4 vector, which used to drop real
-     critical/high advisories to 'unknown'. */
-  const sev = v.severity ?? [];
-  const cvss =
-    sev.find((s) => s.type === 'CVSS_V4') ??
-    sev.find((s) => s.type === 'CVSS_V3') ??
-    sev.find((s) => s.type.startsWith('CVSS'));
-  if (cvss) {
-    const sc = cvss.score;
-    if (cvss.type === 'CVSS_V4' || /CVSS:4/.test(sc) || /\bV[CIA]:/.test(sc)) {
-      if (/\bVC:H/.test(sc) && /\bVI:H/.test(sc) && /\bVA:H/.test(sc)) return 'critical';
-      if (/\bVC:H/.test(sc) || /\bVI:H/.test(sc) || /\bVA:H/.test(sc)) return 'high';
-      if (/\bVC:L/.test(sc) || /\bVI:L/.test(sc) || /\bVA:L/.test(sc)) return 'medium';
-    } else {
-      if (/[/:]C:H.*[/:]I:H.*[/:]A:H/u.test(sc)) return 'critical';
-      if (/[/:]C:H|[/:]I:H|[/:]A:H/u.test(sc)) return 'high';
-      if (/[/:]C:L|[/:]I:L|[/:]A:L/u.test(sc)) return 'medium';
-    }
-  }
-  const dbSev = v.database_specific?.severity?.toUpperCase();
-  if (dbSev === 'CRITICAL') return 'critical';
-  if (dbSev === 'HIGH') return 'high';
-  if (dbSev === 'MODERATE' || dbSev === 'MEDIUM') return 'medium';
-  if (dbSev === 'LOW') return 'low';
-  return 'unknown';
-}
-function pickFixedVersionLocal(v: OsvVuln, pkgName?: string): string | null {
-  /* Scope to the queried package — one OSV advisory can list several affected
-     packages and the first is often not ours (INV7 parity with scanners). */
-  const affected = v.affected ?? [];
-  const scoped = pkgName ? affected.filter((a) => a.package?.name === pkgName) : affected;
-  for (const aff of scoped.length > 0 ? scoped : affected) {
-    for (const range of aff.ranges ?? []) {
-      for (const ev of range.events) {
-        if (ev.fixed) return ev.fixed;
-      }
-    }
-  }
-  return null;
-}
-function pickAdvisoryUrlLocal(v: OsvVuln): string {
-  // SEC-1: only consider http(s) refs (mirror of scanners' pickAdvisoryUrl) so a
-  // poisoned javascript:/data: reference URL can never become a rendered href.
-  const isHttp = (u: string) => /^https?:\/\//i.test(u);
-  const refs = v.references ?? [];
-  const ref =
-    refs.find((r) => r.type === 'ADVISORY' && isHttp(r.url)) ??
-    refs.find((r) => isHttp(r.url) && r.url.includes('github.com/advisories')) ??
-    refs.find((r) => isHttp(r.url));
-  return ref?.url ?? `https://osv.dev/vulnerability/${v.id}`;
-}
-
 /* ─────────── helpers ─────────── */
 
 function fmtBytes(n: number): string {
@@ -1042,10 +1175,15 @@ function fmtBytes(n: number): string {
   return n + ' B';
 }
 
-function renderHeadline(critical: number, high: number, total: number): string {
+/** `critical` / `high` count graded findings only; `ungraded` of `total` sit
+ *  on dev or transitive packages (shown, not graded — the shared
+ *  VULN_LABEL_TEXT wording the CLI and MCP print, INV7). */
+function renderHeadline(critical: number, high: number, total: number, ungraded = 0): string {
   if (critical > 0)
     return `${critical} critical vulnerabilit${critical === 1 ? 'y' : 'ies'} found.`;
   if (high > 0) return `${high} high-severity vulnerabilit${high === 1 ? 'y' : 'ies'} found.`;
+  if (total > 0 && ungraded === total)
+    return `${total} advisor${total === 1 ? 'y' : 'ies'} on dev or transitive packages — ${osv.VULN_LABEL_TEXT.notGraded}.`;
   if (total > 0) return `${total} known advisor${total === 1 ? 'y' : 'ies'} matched your deps.`;
   return 'No known vulnerabilities at queried versions.';
 }

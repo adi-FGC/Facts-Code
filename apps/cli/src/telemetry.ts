@@ -36,13 +36,23 @@
  *       counter says something happened 241 times; only a ring says it
  *       happened at 04:06, from the CLI, against that root.
  *
- * Testable seam: `createTelemetry({ dir, fetch, now, uuid })` binds the base
- * dir + injects the remote fetch / clock / id source, so tests run against a
- * temp dir with a deterministic clock and a stub remote (no homedir writes,
- * no network).
+ * CONCURRENCY (CLI-09): the freshness hook runs one analyze per agent edit,
+ * often several at once. recordEvent's read-modify-write therefore runs under
+ * a lock file, every write is a temp-file + rename (a reader never sees half
+ * a file), and a metrics file that will not parse is left alone — the event
+ * is skipped — instead of being "recovered" to empty defaults, which wiped
+ * the counters and the `recent` ring exactly when they were needed. On
+ * Windows a lock another process just released can sit "delete pending"
+ * for a moment, and creating it then fails with EPERM (sometimes EACCES or
+ * EBUSY), not EEXIST: that is contention too, and is waited out.
+ *
+ * Testable seam: `createTelemetry({ dir, fetch, now, uuid, platform })` binds
+ * the base dir + injects the remote fetch / clock / id source / platform, so
+ * tests run against a temp dir with a deterministic clock and a stub remote
+ * (no homedir writes, no network).
  */
 
-import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink, rename, open, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
@@ -50,6 +60,34 @@ import { createHash, randomUUID } from 'node:crypto';
 export const DEFAULT_TELEMETRY_DIR = join(homedir(), '.factstack');
 const METRICS_FILE = 'metrics.json';
 const STATE_FILE = 'state.json';
+const LOCK_FILE = 'metrics.lock';
+/** A lock older than this was left by a crashed process — break it. */
+const STALE_LOCK_MS = 5_000;
+/** Give up (skip the event) rather than delay a real command longer. */
+const LOCK_WAIT_MS = 2_000;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+const errCode = (e: unknown) => (e as NodeJS.ErrnoException | null)?.code;
+
+/**
+ * Does a failed O_EXCL create of the lock mean "someone else holds it" (wait
+ * and retry) rather than "we cannot lock here at all" (skip the event)?
+ * EEXIST always. On Windows also EPERM / EACCES / EBUSY: a lock deleted
+ * while another handle was open stays delete-pending, and creating it fails
+ * with one of those until the handle closes (CLI-09 — about 1 in 25 creates
+ * under four writers). On POSIX they are real permission errors: retrying
+ * would only stall the command for LOCK_WAIT_MS.
+ */
+export function isLockContention(
+  code: string | undefined,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (code === 'EEXIST') return true;
+  return platform === 'win32' && (code === 'EPERM' || code === 'EACCES' || code === 'EBUSY');
+}
+
+/** Thrown by a strict load when the file exists but will not parse. */
+class UnreadableFile extends Error {}
 /** Keep only the last N duration/file-count samples so the file stays small. */
 const MAX_SAMPLES = 100;
 /** Per-event records kept for attribution — objects, so a smaller cap. */
@@ -136,6 +174,8 @@ export interface TelemetryOptions {
   now?: () => string;
   /** Injectable id source. Default `crypto.randomUUID()`. */
   uuid?: () => string;
+  /** Platform whose lock-contention codes apply. Default `process.platform`. */
+  platform?: NodeJS.Platform;
 }
 
 function defaultMetrics(): TelemetryMetrics {
@@ -190,30 +230,105 @@ export function createTelemetry(opts: TelemetryOptions = {}): Telemetry {
     opts.fetch ?? (globalThis as { fetch?: RemoteFetch }).fetch;
   const now = opts.now ?? (() => new Date().toISOString());
   const uuid = opts.uuid ?? (() => randomUUID());
+  const platform = opts.platform ?? process.platform;
 
-  async function loadJson<T>(file: string, fallback: T): Promise<T> {
-    try {
-      const parsed = JSON.parse(await readFile(join(dir, file), 'utf8')) as unknown;
-      if (parsed && typeof parsed === 'object') return parsed as T;
-      return structuredClone(fallback);
-    } catch {
-      return structuredClone(fallback);
+  /**
+   * Read a JSON object. A missing file is the fallback. `strict`: a file that
+   * exists but does not parse is retried twice (a writer on a filesystem
+   * without atomic rename) and then throws UnreadableFile, so the caller
+   * skips its write instead of replacing real data with defaults.
+   */
+  async function loadJson<T>(file: string, fallback: T, strict = false): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      let text: string;
+      try {
+        text = await readFile(join(dir, file), 'utf8');
+      } catch (e) {
+        if (errCode(e) === 'ENOENT' || !strict) return structuredClone(fallback);
+        throw new UnreadableFile(file, { cause: e });
+      }
+      try {
+        const parsed = JSON.parse(text) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) return parsed as T;
+      } catch {
+        /* torn or corrupt — retried below */
+      }
+      if (!strict) return structuredClone(fallback);
+      if (attempt >= 2) throw new UnreadableFile(file);
+      await sleep(15);
     }
   }
+  /** Atomic write: a unique temp file renamed over the target. Windows can
+   *  refuse the rename while a reader holds the file open — retry briefly. */
   async function saveJson(file: string, data: unknown): Promise<void> {
+    const target = join(dir, file);
+    const tmp = `${target}.${process.pid}.${randomUUID().slice(0, 8)}.tmp`;
     try {
       await mkdir(dir, { recursive: true });
-      await writeFile(join(dir, file), JSON.stringify(data, null, 2) + '\n');
+      await writeFile(tmp, JSON.stringify(data, null, 2) + '\n');
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await rename(tmp, target);
+          return;
+        } catch (e) {
+          const code = errCode(e);
+          if (attempt >= 5 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw e;
+          await sleep(10 * (attempt + 1));
+        }
+      }
     } catch {
       // Telemetry must fail silently — a read-only home dir can't break a command.
+      await unlink(tmp).catch(() => {});
+    }
+  }
+  /**
+   * Run `fn` holding `metrics.lock` (O_EXCL create). Contention (see
+   * isLockContention) is waited out; a lock older than STALE_LOCK_MS is
+   * broken; after LOCK_WAIT_MS we give up and return undefined — dropping one
+   * event beats blocking a real command. Any other create error (read-only
+   * dir, …) gives up at once.
+   */
+  async function withLock<R>(fn: () => Promise<R>): Promise<R | undefined> {
+    const lock = join(dir, LOCK_FILE);
+    await mkdir(dir, { recursive: true });
+    const deadline = Date.now() + LOCK_WAIT_MS;
+    for (;;) {
+      try {
+        const fh = await open(lock, 'wx');
+        await fh.close();
+        break;
+      } catch (e) {
+        const code = errCode(e);
+        if (!isLockContention(code, platform)) return undefined;
+        if (code === 'EEXIST') {
+          let mtimeMs: number | null = null;
+          try {
+            mtimeMs = (await stat(lock)).mtimeMs;
+          } catch (se) {
+            if (errCode(se) === 'ENOENT') continue; // released between open and stat
+            // delete-pending (Windows): no stat either — wait below, never spin
+          }
+          if (mtimeMs !== null && Date.now() - mtimeMs > STALE_LOCK_MS) {
+            await unlink(lock).catch(() => {});
+            continue;
+          }
+        }
+        if (Date.now() > deadline) return undefined;
+        await sleep(5 + Math.floor(Math.random() * 20));
+      }
+    }
+    try {
+      return await fn();
+    } finally {
+      await unlink(lock).catch(() => {});
     }
   }
   const loadState = (): Promise<TelemetryState> => loadJson(STATE_FILE, defaultState());
   /* A metrics file written before the ring existed has no `recent` key.
      Normalise here so every reader — not just recordEvent — gets the type
      it was promised. */
-  async function loadMetrics(): Promise<TelemetryMetrics> {
-    const m = await loadJson(METRICS_FILE, defaultMetrics());
+  async function loadMetrics(strict = false): Promise<TelemetryMetrics> {
+    const m = await loadJson(METRICS_FILE, defaultMetrics(), strict);
     if (!Array.isArray(m.recent)) m.recent = [];
     return m;
   }
@@ -230,35 +345,16 @@ export function createTelemetry(opts: TelemetryOptions = {}): Telemetry {
   async function recordEvent(name: string, props: EventProps = {}): Promise<void> {
     try {
       if (typeof name !== 'string' || !name) return;
-      const state = await ensureInstallId();
-      const m = await loadMetrics();
-      const ts = now();
-      if (!m.firstSeenAt) m.firstSeenAt = ts;
-      m.lastSeenAt = ts;
-      m.events[name] = (m.events[name] ?? 0) + 1;
-      if (typeof props.durationMs === 'number') {
-        m.durationsMs.push(props.durationMs);
-        if (m.durationsMs.length > MAX_SAMPLES) m.durationsMs.shift();
-      }
-      if (typeof props.fileCount === 'number') {
-        m.fileCounts.push(props.fileCount);
-        if (m.fileCounts.length > MAX_SAMPLES) m.fileCounts.shift();
-      }
-      if (typeof props.errorCategory === 'string') {
-        m.errors[props.errorCategory] = (m.errors[props.errorCategory] ?? 0) + 1;
-      }
-      const rec: TelemetryEventRecord = {
-        at: ts,
-        event: name,
-        surface: props.surface ?? null,
-        rootId: props.root ? rootIdOf(props.root) : null,
-      };
-      if (typeof props.durationMs === 'number') rec.durationMs = props.durationMs;
-      if (typeof props.fileCount === 'number') rec.fileCount = props.fileCount;
-      if (typeof props.errorCategory === 'string') rec.errorCategory = props.errorCategory;
-      m.recent.push(rec);
-      while (m.recent.length > MAX_RECENT) m.recent.shift();
-      await saveJson(METRICS_FILE, m);
+      const updated = await withLock(async () => {
+        const state = await ensureInstallId();
+        const m = await loadMetrics(true);
+        const ts = now();
+        applyEvent(m, name, props, ts);
+        await saveJson(METRICS_FILE, m);
+        return { state, ts };
+      });
+      if (!updated) return; // lock contention: this event is dropped, nothing reset
+      const { state, ts } = updated;
 
       // Remote pingback — numbers, the event name, the entry point (surface),
       // an error category, the app version and installId only; gated hard.
@@ -295,8 +391,37 @@ export function createTelemetry(opts: TelemetryOptions = {}): Telemetry {
         }
       }
     } catch {
-      // never throw
+      // never throw (an unreadable metrics file lands here: event skipped)
     }
+  }
+
+  /** Fold one event into the aggregates + the recent ring (in place). */
+  function applyEvent(m: TelemetryMetrics, name: string, props: EventProps, ts: string): void {
+    if (!m.firstSeenAt) m.firstSeenAt = ts;
+    m.lastSeenAt = ts;
+    m.events[name] = (m.events[name] ?? 0) + 1;
+    if (typeof props.durationMs === 'number') {
+      m.durationsMs.push(props.durationMs);
+      if (m.durationsMs.length > MAX_SAMPLES) m.durationsMs.shift();
+    }
+    if (typeof props.fileCount === 'number') {
+      m.fileCounts.push(props.fileCount);
+      if (m.fileCounts.length > MAX_SAMPLES) m.fileCounts.shift();
+    }
+    if (typeof props.errorCategory === 'string') {
+      m.errors[props.errorCategory] = (m.errors[props.errorCategory] ?? 0) + 1;
+    }
+    const rec: TelemetryEventRecord = {
+      at: ts,
+      event: name,
+      surface: props.surface ?? null,
+      rootId: props.root ? rootIdOf(props.root) : null,
+    };
+    if (typeof props.durationMs === 'number') rec.durationMs = props.durationMs;
+    if (typeof props.fileCount === 'number') rec.fileCount = props.fileCount;
+    if (typeof props.errorCategory === 'string') rec.errorCategory = props.errorCategory;
+    m.recent.push(rec);
+    while (m.recent.length > MAX_RECENT) m.recent.shift();
   }
 
   async function setOptedIn(value: boolean): Promise<TelemetryState> {

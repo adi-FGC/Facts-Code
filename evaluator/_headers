@@ -1,5 +1,9 @@
+# No 'unsafe-inline' anywhere: the page's script and styles are same-origin
+# files (app.js, app.css) and app.js never parses model output as HTML. The
+# user's Anthropic key lives in this origin, so an injected inline handler must
+# not be able to run. test/evaluator.test.mjs pins both directives.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   X-Frame-Options: DENY
-  Content-Security-Policy: default-src 'self'; connect-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; connect-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'

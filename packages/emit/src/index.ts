@@ -1,6 +1,19 @@
 export { gzippedBytes, shouldGzip } from './gzip.js';
 export { writeArtifacts, readSnapshots } from './write.js';
 export type { WriteOptions } from './write.js';
+/* performance#1 — the per-edit --minimal hook leaves agent.json/agent.jsonl
+ * as they are and marks them `<file>.stale`; every reader of those files
+ * checks `readStaleMark(factsDir)` before serving them as current. */
+export {
+  RAW_JSON_ARTIFACTS,
+  StaleResaveError,
+  packGeneratedAt,
+  parseStaleMark,
+  staleHint,
+  staleMarkName,
+} from './stale-mark.js';
+export type { RawJsonArtifact, StaleMark } from './stale-mark.js';
+export { readStaleMark } from './stale-mark-node.js';
 export type { EmitProfile } from './orchestrator.js';
 export { humanToViz } from './viz.js';
 export type { VizArtifact, VizFile, VizTreeNode, VizLanguage } from './viz.js';

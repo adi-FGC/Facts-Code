@@ -27,7 +27,13 @@ export function navigate(href: string, opts: NavigateOptions = {}): void {
   // and the catch-fallback below would location.assign() (= execute) it.
   if (isDangerousScheme(href)) return;
   const mode = opts.history ?? 'push';
-  if (location.pathname + location.search + location.hash === href) return;
+  // Same URL: no new history entry, but still announce the nav, so a view
+  // that shows something else there (SubViewTabs' Packages over /files?p=x)
+  // follows the re-picked link.
+  if (location.pathname + location.search + location.hash === href) {
+    window.dispatchEvent(new Event(NAV_EVENT));
+    return;
+  }
   try {
     if (mode === 'replace') history.replaceState(history.state ?? null, '', href);
     else history.pushState({}, '', href);

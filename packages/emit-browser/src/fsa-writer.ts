@@ -196,9 +196,31 @@ export class FsaFileWriter implements FileWriter {
   }
 
   /**
+   * Read back a file under the base directory. `null` when nothing readable
+   * is there (a missing file or directory — NotFoundError — or a directory
+   * where the file was expected — TypeMismatchError); other failures (a
+   * revoked permission) reject. `buildSkillsTo` uses it so a browser Save
+   * refreshes a FACTS-managed `.cursorrules` / Copilot file (CLI parity with
+   * NodeFileWriter.readText) instead of freezing it forever.
+   */
+  async readText(p: string): Promise<string | null> {
+    const parts = p.split('/').filter(Boolean);
+    const leaf = parts.pop();
+    if (!leaf) return null;
+    try {
+      const dir = await this.walkToDir(parts.join('/'), { create: false });
+      return await (await (await dir.getFileHandle(leaf)).getFile()).text();
+    } catch (err) {
+      const name = (err as { name?: unknown } | null)?.name;
+      if (name === 'NotFoundError' || name === 'TypeMismatchError') return null;
+      throw err;
+    }
+  }
+
+  /**
    * Internal: walk a relative dir path to a directory handle.
-   * Used by listKeys + removeEntry (which want to traverse without
-   * creating intermediate dirs).
+   * Used by listKeys + removeEntry + readText (which want to traverse
+   * without creating intermediate dirs).
    */
   private async walkToDir(
     p: string,

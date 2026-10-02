@@ -9,6 +9,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { since, sinceFromMtime, sinceFromBaseline } from '../src/since.js';
+import { analyze } from '../src/index.js';
+import { memoryFS } from '@factstack/fs-memory';
 import type { AgentArtifact, FileOutline, Risk, RouteDecl } from '@factstack/spec';
 import { FACTS_SCHEMA_VERSION } from '@factstack/spec';
 
@@ -25,12 +27,24 @@ const baseAgent: AgentArtifact = {
     monorepo: null,
   },
   files: [],
-  graph: { nodes: [], edges: [], cycles: [], callerIndex: {}, workspaces: [] },
+  graph: {
+    nodes: [],
+    edges: [],
+    cycles: [],
+    symbolNodes: [],
+    symbolEdges: [],
+    entities: [],
+    entityEdges: [],
+  },
   routes: [],
   scripts: {},
   capabilities: [],
   risks: [],
   stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
+  dependencyManifests: [],
+  vulnerabilities: [],
+  docs: [],
+  rationale: [],
 };
 
 function file(path: string, lastModifiedMs: number, opts: Partial<FileOutline> = {}): FileOutline {
@@ -178,9 +192,12 @@ describe('sinceFromBaseline — diff mode', () => {
     expect(r.files.map((f) => `${f.kind}:${f.path}`)).toEqual(['modified:a.ts']);
   });
 
-  it('skips modified files whose mtime is before the cutoff', () => {
+  it('skips modified files whose mtime is before the cutoff (baseline older than the cutoff)', () => {
+    // The baseline predates the cutoff, so only the timestamp can say
+    // whether the change fell inside the window.
     const prior = {
       ...baseAgent,
+      generatedAt: '2026-04-10T00:00:00.000Z',
       files: [file('a.ts', Date.parse('2026-04-01T00:00:00Z'), { loc: 50 })],
     };
     // Same file, different content, but mtime BEFORE cutoff (e.g.,
@@ -214,6 +231,156 @@ describe('sinceFromBaseline — diff mode', () => {
     const r = sinceFromBaseline(current, prior, '2026-05-01T00:00:00Z');
     expect(r.risksAdded.map((x) => x.rule)).toEqual(['stripe-key']);
     expect(r.risksRemoved.map((x) => x.rule)).toEqual(['aws-key']);
+  });
+
+  it('reports an uncommitted edit whose timestamp is the old git commit time (HUNT-CORE-03)', () => {
+    // git-mined lastModifiedMs is the last COMMIT (09-01); the working-tree
+    // edit happened after a baseline taken inside the window.
+    const commit = Date.parse('2026-09-01T00:00:00Z');
+    const prior = {
+      ...baseAgent,
+      generatedAt: '2026-09-02T13:00:00.000Z',
+      files: [file('src/a.ts', commit, { loc: 2, bytes: 40 })],
+    };
+    const current = {
+      ...baseAgent,
+      generatedAt: '2026-09-03T10:00:00.000Z',
+      files: [
+        file('src/a.ts', commit, { loc: 3, bytes: 60 }),
+        file('src/new.ts', Date.parse('2026-09-03T09:00:00Z')),
+      ],
+    };
+    const r = sinceFromBaseline(current, prior, '2026-09-02T12:00:00Z');
+    expect(r.files.map((f) => `${f.kind}:${f.path}`)).toEqual([
+      'added:src/new.ts',
+      'modified:src/a.ts',
+    ]);
+  });
+
+  it('reports an uncommitted edit against a baseline OLDER than the cutoff (CORE-R4, the MCP shape)', () => {
+    // MCP `since` only passes a baseline taken at or before `ts`. The file's
+    // git commit time (09-01) did not move since that baseline, yet its
+    // content did: the edit is uncommitted, so its timestamp cannot place it.
+    const commit = Date.parse('2026-09-01T00:00:00Z');
+    const prior = {
+      ...baseAgent,
+      generatedAt: '2026-09-02T10:00:00.000Z',
+      files: [
+        file('src/a.ts', commit, { loc: 2, bytes: 40 }),
+        file('src/b.ts', commit, { loc: 2, bytes: 40 }),
+        file('src/c.ts', commit, { loc: 2, bytes: 40 }),
+      ],
+    };
+    const current = {
+      ...baseAgent,
+      generatedAt: '2026-09-03T10:00:00.000Z',
+      files: [
+        file('src/a.ts', commit, { loc: 3, bytes: 60 }), // edited, not committed
+        file('src/b.ts', commit, { loc: 2, bytes: 40 }), // untouched
+        // Committed between the baseline and the cutoff: the timestamp moved
+        // and places the change before the window.
+        file('src/c.ts', Date.parse('2026-09-02T11:00:00Z'), { loc: 5, bytes: 90 }),
+      ],
+    };
+    const r = sinceFromBaseline(current, prior, '2026-09-02T12:00:00Z');
+    expect(r.files.map((f) => `${f.kind}:${f.path}`)).toEqual(['modified:src/a.ts']);
+    // The commit time is not when the edit happened: report it as unknown.
+    expect(r.files[0]!.lastModified).toBeNull();
+  });
+
+  it('lists an edited-but-uncommitted file across two real analyze runs (CORE-R4 end-to-end)', async () => {
+    // Git-mined stats pin every file to its last commit, as the CLI/MCP do.
+    const commit = Date.parse('2026-09-01T00:00:00Z');
+    const gitStats = new Map(
+      ['src/a.ts', 'src/b.ts'].map((p) => [
+        p,
+        { lastModifiedMs: commit, churnScore: 0, authorCount: 1 },
+      ]),
+    );
+    const run = (a: string, generatedAt: string) =>
+      analyze(memoryFS({ 'src/a.ts': a, 'src/b.ts': 'export const b = 1;\n' }), {
+        root: '.',
+        projectName: 'p',
+        gitStats,
+        generatedAt,
+      });
+    const base = (await run('export const a = 1;\n', '2026-09-02T10:00:00.000Z')).agent;
+    const head = (
+      await run('export const a = 1;\nexport const a2 = 2;\n', '2026-09-03T10:00:00.000Z')
+    ).agent;
+    // The MCP tool's rule: the baseline predates the asked-about moment.
+    const ts = '2026-09-02T12:00:00.000Z';
+    expect(Date.parse(base.generatedAt) <= Date.parse(ts)).toBe(true);
+    const r = since(head, ts, base);
+    expect(r.files.map((f) => `${f.kind}:${f.path}`)).toEqual(['modified:src/a.ts']);
+  });
+
+  it('keeps distinct risks whose messages share a long prefix (HUNT-CORE-13)', () => {
+    const unresolved = (spec: string) => ({
+      ...risk('unresolved-import', 'src/App.tsx', undefined, `Unresolved import: "${spec}"`),
+    });
+    const cycle = (members: string) => ({
+      ...risk('import-cycle', undefined, undefined, `Import cycle across 2 files: ${members}.`),
+      category: 'cycle' as const,
+    });
+    const prior = {
+      ...baseAgent,
+      risks: [unresolved('./components/Button'), cycle('src/a.ts → src/b.ts')],
+    };
+    const current = {
+      ...baseAgent,
+      risks: [
+        unresolved('./components/Button'),
+        unresolved('./components/Card'),
+        cycle('src/a.ts → src/b.ts'),
+        cycle('src/c.ts → src/d.ts'),
+      ],
+    };
+    const r = sinceFromBaseline(current, prior, '2026-05-01T00:00:00Z');
+    expect(r.risksAdded.map((x) => x.messageTechnical ?? x.message)).toEqual([
+      'Unresolved import: "./components/Card"',
+      'Import cycle across 2 files: src/c.ts → src/d.ts.',
+    ]);
+    expect(r.risksRemoved).toEqual([]);
+  });
+
+  it('does not report a risk that only moved to another line as added + removed', () => {
+    const prior = { ...baseAgent, risks: [risk('todo-fixme', 'a.ts', 10, 'FIXME: x')] };
+    const current = { ...baseAgent, risks: [risk('todo-fixme', 'a.ts', 14, 'FIXME: x')] };
+    const r = sinceFromBaseline(current, prior, '2026-05-01T00:00:00Z');
+    expect(r.risksAdded).toEqual([]);
+    expect(r.risksRemoved).toEqual([]);
+  });
+
+  it('does not trust secret fingerprints across a secret rules revision change (SV-6)', () => {
+    /* The same key in the same file, scanned under two rules revisions whose
+       fingerprint schemes differ: digests could never match, so with the
+       digest identity every secret read as removed + added. */
+    const key = (fingerprint: string): Risk => ({
+      severity: 'high',
+      category: 'secret',
+      rule: 'private-key',
+      file: 'deploy/id_rsa',
+      line: 1,
+      message: 'Private key detected.',
+      preview: '----***--',
+      fingerprint,
+    });
+    const prior = { ...baseAgent, secretRulesRev: '111111111111', risks: [key('aaaaaaaaaaaa')] };
+    const current = { ...baseAgent, secretRulesRev: '222222222222', risks: [key('bbbbbbbbbbbb')] };
+    const r = sinceFromBaseline(current, prior, '2026-05-01T00:00:00Z');
+    expect(r.risksAdded).toEqual([]);
+    expect(r.risksRemoved).toEqual([]);
+    // Same revision: the digests are comparable, and a swap is a swap.
+    const same = sinceFromBaseline(
+      { ...current, secretRulesRev: '111111111111' },
+      prior,
+      '2026-05-01T00:00:00Z',
+    );
+    expect(same.risksAdded.map((x) => x.file)).toEqual(['deploy/id_rsa']);
+    expect(same.risksRemoved.map((x) => x.file)).toEqual(['deploy/id_rsa']);
+    // The report goes to agents: the digest that matched them stays behind (SV-8).
+    expect(JSON.stringify(same)).not.toContain('fingerprint');
   });
 
   it('preserves baseline awareness in the report', () => {

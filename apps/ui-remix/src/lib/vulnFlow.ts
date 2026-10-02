@@ -20,7 +20,21 @@ export interface VulnFlowInput {
   package: string;
   installedVersion: string;
   severity: VulnSeverity;
+  /** `false` for a row that is listed but not graded (dev / transitive, the
+   *  shared isGradedVulnerability). It flows from a neutral "Not graded"
+   *  node, never from its raw severity, so the diagram agrees with the
+   *  page's graded-only counts. Omitted = graded. */
+  graded?: boolean;
 }
+
+/** Left-column node for listed-only rows; stacks below every severity. */
+const UNGRADED_ID = 'sev:ungraded';
+const UNGRADED_NODE: VulnSankeyNode = {
+  id: UNGRADED_ID,
+  label: 'Not graded',
+  column: 0,
+  color: 'var(--fg-faint)',
+};
 
 /** Severity tiers in descending order (drives the left-column stacking). */
 export const SEV_ORDER: readonly VulnSeverity[] = ['critical', 'high', 'medium', 'low', 'unknown'];
@@ -61,15 +75,18 @@ export interface VulnSankeyData {
  * two versions' advisory totals stay on separate ribbons instead of merging.
  *
  * Severities and packages with no advisories never appear (the layout drops
- * zero-flow nodes).
+ * zero-flow nodes). Rows marked `graded: false` flow from one "Not graded"
+ * node instead of their severity's.
  */
 export function vulnSeveritySankey(vulns: ReadonlyArray<VulnFlowInput>): VulnSankeyData {
-  const sevPresent = SEV_ORDER.filter((s) => vulns.some((v) => v.severity === s));
+  const graded = vulns.filter((v) => v.graded !== false);
+  const sevPresent = SEV_ORDER.filter((s) => graded.some((v) => v.severity === s));
+  const anyUngraded = graded.length < vulns.length;
   const pkgLabel = new Map<string, string>();
   const linkByPair = new Map<string, { source: string; target: string; value: number }>();
   for (const v of vulns) {
     const pkgId = `pkg:${v.ecosystem}|${v.package}@${v.installedVersion}`;
-    const sevId = `sev:${v.severity}`;
+    const sevId = v.graded === false ? UNGRADED_ID : `sev:${v.severity}`;
     pkgLabel.set(pkgId, `${v.package}@${v.installedVersion}`);
     const pairKey = `${sevId}>${pkgId}`;
     const existing = linkByPair.get(pairKey);
@@ -83,6 +100,7 @@ export function vulnSeveritySankey(vulns: ReadonlyArray<VulnFlowInput>): VulnSan
       column: 0,
       color: SEV_FLOW_COLOR[s],
     })),
+    ...(anyUngraded ? [{ ...UNGRADED_NODE }] : []),
     ...[...pkgLabel].map(([id, label]) => ({ id, label, column: 1, color: 'var(--fg-muted)' })),
   ];
   return { nodes, links: [...linkByPair.values()] };

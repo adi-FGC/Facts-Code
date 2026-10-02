@@ -100,3 +100,14 @@ docs/*adversarial-review*.html
 # real app. It was removed from the index on 2026-09-24 (`git rm --cached`);
 # this rule keeps it, and any other legacy .netlify/ state, untracked.
 legacy/**/.netlify/
+
+# Local agent artifacts (audits, reports, dashboards) — per-developer output,
+# never source. The deploy check requires a clean tree, so they must not
+# show as untracked.
+.ag/
+
+# Wrangler's per-directory state (.wrangler/cache/*.json with the account id),
+# written wherever `wrangler pages deploy` runs. Same reason as .ag/: once
+# untracked it fails the deploy check's clean-tree gate (deploy-infra#27).
+# Un-anchored: wrangler may run from an app directory too.
+.wrangler/

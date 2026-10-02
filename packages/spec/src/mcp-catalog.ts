@@ -65,9 +65,15 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
     inputSchema: {
       type: 'object',
       properties: {
+        symbols: {
+          type: 'boolean',
+          description:
+            "Build the symbol graph (like the CLI --symbols). Default: keep the existing artifact's mode.",
+        },
         useCache: {
           type: 'boolean',
-          description: 'Return cached result if still valid.',
+          description:
+            'Reuse the content-hash parse cache for unchanged files (default true); false forces a full re-parse.',
           default: true,
         },
       },
@@ -94,7 +100,7 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
           enum: ['out', 'in', 'both'],
           description: 'Traversal direction for neighbors (default both).',
         },
-        filter: { type: 'string' },
+        filter: { type: 'string', maxLength: 256 },
         limit: { type: 'number', default: 200 },
         depth: {
           type: 'number',
@@ -156,6 +162,7 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
             'license',
             'supply-chain',
             'parse-error',
+            'read-error',
             'broken-import',
             'stale',
             'large-file',
@@ -187,7 +194,7 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
     // agent reads ~5 KB instead of re-fetching the full artifact.
     name: MCP_TOOL.since,
     description:
-      'What changed since an ISO timestamp. Returns added/modified/removed files plus new + removed routes + risks. Uses the most recent snapshot in .facts/snapshots/ as a baseline when available; falls back to mtime-only mode otherwise. The hasBaseline field tells the caller which mode produced the report.',
+      'What changed since an ISO timestamp. Returns added/modified/removed files plus new + removed routes + risks. Uses the previous full analysis (.facts/baseline/agent.json) as the baseline when it predates the timestamp; otherwise mtime-only. hasBaseline/baselineAt say which.',
     inputSchema: {
       type: 'object',
       required: ['timestamp'],
@@ -238,7 +245,7 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
         outcome: { type: 'string', enum: ['accepted', 'rejected', 'pending', 'self-calibrate'] },
         action: { type: 'string' },
         tag: { type: 'string' },
-        limit: { type: 'number', default: 200, maximum: 5000 },
+        limit: { type: 'integer', default: 200, minimum: 1, maximum: 5000 },
         format: { type: 'string', enum: ['pack', 'json'], default: 'pack' },
       },
     },
@@ -333,7 +340,7 @@ export const MCP_TOOL_CATALOG: readonly McpToolMeta[] = [
   {
     name: MCP_TOOL.review_change,
     description:
-      'Change Verdict: compares the current analysis (head) against the most recent .facts/snapshots/ baseline and returns ONE opinionated risk verdict — severity + headline + grounded findings (new secrets, new CVEs, new dependency cycles, blast radius). Structured JSON by default; pass format:"markdown" for a PR-comment-ready block. When no baseline snapshot exists, returns {ok:false} advising to run `factstack analyze` again to create one. Cheaper + more decisive than walking the diff yourself.',
+      'Change Verdict: compares the newest analysis (this server\'s, or a newer .facts/agent.json another process wrote) against the previous full analysis (.facts/baseline/agent.json) and returns ONE opinionated risk verdict — severity + headline + grounded findings (new secrets, new CVEs, new dependency cycles, blast radius). Structured JSON by default; pass format:"markdown" for a PR-comment-ready block. When there is none older, returns {ok:false}; run analyze again after a change. Cheaper + more decisive than walking the diff yourself.',
     inputSchema: {
       type: 'object',
       properties: {

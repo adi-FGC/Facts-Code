@@ -21,6 +21,8 @@ import type {
   DocDiagram,
   DocLink,
 } from '@factstack/spec';
+import { detectLanguage } from '@factstack/scanners';
+import { isFenceClose, parseFenceOpen, type FenceOpen } from './md-fence.js';
 
 /** Per-doc raw-content cap (chars). Most markdown is far under this; large
  *  HTML explainers get truncated with a flag so the JSON stays bounded. */
@@ -38,8 +40,8 @@ const DOC_EXTS = new Set([
   '.ipynb',
 ]);
 
-/** Basenames (case-insensitive, sans extension) that are docs regardless
- *  of where they live or what extension they carry. */
+/** Basenames (case-insensitive, sans extension) that are docs wherever they
+ *  live — unless the extension is a source language (see isDocFile). */
 const DOC_STEMS =
   /^(readme|changelog|changes|history|contributing|license|licence|notice|authors|maintainers|code_of_conduct|security|support|context|claude|agents?|todo)$/i;
 
@@ -51,7 +53,10 @@ export function isDocFile(path: string, ext: string, name: string): boolean {
   const e = ext.toLowerCase();
   if (DOC_EXTS.has(e)) return true;
   const stem = name.replace(/\.[^.]+$/, '');
-  if (DOC_STEMS.test(stem)) return true;
+  // A doc-like stem only names a doc when the extension isn't source code:
+  // context.ts, History.tsx and security.py are modules, not docs.
+  if (DOC_STEMS.test(stem) && (e === '' || e === '.html' || e === '.htm' || !detectLanguage(e)))
+    return true;
   // HTML living under a docs/ directory is an explainer page, not app code.
   if ((e === '.html' || e === '.htm') && /(^|\/)docs?\//i.test(path)) return true;
   // API / schema specs by name.
@@ -122,29 +127,86 @@ function parseHtmlStructure(text: string): {
   headings: DocHeading[];
   wordCount: number;
 } {
+  /* Linear on hostile input: an opener's attributes stop at the next '<',
+     its closer is found by a forward search (a level with no closer left is
+     never searched again), and line numbers are counted incrementally. The
+     old `<h\1>` / `[\s\S]*?` regex and per-heading `slice().split()` were
+     quadratic in the page size. */
   const headings: DocHeading[] = [];
-  const headingRe = /<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const openRe = /<h([1-6])\b[^<>]*>/gi;
+  const noCloser = new Set<string>();
+  let line = 1;
+  let lineAt = 0;
   let m: RegExpExecArray | null;
-  while ((m = headingRe.exec(text))) {
-    const depth = Number(m[1]);
-    const txt = stripTags(m[2] ?? '').trim();
+  while ((m = openRe.exec(text))) {
+    const level = m[1] ?? '';
+    if (noCloser.has(level)) continue;
+    const start = openRe.lastIndex;
+    const close = indexOfTag(text, `</h${level}>`, start);
+    if (close === -1) {
+      noCloser.add(level);
+      continue;
+    }
+    openRe.lastIndex = close + 5;
+    const txt = stripTags(text.slice(start, close)).trim();
     if (txt) {
-      const line = text.slice(0, m.index).split('\n').length;
-      headings.push({ depth, text: txt, slug: slugify(txt), line });
+      line += countNewlines(text, lineAt, m.index);
+      lineAt = m.index;
+      headings.push({ depth: Number(level), text: txt, slug: slugify(txt), line });
     }
   }
-  const titleMatch = /<title\b[^>]*>([\s\S]*?)<\/title>/i.exec(text);
-  const title = titleMatch ? stripTags(titleMatch[1] ?? '').trim() : (headings[0]?.text ?? '');
+  const titleOpen = /<title\b[^<>]*>/i.exec(text);
+  const titleStart = titleOpen ? titleOpen.index + titleOpen[0].length : 0;
+  const titleEnd = titleOpen ? indexOfTag(text, '</title>', titleStart) : -1;
+  const title =
+    titleEnd !== -1
+      ? stripTags(text.slice(titleStart, titleEnd)).trim()
+      : (headings[0]?.text ?? '');
   const wordCount = stripTags(text).split(/\s+/).filter(Boolean).length;
   return { title, headings, wordCount };
 }
 
+/** Case-insensitive index of a literal closing tag (no regex metacharacters)
+ *  at or after `from`, or -1. */
+function indexOfTag(text: string, tag: string, from: number): number {
+  const re = new RegExp(tag, 'gi');
+  re.lastIndex = from;
+  return re.exec(text)?.index ?? -1;
+}
+
+function countNewlines(text: string, from: number, to: number): number {
+  let n = 0;
+  for (let i = text.indexOf('\n', from); i !== -1 && i < to; i = text.indexOf('\n', i + 1)) n++;
+  return n;
+}
+
 function stripTags(html: string): string {
-  return html
-    .replace(/<[^>]+>/g, ' ')
+  return blankTags(html)
     .replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/* `html.replace(/<[^>]+>/g, ' ')`, exactly, in linear time: that regex
+   rescanned to the end from every '<' once no '>' was left (a page of bare
+   '<' was quadratic). Once no '>' remains, no later '<' can close either. */
+function blankTags(html: string): string {
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const lt = html.indexOf('<', i);
+    if (lt === -1) break;
+    const gt = html.indexOf('>', lt + 1);
+    if (gt === -1) break;
+    if (gt === lt + 1) {
+      out += html.slice(i, gt); // '<>' is not a tag; rescan from the '>'
+      i = gt;
+      continue;
+    }
+    out += html.slice(i, lt) + ' ';
+    i = gt + 1;
+  }
+  return out + html.slice(i);
 }
 
 interface ParsedStructure {
@@ -170,7 +232,10 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
   let tableCount = 0;
   let wordCount = 0;
 
-  let inFence = false;
+  /* The open fence, CommonMark rules (md-fence.ts): only a run of the SAME
+     character, at least as long, with nothing after it closes it — so a
+     ```` block can show ``` and '``` text' is content, not a close. */
+  let open: FenceOpen | null = null;
   let fenceLang = '';
   let fenceStart = 0;
   let fenceBuf: string[] = [];
@@ -198,36 +263,47 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
     const line = lines[i] ?? '';
     const trimmed = line.trim();
 
-    const fence = /^(```|~~~)\s*([A-Za-z0-9_-]*)/.exec(trimmed);
-    if (fence) {
-      if (!inFence) {
-        inFence = true;
-        fenceLang = fence[2] ?? '';
-        fenceStart = i + 1;
-        fenceBuf = [];
-      } else {
-        inFence = false;
+    if (open) {
+      if (isFenceClose(trimmed, open)) {
+        open = null;
         pushDiagram();
+      } else {
+        fenceBuf.push(line);
       }
       continue;
     }
-    if (inFence) {
-      fenceBuf.push(line);
+    const opener = parseFenceOpen(trimmed);
+    if (opener) {
+      open = opener;
+      fenceLang = opener.lang;
+      fenceStart = i + 1;
+      fenceBuf = [];
       continue;
     }
 
-    // ATX heading
-    const h = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (h) {
+    /* Every per-line pattern below stays linear on a hostile line (the
+       hosted scan reads arbitrary repos): no two adjacent quantifiers that
+       can trade the same characters, and `[\s\S]*$` rather than `.*$`, which
+       fails and backtracks on a CRLF line's trailing '\r'. */
+
+    // ATX heading. The optional closing #s (CommonMark: after a space) are
+    // cut after the match: `(.+?)\s*#*\s*$` was cubic on a long space run.
+    const h = /^(#{1,6})\s+(\S[\s\S]*)$/.exec(line);
+    const htxt = h
+      ? (h[2] ?? '')
+          .trim()
+          .replace(/(?:^|\s)#+$/, '')
+          .trim()
+      : '';
+    if (h && htxt) {
       const depth = (h[1] ?? '').length;
-      const txt = (h[2] ?? '').trim();
-      headings.push({ depth, text: txt, slug: slugify(txt), line: i + 1 });
-      curSection = txt;
+      headings.push({ depth, text: htxt, slug: slugify(htxt), line: i + 1 });
+      curSection = htxt;
       continue;
     }
 
     // checkbox task item
-    const cb = /^\s*[-*+]\s+\[([ xX])\]\s+(.*)$/.exec(line);
+    const cb = /^\s*[-*+]\s+\[([ xX])\]\s+([\s\S]*)$/.exec(line);
     if (cb) {
       const t: DocTodo = {
         done: (cb[1] ?? '').toLowerCase() === 'x',
@@ -238,7 +314,7 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
       todos.push(t);
     } else {
       // bare TODO/FIXME marker in prose (skip if it's a heading line)
-      const mk = /\b(TODO|FIXME|HACK|XXX)\b[:\s)-]*(.*)$/.exec(line);
+      const mk = /\b(TODO|FIXME|HACK|XXX)\b[:\s)-]*([\s\S]*)$/.exec(line);
       if (mk && !/^#{1,6}\s/.test(line)) {
         const t: DocTodo = {
           done: null,
@@ -251,13 +327,16 @@ export function parseMarkdownStructure(text: string): ParsedStructure {
       }
     }
 
-    // GitHub-style table: a `| … |` row immediately followed by a `|---|` rule
-    if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|?[\s:|-]*-{2,}[\s:|-]*$/.test(lines[i + 1] ?? '')) {
+    // GitHub-style table: a `| … |` row immediately followed by a `|---|`
+    // rule (only `| : -` and spaces, with a `--` run in it).
+    const next = lines[i + 1] ?? '';
+    if (/^\s*\|.*\|\s*$/.test(line) && /^[\s:|-]*$/.test(next) && next.includes('--')) {
       tableCount++;
     }
 
-    // inline links [text](href)
-    const linkRe = /\[([^\]]+)\]\(([^)\s]+)[^)]*\)/g;
+    // inline links [text](href "title"). Bounded, and the title only starts
+    // at whitespace: the unbounded `[^)\s]+[^)]*` took 23 s on a 10 KB line.
+    const linkRe = /\[([^\]]{1,1000})\]\(([^)\s]{1,2048})(?:\s[^)]{0,512})?\)/g;
     let lm: RegExpExecArray | null;
     while ((lm = linkRe.exec(line))) {
       const href = lm[2] ?? '';
