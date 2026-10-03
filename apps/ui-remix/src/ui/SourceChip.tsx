@@ -25,8 +25,8 @@
  * Hidden under 1280px because the header is too dense at md/sm; the
  * OpenButton in the right cluster covers the same intent there.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import {
   getCurrentSourceId,
   listRecents,
@@ -181,10 +181,9 @@ export function SourceChip(handle: Handle<SourceChipProps>) {
 
   /* Defer the initial refresh by one microtask. refresh() reaches a
      synchronous `handle.update()` when getCurrentSourceId() returns null
-     (no recent active source), and the Remix v3 runtime only wires
-     setScheduleUpdate AFTER the setup function returns — so a sync call
-     here throws "scheduleUpdate not implemented". One microtask is enough
-     to let the runtime wire up before update() fires. */
+     (no recent active source). Remix 3 warns on (and skips) an update
+     called from the setup body; one microtask lets the initial commit land
+     first, so the call is an ordinary post-mount update. */
   queueMicrotask(() => {
     void refresh();
   });

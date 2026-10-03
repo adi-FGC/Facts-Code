@@ -26,8 +26,8 @@
  * SHAPE (hollow dot vs solid bar), not by colour alone, so the chart survives
  * greyscale and both themes.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import {
   computeSavingsLadder,
   type LadderModel,

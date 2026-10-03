@@ -21,8 +21,8 @@
  * `?p=` query gives us free routing without pushing a state machine
  * into the route component.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

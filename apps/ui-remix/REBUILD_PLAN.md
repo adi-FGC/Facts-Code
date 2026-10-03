@@ -71,7 +71,7 @@ the foreseeable future.
 Every component is `(handle: Handle<Props>) => (props: Props) => RemixElement`
 per Remix v3's runtime. State lives in setup closures; `handle.update()`
 schedules a re-render; `handle.signal` aborts on unmount. JSX flows
-through `@remix-run/ui`'s automatic runtime (configured in
+through `remix/component`'s automatic runtime (configured in
 `vite.config.ts` and `tsconfig.json`).
 
 Styles are `mix={css({...})}` per element. Globals in

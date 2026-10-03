@@ -29,8 +29,8 @@
  * Editorial, not hero-metric: hairline rules, no cards, no gradients. The one
  * figure that stands out is the multiplier, because that is the take-away.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import { artifactCharsOf, type Dataset } from '../lib/loadArtifacts.ts';
 import { ModelCombobox } from './ModelCombobox.tsx';
 import { SankeyDiagram } from './SankeyDiagram.tsx';

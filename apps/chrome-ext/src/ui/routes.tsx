@@ -3,7 +3,7 @@
  * ranked rows with inline proportional bars — legible at 320px, no diagram
  * libs, agent- and CXO-readable. (Glance/immersive diagram tiers are Phase 2.)
  */
-import type { RemixNode } from 'remix/ui';
+import type { RemixNode } from 'remix/component';
 import type { VizFile, VizTreeNode } from '@factstack/emit/pure';
 import type { Dataset } from '../lib/types.ts';
 import { fmtNum, fmtBytes, basename, truncateMiddle } from '../lib/format.ts';

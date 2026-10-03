@@ -36,8 +36,8 @@
  *     "how does dependency flow?" question that neither heatmap nor
  *     table addressed well.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import {
   buildCouplings,

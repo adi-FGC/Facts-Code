@@ -23,8 +23,8 @@
  *   - Run scans on click. Scanning happens at analyze time via the CLI
  *     or in-browser scanner — re-analyze to re-scan.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

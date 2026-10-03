@@ -40,7 +40,6 @@ If your tests fail with one of these symptoms, **rebuild first**:
 
 | Symptom                                                      | Likely root cause                                                     | Fix                                                                                         |
 | ------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| Console error: `scheduleUpdate not implemented`              | Old build pre-dating the `@remix-run/ui` pnpm patch                   | `pnpm -F @factstack/ui-remix build`                                                         |
 | `waitForReady` throws "dataset failed to load — ErrorScreen" | Old build with placeholder `__INLINE_FACTSTACK_JSON__` un-substituted | `pnpm -F @factstack/ui-remix build` (runs `inject-data.mjs`)                                |
 | Test asserts on H1 wording that doesn't match                | Wording changed in source but `dist/` hasn't been rebuilt             | `pnpm -F @factstack/ui-remix build`                                                         |
 | All tests pass locally, all fail on CI                       | CI has no `dist/` cached + builds aren't part of the test command     | The `webServer: 'pnpm build && pnpm start'` config handles this; ensure you didn't override |
@@ -81,6 +80,6 @@ Don't write per-route specs for "I might want this later" — the smoke spec is 
 
 ## Conventions
 
-- **No selectors based on CSS class names.** They're generated (`remix/ui`'s `css()` returns hashed atomic classes) and will churn. Use role-based selectors (`getByRole`), text-based selectors (`getByText`, `has-text`), or stable IDs (`#manifest-paste`).
+- **No selectors based on CSS class names.** They're generated (`remix/component`'s `css()` returns hashed atomic classes) and will churn. Use role-based selectors (`getByRole`), text-based selectors (`getByText`, `has-text`), or stable IDs (`#manifest-paste`).
 - **`waitForReady(page)` after every `goto`.** The dataset loads via XHR in dev mode; tests that skip the wait race the hydration cycle and produce flaky "element not found" errors.
 - **Empty-state aware assertions.** Many routes (Risks, Files, Credentials, History, Tests) render different H1s when the loaded artifact has zero items in that category. Always include both variants in `fixtures.ts`'s `headlines`.

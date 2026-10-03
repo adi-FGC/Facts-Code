@@ -43,8 +43,8 @@
  *   the parent uses to wire DagControls' Reset button. No analysis
  *   math here — that lives in lib/graphAnalysis.
  */
-import type { Handle } from 'remix/ui';
-import { css, on, ref } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on, ref } from 'remix/component';
 import type { SugiyamaLayout, SugiyamaNode } from '../../lib/graphAnalysis.ts';
 import { adoptCss } from '../../lib/adoptCss.ts';
 

@@ -13,8 +13,8 @@
  * count summary when the dataset predates the grade (pre-v0.3 baked
  * artifacts carry only flat broken/stale/todos/secrets).
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css } from 'remix/component';
 import { FootnoteChip } from './FootnoteChip.tsx';
 import { healthTone, HEALTH_TONE_COLOR } from '../lib/healthTone.ts';
 import type { Dataset } from '../lib/loadArtifacts.ts';

@@ -12,8 +12,8 @@
  *     no-flash theme boot lives in `public/theme-init.js`, loaded via
  *     <script src>.
  *
- * JSX is esbuild's automatic runtime pointed at `remix/ui` — same React-free
- * VDOM as the dashboard. No `@vitejs/plugin-react`.
+ * JSX is esbuild's automatic runtime pointed at `remix/component` — same
+ * React-free VDOM as the dashboard. No `@vitejs/plugin-react`.
  */
 import { defineConfig } from 'vite';
 
@@ -21,7 +21,7 @@ export default defineConfig({
   base: './',
   esbuild: {
     jsx: 'automatic',
-    jsxImportSource: 'remix/ui',
+    jsxImportSource: 'remix/component',
   },
   worker: {
     // The analyze worker is a module worker; keep it ES so Vite emits one

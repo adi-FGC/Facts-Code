@@ -15,8 +15,8 @@
  * by side as tracked labels over a colored word, the same grammar as
  * StatusChip.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { GitTopology, TopologyGap, Worktree } from '@factstack/spec';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';

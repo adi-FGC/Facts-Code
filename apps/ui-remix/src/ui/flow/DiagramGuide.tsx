@@ -22,8 +22,8 @@
  *
  * Pure presentational component. No DOM, no state. React-free Remix v3.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 
 export type DiagramGuideMode = 'swimlanes' | 'sequence' | 'sankey' | 'entities' | 'text';
 

@@ -20,8 +20,8 @@
  * Controlled component: parent owns all state. The toolbar is a thin
  * presentation layer that emits onChange callbacks.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 
 export type Granularity = 'files' | 'symbols';
 

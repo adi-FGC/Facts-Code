@@ -7,8 +7,8 @@
  *
  * Evidence-first: the bar is the glance, the number is the proof.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 
 interface ImportanceBarProps {
   /** 0..1 normalized importance. */

@@ -10,8 +10,8 @@
  * strict `style-src` (SEC-3). Static styling (label font, hover) is a `css()`
  * class injected via adopted stylesheets. No inline `style=` anywhere.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import { computeSankey, type SankeyNodeInput, type SankeyLinkInput } from '../lib/sankey.ts';
 
 export interface SankeyDiagramProps {

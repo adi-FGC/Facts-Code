@@ -22,8 +22,8 @@
  * inner pages use, and a negative top-margin on the inner view tightens
  * the gap that the page's own `--space-12` block padding would leave.
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css, on } from 'remix/component';
 import { moveRoving } from '../lib/roving.ts';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 

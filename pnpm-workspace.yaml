@@ -12,30 +12,60 @@ allowBuilds:
   '@parcel/watcher': false
   esbuild: true
 
+# Remix 3.0.0 (published 2026-10-01) and its @remix-run/* 1.0.0 set are
+# younger than pnpm's default release-age gate; these exact versions are
+# exempt so the stable release installs now. Once they age past the gate the
+# list can be emptied.
 minimumReleaseAgeExclude:
-  - '@remix-run/assert@0.3.0'
-  - '@remix-run/assets@0.4.3'
-  - '@remix-run/async-context-middleware@0.3.3'
-  - '@remix-run/auth-middleware@0.2.3'
-  - '@remix-run/auth@0.2.5'
-  - '@remix-run/cli@0.3.3'
-  - '@remix-run/compression-middleware@0.1.11'
-  - '@remix-run/cop-middleware@0.1.6'
-  - '@remix-run/cors-middleware@0.1.6'
-  - '@remix-run/csrf-middleware@0.1.6'
-  - '@remix-run/fetch-router@0.20.0'
-  - '@remix-run/form-data-middleware@0.3.3'
-  - '@remix-run/logger-middleware@0.3.3'
-  - '@remix-run/method-override-middleware@0.1.11'
-  - '@remix-run/render-middleware@0.1.3'
-  - '@remix-run/route-pattern@0.22.1'
-  - '@remix-run/session-middleware@0.3.3'
-  - '@remix-run/static-middleware@0.4.12'
-  - '@remix-run/test@0.5.0'
-  - remix@3.0.0-beta.6
-
-patchedDependencies:
-  '@remix-run/ui@0.5.0': patches/@remix-run__ui@0.5.0.patch
+  - '@remix-run/assert@1.0.0'
+  - '@remix-run/assets@1.0.0'
+  - '@remix-run/async-context-middleware@1.0.0'
+  - '@remix-run/auth-middleware@1.0.0'
+  - '@remix-run/auth@1.0.0'
+  - '@remix-run/cli@1.0.0'
+  - '@remix-run/component-hmr@1.0.0'
+  - '@remix-run/component@1.0.0'
+  - '@remix-run/compression-middleware@1.0.0'
+  - '@remix-run/cookie@1.0.0'
+  - '@remix-run/cop-middleware@1.0.0'
+  - '@remix-run/cors-middleware@1.0.0'
+  - '@remix-run/csrf-middleware@1.0.0'
+  - '@remix-run/data-schema@1.0.0'
+  - '@remix-run/data-table-mysql@1.0.0'
+  - '@remix-run/data-table-postgres@1.0.0'
+  - '@remix-run/data-table-sqlite@1.0.0'
+  - '@remix-run/data-table@1.0.0'
+  - '@remix-run/fetch-proxy@1.0.0'
+  - '@remix-run/fetch-router@1.0.0'
+  - '@remix-run/file-storage-s3@1.0.0'
+  - '@remix-run/file-storage@1.0.0'
+  - '@remix-run/form-data-middleware@1.0.0'
+  - '@remix-run/form-data-parser@1.0.0'
+  - '@remix-run/fs@1.0.0'
+  - '@remix-run/headers@1.0.0'
+  - '@remix-run/html-template@1.0.0'
+  - '@remix-run/lazy-file@5.0.8'
+  - '@remix-run/logger-middleware@1.0.0'
+  - '@remix-run/method-override-middleware@1.0.0'
+  - '@remix-run/mime@1.0.0'
+  - '@remix-run/multipart-parser@1.0.0'
+  - '@remix-run/multiple-import-maps-polyfill@1.0.0'
+  - '@remix-run/node-fetch-server@1.0.0'
+  - '@remix-run/node-hmr@1.0.0'
+  - '@remix-run/node-tsx@1.0.0'
+  - '@remix-run/render-middleware@1.0.0'
+  - '@remix-run/response@1.0.0'
+  - '@remix-run/route-pattern@1.0.0'
+  - '@remix-run/session-middleware@1.0.0'
+  - '@remix-run/session-storage-memcache@1.0.0'
+  - '@remix-run/session-storage-redis@1.0.0'
+  - '@remix-run/session@1.0.0'
+  - '@remix-run/spa@1.0.0'
+  - '@remix-run/static-middleware@1.0.0'
+  - '@remix-run/tar-parser@1.0.0'
+  - '@remix-run/terminal@1.0.0'
+  - '@remix-run/test@1.0.0'
+  - remix@3.0.0
 
 overrides:
   # GHSA-g7r4-m6w7-qqqr (esbuild dev server reads arbitrary files on Windows,
@@ -43,16 +73,6 @@ overrides:
   # @remix-run/test caps it at ^0.27.1, and this repo never runs that runner
   # (tests are vitest). Drop this once remix ships a release that allows 0.28.
   'esbuild@<0.28.1': '^0.28.2'
-
-# scheduleUpdate queue-fix: @remix-run/ui throws 'scheduleUpdate not
-# implemented' when a component calls handle.update() synchronously from its
-# setup body — setScheduleUpdate is only wired AFTER handle.render() returns
-# (reconcile.ts). The patch makes the pre-wire default remember the request
-# and replay it once setScheduleUpdate installs the real target. Verified
-# still required at 0.5.0 (remix beta.6): the runtime moved to field-based
-# scheduling (#updateQueue/#updateVNode/#updateDomParent) but kept the throw
-# and the after-render wiring, so the patch is re-rolled against the new
-# shape rather than dropped. Re-verify on every @remix-run/ui bump.
 
 # better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
 # Keep this allowBuilds block if you ever add a native module; pnpm 10 gates build scripts by default.

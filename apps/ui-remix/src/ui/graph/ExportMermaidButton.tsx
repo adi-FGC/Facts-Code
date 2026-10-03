@@ -27,8 +27,8 @@
  *      short timer. Independent phases so copying doesn't blank the
  *      download button and vice-versa.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 
 /* The edge shape the renderer needs — structurally identical to the
    Dataset's `edges` and to `AgentArtifact.graph.edges`. Declared locally so

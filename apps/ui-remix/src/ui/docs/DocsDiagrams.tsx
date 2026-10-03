@@ -8,8 +8,8 @@
  *  bundle budget. "Copy" drops the fence body onto the clipboard for any
  *  mermaid editor or PR.)
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
 import {
   getDocs,

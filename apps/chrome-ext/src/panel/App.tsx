@@ -4,8 +4,8 @@
  * drill-down stack over the hash router (Home → section), with a sticky glass
  * top bar carrying Back + a "New" (re-acquire) action.
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { LoadedDataset } from '../lib/types.ts';
 import type { ActiveTab } from '../lib/chromeEnv.ts';
 import { readActiveTab, onActiveTabChange, inExtension } from '../lib/chromeEnv.ts';

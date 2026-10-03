@@ -16,8 +16,8 @@
  * Static deploys still get the Open button + the in-browser scanner,
  * so the affordance exists — just routed through a different path.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import { hasBakedInline, requestReanalyze } from '../lib/loadArtifacts.ts';
 import { adoptCss } from '../lib/adoptCss.ts';
 

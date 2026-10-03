@@ -14,8 +14,8 @@
  * the parent can hydrate from localStorage on mount without duplicating
  * the storage key.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import { moveRoving } from '../../lib/roving.ts';
 
 export type GraphViewMode = 'heatmap' | 'diagram' | 'sankey' | 'layers';

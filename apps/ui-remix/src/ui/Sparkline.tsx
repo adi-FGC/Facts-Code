@@ -9,8 +9,8 @@
  * Renders a polyline + area fill. Tuned for editorial subtlety: 1px
  * stroke, 12% accent fill, no gradient, no markers.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 
 interface SparklineProps {
   /** Numeric series. Must have ≥2 points to render meaningfully. */

@@ -10,8 +10,8 @@
  * Replaces the "card with header bar" pattern. Hairline > border-box.
  * No drop shadow. No background color (content surfaces are paper).
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css } from 'remix/component';
 
 interface SectionProps {
   /** Tracked uppercase mono label above the title. */

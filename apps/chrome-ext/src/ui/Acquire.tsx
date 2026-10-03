@@ -3,8 +3,8 @@
  * headline one-click action; manual repo, local folder, and the bundled demo
  * are the alternates. Degrades cleanly when not running as an extension.
  */
-import type { RemixNode } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { RemixNode } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { ActiveTab } from '../lib/chromeEnv.ts';
 import type { RepoRef } from '../lib/githubUrl.ts';
 import { repoLabel } from '../lib/githubUrl.ts';

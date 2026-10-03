@@ -14,8 +14,8 @@
  *     pushState's + dispatches an event, and `main.tsx` re-renders the
  *     App on every URL change. Same UX, ~20 lines of glue.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import { activeTab, TABS, type TabKey } from './lib/routes.ts';
 import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
 import { Header } from './components/Header.tsx';

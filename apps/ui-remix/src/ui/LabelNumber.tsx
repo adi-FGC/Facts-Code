@@ -11,8 +11,8 @@
  * Use a row of these for stats. Each one ends in a hairline rule on
  * the right (except the last) so they read as columns.
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css } from 'remix/component';
 
 interface LabelNumberProps {
   label: string;

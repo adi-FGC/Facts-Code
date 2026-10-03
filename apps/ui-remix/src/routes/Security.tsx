@@ -12,7 +12,7 @@
  * existing standalone route, hosted unchanged by SubViewTabs. Legacy
  * URLs (/risks, /credentials, /vulnerabilities) deep-link to their view.
  */
-import type { Handle } from 'remix/ui';
+import type { Handle } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { SubViewTabs } from '../ui/SubViewTabs.tsx';
 import { Risks } from './Risks.tsx';

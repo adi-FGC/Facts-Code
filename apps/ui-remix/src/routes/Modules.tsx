@@ -9,8 +9,8 @@
  * dashboard and the agent never disagree. When a dataset predates F5 (no
  * `nodeMetrics`), we show an explicit re-analyze prompt rather than a blank tab.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { buildModuleView } from '../lib/moduleAnalysis.ts';
 import { SubViewTabs } from '../ui/SubViewTabs.tsx';

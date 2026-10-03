@@ -3,7 +3,7 @@
  *
  * Regression: the local "Choose folder" affordance was a `<label for=…>`
  * with no click handler, relying on label→input association that the
- * remix/ui VDOM didn't wire up — clicking it opened nothing. Replaced with
+ * Remix VDOM didn't wire up — clicking it opened nothing. Replaced with
  * a real <button> → chooseFolder() dispatcher that prefers File System
  * Access (returns a handle → Recents + save-back) and falls back to a
  * hidden <input webkitdirectory> when FSA is missing or blocked (embedded

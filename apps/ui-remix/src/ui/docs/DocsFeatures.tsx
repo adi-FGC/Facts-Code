@@ -4,8 +4,8 @@
  * lifted from doc sections titled "Features" / "Capabilities". The two
  * together cross-check intent (docs) against reality (code).
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
 import { extractFeatures } from '../../lib/docsModel.ts';
 

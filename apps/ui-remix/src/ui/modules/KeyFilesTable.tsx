@@ -3,8 +3,8 @@
  * is "read these first", but weighted: a file imported by a few *important*
  * files outranks one imported by many trivial ones. Every row links to the file.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { KeyFile } from '../../lib/moduleAnalysis.ts';
 import { Section } from '../Section.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';

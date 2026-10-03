@@ -22,8 +22,8 @@
  * global ⌘K listener is attached at module-scope from `mount()` so it
  * works regardless of which route is active).
  */
-import type { Handle } from 'remix/ui';
-import { css, on, ref } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on, ref } from 'remix/component';
 import type { Dataset, DatasetFile, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 import { TABS, ICON_TABS } from '../lib/routes.ts';
 import { navigate } from '../lib/navigate.ts';

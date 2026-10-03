@@ -14,8 +14,8 @@
  *     </RuledRow>
  *   </RuledTable>
  */
-import type { Handle, RemixNode } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle, RemixNode } from 'remix/component';
+import { css } from 'remix/component';
 
 interface TableProps {
   /** CSS grid-template-columns value, e.g. "120px 1fr auto". */

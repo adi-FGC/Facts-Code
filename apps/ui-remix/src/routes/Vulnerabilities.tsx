@@ -32,8 +32,8 @@
  *     copies drifted from the CLI (a GHSA graded critical here, high in
  *     agent.json; a "fixed in" that was a downgrade).
  */
-import type { Handle } from 'remix/ui';
-import { css, on, ref } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on, ref } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -346,7 +346,7 @@ const degradedNote = css({
 /** The shared provenance labels (vulnerabilityLabels — the CLI and MCP print
  *  the same wording) for one package row: a live query or an artifact row.
  *  A plain array, not a component: a component that renders an empty
- *  fragment as its parent's last child trips the remix/ui beta reconciler
+ *  fragment as its parent's last child tripped the Remix 3 beta reconciler
  *  (see CssSuggestionsPanel). */
 function provenanceLabels(of: {
   scope?: osv.DependencyScope | undefined;

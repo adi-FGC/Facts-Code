@@ -9,8 +9,8 @@
  * Aesthetic: Bloomberg-navy + safety-orange (dark-first), hairlines over
  * cards, JetBrains Mono tabular numerals for every metric, Mona Sans for prose.
  */
-import { css, on } from 'remix/ui';
-import type { RemixNode } from 'remix/ui';
+import { css, on } from 'remix/component';
+import type { RemixNode } from 'remix/component';
 
 /* ─────────── tone helpers ─────────── */
 

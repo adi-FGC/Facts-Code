@@ -4,8 +4,8 @@
  * collapsible section with a real done/total progress bar, so a reader can
  * verify what's actually shipped vs. planned straight from the prose.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
 import { getDocs, detectRoadmaps } from '../../lib/docsModel.ts';
 

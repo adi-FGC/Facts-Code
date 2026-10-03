@@ -5,8 +5,8 @@
  * modules are the grouping, members the evidence. Caps are explicit ("+N more")
  * — never a silent truncation.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { ModuleGroup } from '../../lib/moduleAnalysis.ts';
 import { Section } from '../Section.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../RuledColumn.tsx';

@@ -127,10 +127,11 @@ export const ROUTES: readonly RouteSpec[] = [
  * fixture auto-fails any test that ended with a non-empty error array,
  * but tests can opt out by capturing+asserting themselves.
  *
- * What counts as an "error": only entries with `type === 'error'`.
- * Warnings and info messages are noisy on a Vite HMR dev server (the
- * dashboard logs perf marks + the standard "[vite] connected" banner)
- * and aren't load-bearing for "did the page break."
+ * What counts as an "error": entries with `type === 'error'`, plus the
+ * Remix runtime warnings in `REMIX_RUNTIME_WARNINGS`. Other warnings and
+ * info messages are noisy on a Vite HMR dev server (the dashboard logs
+ * perf marks + the standard "[vite] connected" banner) and aren't
+ * load-bearing for "did the page break."
  *
  * ### Known-error allowlist
  *
@@ -149,6 +150,20 @@ export const KNOWN_ERROR_PATTERNS: ReadonlyArray<{
   /** Why this error is here. Cite the issue + the target version. */
   reason: string;
 }> = [];
+
+/**
+ * Remix runtime warnings that mean the screen is not what the code asked
+ * for: an update dropped because it ran inside a component's setup (the
+ * beta-era workspace patch queued these; Remix 3.0.0 skips them), a render
+ * after removal, colliding sibling keys, or an update storm. The runtime
+ * logs them at warning level, so the fixture promotes them to errors.
+ */
+const REMIX_RUNTIME_WARNINGS: readonly RegExp[] = [
+  /^Ignored handle\.update\(\) while /,
+  /^render called after component was removed/,
+  /^Duplicate keys detected in siblings/,
+  /cascading component updates detected in one event loop turn/,
+];
 
 /**
  * Filter a list of console errors against the known-error allowlist.
@@ -177,6 +192,8 @@ export const test = base.extend<ConsoleErrorFixture>({
     const errors: ConsoleMessage[] = [];
     page.on('console', (msg) => {
       if (msg.type() === 'error') errors.push(msg);
+      else if (msg.type() === 'warning' && REMIX_RUNTIME_WARNINGS.some((re) => re.test(msg.text())))
+        errors.push(msg);
     });
     /* Page-level uncaught errors (thrown exceptions, unhandled
      * promise rejections) also count. The page.on('console')

@@ -19,8 +19,8 @@
  *
  * CSP: no style= anywhere; the list hangs off a position:relative wrapper.
  */
-import type { Handle } from 'remix/ui';
-import { css, on, ref } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on, ref } from 'remix/component';
 import type { CatalogModel } from '../lib/modelCatalog.ts';
 import {
   flatModels,

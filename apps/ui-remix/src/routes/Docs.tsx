@@ -14,8 +14,8 @@
  * time), so the tab works identically in served, static-export, and
  * browser-scan modes.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { SubViewTabs } from '../ui/SubViewTabs.tsx';
 import { getDocs } from '../lib/docsModel.ts';

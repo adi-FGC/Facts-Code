@@ -5,8 +5,8 @@
  * mono label. Reads as a flag, not a button. Replaces the
  * pill-with-icon pattern.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 
 type Kind =
   | 'ok'

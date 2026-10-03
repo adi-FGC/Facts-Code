@@ -9,7 +9,7 @@
  * Both are the existing standalone routes, hosted unchanged by
  * SubViewTabs. The legacy /library URL deep-links to the Packages view.
  */
-import type { Handle } from 'remix/ui';
+import type { Handle } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { SubViewTabs } from '../ui/SubViewTabs.tsx';
 import { Files } from './Files.tsx';

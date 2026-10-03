@@ -1,6 +1,6 @@
 /**
  * markdown.tsx — renderer regressions, asserted on the server-rendered HTML
- * (remix/ui/server renderToString needs no DOM).
+ * (remix/component/server renderToString needs no DOM).
  *
  *   - UI-08: fences with an info string (```bash title="x"), odd languages
  *     (```c++), longer fences (````md nesting ```), and tildes must open and
@@ -9,7 +9,7 @@
  *     in-app route instead of a bare relative href the SPA router hijacks.
  */
 import { describe, expect, it } from 'vitest';
-import { renderToString } from 'remix/ui/server';
+import { renderToString } from 'remix/component/server';
 import { renderMarkdown, type MarkdownOptions } from './markdown.tsx';
 
 const html = (src: string, opts?: MarkdownOptions) => renderToString(renderMarkdown(src, opts));

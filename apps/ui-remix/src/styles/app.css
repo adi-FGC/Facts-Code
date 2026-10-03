@@ -1,5 +1,5 @@
 /**
- * App shell + base typography. Most styling lives in `@remix-run/ui`'s
+ * App shell + base typography. Most styling lives in `remix/component`'s
  * `mix={css({...})}` per-component. This file owns the few things that
  * MUST be global:
  *

@@ -10,8 +10,8 @@
  * accent. All motion sits behind `prefers-reduced-motion: no-preference`
  * so reduced-motion users get a clean color-only hover.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import { activeTab } from '../lib/routes.ts';
 import { adoptCss } from '../lib/adoptCss.ts';
 

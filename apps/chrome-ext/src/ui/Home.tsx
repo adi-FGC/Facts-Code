@@ -3,8 +3,8 @@
  * above a single-column nav list whose rows carry live signals, so you can
  * triage without drilling.
  */
-import type { RemixNode } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { RemixNode } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset } from '../lib/types.ts';
 import { fmtNum, fmtBytes } from '../lib/format.ts';
 import { heroHead, sectionLabel, statGrid, listRow, gradeTone } from './kit.tsx';

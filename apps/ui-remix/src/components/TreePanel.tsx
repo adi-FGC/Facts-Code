@@ -18,8 +18,8 @@
  * directories collapsed. Keeps the first paint scannable on a 168-file
  * project without burying the file list.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset, DatasetTreeNode } from '../lib/loadArtifacts.ts';
 
 interface TreePanelProps {

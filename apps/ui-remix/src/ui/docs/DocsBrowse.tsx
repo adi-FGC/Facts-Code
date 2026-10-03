@@ -11,8 +11,8 @@
  * The component outlives a dataset hot-swap (⌘O scan), so everything cached
  * per dataset is dropped when `props.data` changes identity.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { DocFile } from '@factstack/spec';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
 import { renderMarkdown, type MarkdownOptions } from '../../lib/markdown.tsx';

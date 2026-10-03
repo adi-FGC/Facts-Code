@@ -20,8 +20,8 @@
  *
  * < 1280px: margin column collapses, chips stack into the body flow.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 // Leaf subpath, not the '@factstack/core' barrel (keeps the analyzer out of
 // this chunk); the same helper cleans summary.oneLiner for agent.json.
 import { stripInlineMarkdown } from '@factstack/core/plain-text';

@@ -15,8 +15,8 @@
  * Given the doc's own path (`MarkdownOptions.basePath`), relative links
  * resolve to in-app Docs/Files routes instead of a bare relative href.
  */
-import { css } from 'remix/ui';
-import type { RemixNode } from 'remix/ui';
+import { css } from 'remix/component';
+import type { RemixNode } from 'remix/component';
 // Leaf subpath, not the '@factstack/core' barrel: keeps the analyzer out of
 // this chunk while the Docs body and core's doc outline share one fence rule.
 import { isFenceClose, parseFenceOpen } from '@factstack/core/md-fence';

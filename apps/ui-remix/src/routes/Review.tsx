@@ -14,8 +14,8 @@
  * Severity is scored by @factstack/core, so this verdict matches the CLI
  * (`factstack review`) and MCP (`review_change`) byte-for-byte in meaning.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import type { ReviewSeverity } from '@factstack/spec';
 import { buildReviewVerdict, type ReviewBaseline, type Delta } from '../lib/reviewVerdict.ts';

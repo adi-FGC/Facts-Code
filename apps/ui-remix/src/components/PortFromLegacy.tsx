@@ -9,8 +9,8 @@
  * NOT a card. NOT a "coming soon" badge. Reads as a press release
  * announcing what's next.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import { LEGACY_DEMO_URL } from '../lib/routes.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';

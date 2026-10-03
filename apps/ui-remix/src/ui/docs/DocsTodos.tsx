@@ -3,8 +3,8 @@
  * place. Checkbox tasks (with done/total progress) + bare TODO/FIXME markers,
  * grouped by source doc. "Verifiable": each item shows its doc path + line.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { Dataset } from '../../lib/loadArtifacts.ts';
 import { getDocs, summarizeTodos } from '../../lib/docsModel.ts';
 

@@ -11,8 +11,8 @@
  * use the paint-order halo trick (dark stroke under light fill) so they read
  * on any language colour without per-tile luminance maths.
  */
-import type { Handle } from 'remix/ui';
-import { css } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 import { computeTreemap, type TreemapItem } from '../lib/treemap.ts';
 
 export interface TreemapProps {

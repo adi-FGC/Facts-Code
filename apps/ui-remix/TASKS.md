@@ -14,11 +14,11 @@
 
 ## Stack
 
-- **Runtime**: `@remix-run/ui`'s VDOM (NOT React). Components are
+- **Runtime**: `remix/component`'s VDOM (NOT React). Components are
   `(handle: Handle<Props>) => (props: Props) => RemixElement`.
   `handle.update()` schedules a re-render; `handle.signal` aborts
   on unmount.
-- **JSX**: esbuild's automatic runtime pointed at `@remix-run/ui`.
+- **JSX**: esbuild's automatic runtime pointed at `remix/component`.
   `mix={css({...})}` for styles, `mix={[css({...}), on('click', fn)]}`
   for combined style + event mixins.
 - **Routing**: typed via `remix/route-pattern`. SPA mount uses a
@@ -26,7 +26,7 @@
   - dispatches `factstack:nav`; `main.tsx` listens for that and
     `popstate` and re-renders the App. ~30 lines total.
 - **Build**: Vite 8 with `jsx: 'automatic'` + `jsxImportSource:
-'@remix-run/ui'`. No React plugin, no React deps.
+'remix/component'`. No React plugin, no React deps.
 
 ## What's ported
 
@@ -92,9 +92,9 @@ App-level features the legacy prototype has and this app doesn't:
 | Use case                 | Remix module                                     | Status                                                                                               |
 | ------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | Typed URL catalog        | `remix/route-pattern`                            | Live in `lib/routes.ts`                                                                              |
-| JSX runtime              | `@remix-run/ui` (auto)                           | Live everywhere                                                                                      |
-| CSS-in-JSX               | `@remix-run/ui#css`                              | Live everywhere via `mix={css({...})}`                                                               |
-| Event mixins             | `@remix-run/ui#on`                               | Reserved for per-element handlers when needed; currently using global click delegation in `main.tsx` |
+| JSX runtime              | `remix/component` (auto)                         | Live everywhere                                                                                      |
+| CSS-in-JSX               | `remix/component#css`                            | Live everywhere via `mix={css({...})}`                                                               |
+| Event mixins             | `remix/component#on`                             | Reserved for per-element handlers when needed; currently using global click delegation in `main.tsx` |
 | Future API server        | `remix/fetch-router` + `remix/node-fetch-server` | Reserved for `factstack ui` server                                                                   |
 | Future cookies           | `remix/cookie`                                   | Reserved for theme + session persistence                                                             |
 | Future config validation | `remix/data-schema`                              | Reserved; pairs with @factstack/spec's Zod schemas                                                   |
@@ -124,8 +124,8 @@ and serves `apps/ui-remix/dist/`. NODE_VERSION pinned to 24
 ## Component pattern cheatsheet
 
 ```tsx
-import type { Handle } from '@remix-run/ui';
-import { css } from '@remix-run/ui';
+import type { Handle } from 'remix/component';
+import { css } from 'remix/component';
 
 interface MyProps { count: number; }
 

@@ -10,7 +10,7 @@
  *                          the inline `<script id="factstack-data">` block
  *                          baked by `scripts/inject-data.mjs`.
  *
- * JSX is handled by esbuild with the `@remix-run/ui` jsx-runtime — no
+ * JSX is handled by esbuild with the `remix/component` jsx-runtime — no
  * React, no `@vitejs/plugin-react`. The `mix` prop, theme tokens, and
  * `Frame` component come from the Remix runtime.
  */
@@ -19,15 +19,12 @@ import { defineConfig } from 'vite';
 export default defineConfig(({ mode }) => ({
   esbuild: {
     // Tells esbuild to compile JSX with the automatic runtime sourced
-    // from `remix/ui` — the canonical umbrella subpath. In beta.0/.1/.2
-    // this re-exports the standalone `@remix-run/ui` package, but the
-    // upstream trajectory folds the source into the umbrella's
-    // packages/ui/, after which the standalone goes away. Importing
-    // through `remix/ui` survives that migration.
+    // from `remix/component` — the umbrella subpath for the component
+    // runtime since Remix 3.0.0 (it was `remix/ui` in the betas).
     // Same flag-set React uses for its automatic runtime, pointed at
     // a different VDOM.
     jsx: 'automatic',
-    jsxImportSource: 'remix/ui',
+    jsxImportSource: 'remix/component',
   },
   define: {
     // Build-time toggle without string-literal branching in components.

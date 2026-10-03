@@ -9,7 +9,7 @@
  * Each is the existing standalone route, hosted unchanged by SubViewTabs.
  * Legacy URLs (/graph, /flow, /routes) deep-link straight to their view.
  */
-import type { Handle } from 'remix/ui';
+import type { Handle } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { SubViewTabs } from '../ui/SubViewTabs.tsx';
 import { GraphRoute } from './GraphRoute.tsx';

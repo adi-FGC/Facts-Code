@@ -11,8 +11,8 @@
  * Mounted once in App.tsx's Shell, so it rides along on every tab. Hides
  * entirely when the project has no CSS sources.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import type { StyleFinding, StyleSeverity } from '@factstack/spec';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 

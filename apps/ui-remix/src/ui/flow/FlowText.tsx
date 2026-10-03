@@ -30,8 +30,8 @@
  * Rendered as a `<pre>` so the monospace + indentation is preserved
  * exactly, with a copy-button that puts the raw text on the clipboard.
  */
-import type { Handle } from 'remix/ui';
-import { css, on } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, on } from 'remix/component';
 import { TIER_LABEL, TIER_ORDER, type FlowResult, type Tier } from '../../lib/flowAnalysis.ts';
 
 interface FlowTextProps {

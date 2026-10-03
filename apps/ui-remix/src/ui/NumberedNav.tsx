@@ -9,8 +9,8 @@
  * trailing degree-mark "°" instead of a colored dot — quieter, reads
  * as editorial annotation rather than a status badge.
  */
-import type { Handle } from 'remix/ui';
-import { css, ref } from 'remix/ui';
+import type { Handle } from 'remix/component';
+import { css, ref } from 'remix/component';
 import { TABS, activeTab } from '../lib/routes.ts';
 
 /**
