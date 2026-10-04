@@ -50,6 +50,7 @@ import {
   moduleOf,
   tarjanSCC,
   type HeatmapResult,
+  type SugiyamaLayout,
 } from '../lib/graphAnalysis.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
@@ -246,6 +247,13 @@ export function GraphRoute(handle: Handle<GraphProps>) {
   let granularity: Granularity = 'files';
   let showAll = false;
   let zoomedOrPanned = false;
+  /* The diagram layout, rebuilt only when what it is computed from changes.
+     SugiyamaDag resets zoom and pan whenever the layout object changes, so
+     rebuilding it on every render (a style toggle, or the zoom flag the
+     first wheel event sets) snapped the view back to 100% after each
+     wheel, pinch or drag. */
+  let layoutFor: { data: Dataset; key: string } | null = null;
+  let cachedLayout: SugiyamaLayout | null = null;
 
   /* Neo-DAG style mode: classic or neo */
   let styleMode: 'classic' | 'neo' = 'neo';
@@ -270,6 +278,10 @@ export function GraphRoute(handle: Handle<GraphProps>) {
 
   function setViewMode(next: GraphViewMode) {
     if (next === viewMode) return;
+    /* Leaving Diagram unmounts SugiyamaDag; coming back mounts a fresh one
+       at the identity transform (the cached layout is reused), so the
+       zoomed flag must not survive the trip. */
+    if (viewMode === 'diagram') zoomedOrPanned = false;
     viewMode = next;
     void handle.update();
   }
@@ -403,9 +415,8 @@ export function GraphRoute(handle: Handle<GraphProps>) {
        view (the barycenter sweeps cost ~5ms on 250 nodes; not
        expensive enough to lazy-load but cheap enough to skip when
        not needed). Honors granularity (Files vs Symbols) and the
-       Show-all toggle. */
-    const sugiyamaLayout = (() => {
-      if (viewMode !== 'diagram') return null;
+       Show-all toggle. Cached across renders (see `cachedLayout`). */
+    const buildDiagramLayout = (): SugiyamaLayout => {
       /* Symbol granularity gating: requires upstream artifact support.
          When unavailable, return an empty layout so the SugiyamaDag's
          empty state surfaces with a meaningful explanation. */
@@ -430,7 +441,14 @@ export function GraphRoute(handle: Handle<GraphProps>) {
       const visible = new Set<string>(visibleIds);
       const visibleEdges = edges.filter((e) => visible.has(e.from) && visible.has(e.to));
       return buildSugiyamaLayout(visibleIds, visibleEdges);
-    })();
+    };
+    const layoutKey = `${granularity}|${showAll}|${symbolsAvailable}`;
+    if (viewMode === 'diagram' && (layoutFor?.data !== data || layoutFor.key !== layoutKey)) {
+      cachedLayout = buildDiagramLayout();
+      layoutFor = { data, key: layoutKey };
+      zoomedOrPanned = false; // a new layout starts at the identity transform
+    }
+    const sugiyamaLayout = viewMode === 'diagram' ? cachedLayout : null;
 
     /* Sibling tables — always visible regardless of view mode. */
     const hubs = buildHubs(all, edges, 10);

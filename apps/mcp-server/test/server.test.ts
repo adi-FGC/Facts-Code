@@ -30,6 +30,11 @@ import {
   type FactsMcpServerOptions,
 } from '../src/create-server.js';
 
+/* Nearly every test runs a real in-process analyze of a temp project
+   (~350 ms here). With every package suite sharing a 3-4 vCPU CI runner that
+   becomes several seconds, so vitest's 5 s default measures the runner. */
+vi.setConfig({ testTimeout: 30_000, hookTimeout: 30_000 });
+
 type ToolReply = { isError: boolean; text: string };
 
 const SIGNED_OUT: CloudSync = {

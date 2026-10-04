@@ -88,6 +88,15 @@ export const ROUTES: readonly RouteSpec[] = [
      present (asserted on its stable prefix via `interactiveSelector`). */
   { path: '/worktrees', name: 'Worktrees', headlines: [], interactiveSelector: 'h1' },
   { path: '/library', name: 'Library', headlines: ["The project's table of contents."] },
+  /* No h1: the sub-view tablist when graph analytics exist, the "Graph
+     analytics" section (h2) when they do not. modules.spec.ts opens the
+     second sub-view. */
+  {
+    path: '/modules',
+    name: 'Modules',
+    headlines: [],
+    interactiveSelector: 'main [role="tablist"][aria-label="Modules view"], main h2',
+  },
   {
     path: '/review',
     name: 'Review',

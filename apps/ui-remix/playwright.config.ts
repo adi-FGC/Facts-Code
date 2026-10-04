@@ -40,11 +40,15 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  /* A retry that passes still fails CI: the console guard (fixtures.ts)
+     catches timing-dependent Remix runtime warnings that a retry would
+     otherwise hide. Retries stay on for the traces they record. */
+  failOnFlakyTests: !!process.env.CI,
   workers: process.env.CI ? 1 : 4,
 
   /* Editorial defaults: HTML report opens locally on failure; CI
-     uses the line reporter for terse log output. */
-  reporter: process.env.CI ? 'line' : 'html',
+     prints the line reporter and keeps an HTML report for the artifact. */
+  reporter: process.env.CI ? [['line'], ['html', { open: 'never' }]] : 'html',
 
   use: {
     baseURL: 'http://localhost:3000',

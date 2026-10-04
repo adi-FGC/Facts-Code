@@ -323,7 +323,8 @@ export async function loadArtifacts(): Promise<Dataset> {
   // mentions the token for an un-baked template and fall through to the
   // (404/502) dev fetch, blanking the whole app. The try/catch still covers
   // a genuinely malformed inline blob.
-  const inline = document.getElementById(INLINE_ID);
+  // script#…, not the bare id: a doc heading can carry the same slug.
+  const inline = document.querySelector(`script#${INLINE_ID}`);
   if (inline && inline.textContent && hasBakedInline(inline.textContent)) {
     let data: Dataset | null = null;
     try {

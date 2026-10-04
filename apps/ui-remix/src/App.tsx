@@ -246,7 +246,9 @@ function RouteView(handle: Handle<{ data: Dataset }>) {
        viewport put — the new content already starts at the top of <main>. */
     requestAnimationFrame(() => {
       const label = TABS.find((t) => t.key === activeTab(location.pathname))?.label ?? 'Page';
-      const announcer = document.getElementById('route-announcer');
+      /* Scoped, not getElementById: a doc heading titled "Route announcer"
+         gets that slug as its id inside <main> and would be found first. */
+      const announcer = document.querySelector('.app-shell > #route-announcer');
       if (announcer) announcer.textContent = `${label} view loaded`;
       (document.getElementById('main') as HTMLElement | null)?.focus({ preventScroll: true });
     });

@@ -225,9 +225,14 @@ describe('dataset embedding (ux#4, blank page on "<!--<script")', () => {
 });
 
 describe('offline build: no CDN, no web fonts (ux#3, ux#4, tech-debt#5)', () => {
-  it('the committed CLI template is exactly what sync-ui builds from the prototype', () => {
-    expect(buildTemplate(source, { tailwindCss: compileTailwind() })).toBe(built);
-  });
+  // Runs the Tailwind CLI in a child process: seconds on a loaded CI runner.
+  it(
+    'the committed CLI template is exactly what sync-ui builds from the prototype',
+    { timeout: 60_000 },
+    () => {
+      expect(buildTemplate(source, { tailwindCss: compileTailwind() })).toBe(built);
+    },
+  );
 
   it('the shipped template loads nothing from another origin', () => {
     expect(() => assertNoRemoteResources(built)).not.toThrow();
@@ -432,7 +437,7 @@ describe('merge gate: the CLI serves what the template needs (review legacy-ui-R
 });
 
 describe('vendored @babel/parser', () => {
-  it('bundles into a self-contained module that parses imports', async () => {
+  it('bundles into a self-contained module that parses imports', { timeout: 60_000 }, async () => {
     const code = await bundleBabelParser();
     expect(code.startsWith('/*! @babel/parser ')).toBe(true);
     expect(/import\(\s*["']https?:/.test(code)).toBe(false);

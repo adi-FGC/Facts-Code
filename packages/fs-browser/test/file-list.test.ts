@@ -43,7 +43,11 @@ describe('FileListFS (correctness#35)', () => {
 
     const fs = new FileListFS([{ path: 'assets/logo.png', file }]);
     expect((await fs.stat('assets/logo.png')).size).toBe(614_400);
-    expect(await fs.readFile('assets/logo.png')).toEqual(bytes);
+    const read = await fs.readFile('assets/logo.png');
+    expect(read.byteLength).toBe(bytes.byteLength);
+    // Byte-for-byte without toEqual's per-element deep walk, which took
+    // seconds for 600 KB on a loaded CI runner: no index differs.
+    expect(read.findIndex((b, i) => b !== bytes[i])).toBe(-1);
   });
 
   it('reads nothing until asked (excluded trees are never loaded)', async () => {

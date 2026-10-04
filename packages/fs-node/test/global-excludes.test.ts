@@ -9,12 +9,17 @@
  * only for the test's own git calls and therefore read — and failed on — the
  * developer's real global config).
  */
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { gitGlobalExcludes } from '../src/global-excludes.js';
+
+/* Each test spawns 4-7 real git processes; spawns are slow on the Windows CI
+   runner (one test already used 2.4 of the 5 s default there). Same budget as
+   the other fs-node git suites. */
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const NUL = process.platform === 'win32' ? 'NUL' : '/dev/null';
 const saved: Record<string, string | undefined> = {};

@@ -51,8 +51,12 @@ jobs:
       - name: Typecheck
         run: pnpm turbo typecheck
 
+      # --continue: one failing suite no longer cancels the other ~10, so a run
+      # reports every failure at once (run 37140061604 showed only the first).
+      # --concurrency=2: the default fan-out put ~10 vitest pools on a 3-4
+      # vCPU runner and slowed CPU-bound tests 10-20x past their budgets.
       - name: Tests
-        run: pnpm turbo test
+        run: pnpm turbo test --continue=dependencies-successful --concurrency=2
 
       # The CLI's local UI (the hardened legacy prototype behind `factstack ui`,
       # `export` and `quick`) rendered in headless Chromium with a dataset whose
@@ -64,8 +68,11 @@ jobs:
       # The test file still loads Playwright through ui-remix's @playwright/test,
       # which finds this browser only while the lockfile resolves ONE playwright
       # version; test/workflows.test.mjs fails if it resolves more than one.
+      # The guard steps below do not depend on the unit tests, so they run even
+      # when the Tests step failed (`!cancelled()`): a red test must not hide a
+      # broken build or CSP guard.
       - name: Legacy UI — DOM XSS regression (headless Chromium)
-        if: matrix.os == 'ubuntu-latest'
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         env:
           FACTS_UI_DOM_TEST: '1'
         run: |
@@ -75,6 +82,7 @@ jobs:
       # Smoke: the CLI should analyze itself and produce valid artifacts.
       # Golden-master fixture: re-run and diff against committed summary.
       - name: Smoke — analyze self
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           # cwd-relative path, not /tmp: bash's `> /tmp/x` and Node's
@@ -96,6 +104,7 @@ jobs:
       # over the .facts/ the smoke step just wrote), the evaluator hardening
       # and the root scripts. Every OS: several of them are about paths.
       - name: Root tests (deploy tooling + boundary probes)
+        if: ${{ !cancelled() }}
         run: pnpm test:root
 
       # OPD-2: build the web dashboard in CI so bundler errors AND the
@@ -106,6 +115,7 @@ jobs:
       # Smoke so the `analyze .` above has populated .facts/ for inject-data to
       # bake. Uses build:static to mirror the production (map-free) deploy.
       - name: Build web dashboard (bundle + CSP guards)
+        if: ${{ !cancelled() }}
         run: pnpm --filter @factstack/ui-remix build:static
 
       # First paint on the build above, under Lighthouse's mobile Slow 4G +
@@ -113,12 +123,36 @@ jobs:
       # the job summary and the step can never turn the job red. Once they are
       # stable, set PERF_WARN_LCP_MS (a warning) or make it a budget.
       - name: First-paint report (report-only)
-        if: matrix.os == 'ubuntu-latest'
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
         continue-on-error: true
         timeout-minutes: 10
         run: |
           pnpm --filter @factstack/ui-remix exec playwright install --with-deps chromium
           pnpm --filter @factstack/ui-remix perf:report
+
+      # The dashboard in Chromium under its production CSP (vite preview sends
+      # dist/_headers), with the console guard that fails on errors and on
+      # Remix runtime warnings (test/e2e/fixtures.ts). After the first-paint
+      # report: the e2e web server runs `pnpm build`, which replaces the
+      # build:static dist that report measures. Before CLI bundle, which
+      # rewrites the .facts/ the build bakes.
+      - name: Dashboard e2e (Chromium, production CSP)
+        id: e2e
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        timeout-minutes: 20
+        run: |
+          pnpm --filter @factstack/ui-remix exec playwright install --with-deps chromium
+          pnpm --filter @factstack/ui-remix test:e2e
+
+      - name: Upload e2e report
+        if: ${{ failure() && steps.e2e.outcome == 'failure' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/ui-remix/playwright-report
+          retention-days: 14
+          # "Re-run failed jobs" uploads again under the same name.
+          overwrite: true
 
       # Determinism gate (F13): re-run the benchmark over the committed corpus and
       # fail if the byte output drifts from bench/expected.json. Runs on every OS in
@@ -126,6 +160,7 @@ jobs:
       # the numbers byte-identical across platforms. Repin via `pnpm bench:update`
       # after an intentional corpus/task change. (Honors bench/README.md.)
       - name: Bench — determinism gate
+        if: ${{ !cancelled() }}
         shell: bash
         run: ./apps/cli/node_modules/.bin/tsx apps/cli/src/cli.ts bench --check
 
@@ -137,6 +172,7 @@ jobs:
       # owner's (apps/cli/PUBLISHING.md). Last, so its .facts/ rewrite cannot
       # change what the dashboard build above baked.
       - name: CLI bundle — build, run, pack (dry run)
+        if: ${{ !cancelled() }}
         shell: bash
         run: |
           pnpm --filter @factstack/cli pack:dry-run

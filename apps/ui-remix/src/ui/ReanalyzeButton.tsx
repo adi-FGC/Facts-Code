@@ -123,7 +123,8 @@ export function ReanalyzeButton(handle: Handle) {
   // test loadArtifacts uses: a baked dataset that merely MENTIONS the
   // placeholder token (factstack's own README does) is still baked.
   if (typeof document !== 'undefined') {
-    const inline = document.getElementById('factstack-data');
+    // script#…, not the bare id: a doc heading can carry the same slug.
+    const inline = document.querySelector('script#factstack-data');
     if (inline && hasBakedInline(inline.textContent)) {
       state = 'static';
     }

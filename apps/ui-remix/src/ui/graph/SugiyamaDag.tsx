@@ -498,7 +498,10 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
   function reset() {
     const hadTransform = transform.scale !== 1 || transform.tx !== 0 || transform.ty !== 0;
     const hadOffsets = nodeOffsets.size > 0;
-    if (!hadTransform && !hadOffsets) return;
+    if (!hadTransform && !hadOffsets) {
+      pushTransformChange(); // clears a stale "zoomed" flag in the parent
+      return;
+    }
 
     transform = { ...IDENTITY };
     nodeOffsets.clear();
@@ -851,8 +854,9 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
 
   /* Reset the saved transform when the layout changes — a new dataset
      or a granularity flip should land at zoom = 1. We compare layout
-     identity (the buildSugiyamaLayout output is a fresh object on
-     every recompute, so identity-compare is enough). */
+     identity, so the parent must pass the SAME object until the layout
+     really changes (GraphRoute caches it); a fresh object per render
+     would reset zoom/pan on every parent update. */
   let lastLayoutRef: SugiyamaLayout | null = null;
 
   return () => {
@@ -875,8 +879,11 @@ export function SugiyamaDag(handle: Handle<SugiyamaDagProps>) {
     if (layout !== lastLayoutRef) {
       lastLayoutRef = layout;
       transform = { ...IDENTITY };
+      nodeOffsets.clear(); // dragged positions belong to the old layout
       if (groupEl) applyTransform(groupEl, transform);
-      pushTransformChange();
+      /* No onTransformChange here: calling the parent from render can
+         throw in Remix 3 before its first commit. The parent clears its
+         zoomed flag itself when it builds a new layout. */
     }
 
     if (layout.nodes.size === 0) {

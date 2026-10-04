@@ -14,9 +14,47 @@
  * React, no `@vitejs/plugin-react`. The `mix` prop, theme tokens, and
  * `Frame` component come from the Remix runtime.
  */
-import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { defineConfig, type Plugin } from 'vite';
+
+/**
+ * `vite preview` sends each path the headers Cloudflare would: dist/_headers
+ * read through the same model the build guards use (scripts/lib/cf-headers.mjs).
+ * The e2e suite runs on preview, so the app is exercised under its production
+ * CSP and a blocked inline script or style fails the run as a console error.
+ * HSTS is left out on localhost.
+ */
+function previewProductionHeaders(): Plugin {
+  return {
+    name: 'factstack:preview-production-headers',
+    async configurePreviewServer(server) {
+      let text: string;
+      try {
+        text = readFileSync(
+          resolve(server.config.root, server.config.build.outDir, '_headers'),
+          'utf8',
+        );
+      } catch {
+        return; // no build yet: plain preview
+      }
+      const model = pathToFileURL(resolve(server.config.root, 'scripts/lib/cf-headers.mjs')).href;
+      const { parseHeadersFile, effectiveHeaders } = await import(model);
+      const rules = parseHeadersFile(text);
+      server.middlewares.use((req, res, next) => {
+        const path = new URL(req.url ?? '/', 'http://preview').pathname;
+        for (const [name, values] of effectiveHeaders(rules, path) as Map<string, string[]>) {
+          if (name !== 'strict-transport-security') res.setHeader(name, values);
+        }
+        next();
+      });
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => ({
+  plugins: [previewProductionHeaders()],
   esbuild: {
     // Tells esbuild to compile JSX with the automatic runtime sourced
     // from `remix/component` — the umbrella subpath for the component

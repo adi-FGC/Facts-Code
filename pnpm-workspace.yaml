@@ -73,6 +73,11 @@ overrides:
   # @remix-run/test caps it at ^0.27.1, and this repo never runs that runner
   # (tests are vitest). Drop this once remix ships a release that allows 0.28.
   'esbuild@<0.28.1': '^0.28.2'
+  # GHSA-vfj7-8cjw-p6xm (braces <=3.0.3, no patched release) reached us only
+  # via @tailwindcss/cli -> @parcel/watcher@2.5.1 -> micromatch. watcher 2.6.0
+  # matches with picomatch instead. Its install script stays off (allowBuilds
+  # above). Drop once @tailwindcss/cli depends on @parcel/watcher >= 2.6.
+  '@tailwindcss/cli>@parcel/watcher': '2.6.0'
 
 # better-sqlite3 removed in favor of node:sqlite (Node 22+ built-in, no native compile).
 # Keep this allowBuilds block if you ever add a native module; pnpm 10 gates build scripts by default.

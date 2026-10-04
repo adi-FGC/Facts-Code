@@ -451,7 +451,9 @@ describe('executeQuery — glob matcher', () => {
     // 20 stars that never match: exponential for a backtracking regex.
     const r = executeQuery(agent, { verb: 'cycles', filter: '*a'.repeat(20) + '*b' });
     expect(r.count).toBe(0);
-    expect(Date.now() - t0).toBeLessThan(50);
+    // Linear: ~1 ms. A backtracking matcher runs for minutes; 2 s leaves
+    // room for a loaded CI runner.
+    expect(Date.now() - t0).toBeLessThan(2_000);
   });
 });
 

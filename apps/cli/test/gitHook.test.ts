@@ -7,7 +7,7 @@
  * commit that fires the hook); the `.git`-pointer fallback is tested alone.
  */
 
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
@@ -36,6 +36,11 @@ import {
   GitHookRefusal,
   GIT_HOOK_COMMAND,
 } from '../src/gitHook.js';
+
+/* The real-repo tests spawn ~16-22 git processes each, and process spawns are
+   5-10x slower on the Windows CI runner. vitest's 5 s default measures the
+   runner, not the code (same budget as the fs-node git suites). */
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 const MARKER_START = '# >>> factstack post-commit (auto-refresh .facts) >>>';
 const MARKER_END = '# <<< factstack post-commit <<<';

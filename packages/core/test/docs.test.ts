@@ -85,14 +85,23 @@ describe('parseMarkdownStructure — CommonMark fences (UI-08)', () => {
 /* CORE-P2-02 — the hosted scan parses arbitrary repos' docs. The old
    per-line patterns were quadratic or worse on one hostile line (a 10 KB
    `[a](` line took 23 s; `# a` + 2,000 spaces took 0.5 s and grew cubically),
-   and so were the HTML heading/title/tag scans. Each shape below is ~200 KB. */
+   and so were the HTML heading/title/tag scans. Markdown shapes are ~400 KB
+   and HTML shapes ~800 KB: sizes where the mildest old pattern already took
+   ~9 s, while the fixed parsers take well under 1 s. */
 describe('parseMarkdownStructure / HTML docs — linear on hostile lines (CORE-P2-02)', () => {
-  const N = 200_000;
-  const fill = (unit: string) => unit.repeat(Math.ceil(N / unit.length));
+  const N = 400_000;
+  const fill = (unit: string, n = N) => unit.repeat(Math.ceil(n / unit.length));
+  /* 2 s of CPU per shape. CPU, not wall time: a CI runner sharing 3-4 vCPUs
+     with every other suite stretches wall time 10-20x, but not this
+     process's own CPU use. Node's process, typed locally: this browser-safe
+     package compiles its tests without @types/node. */
+  type CpuUsage = { user: number; system: number };
+  const node = globalThis as unknown as { process: { cpuUsage(prev?: CpuUsage): CpuUsage } };
   const within = (label: string, f: () => void) => {
-    const t = Date.now();
+    const start = node.process.cpuUsage();
     f();
-    expect(Date.now() - t, label).toBeLessThan(1_000);
+    const { user, system } = node.process.cpuUsage(start);
+    expect((user + system) / 1000, label).toBeLessThan(2_000);
   };
   const html = (text: string) =>
     buildDocFile({
@@ -106,7 +115,7 @@ describe('parseMarkdownStructure / HTML docs — linear on hostile lines (CORE-P
       storeContent: false,
     });
 
-  it('parses hostile markdown lines in well under a second', () => {
+  it('parses hostile markdown lines in linear time', { timeout: 120_000 }, () => {
     const shapes = {
       'unclosed [': fill(' [a'),
       'unclosed ![': fill(' ![a'),
@@ -121,12 +130,12 @@ describe('parseMarkdownStructure / HTML docs — linear on hostile lines (CORE-P
       within(label, () => parseMarkdownStructure(text));
   });
 
-  it('parses hostile HTML in well under a second', () => {
+  it('parses hostile HTML in linear time', { timeout: 120_000 }, () => {
     for (const [label, text] of Object.entries({
-      'unclosed <h1>': fill('<h1>'),
-      'unclosed <': fill('<'),
-      'unclosed <title>': fill('<title>'),
-      'unclosed <h1 attrs': fill('<h1 a'),
+      'unclosed <h1>': fill('<h1>', 2 * N),
+      'unclosed <': fill('<', 2 * N),
+      'unclosed <title>': fill('<title>', 2 * N),
+      'unclosed <h1 attrs': fill('<h1 a', 2 * N),
     }))
       within(label, () => html(text));
   });

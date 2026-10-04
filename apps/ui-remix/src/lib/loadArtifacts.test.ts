@@ -23,7 +23,7 @@ describe('artifactCharsOf', () => {
     /* Whitespace makes the inline text longer than JSON.stringify's output,
        so the two measurements are distinguishable. */
     const inline = JSON.stringify(baked, null, 2);
-    g.document = { getElementById: () => ({ textContent: inline }) };
+    g.document = { querySelector: () => ({ textContent: inline }) };
 
     const data = await loadArtifacts();
     expect(artifactCharsOf(data)).toBe(inline.length);
@@ -145,7 +145,7 @@ describe('hydrateSections', () => {
     const realFetch = globalThis.fetch;
     globalThis.fetch = impl;
     try {
-      g.document = { getElementById: () => ({ textContent: inline }) };
+      g.document = { querySelector: () => ({ textContent: inline }) };
       const data = await loadArtifacts();
       expect(data.tree).toEqual(tree);
       expect(artifactCharsOf(data)).toBe(inline.length + JSON.stringify(tree).length);

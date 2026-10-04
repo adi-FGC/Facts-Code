@@ -759,23 +759,30 @@ describe('scanSecrets — fingerprints (correctness#1)', () => {
   /* SV-3 — every header on a line searched the rest of that line for its END,
      then digested all of it: a line of N headers cost O(N x line), ~3.5 s at
      188 KB and hours near the 16 MB secret-pass ceiling. One pass per line. */
-  it('scans and redacts a line of thousands of headers in linear time', () => {
-    const unit = `${B}RSA PRIVATE KEY-----${rnd(16, 720)}`;
-    const n = 20_000;
-    const withEnd = unit.repeat(n) + `${E}RSA PRIVATE KEY-----`;
-    const noEnd = unit.repeat(n);
-    const bodyBelow = Array.from({ length: 1000 }, (_, k) => rnd(64, 800 + k)).join('\n');
-    const proseBelow = Array.from({ length: 20_000 }, () => 'plain prose, no key here').join('\n');
-    const t0 = performance.now();
-    expect(scanSecrets('a.txt', withEnd)).toHaveLength(n);
-    expect(scanSecrets('a.txt', `${noEnd}\n${bodyBelow}`)).toHaveLength(n);
-    const red = redactSecrets(`${noEnd}\n${proseBelow}`);
-    const ms = performance.now() - t0;
-    expect(red).not.toContain(rnd(16, 720));
-    expect(red.split('\n')).toHaveLength(20_001);
-    // ~0.1 s linear; the quadratic scan took minutes on this input.
-    expect(ms).toBeLessThan(3000);
-  });
+  it(
+    'scans and redacts a line of thousands of headers in linear time',
+    { timeout: 120_000 },
+    () => {
+      const unit = `${B}RSA PRIVATE KEY-----${rnd(16, 720)}`;
+      const n = 20_000;
+      const withEnd = unit.repeat(n) + `${E}RSA PRIVATE KEY-----`;
+      const noEnd = unit.repeat(n);
+      const bodyBelow = Array.from({ length: 1000 }, (_, k) => rnd(64, 800 + k)).join('\n');
+      const proseBelow = Array.from({ length: 20_000 }, () => 'plain prose, no key here').join(
+        '\n',
+      );
+      const t0 = performance.now();
+      expect(scanSecrets('a.txt', withEnd)).toHaveLength(n);
+      expect(scanSecrets('a.txt', `${noEnd}\n${bodyBelow}`)).toHaveLength(n);
+      const red = redactSecrets(`${noEnd}\n${proseBelow}`);
+      const ms = performance.now() - t0;
+      expect(red).not.toContain(rnd(16, 720));
+      expect(red.split('\n')).toHaveLength(20_001);
+      // ~0.2 s linear here and ~3 s on a loaded Windows CI runner; the
+      // quadratic scan took minutes on this input.
+      expect(ms).toBeLessThan(30_000);
+    },
+  );
 
   it('still blanks every key on a line when a truncated key precedes a complete one', () => {
     const [a, b] = [rnd(40, 730), rnd(64, 731)];

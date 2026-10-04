@@ -664,18 +664,58 @@ describe('resolveSpecifier — absolute Python imports inside a regular package'
   });
 });
 
+/** The file set as a real Set that counts every walk of its contents
+ *  (for…of, spread, values/keys/entries, forEach); has() lookups are free.
+ *  performance#1 is asserted as work, not milliseconds: a time budget fails
+ *  on a loaded CI runner, while a scan per import shows up as thousands of
+ *  walks on any machine. */
+function walkCounting(paths: string[]): { files: Set<string>; walks: () => number } {
+  const files = new Set(paths);
+  let walks = 0;
+  for (const key of [Symbol.iterator, 'values', 'keys', 'entries', 'forEach'] as const) {
+    const original = Reflect.get(Set.prototype, key) as (...args: unknown[]) => unknown;
+    Object.defineProperty(files, key, {
+      value(this: Set<string>, ...args: unknown[]) {
+        walks++;
+        return original.apply(this, args);
+      },
+    });
+  }
+  return { files, walks: () => walks };
+}
+
 describe('resolver — indexed Python/Go lookups (performance#1)', () => {
-  it('resolves 5k third-party Python imports over 20k files in well under a second', () => {
+  it('walks the file list at most once for 5k third-party Python imports over 20k files', () => {
     const paths: string[] = [];
     for (let i = 0; i < 20_000; i++) paths.push(`svc${i % 50}/pkg${i % 400}/mod${i}.py`);
-    const c = ctx(paths);
-    const t0 = Date.now();
+    const { files, walks } = walkCounting(paths);
+    const c = { ...ctx([]), files };
     for (let i = 0; i < 5_000; i++) {
       expect(
         resolveSpecifier(`thirdparty${i}.sub`, `svc${i % 50}/pkg${i % 400}/mod${i}.py`, c),
       ).toBeNull();
     }
-    expect(Date.now() - t0).toBeLessThan(1_000);
+    expect(walks()).toBeLessThanOrEqual(1); // the index build; a scan per import is ~5,000
+  });
+
+  it('walks the file list at most once for 5k Go imports over 20k files', () => {
+    const paths = ['go/cmd/main.go'];
+    // Each package lands on its code-unit-first file (f10002.go before f2.go).
+    const first = new Map<number, string>();
+    for (let i = 0; i < 20_000; i++) {
+      const k = i % 400;
+      const f = `go/pkg${k}/f${i}.go`;
+      paths.push(f);
+      const cur = first.get(k);
+      if (cur === undefined || f < cur) first.set(k, f);
+    }
+    const { files, walks } = walkCounting(paths);
+    const c = { ...ctx([]), files, goModules: [{ module: 'example.com/shop', dir: 'go' }] };
+    for (let i = 0; i < 5_000; i++) {
+      const k = i % 400;
+      expect(resolveSpecifier(`example.com/shop/pkg${k}`, 'go/cmd/main.go', c)).toBe(first.get(k));
+    }
+    expect(walks()).toBeLessThanOrEqual(1);
   });
 
   it('matches the previous full-scan Go resolution exactly', () => {

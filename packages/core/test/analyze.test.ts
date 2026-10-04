@@ -396,7 +396,7 @@ describe('analyze — tsconfig path aliases (#15)', () => {
   /* core-1 — a generated tsconfig (a big Nx tsconfig.base.json) can pass the
      walker's 1 MiB parse cap. Its `paths` must still reach the alias index,
      or every aliased import reads as external and its edge vanishes. */
-  it('still resolves aliases from a tsconfig over the parse cap', async () => {
+  it('still resolves aliases from a tsconfig over the parse cap', { timeout: 30_000 }, async () => {
     const paths: Record<string, string[]> = { '@lib/*': ['src/lib/*'] };
     for (let i = 0; i < 20_000; i++) paths[`@gen/pkg-${i}`] = [`libs/gen/pkg-${i}/src/index.ts`];
     const tsconfig = JSON.stringify({ compilerOptions: { baseUrl: '.', paths } }, null, 2);
@@ -892,7 +892,7 @@ describe('secrets in test fixtures (v0.3.11)', () => {
     expect(todos.map((t) => t.line)).toEqual([2, 4]);
   });
 
-  it('still scans a file too large to parse for secrets', async () => {
+  it('still scans a file too large to parse for secrets', { timeout: 30_000 }, async () => {
     const TOKEN = 'ghp_' + 'A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0';
     const big = 'var x=1;\n'.repeat(130_000) + `var t="${TOKEN}";\n`; // ~1.2 MB > 1 MB cap
     const fs = memoryFS({
@@ -1371,7 +1371,7 @@ describe('analyze — possible secrets are listed, redacted and not graded (owne
     expect(r.human.summary.health.secrets).toBe(1);
   });
 
-  it('reports a possible secret in a file too large to parse', async () => {
+  it('reports a possible secret in a file too large to parse', { timeout: 30_000 }, async () => {
     const big = 'var x=1;\n'.repeat(130_000) + `DB_PASSWORD=${PW}\n`; // > 1 MB cap
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'app', license: 'MIT' }),
@@ -1610,7 +1610,7 @@ describe('analyze — lockfile-installed versions ride the manifest (CVE, INV6/I
     expect(rootManifest(r)?.dependencies).toEqual({ lodash: '^4.17.0' });
   });
 
-  it('still reads a lockfile over the 1 MB parse cap', async () => {
+  it('still reads a lockfile over the 1 MB parse cap', { timeout: 30_000 }, async () => {
     const big = lockfile(12_000);
     expect(big.length).toBeGreaterThan(1024 * 1024);
     const fs = memoryFS({
@@ -1747,14 +1747,26 @@ describe('analyze — README one-liner is plain text, fences per CommonMark (UI-
   /* CORE-P2-02 — several strip / badge-drop regexes go quadratic on an
      unclosed marker or a long space run. The old code ran them over the whole
      line (' [a' × 60k took 6.5 s); the line is now capped first. */
-  it('caps a ~200 KB adversarial tagline line before stripping it', async () => {
-    for (const unit of [' [a', ' ![a', ' __a__b', ' <a', ' ']) {
-      const readme =
-        '# pkg\n\nFast tagline' + unit.repeat(Math.ceil(200_000 / unit.length)) + 'x\n';
-      const t = Date.now();
-      const oneLiner = await oneLinerOf(readme);
-      expect(Date.now() - t, JSON.stringify(unit)).toBeLessThan(1_000);
-      expect(oneLiner.startsWith('Fast tagline'), JSON.stringify(unit)).toBe(true);
-    }
-  });
+  /* CPU time, not wall time: on a CI runner sharing its cores with every
+     other suite, wall time stretches 10-20x while this process's own CPU
+     use barely moves, so the budget keeps its bite (the uncapped strip
+     took 6.5 s here). Node's process, typed locally: this browser-safe
+     package compiles its tests without @types/node. */
+  type CpuUsage = { user: number; system: number };
+  const node = globalThis as unknown as { process: { cpuUsage(prev?: CpuUsage): CpuUsage } };
+  it(
+    'caps a ~200 KB adversarial tagline line before stripping it',
+    { timeout: 60_000 },
+    async () => {
+      for (const unit of [' [a', ' ![a', ' __a__b', ' <a', ' ']) {
+        const readme =
+          '# pkg\n\nFast tagline' + unit.repeat(Math.ceil(200_000 / unit.length)) + 'x\n';
+        const cpu = node.process.cpuUsage();
+        const oneLiner = await oneLinerOf(readme);
+        const { user, system } = node.process.cpuUsage(cpu);
+        expect((user + system) / 1000, JSON.stringify(unit)).toBeLessThan(2_000);
+        expect(oneLiner.startsWith('Fast tagline'), JSON.stringify(unit)).toBe(true);
+      }
+    },
+  );
 });

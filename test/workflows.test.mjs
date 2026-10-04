@@ -127,18 +127,53 @@ describe('cve-refresh.yml — data-only refresh of the LIVE commit', () => {
 describe('ci.yml', () => {
   const list = steps(read('ci.yml'));
 
+  /* Steps that do not need the unit tests to pass run even after the Tests
+     step failed, so one red suite cannot hide a broken build or guard. */
+  const AFTER_FAILURE = /if: \$\{\{ !cancelled\(\)/;
+  /* Every OS AND after a failure: the step's only condition is exactly this,
+     so no OS filter (or any other condition) can slip in beside it. */
+  const conditions = (body) => (body.match(/^\s*if:.*$/gm) ?? []).map((l) => l.trim());
+  const EVERY_OS_AFTER_FAILURE = ['if: ${{ !cancelled() }}'];
+
   it('runs the boundary probes with the lint gate and the root tests on every OS', () => {
     expect(find(list, /^Lint \+ boundaries/).body).toMatch(/pnpm lint:boundaries/);
     const root = find(list, /^Root tests/);
     expect(root.body).toMatch(/pnpm test:root/);
-    expect(root.body).not.toMatch(/if:/);
+    expect(conditions(root.body)).toEqual(EVERY_OS_AFTER_FAILURE);
+  });
+
+  it('reports every failing suite in one run, with a runner-sized fan-out', () => {
+    const tests = find(list, /^Tests$/);
+    expect(tests.body).toMatch(/pnpm turbo test --continue=dependencies-successful/);
+    expect(tests.body).toMatch(/--concurrency=\d/);
+  });
+
+  it('runs the build, bench and bundle guards even when a test failed', () => {
+    for (const name of [/^Smoke/, /^Build web dashboard/, /^Bench/, /^CLI bundle/]) {
+      expect(find(list, name).body).toMatch(AFTER_FAILURE);
+    }
+  });
+
+  it('runs the dashboard e2e on ubuntu under the production CSP and fails on a flaky pass', () => {
+    const e2e = find(list, /^Dashboard e2e/);
+    expect(e2e.body).toMatch(/matrix\.os == 'ubuntu-latest'/);
+    expect(e2e.body).not.toMatch(/continue-on-error/);
+    expect(e2e.body).toMatch(/pnpm --filter @factstack\/ui-remix test:e2e/);
+    // Its `pnpm build` replaces the build:static dist the first-paint report
+    // measures, and it bakes the .facts/ that the CLI bundle step rewrites.
+    expect(e2e.i).toBeGreaterThan(find(list, /^First-paint report/).i);
+    expect(e2e.i).toBeLessThan(find(list, /^CLI bundle/).i);
+    const pw = readFileSync(join(ROOT, 'apps/ui-remix/playwright.config.ts'), 'utf8');
+    expect(pw).toMatch(/failOnFlakyTests: !!process\.env\.CI/);
+    const vite = readFileSync(join(ROOT, 'apps/ui-remix/vite.config.ts'), 'utf8');
+    expect(vite).toMatch(/configurePreviewServer/);
   });
 
   it('runs the legacy-UI DOM XSS test with a real Chromium and lets it fail the job', () => {
     const dom = find(list, /^Legacy UI — DOM XSS regression/);
     // After the Tests step, whose run of the same file skips without a browser.
     expect(dom.i).toBeGreaterThan(find(list, /^Tests$/).i);
-    expect(dom.body).toMatch(/if: matrix\.os == 'ubuntu-latest'/);
+    expect(dom.body).toMatch(/matrix\.os == 'ubuntu-latest'/);
     expect(dom.body).not.toMatch(/continue-on-error/);
     expect(dom.body).toMatch(/FACTS_UI_DOM_TEST: '1'/);
     const install = dom.body.indexOf('playwright install --with-deps chromium');
@@ -176,7 +211,7 @@ describe('ci.yml', () => {
 
   it('builds, runs and dry-run packs the CLI bundle on every OS, and never publishes', () => {
     const bundle = find(list, /^CLI bundle/);
-    expect(bundle.body).not.toMatch(/\bif:/); // every OS in the matrix
+    expect(conditions(bundle.body)).toEqual(EVERY_OS_AFTER_FAILURE); // every OS in the matrix
     expect(bundle.body).not.toMatch(/continue-on-error/);
     expect(bundle.body).toMatch(/pnpm --filter @factstack\/cli pack:dry-run/);
     expect(bundle.body).toMatch(/node apps\/cli\/publish\/dist\/cli\.js --version/);
@@ -190,7 +225,7 @@ describe('ci.yml', () => {
 
   it('reports first paint on ubuntu without ever failing the job', () => {
     const perf = find(list, /^First-paint report/);
-    expect(perf.body).toMatch(/if: matrix\.os == 'ubuntu-latest'/);
+    expect(perf.body).toMatch(/matrix\.os == 'ubuntu-latest'/);
     expect(perf.body).toMatch(/continue-on-error: true/);
     expect(perf.body).toMatch(/perf:report/);
     expect(perf.i).toBeGreaterThan(find(list, /^Build web dashboard/).i);
