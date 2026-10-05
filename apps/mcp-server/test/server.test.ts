@@ -4,7 +4,15 @@
  * minus stdio. Each test gets a fresh temp project.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+  mkdirSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1164,10 +1172,17 @@ describe('since over the real tool path in a git repo (CORE-R4)', () => {
       expect(Date.parse(JSON.parse(readFileSync(baseline, 'utf8')).generatedAt)).toBeLessThan(
         Date.parse(ts),
       );
+      const edited = path.join(root, 'src', 'a.ts');
       writeFileSync(
-        path.join(root, 'src', 'a.ts'),
+        edited,
         "import { b } from './b';\nexport function a() {\n  return b() + 1;\n}\nexport const z = 2;\n",
       );
+      /* Linux stamps mtime from a coarse kernel clock that can trail
+         Date.now() by a few ms, so an edit written right after `ts` can carry
+         an mtime at or before it and fall outside the window (seen on the
+         ubuntu runner). Pin the edit's mtime past the cutoff. */
+      const editedAt = new Date(Date.parse(ts) + 2_000);
+      utimesSync(edited, editedAt, editedAt);
       expect((await call('analyze')).isError).toBe(false);
       // A full analyze re-mines and refreshes the copy (the spec's reuse:false).
       expect(savedAt()).toBeGreaterThan(minedAt);

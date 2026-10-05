@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
   analyze,
   buildChangeVerdict,
@@ -915,8 +915,18 @@ describe('secrets in test fixtures (v0.3.11)', () => {
    as a key itself. */
 describe('analyze — secret fingerprints and rules revision', () => {
   const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  /* Seeded, not Math.random: a fixture drawn by chance can miss the
+     scanner's gates (14 random letters and digits are all letters 8% of the
+     time, which reads as a variable name; an AKIA body lands under the
+     entropy floor 0.3% of the time). Re-seeded before each test, so a test
+     draws the same values run alone or with the rest of the file. */
+  let seed = 0;
+  beforeEach(() => {
+    seed = 20261005;
+  });
+  const random = () => (seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 2 ** 32;
   const pick = (alphabet: string, n: number): string =>
-    Array.from({ length: n }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join('');
+    Array.from({ length: n }, () => alphabet[Math.floor(random() * alphabet.length)]).join('');
   const fakePem = (): string =>
     [
       '-----BEGIN ' + 'RSA PRIVATE KEY-----',

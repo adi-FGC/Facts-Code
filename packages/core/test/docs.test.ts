@@ -90,18 +90,42 @@ describe('parseMarkdownStructure — CommonMark fences (UI-08)', () => {
    ~9 s, while the fixed parsers take well under 1 s. */
 describe('parseMarkdownStructure / HTML docs — linear on hostile lines (CORE-P2-02)', () => {
   const N = 400_000;
-  const fill = (unit: string, n = N) => unit.repeat(Math.ceil(n / unit.length));
-  /* 2 s of CPU per shape. CPU, not wall time: a CI runner sharing 3-4 vCPUs
-     with every other suite stretches wall time 10-20x, but not this
-     process's own CPU use. Node's process, typed locally: this browser-safe
-     package compiles its tests without @types/node. */
+  const fill = (unit: string) => (n: number) => unit.repeat(Math.ceil(n / unit.length));
+  /* Linear, measured as growth: twice the input must cost less than three
+     times the CPU. The fixed parsers double it (1.7-2.2x); the old patterns
+     at least quadrupled it. A growth ratio holds on any machine, where a
+     fixed budget did not: the same shape took 266 ms here and 2.1 s on the
+     GitHub ubuntu runner. CPU, not wall time, so suites sharing the runner
+     don't count. A doubled input that parses in under 500 ms passes
+     outright: that is far below what the old patterns cost here (~9 s or
+     more on the smaller input), and the CPU clock's ~16 ms tick on Windows
+     makes ratios of tiny times noise. One re-measure absorbs a GC pause.
+     Node's process, typed locally: this browser-safe package compiles its
+     tests without @types/node. */
   type CpuUsage = { user: number; system: number };
   const node = globalThis as unknown as { process: { cpuUsage(prev?: CpuUsage): CpuUsage } };
-  const within = (label: string, f: () => void) => {
+  const cpuMs = (f: () => void) => {
     const start = node.process.cpuUsage();
     f();
     const { user, system } = node.process.cpuUsage(start);
-    expect((user + system) / 1000, label).toBeLessThan(2_000);
+    return (user + system) / 1000;
+  };
+  const linear = (
+    label: string,
+    build: (n: number) => string,
+    parse: (text: string) => void,
+    n = N,
+  ) => {
+    const small = build(n);
+    const big = build(2 * n);
+    const grow = () => {
+      const a = cpuMs(() => parse(small));
+      const b = cpuMs(() => parse(big));
+      return { ok: b < 500 || b < 3 * a, seen: `${a.toFixed(0)} ms, then ${b.toFixed(0)} ms` };
+    };
+    let r = grow();
+    if (!r.ok) r = grow();
+    expect(r.ok, `${label}: ${r.seen} of CPU for twice the input`).toBe(true);
   };
   const html = (text: string) =>
     buildDocFile({
@@ -116,28 +140,28 @@ describe('parseMarkdownStructure / HTML docs — linear on hostile lines (CORE-P
     });
 
   it('parses hostile markdown lines in linear time', { timeout: 120_000 }, () => {
-    const shapes = {
+    const shapes: Record<string, (n: number) => string> = {
       'unclosed [': fill(' [a'),
       'unclosed ![': fill(' ![a'),
       'repeated [a](': fill('[a]('),
       'hrefs broken by [': fill('[a](bbbbbbbbbbbbbbbbbbbb['),
-      'heading + space run': '# a' + ' '.repeat(N) + 'b',
-      'table rule dash run': '| a | b |\n' + '-'.repeat(N) + 'x',
-      'checkbox + CR': '- [ ] ' + ' '.repeat(N) + 'x\r',
-      'TODOs + CR': fill('TODO ') + '\r',
+      'heading + space run': (n) => '# a' + ' '.repeat(n) + 'b',
+      'table rule dash run': (n) => '| a | b |\n' + '-'.repeat(n) + 'x',
+      'checkbox + CR': (n) => '- [ ] ' + ' '.repeat(n) + 'x\r',
+      'TODOs + CR': (n) => fill('TODO ')(n) + '\r',
     };
-    for (const [label, text] of Object.entries(shapes))
-      within(label, () => parseMarkdownStructure(text));
+    for (const [label, build] of Object.entries(shapes))
+      linear(label, build, parseMarkdownStructure);
   });
 
   it('parses hostile HTML in linear time', { timeout: 120_000 }, () => {
-    for (const [label, text] of Object.entries({
-      'unclosed <h1>': fill('<h1>', 2 * N),
-      'unclosed <': fill('<', 2 * N),
-      'unclosed <title>': fill('<title>', 2 * N),
-      'unclosed <h1 attrs': fill('<h1 a', 2 * N),
+    for (const [label, build] of Object.entries({
+      'unclosed <h1>': fill('<h1>'),
+      'unclosed <': fill('<'),
+      'unclosed <title>': fill('<title>'),
+      'unclosed <h1 attrs': fill('<h1 a'),
     }))
-      within(label, () => html(text));
+      linear(label, build, html, 2 * N);
   });
 
   it('keeps the outline, todos, tables and links it found before', () => {
