@@ -22,7 +22,7 @@ publish = "apps/ui-remix/dist"
 # `pnpm install` + filtered build keeps the deploy fast — Netlify
 # caches node_modules between runs and only rebuilds the @factstack
 # workspace deps the UI app actually consumes.
-# OPD-3: pin the same pnpm CI validates (package.json packageManager: 12.8.1)
+# OPD-3: pin the same pnpm CI validates (package.json packageManager: 12.9.1)
 # so Netlify's frozen-lockfile install matches. OPD-5: build:static emits no
 # source maps (the default `build` mode does), so production doesn't publicly
 # serve the full TypeScript source — matching the Cloudflare deploy.
@@ -31,7 +31,7 @@ publish = "apps/ui-remix/dist"
 # a site published without dist/mcp-auth-config.json breaks MCP sign-in. fb.mjs
 # is gitignored, so this site needs FACTS_FB_WEB_CONFIG in its Netlify env;
 # without it the build fails and Netlify keeps serving the previous deploy.
-command = "corepack enable && corepack use pnpm@12.8.1 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static && node apps/ui-remix/scripts/gen-fb-config.mjs --require"
+command = "corepack enable && corepack use pnpm@12.9.1 && pnpm install --frozen-lockfile && pnpm --filter @factstack/ui-remix build:static && node apps/ui-remix/scripts/gen-fb-config.mjs --require"
 
 [build.environment]
 # Pin Node high enough for Remix v3 + Vite 8. Remix 3 requires >=24.3.0.
