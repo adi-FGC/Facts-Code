@@ -23,7 +23,7 @@ describe('searchModels', () => {
     expect(ids('anthropic')).toEqual(
       MODEL_CATALOG.filter((m) => m.vendor === 'Anthropic').map((m) => m.id),
     );
-    expect(ids('qwen3.8')).toEqual(['qwen3-8-max']);
+    expect(ids('qwen3.8')).toEqual(['qwen3-8-max', 'qwen3-8-flash']);
   });
 
   it('still finds the model when the shown text is edited rather than replaced', () => {

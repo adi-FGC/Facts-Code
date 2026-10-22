@@ -25,7 +25,9 @@ const wrap = css({
   paddingInline: 'var(--gutter)',
   height: 'var(--status-h)',
   fontFamily: 'var(--font-mono)',
-  fontSize: 'var(--fs-10)',
+  /* F-59 — 11px, not 10: the 10px strip sat at the AA floor (~4.5:1) in
+     faint ink; one step up keeps the colophon quiet and legible. */
+  fontSize: 'var(--fs-11)',
   fontVariantNumeric: 'tabular-nums',
   letterSpacing: '0.06em',
   textTransform: 'uppercase',

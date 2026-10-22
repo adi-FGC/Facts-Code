@@ -194,6 +194,21 @@ describe('extractSymbols — edge cases', () => {
   });
 });
 
+describe('extractSymbols — expression default exports', () => {
+  it('keeps a call, object or wrapped-component default export as the file’s `default`', () => {
+    for (const src of [
+      "import { defineConfig } from 'vite';\nexport default defineConfig({ plugins: [] });\n",
+      'export default { name: "cfg", debug: true };\n',
+      "import { connect } from 'react-redux';\nfunction View() { return null; }\nexport default connect()(View);\n",
+    ]) {
+      const syms = extractSymbols(src, '.ts');
+      expect(syms, src).toContainEqual(
+        expect.objectContaining({ name: 'default', exported: true, isDefault: true }),
+      );
+    }
+  });
+});
+
 describe('extractSymbols — export lists and `export default Name` (HUNT-CORE-11)', () => {
   it('marks declarations named by an export list as exported, without duplicates', () => {
     const src = `function a() {}\nclass C {}\nexport { a };\nexport default C;\n`;

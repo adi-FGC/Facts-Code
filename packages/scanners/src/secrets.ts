@@ -19,6 +19,14 @@ export interface SecretRule {
    *  than a provider-specific shape: reported only on request, as an
    *  UNGRADED "possible secret" (owner decision 2026-09-24). */
   possible?: boolean;
+  /** A last gate on the matched body, for shapes a regex cannot judge (what
+   *  a JWT's payload says). False = not a finding under this rule, and not
+   *  redacted by it either. */
+  accept?: (body: string) => boolean;
+  /** A `possible` rule whose body is a structured token (a JWT), not a
+   *  free-form value: the free-form gates (a reference, a sample word, a dev
+   *  default, a label, a version) do not apply to it. */
+  shaped?: boolean;
 }
 
 export interface SecretFinding {
@@ -40,12 +48,61 @@ export interface SecretFinding {
   fingerprint?: string;
 }
 
+/** A JWT: three base64url segments, the first two JSON objects (`eyJ` is
+ *  `{"`). The body is the whole token. */
+const JWT_SHAPE =
+  /\b(eyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{16,})(?![A-Za-z0-9_-])/;
+
+const B64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+/** base64url → the decoded bytes as a string of code points 0..255, or null
+ *  on a character outside the alphabet. Non-ASCII in the JSON arrives as raw
+ *  UTF-8 byte values, harmless for the ASCII claims read here; no base64
+ *  global, so the scanner stays isomorphic. */
+function base64UrlAscii(s: string): string | null {
+  let bits = 0;
+  let acc = 0;
+  let out = '';
+  for (const ch of s) {
+    if (ch === '=') break;
+    const v = B64URL.indexOf(ch);
+    if (v < 0) return null;
+    acc = ((acc << 6) | v) & 0xffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      out += String.fromCharCode((acc >> bits) & 0xff);
+    }
+  }
+  return out;
+}
+
+/** One string claim of a JWT's payload, or null when the token does not
+ *  decode to a JSON object with it. */
+function jwtClaim(token: string, claim: string): string | null {
+  const payload = token.split('.')[1];
+  if (!payload) return null;
+  const json = base64UrlAscii(payload);
+  if (json == null) return null;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const v = (parsed as Record<string, unknown>)[claim];
+    return typeof v === 'string' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
 const RULES: SecretRule[] = [
   {
     id: 'aws-access-key',
     label: 'AWS access key ID',
     pattern: /\b(AKIA[0-9A-Z]{16})\b/,
-    minEntropy: 3.2,
+    /* The shape is the signal: a fixed prefix and 16 base32 characters. The
+       entropy gate only has to stop placeholders (AKIAXXXXXXXXXXXXXXXX, which
+       the repeat gate catches too); at 3.2 bits it dropped 1 in 250 GENUINE
+       key ids (F-05). */
+    minEntropy: 2,
   },
   {
     id: 'aws-secret-key',
@@ -140,6 +197,44 @@ const RULES: SecretRule[] = [
     pattern: /\b(sk-ant-[A-Za-z0-9-_]{20,})\b/,
     minEntropy: 3.5,
   },
+  /* Shapes added 2026-10-22 (F-04): tokens that were shipped raw in
+     docs[].content because no rule knew them. Fixed prefixes, so the entropy
+     gate only has to stop placeholders. */
+  {
+    id: 'twilio-api-key',
+    label: 'Twilio API key SID',
+    pattern: /\b(SK[0-9a-f]{32})\b/,
+    minEntropy: 3,
+  },
+  {
+    id: 'huggingface-token',
+    label: 'Hugging Face access token',
+    pattern: /\b(hf_[A-Za-z0-9]{34,})\b/,
+    minEntropy: 3.5,
+  },
+  {
+    id: 'google-oauth-client-secret',
+    label: 'Google OAuth client secret',
+    pattern: /\b(GOCSPX-[A-Za-z0-9_-]{28})(?![A-Za-z0-9_-])/,
+    minEntropy: 3.5,
+  },
+  {
+    id: 'shopify-access-token',
+    label: 'Shopify access token',
+    pattern: /\b(shp(?:at|ca|pa|ss)_[0-9a-fA-F]{32})\b/,
+    minEntropy: 3,
+  },
+  {
+    // A Supabase service-role key bypasses row-level security, and its
+    // payload says so. The anon key is the same JWT shape and public by
+    // design, so the JWT rules read the payload instead of grading every
+    // token (see the `jwt` rule below for the rest).
+    id: 'supabase-service-role-key',
+    label: 'Supabase service-role key',
+    pattern: JWT_SHAPE,
+    minEntropy: 3.5,
+    accept: (body) => jwtClaim(body, 'role') === 'service_role',
+  },
   {
     id: 'private-key-header',
     label: 'Private key block',
@@ -178,6 +273,26 @@ const RULES: SecretRule[] = [
     pattern:
       /\b(?:postgres(?:ql)?|mysql|mariadb|mongodb|rediss?|amqps?|mssql|sqlserver|cockroachdb|redshift)(?:\+[a-z0-9]+)?:\/\/[^\s:/@'"]+:([^\s@/'"]{3,})@/i,
     minEntropy: 2.5,
+    possible: true,
+  },
+  {
+    // Any other JWT: a session or API token when hard-coded; a Supabase anon
+    // key (role "anon") is public by design and is left alone.
+    id: 'jwt',
+    label: 'Possible secret (JSON Web Token)',
+    pattern: JWT_SHAPE,
+    minEntropy: 3.5,
+    possible: true,
+    shaped: true,
+    accept: (body) => jwtClaim(body, 'role') !== 'anon',
+  },
+  {
+    // A literal bearer token in a header. A reference (`Bearer ${token}`)
+    // has no run of token characters after the word, so it never matches.
+    id: 'bearer-token',
+    label: 'Possible secret (hard-coded bearer token)',
+    pattern: /\bAuthorization["']?\s*[:=]\s*["']?Bearer\s+([A-Za-z0-9._~+/=-]{20,})/i,
+    minEntropy: 3.5,
     possible: true,
   },
 ];
@@ -219,10 +334,15 @@ export function isPlaceholderSecret(body: string): boolean {
 
 /* Generic rules match far more than keys, so they get three more gates: a
    value that is a reference, not a literal (`${DB_PASSWORD}`, `{{ .Pass }}`,
-   `@vercel-secret`, `settings.API_TOKEN`, a bare word); a value that spells
-   out a sample (`my-secret-key`, `password123`, `local-secret`) — a random
-   secret essentially never contains these words; and stock dev passwords. */
-const REFERENCE_VALUE = /^[$%<{*@]|\$\{|\{\{|\$\(|^[A-Za-z_]+$|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$/;
+   `@vercel-secret`, `settings.API_TOKEN`, a bare UPPER_SNAKE name such as
+   `FROM_SECRET_MANAGER`, a language literal such as `undefined`); a value
+   that spells out a sample (`my-secret-key`, `password123`, `local-secret`)
+   — a random secret essentially never contains these words; and stock dev
+   passwords. A run of lower- or mixed-case letters is NOT a reference: an
+   all-letter password (`DB_PASSWORD=hunterbrookfield`) is as much a possible
+   secret as any other, and the old bare-word gate hid every one (F-05). */
+const REFERENCE_VALUE =
+  /^[$%<{*@]|\$\{|\{\{|\$\(|^[A-Z_][A-Z0-9_]*$|^(?:null|undefined|true|false|none|nil|None|True|False)$|^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)+$/;
 const SAMPLE_WORD =
   /secret|passw|token|change|my[-_]|this[-_]?is|test|demo|sample|local|admin|default/i;
 const DEV_DEFAULT_PASSWORDS = new Set(
@@ -261,7 +381,8 @@ function passes(rule: SecretRule, body: string): { ok: boolean; entropy: number 
   const entropy = shannonEntropy(body);
   if (rule.minEntropy == null) return { ok: true, entropy }; // header rules: no body to judge
   let ok = entropy >= rule.minEntropy && !isPlaceholderSecret(body);
-  if (ok && rule.possible) {
+  if (ok && rule.accept && !rule.accept(body)) ok = false;
+  if (ok && rule.possible && !rule.shaped) {
     ok =
       !REFERENCE_VALUE.test(body) &&
       !SAMPLE_WORD.test(body) &&

@@ -150,6 +150,9 @@ const panel = css({
      the panel reads as "settling in" rather than "popping in". The
      transform-only animation runs on the compositor — no layout work. */
   animation: 'openmodal-panel-in 220ms var(--ease-out-quart) both',
+  /* F-48: the panel takes focus on open (tabIndex -1); the ring belongs on
+     its controls, not around the whole dialog. */
+  '&:focus': { outline: 'none' },
 });
 
 const head = css({
@@ -825,6 +828,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
   /* Closure state: same pattern as CommandPalette. */
   let open = false;
+  /* F-48 — focus management: the element that opened the dialog gets focus
+     back on close; while open, Tab cycles inside the panel (trapTab). */
+  let panelEl: HTMLDivElement | null = null;
+  let returnFocusTo: HTMLElement | null = null;
   let mode: Mode = 'local';
   let phase: Phase = 'idle';
   let error = '';
@@ -832,6 +839,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   let urlInput = '';
   let tokenInput = readStoredToken();
   let tokenInputEl: HTMLInputElement | null = null;
+  /* Storing a PAT is opt-in: nothing lands in localStorage unless the box
+     is ticked, and it starts ticked only when a token is already stored. */
+  let rememberToken = tokenInput !== '';
   let urlInputEl: HTMLInputElement | null = null;
   let dirInputEl: HTMLInputElement | null = null;
   /* Flips true the first time showDirectoryPicker() throws a non-Abort
@@ -1043,6 +1053,10 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
   function show(nextMode: Mode = 'local') {
     if (open && mode === nextMode) return;
+    /* F-48 — remember the opener (a header button, the page) so Close hands
+       focus back to it rather than dropping it on <body>. */
+    if (!open)
+      returnFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     open = true;
     mode = nextMode;
     phase = 'idle';
@@ -1074,12 +1088,20 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
        accidental click on Enter. */
     if (nextMode === 'github') {
       setTimeout(() => urlInputEl?.focus(), 0);
+    } else {
+      /* F-48 — focus the panel itself (tabIndex -1), not the directory
+         picker: Enter on it would open the OS dialog unasked. From here Tab
+         reaches the first control. */
+      setTimeout(() => panelEl?.focus({ preventScroll: true }), 0);
     }
   }
 
   function hide() {
     if (!open) return;
     open = false;
+    const back = returnFocusTo;
+    returnFocusTo = null;
+    if (back?.isConnected) setTimeout(() => back.focus({ preventScroll: true }), 0);
     /* Don't reset `phase` synchronously — the result celebration row
        (DONE) flashes briefly before close, and resetting state mid-
        animation would clear it. handle.update() picks up the close
@@ -1101,7 +1123,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       e.preventDefault();
       if (phase === 'scanning' || phase === 'picking') cancelScan();
       else hide();
+      return;
     }
+    if (e.key === 'Tab' && panelEl) trapTab(e, panelEl);
   }
 
   /* Abandon the in-flight scan (UI-10): a worker that died or never loaded
@@ -1289,9 +1313,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       void handle.update();
       return;
     }
-    /* Persist the PAT only if the user actually entered one — never
-       fabricate, never push empty values to localStorage. */
-    if (tokenInput.trim()) writeStoredToken(tokenInput.trim());
+    /* Persist the PAT only if the user entered one AND asked to keep it —
+       never fabricate, never push empty values to localStorage. */
+    if (tokenInput.trim() && rememberToken) writeStoredToken(tokenInput.trim());
     const fullSpec: GitHubFetchSpec = {
       ...spec,
       ...(tokenInput.trim() ? { token: tokenInput.trim() } : {}),
@@ -1535,6 +1559,7 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   function forgetToken() {
     clearStoredToken();
     tokenInput = '';
+    rememberToken = false;
     if (tokenInputEl) tokenInputEl.value = '';
     void handle.update();
   }
@@ -1574,7 +1599,15 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           }),
         ]}
       >
-        <div mix={panel}>
+        <div
+          tabIndex={-1}
+          mix={[
+            panel,
+            ref<HTMLDivElement>((node) => {
+              panelEl = node;
+            }),
+          ]}
+        >
           <div mix={head}>
             <span mix={title}>{isPostScan ? 'Scan complete' : 'Open · scan a project'}</span>
             {!isPostScan && (
@@ -2243,6 +2276,21 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
               }),
             ]}
           />
+          <label mix={rememberRow}>
+            <input
+              type="checkbox"
+              checked={rememberToken}
+              disabled={phase === 'scanning'}
+              mix={on<HTMLInputElement, 'change'>('change', (e) => {
+                rememberToken = (e.currentTarget as HTMLInputElement).checked;
+                /* Unticking forgets at once; ticking saves on the next fetch,
+                   so a token is never stored before it has been used. */
+                if (!rememberToken) clearStoredToken();
+                void handle.update();
+              })}
+            />{' '}
+            Remember this token in this browser
+          </label>
           {(tokenInput.trim().length > 0 || readStoredToken() !== '') && (
             <button
               type="button"
@@ -2281,6 +2329,46 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 }
 
 /* ─────────── localStorage glue ─────────── */
+
+/** Focusable controls, as the browser's Tab order sees them. */
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/** Keep Tab inside `panel` (F-48): from the last control wrap to the first
+ *  and back; a focus outside the panel (the opener, the page) re-enters at
+ *  the edge. Controls the browser would skip (display: none) are skipped. */
+function trapTab(e: KeyboardEvent, panel: HTMLElement): void {
+  const focusable = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(
+    (el) => el.getAttribute('aria-hidden') !== 'true' && el.offsetParent !== null,
+  );
+  if (focusable.length === 0) {
+    e.preventDefault();
+    panel.focus();
+    return;
+  }
+  const first = focusable[0]!;
+  const last = focusable[focusable.length - 1]!;
+  const active = document.activeElement;
+  const inside = active instanceof Node && panel.contains(active);
+  if (e.shiftKey) {
+    if (!inside || active === first || active === panel) {
+      e.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    e.preventDefault();
+    first.focus();
+  }
+}
+
+const rememberRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '6px',
+  marginTop: '6px',
+  fontSize: '12px',
+  color: 'var(--fg-muted)',
+});
 
 function readStoredToken(): string {
   if (typeof localStorage === 'undefined') return '';

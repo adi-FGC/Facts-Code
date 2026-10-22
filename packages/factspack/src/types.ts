@@ -76,7 +76,11 @@ export interface PackTable {
  *
  * `addedRows` emit as `+ ...cells` lines. `deletedIds` emit as
  * `x <id>` lines, where `<id>` is the value of the row's primary-key
- * column (column 1 by convention).
+ * column (column 1 by convention). Within a table the encoder writes
+ * every `x` line BEFORE the `+` lines: an updated row is a delete of
+ * the old key plus an add of the new row under the same key, and a
+ * reader applying lines in order must not delete what it just added.
+ * `applyChain` applies a decoded diff in that same order.
  *
  * The schema MUST still be declared even when both arrays are empty —
  * a multi-table incremental pack tracks active schema by `&` lines and

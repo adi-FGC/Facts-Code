@@ -27,12 +27,9 @@
     "format": "oxfmt",
     "format:check": "oxfmt --check",
     "format:md": "prettier --write \"**/*.md\"",
-    "format:md:check": "prettier --check \"**/*.md\"",
-    "changeset": "changeset",
-    "release": "changeset publish"
+    "format:md:check": "prettier --check \"**/*.md\""
   },
   "devDependencies": {
-    "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
     "eslint": "^10.11.0",
     "oxfmt": "^0.71.0",

@@ -18,20 +18,23 @@
   color-scheme: light dark;
 
   /* ─── Light theme — warm tinted neutrals, hue=65° (orange family) ─── */
-  --bg: oklch(98.8% 0.006 65); /* near-white, warm */
-  --bg-rgb: 253, 250, 244;
-  --surface-1: oklch(99.6% 0.003 65); /* slightly cooler "page" tint */
-  --surface-1-rgb: 255, 253, 248;
-  --surface-2: oklch(96.5% 0.008 65); /* recessed panels */
-  --surface-3: oklch(93.2% 0.012 65); /* deepest recess */
+  /* F-60 — porcelain, not near-white: the eye-care canvas (#f6f5f1) keeps a
+     long reading session off a glaring page; cards sit a step lighter and
+     wells a step deeper (alabaster/sand). */
+  --bg: oklch(96.9% 0.005 80); /* warm porcelain */
+  --bg-rgb: 246, 245, 241;
+  --surface-1: oklch(98.6% 0.004 80); /* paper: cards and the page sheet */
+  --surface-1-rgb: 251, 250, 247;
+  --surface-2: oklch(93.6% 0.008 70); /* recessed panels */
+  --surface-3: oklch(90.5% 0.011 70); /* deepest recess */
   --surface-glass-bg: color-mix(in oklab, oklch(96% 0.008 65) 62%, transparent);
   --surface-glass-border: color-mix(in oklab, oklch(20% 0.018 65) 14%, transparent);
   --surface-glass-highlight: color-mix(in oklab, white 70%, transparent);
 
   --fg: oklch(14% 0.018 65); /* deep warm-black */
   --fg-muted: oklch(38% 0.014 65); /* AA over bg */
-  --fg-subtle: oklch(52% 0.01 65); /* AA over bg */
-  --fg-faint: oklch(54% 0.008 65); /* AA over bg, ~4.9:1 (#302) */
+  --fg-subtle: oklch(50% 0.01 65); /* AA over the porcelain bg */
+  --fg-faint: oklch(52% 0.008 65); /* AA over bg, ~5:1 (#302; re-tuned for F-60) */
 
   --border: color-mix(in oklab, oklch(20% 0.018 65) 12%, transparent);
   --border-strong: color-mix(in oklab, oklch(20% 0.018 65) 24%, transparent);

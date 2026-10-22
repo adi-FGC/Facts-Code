@@ -283,6 +283,32 @@ test.describe('Vulnerabilities — OSV scan (stubbed)', () => {
     ).toBeVisible();
   });
 
+  /* F-01 — the weekly re-check sent any dataset's package names to OSV.dev,
+     including a ⌘O scan of someone's private project. Only the page's own
+     baked dataset re-checks itself; an opened project waits for a click. */
+  test('an opened project is not re-checked until its owner asks', async ({ page }) => {
+    const osv = await stubOsv(page, { lodash: [WS_ADVISORY.id] });
+    await page.goto('/vulnerabilities');
+    await waitForReady(page);
+    // The same stale baked scan that makes the deployed page re-check itself…
+    await swapDataset(page, withBakedScan(30), 'opened');
+    const main = page.locator('main#main');
+    const ask = main.getByRole('button', { name: 'Check these dependencies against OSV.dev now' });
+    await expect(ask).toBeVisible();
+    await expect(
+      main.getByText('nothing about it leaves your browser', { exact: false }),
+    ).toBeVisible();
+    // …but nothing was asked of OSV: no querybatch, no re-check on screen.
+    await page.waitForTimeout(500);
+    expect(osv.batches()).toBe(0);
+    await expect(main.getByText('re-checked in your browser', { exact: false })).toHaveCount(0);
+
+    await ask.click();
+    await expect.poll(() => osv.batches()).toBeGreaterThan(0);
+    await expect(main.getByText('re-checked in your browser', { exact: false })).toBeVisible();
+    await expect(ask).toHaveCount(0);
+  });
+
   test('the weekly re-check holds a degraded answer for an hour, not a week; Force refresh re-runs it', async ({
     page,
   }) => {

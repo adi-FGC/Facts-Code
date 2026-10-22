@@ -251,7 +251,9 @@ export interface AnalyzeOptions {
    *  reproducible; pass nothing and it isn't. Mirrors the injectable-clock
    *  pattern already used by `recordLearning` (`input.timestamp ?? …`) and the
    *  vulnerability scan (`now: number = Date.now()`).
-   *  FOLLOW-UP: thread this from the CLI/MCP adapters to retire the fallback. */
+   *  The CLI and the MCP server pass fs-node's generatedAtFromEnv() (which
+   *  honours SOURCE_DATE_EPOCH) and the browser worker its own clock
+   *  (F-38); the fallback remains for direct callers and tests. */
   generatedAt?: string | undefined;
   /** Whole-scan caveats the host knows and the walk cannot see, e.g. the
    *  browser GitHub scan's "truncated tree: some files were not scanned".
@@ -695,13 +697,20 @@ export async function analyze(fs: FactsFS, opts: AnalyzeOptions = {}): Promise<A
          declarations array. Export lists (`export { a }`) and
          `export default App` mark the declaration itself, and the
          extractor flags the default export (named or not). */
-      exports: symbols
-        .filter((s) => s.exported)
-        .map((s) => ({
-          name: s.name,
-          kind: s.kind,
-          isDefault: s.isDefault === true || s.name === 'default',
-        })),
+      exports: [
+        ...symbols
+          .filter((s) => s.exported)
+          .map((s) => ({
+            name: s.name,
+            kind: s.kind,
+            isDefault: s.isDefault === true || s.name === 'default',
+          })),
+        /* `export { a as b } from './x'` and `export * from './x'` are part of
+           what a module surfaces yet declare nothing, so the symbol pass never
+           saw them: a barrel reported `exports: []`. `*` = everything ./x
+           exports. */
+        ...reexportedExports(importsByFile.get(f.path) ?? []),
+      ],
       declarations: symbols.map((s) => ({
         name: s.name,
         kind: s.kind,
@@ -1169,6 +1178,27 @@ function reclassifyRoutes(routes: DetectedRoute[], frameworks: string[]): Detect
   });
 }
 
+/** The export entries a file's `export … from` re-exports add (see the
+ *  `exports` builder): each exported name once, `*` for a star re-export. */
+function reexportedExports(
+  raws: ReadonlyArray<{ reexports?: string[]; reexportAll?: boolean }>,
+): Array<{ name: string; kind: 'variable'; isDefault: boolean }> {
+  const out: Array<{ name: string; kind: 'variable'; isDefault: boolean }> = [];
+  const seen = new Set<string>();
+  for (const r of raws) {
+    for (const name of r.reexports ?? []) {
+      if (seen.has(name)) continue;
+      seen.add(name);
+      out.push({ name, kind: 'variable', isDefault: name === 'default' });
+    }
+    if (r.reexportAll && !seen.has('*')) {
+      seen.add('*');
+      out.push({ name: '*', kind: 'variable', isDefault: false });
+    }
+  }
+  return out;
+}
+
 /** True iff a specifier looks like something that SHOULD resolve to a project
  *  file — either relative, or a known workspace name. External packages are
  *  allowed to "resolve to null" without becoming a risk. */
@@ -1190,6 +1220,12 @@ function isProjectLocalSpecifier(
   // alias prefix in a scoped-alias monorepo.
   for (const rule of ctx.aliases ?? []) {
     if (!aliasInScope(rule, importerPath)) continue;
+    /* A catch-all `"*": [...]` (typings for every bare import, usually
+       `node_modules/*` or `types/*`) governs every specifier and so says
+       nothing about intent: with it, every external import of a clean repo
+       read as a broken project-local one (health 100 → 68). It still
+       RESOLVES through resolveAlias when a target exists. */
+    if (rule.wildcard && rule.prefix === '' && rule.suffix === '') continue;
     if (rule.wildcard) {
       if (source.length < rule.prefix.length + rule.suffix.length) continue;
       if (source.startsWith(rule.prefix) && (rule.suffix === '' || source.endsWith(rule.suffix)))

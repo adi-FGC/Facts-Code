@@ -19,6 +19,14 @@ import type { Handle } from 'remix/component';
 import { css, on } from 'remix/component';
 import type { Dataset } from '../lib/loadArtifacts.ts';
 import { moveRoving } from '../lib/roving.ts';
+import {
+  DENSITY_ROW_PAD,
+  FONT_SCALE_MAX,
+  FONT_SCALE_MIN,
+  PREF_KEYS,
+  type Density,
+} from '../lib/prefs.ts';
+import { applyTheme, readStoredTheme, selectTheme, type Theme } from '../lib/theme.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
@@ -30,35 +38,18 @@ interface ConfigProps {
 }
 
 /* ──────────────────────────────────────────────────────────────────
- * Storage keys — namespaced so a Reset can scrub them all in one
- * pass without nuking unrelated localStorage entries.
+ * Storage keys live in lib/prefs.ts, shared with the boot script in
+ * index.html (which applies them before first paint); the theme logic in
+ * lib/theme.ts, shared with ThemeToggle and the ⌘J shortcut (F-45/F-46).
+ * Reset scrubs exactly these keys, never unrelated localStorage entries.
  * ────────────────────────────────────────────────────────────────── */
-const KEYS = {
-  theme: 'facts-theme',
-  fontMult: 'facts-fs-mult',
-  density: 'facts-density',
-} as const;
-
-type Theme = 'system' | 'light' | 'dark';
-type Density = 'comfortable' | 'compact';
-
-function readTheme(): Theme {
-  try {
-    const v = localStorage.getItem(KEYS.theme);
-    if (v === 'light' || v === 'dark') return v;
-    return 'system';
-  } catch {
-    return 'system';
-  }
-}
-
 function readFontMult(): number {
   try {
-    const v = localStorage.getItem(KEYS.fontMult);
+    const v = localStorage.getItem(PREF_KEYS.fontScale);
     if (!v) return 1;
     const n = parseFloat(v);
     if (!Number.isFinite(n)) return 1;
-    return Math.min(1.35, Math.max(0.85, n));
+    return Math.min(FONT_SCALE_MAX, Math.max(FONT_SCALE_MIN, n));
   } catch {
     return 1;
   }
@@ -66,7 +57,7 @@ function readFontMult(): number {
 
 function readDensity(): Density {
   try {
-    const v = localStorage.getItem(KEYS.density);
+    const v = localStorage.getItem(PREF_KEYS.density);
     if (v === 'compact') return v;
     return 'comfortable';
   } catch {
@@ -74,38 +65,19 @@ function readDensity(): Density {
   }
 }
 
-function applyTheme(t: Theme) {
-  const html = document.documentElement;
-  let effective: 'light' | 'dark';
-  if (t === 'system')
-    effective = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-  else effective = t;
-  html.dataset.theme = effective;
-  html.style.colorScheme = effective;
-}
-
 function applyFontMult(n: number) {
   document.documentElement.style.setProperty('--fs-mult', String(n));
 }
 
 function applyDensity(d: Density) {
-  document.documentElement.style.setProperty('--row-pad-mult', d === 'compact' ? '0.65' : '1');
+  document.documentElement.style.setProperty('--row-pad-mult', DENSITY_ROW_PAD[d]);
   document.documentElement.dataset.density = d;
-}
-
-function persistTheme(t: Theme) {
-  try {
-    if (t === 'system') localStorage.removeItem(KEYS.theme);
-    else localStorage.setItem(KEYS.theme, t);
-  } catch {
-    /* private mode */
-  }
 }
 
 function persistFontMult(n: number) {
   try {
-    if (n === 1) localStorage.removeItem(KEYS.fontMult);
-    else localStorage.setItem(KEYS.fontMult, n.toFixed(2));
+    if (n === 1) localStorage.removeItem(PREF_KEYS.fontScale);
+    else localStorage.setItem(PREF_KEYS.fontScale, n.toFixed(2));
   } catch {
     /* private mode */
   }
@@ -113,8 +85,8 @@ function persistFontMult(n: number) {
 
 function persistDensity(d: Density) {
   try {
-    if (d === 'comfortable') localStorage.removeItem(KEYS.density);
-    else localStorage.setItem(KEYS.density, d);
+    if (d === 'comfortable') localStorage.removeItem(PREF_KEYS.density);
+    else localStorage.setItem(PREF_KEYS.density, d);
   } catch {
     /* private mode */
   }
@@ -322,7 +294,7 @@ const DENSITIES: Array<{ key: Density; label: string }> = [
 export function Config(handle: Handle<ConfigProps>) {
   // Closure state — read once at mount, mutate on user input, call
   // handle.update() to re-render the segments + slider value.
-  let theme: Theme = readTheme();
+  let theme: Theme = readStoredTheme();
   let fontMult = readFontMult();
   let density: Density = readDensity();
 
@@ -333,11 +305,24 @@ export function Config(handle: Handle<ConfigProps>) {
   applyFontMult(fontMult);
   applyDensity(density);
 
+  /* F-46 — the header toggle and ⌘J change the theme too; they announce it
+     on `factstack:theme`, so this radiogroup follows instead of going stale
+     (and System stays selectable whatever it last showed). */
+  const onThemeChange = (e: Event) => {
+    const next = (e as CustomEvent<Theme>).detail;
+    if (next !== theme && (next === 'system' || next === 'light' || next === 'dark')) {
+      theme = next;
+      void handle.update();
+    }
+  };
+  window.addEventListener('factstack:theme', onThemeChange);
+  handle.signal.addEventListener('abort', () =>
+    window.removeEventListener('factstack:theme', onThemeChange),
+  );
+
   function setTheme(t: Theme) {
-    if (t === theme) return;
     theme = t;
-    persistTheme(t);
-    applyTheme(t);
+    selectTheme(t);
     void handle.update();
   }
   function setFontMult(n: number) {
@@ -357,10 +342,9 @@ export function Config(handle: Handle<ConfigProps>) {
     theme = 'system';
     fontMult = 1;
     density = 'comfortable';
-    persistTheme('system');
+    selectTheme('system');
     persistFontMult(1);
     persistDensity('comfortable');
-    applyTheme('system');
     applyFontMult(1);
     applyDensity('comfortable');
     void handle.update();

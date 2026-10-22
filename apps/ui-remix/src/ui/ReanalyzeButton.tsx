@@ -28,7 +28,7 @@ const wrap = css({
   alignItems: 'stretch',
   position: 'relative',
   border: '1px solid var(--border)',
-  height: '28px',
+  height: '32px' /* F-61: a 32px target, like the theme toggle */,
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-11)',
   letterSpacing: '0.12em',
@@ -141,8 +141,15 @@ export function ReanalyzeButton(handle: Handle) {
       void handle.update();
       // Hand the fresh dataset to App.tsx via a CustomEvent. App
       // listens, replaces its module-cached `cached`, and fires every
-      // subscriber so the tree re-renders without a page reload.
-      window.dispatchEvent(new CustomEvent('factstack:dataset', { detail: fresh }));
+      // subscriber so the tree re-renders without a page reload. A
+      // re-analyze is the served CLI project again: 'served', not a
+      // browser-opened one, so the Vulnerabilities page treats it the
+      // same as the dataset the page loaded with.
+      window.dispatchEvent(
+        new CustomEvent('factstack:dataset', {
+          detail: { dataset: fresh, provenance: 'served' },
+        }),
+      );
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // 404/405/CORS on /api/reanalyze ⇒ definitely static, lock it.

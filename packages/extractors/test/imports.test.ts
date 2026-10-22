@@ -17,6 +17,22 @@ describe('extractImports · JS/TS', () => {
     expect([...specs].sort()).toEqual(['./local', '@scope/pkg', 'react']);
     // Type-only import → 'type-import' kind.
     expect(out.some((r) => r.specifier === 'react' && r.kind === 'type-import')).toBe(true);
+    // Re-exports carry the names they surface; a star re-export says so.
+    expect(out.find((r) => r.specifier === './local')?.reexports).toEqual(['something']);
+    expect(out.find((r) => r.specifier === '@scope/pkg')?.reexportAll).toBe(true);
+  });
+
+  it('records the exported names of `export … from` barrels (default and namespace too)', () => {
+    const out = extractImports(
+      "export { a, b as c } from './ab';\nexport { default } from './d';\nexport * as ns from './n';\nexport * from './all';\n",
+      '.ts',
+    );
+    expect(out.map((r) => [r.specifier, r.reexports ?? null, r.reexportAll ?? false])).toEqual([
+      ['./ab', ['a', 'c'], false],
+      ['./d', ['default'], false],
+      ['./n', ['ns'], false],
+      ['./all', null, true],
+    ]);
   });
 
   it('captures local binding names (F2 symbol-graph import resolution)', () => {
@@ -48,6 +64,22 @@ describe('extractImports · JS/TS', () => {
     const m = out.filter((r) => r.specifier === './m' && r.kind === 'import');
     expect(m).toHaveLength(1); // deduped by (specifier, kind)
     expect(m[0]?.names).toEqual(['a', 'b']); // but names merged, not dropped
+  });
+
+  it("records `import x = require('./y')` with its binding (TS import-equals)", () => {
+    const out = extractImports(
+      "import legacy = require('./legacy');\nimport type Shape = require('./shape');\n",
+      '.ts',
+    );
+    expect(out).toEqual([
+      expect.objectContaining({
+        specifier: './legacy',
+        kind: 'require',
+        line: 1,
+        names: ['legacy'],
+      }),
+      expect.objectContaining({ specifier: './shape', kind: 'type-import', line: 2 }),
+    ]);
   });
 
   it('catches dynamic imports and require()', () => {

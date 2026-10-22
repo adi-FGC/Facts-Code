@@ -43,7 +43,9 @@ const handle = (color: string) =>
     position: 'fixed',
     right: '0',
     top: '50%',
-    transform: 'translateY(-50%)',
+    /* `translate`, not transform: the hover nudge below composes with it,
+       and the phone layout can drop it on its own. */
+    translate: '0 -50%',
     zIndex: '40',
     display: 'flex',
     flexDirection: 'column',
@@ -57,8 +59,20 @@ const handle = (color: string) =>
     cursor: 'pointer',
     boxShadow: '0 4px 24px rgba(0,0,0,0.25)',
     transition: 'transform var(--dur-quick, 140ms) var(--ease-out-quart, ease), background 140ms',
-    '&:hover': { transform: 'translateY(-50%) translateX(-2px)' },
+    '&:hover': { transform: 'translateX(-2px)' },
     '&:focus-visible': { outline: '2px solid ' + color, outlineOffset: '2px' },
+    /* F-54 — on phones the mid-height edge handle sat over content (it
+       covered the Overview health call-to-action at 375px). Dock it
+       bottom-right, above the status bar, as a compact horizontal pill. */
+    '@media (max-width: 599px)': {
+      top: 'auto',
+      bottom: 'calc(var(--status-h) + 12px)',
+      translate: 'none',
+      flexDirection: 'row',
+      gap: '8px',
+      padding: '6px 10px 6px 8px',
+      borderRadius: '999px 0 0 999px',
+    },
   });
 const ticker = (color: string) =>
   css({
@@ -83,6 +97,8 @@ const handleLabel = css({
   letterSpacing: '0.18em',
   textTransform: 'uppercase',
   color: 'var(--fg-muted)',
+  /* F-54 — reads left-to-right inside the phone pill. */
+  '@media (max-width: 599px)': { writingMode: 'horizontal-tb', letterSpacing: '0.12em' },
 });
 
 const drawer = css({

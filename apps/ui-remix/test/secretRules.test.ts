@@ -60,7 +60,7 @@ describe('Credentials rule reference', () => {
 
   it('counts provider rules and possible-secret heuristics apart', () => {
     expect(PROVIDER_RULE_COUNT + POSSIBLE_RULE_COUNT).toBe(SECRET_RULES.length);
-    expect(POSSIBLE_RULE_COUNT).toBe(3);
+    expect(POSSIBLE_RULE_COUNT).toBe(5);
   });
 
   it('never offers a rotation link for a possible secret', () => {

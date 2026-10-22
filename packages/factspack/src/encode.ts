@@ -132,12 +132,17 @@ export function encodeIncremental(opts: IncrementalEncodeOptions): string {
   for (const table of opts.tables) {
     enc.assertSchemaShape(table.name, table.columns, table.addedRows);
     tableLines.push(declSchemaLine(table.name, table.columns));
-    for (const row of table.addedRows) {
-      tableLines.push(rowLine('+', row, table.columns, enc));
-    }
+    /* Deletions first. An updated row is `x <key>` plus `+ <new row>` under
+       the same key, and a reader that applies lines in order must not delete
+       the row it just added. applyChain (chain.ts) already removes a diff's
+       deletedIds before appending its addedRows; the wire order now says the
+       same thing, so a sequential reader and the chain agree. */
     for (const id of table.deletedIds) {
       assertNotEmpty(id, `Deleted id in table ${table.name} is empty`);
       tableLines.push(`x ${escapeCell(id)}`);
+    }
+    for (const row of table.addedRows) {
+      tableLines.push(rowLine('+', row, table.columns, enc));
     }
   }
   const headerOut = renderHeader({

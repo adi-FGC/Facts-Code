@@ -830,6 +830,7 @@ const baseConfig = tseslint.config(
         location: 'readonly',
         localStorage: 'readonly',
         sessionStorage: 'readonly',
+        indexedDB: 'readonly',
         matchMedia: 'readonly',
         requestAnimationFrame: 'readonly',
         cancelAnimationFrame: 'readonly',

@@ -325,7 +325,11 @@ describe('analyze — health headline agrees with structured fields', () => {
     const r = await analyze(fs, { root: '.', projectName: 'app' });
     const h = r.human.summary.health;
     if (h.broken === 0 && h.stale === 0 && h.todos === 0 && h.secrets === 0) {
-      expect(h.headline).toMatch(/clean/i);
+      /* analyze() alone never queries OSV, so the headline may not claim
+         "clean": it says what was checked and that dependencies were not. */
+      expect(h.headline).toMatch(/no blockers in what was checked/);
+      expect(h.headline).toMatch(/dependencies not scanned/);
+      expect(h.headline).not.toMatch(/clean/i);
       expect(h.headline).not.toMatch(/secret/i);
     }
   });
@@ -448,6 +452,27 @@ describe('analyze — tsconfig path aliases (#15)', () => {
       (rk) => rk.category === 'broken-import' && rk.file === 'src/app.ts',
     );
     expect(risk).toBeUndefined();
+  });
+
+  /* A catch-all `"*"` paths entry (typings for every bare import) matches
+     every specifier, so it says nothing about intent: with it, every external
+     import of a clean repo was reported broken (health 100 → 68). It must
+     neither flag externals nor stop resolving the targets it does have. */
+  it('ignores a catch-all `"*"` alias for the broken-import gate but still resolves through it', async () => {
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'catchall' }),
+      'tsconfig.json': JSON.stringify({
+        compilerOptions: { baseUrl: '.', paths: { '*': ['types/*'] } },
+      }),
+      'types/shapes.ts': 'export type S = { id: string };\n',
+      'src/app.ts':
+        "import _ from 'lodash';\nimport type { S } from 'shapes';\nexport const x = 1;\n",
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'catchall' });
+    expect(r.agent.risks.filter((rk) => rk.category === 'broken-import')).toEqual([]);
+    const app = r.agent.files.find((f) => f.path === 'src/app.ts')!;
+    expect(app.imports.find((i) => i.source === 'shapes')?.resolved).toBe('types/shapes.ts');
+    expect(app.imports.find((i) => i.source === 'lodash')?.resolved).toBeNull();
   });
 
   // AE-1 scope regression: an alias rule only governs files inside its tsconfig's
@@ -734,10 +759,13 @@ describe('analyze — source files sniffed as binary are not silent', () => {
   });
 
   it('marks a genuinely NUL-heavy source file read_error with a binary-source risk', async () => {
-    const utf16ish = 'c\0o\0n\0s\0t\0 \0x\0 \0=\0 \x001\0;\0\n\0'.repeat(50);
+    /* NUL runs at both byte parities: a length-prefixed blob with a .ts
+       name, not wide text. (A UTF-16 save decodes as text since F-03; the
+       next test pins that.) */
+    const blob = '\0\0\0\0const\0\0\0\0 x = 1;\0\0\0\0\n'.repeat(50);
     const fs = memoryFS({
       'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
-      'src/weird.ts': utf16ish,
+      'src/weird.ts': blob,
       'assets/logo.png': '\x89PNG\0\0\0\rIHDR\0\0',
     });
     const r = await analyze(fs, { root: '.', projectName: 'p' });
@@ -751,6 +779,26 @@ describe('analyze — source files sniffed as binary are not silent', () => {
     const png = r.agent.files.find((f) => f.path === 'assets/logo.png')!;
     expect(png.status).toBe('ok');
     expect(r.agent.risks.some((k) => k.file === 'assets/logo.png')).toBe(false);
+  });
+
+  it('reads a UTF-16 source file as text: counted, scanned, no risk (F-03)', async () => {
+    /* PowerShell 5 saves UTF-16LE. As UTF-8 that is one NUL per character and
+       the file used to be sniffed binary: never secret-scanned, recorded as
+       `ok` with loc 0. The bytes are the file, so the walker decodes them. */
+    const wide = (s: string) => [...s].map((c) => c + '\0').join('');
+    const token = 'AKIA' + '2HQT9KZRP4JW' + '5LMG';
+    const fs = memoryFS({
+      'package.json': JSON.stringify({ name: 'p', version: '0.0.0' }),
+      'src/wide.ts': wide(`export const a = 1;\nexport const k = "${token}";\n`),
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+    const file = r.agent.files.find((f) => f.path === 'src/wide.ts')!;
+    expect(file.status).toBe('ok');
+    expect(file.loc).toBe(2);
+    expect(r.agent.risks.some((k) => k.rule === 'binary-source')).toBe(false);
+    expect(r.agent.risks.some((k) => k.category === 'secret' && k.file === 'src/wide.ts')).toBe(
+      true,
+    );
   });
 });
 
@@ -1215,6 +1263,26 @@ describe('analyze — exports[] from export lists (HUNT-CORE-11)', () => {
       { name: 'App', kind: 'component', isDefault: true },
     ]);
   });
+
+  it('lists what a re-export barrel surfaces: each name, the default, `*` for a star', async () => {
+    const fs = memoryFS({
+      'src/a.ts': 'export const a1 = 1;\nexport const a2 = 2;\n',
+      'src/b.ts': 'export const b = 1;\nexport default function B() {}\n',
+      'src/n.ts': 'export const n = 1;\n',
+      'src/index.ts':
+        "export * from './a';\nexport { b as c, default } from './b';\nexport * as ns from './n';\n",
+    });
+    const r = await analyze(fs, { root: '.', projectName: 'p' });
+    const f = r.agent.files.find((x) => x.path === 'src/index.ts')!;
+    expect(f.exports).toEqual([
+      { name: '*', kind: 'variable', isDefault: false },
+      { name: 'c', kind: 'variable', isDefault: false },
+      { name: 'default', kind: 'variable', isDefault: true },
+      { name: 'ns', kind: 'variable', isDefault: false },
+    ]);
+    // The barrel's edges to its sources are unchanged.
+    expect(f.imports.map((i) => i.resolved).sort()).toEqual(['src/a.ts', 'src/b.ts', 'src/n.ts']);
+  });
 });
 describe('secrets in Go / Python / Ruby test fixtures are not graded (HUNT-CORE-09)', () => {
   it('reports a key in auth_test.go / test_auth.py / user_spec.rb at low severity', async () => {
@@ -1356,8 +1424,9 @@ describe('analyze — possible secrets are listed, redacted and not graded (owne
     expect(h.secrets).toBe(0);
     expect(h.score).toBe(100);
     expect(h).not.toHaveProperty('fixtureSecrets');
+    // No scan-vulns ran here, and the headline says so instead of "clean".
     expect(h.headline).toBe(
-      'A · 100 — clean — no blockers detected · 3 possible secrets, not graded',
+      'A · 100 — no blockers in what was checked · 3 possible secrets, not graded · dependencies not scanned for known vulnerabilities',
     );
     // Ungraded is not harmless: the value is redacted from every output.
     for (const blob of [

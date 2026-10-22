@@ -83,17 +83,13 @@ ${workflow}
 === END ===`;
 }
 
-function cors() {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'content-type',
-  };
-}
+// Same-origin only: evaluator/app.js calls this from the page it ships with,
+// so no CORS headers are needed — and none are sent, so no other site can
+// use this Function as an open relay for its own Anthropic requests.
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {
     status,
-    headers: { 'content-type': 'application/json', ...cors() },
+    headers: { 'content-type': 'application/json' },
   });
 }
 function clamp01(x) {
@@ -158,10 +154,6 @@ function cleanNotes(notes) {
   return out;
 }
 const dimKey = (v) => (DIMS.includes(v) ? v : '');
-
-export async function onRequestOptions() {
-  return new Response(null, { headers: cors() });
-}
 
 export async function onRequestPost(context) {
   let body;

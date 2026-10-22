@@ -52,6 +52,10 @@
           var scale = parseFloat(localStorage.getItem('facts-font-scale') || '1');
           if (!Number.isFinite(scale) || scale < 0.85 || scale > 1.35) scale = 1;
           html.style.setProperty('--fs-mult', String(scale));
+          if (localStorage.getItem('facts-density') === 'compact') {
+            html.dataset.density = 'compact';
+            html.style.setProperty('--row-pad-mult', '0.65');
+          }
         } catch (_) { /* file:// or sandboxed — defaults are fine */ }
       })();
     </script>

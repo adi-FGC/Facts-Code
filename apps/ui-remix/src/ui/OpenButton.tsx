@@ -23,7 +23,7 @@ import { css, on } from 'remix/component';
 const wrap = css({
   display: 'inline-flex',
   alignItems: 'stretch',
-  height: '28px',
+  height: '32px' /* F-61: a 32px target, like the theme toggle */,
   border: '1px solid var(--border)',
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-11)',

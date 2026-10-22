@@ -35,7 +35,7 @@ the facts-open line never used it — its agent surface is plain JSON.
 | **Query**      | `factstack query <verb> [target]` | Structured graph queries: `callers <path>`, `imports <path>`, `cycles`, `orphans`.                                                                                                                       |
 | **Export**     | `factstack export [path]`         | Self-contained HTML report (no server needed).                                                                                                                                                           |
 | **Doctor**     | `factstack doctor`                | Verifies Node version + `node:sqlite` availability.                                                                                                                                                      |
-| **MCP server** | `factstack-mcp --root <path>`     | stdio MCP server exposing 5 tools + 5 resources for AI agents.                                                                                                                                           |
+| **MCP server** | `factstack-mcp --root <path>`     | stdio MCP server exposing 17 tools + 6 resources for AI agents (the count is pinned by `apps/mcp-server`'s tests).                                                                                       |
 
 All commands accept `--json` for machine-invocable output. `--json` is also a top-level flag (`factstack --json analyze .`).
 
@@ -292,7 +292,7 @@ Everything from `packages/core` down (`spec`, `walker`, `parsers`, `extractors`,
 
 ### C3 · Two UIs, one dataset
 
-`apps/ui-remix` is the hosted site ([factstack.pages.dev](https://factstack.pages.dev)). It builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON) for Cloudflare/Netlify and the future VS Code webview. CSP-clean — no inline scripts beyond one hash-pinned boot script, no inline styles, no third-party CDN runtime deps.
+`apps/ui-remix` is the hosted site ([factstack.pages.dev](https://factstack.pages.dev)). It builds two targets: a Vite-served dev server (with live re-analyze) and a static SPA (no server, data hydrated from embedded JSON) for Cloudflare/Netlify and the future VS Code webview. CSP-clean — no inline scripts beyond one hash-pinned boot script, no inline styles, no third-party CDN runtime deps. Deep links need an SPA rewrite on the host (see [docs/DEPLOY.md](./docs/DEPLOY.md#hosting-the-static-build-elsewhere)).
 
 `factstack ui`, `export` and `quick` use the **legacy prototype** (`legacy/prototype/index.html`), kept by owner decision (2026-09-24, [ADR 0001](./docs/adr/0001-cli-ui-keeps-legacy-prototype.md)) and hardened: `apps/cli/scripts/sync-ui.mjs` compiles and inlines Tailwind, uses system font stacks, vendors `@babel/parser` and stubs remote imports, and the UI runs under a hash-based CSP with no third-party requests (the one exception is `api.github.com` / `raw.githubusercontent.com` when you explicitly scan a GitHub repo). A DOM-level XSS test renders it in headless Chromium in CI. This is a deliberate INV7 parity exception: the hosted UI is Remix, the CLI UI is the prototype.
 

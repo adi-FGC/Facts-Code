@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { expectLinear } from './linear.js';
 import {
   isPlaceholderSecret,
   redactSecrets,
@@ -409,12 +410,13 @@ describe('scanSecrets — generic matches are opt-in, ungraded "possible" findin
 
   it('stays linear on long minified lines (redaction runs every rule, generic ones too)', () => {
     const gh = 'ghp' + '_' + rnd(36, 45, ALNUM);
-    const dashes = 'a-'.repeat(100_000);
-    const quoted = `x = "${rnd(200_000, 46)}" + "` + '-----END RSA PRIVATE KEY-----"';
-    const src = `t=${gh}\n${dashes}\n` + '-----BEGIN ' + 'RSA PRIVATE KEY-----\n' + quoted;
-    const t0 = performance.now();
-    const out = redactSecrets(src);
-    expect(performance.now() - t0).toBeLessThan(2000);
+    const minified = (n: number): string => {
+      const dashes = 'a-'.repeat(n);
+      const quoted = `x = "${rnd(2 * n, 46)}" + "` + '-----END RSA PRIVATE KEY-----"';
+      return `t=${gh}\n${dashes}\n` + '-----BEGIN ' + 'RSA PRIVATE KEY-----\n' + quoted;
+    };
+    const src = minified(100_000);
+    const out = expectLinear('redactSecrets', minified, redactSecrets, 50_000);
     expect(out).not.toContain(gh);
     expect(scanSecrets('bundle.js', src, { possible: true }).map((f) => f.ruleId)).toEqual([
       'github-token',
@@ -528,12 +530,17 @@ describe('possible-secret rules skip version-shaped values', () => {
 
   it('stays linear on a long version-shaped run', () => {
     // Varied digits keep the entropy over the gate, so the version test runs.
-    const run = Array.from({ length: 40_000 }, (_, i) => `-beta${i % 10}`).join('');
-    const body = `1.2.3${run}!`;
-    const t0 = performance.now();
-    scanSecrets('bundle.js', `x = { ${JWT}: "${body}" }`, { possible: true });
-    redactSecrets(`${ENV}=${body}`);
-    expect(performance.now() - t0).toBeLessThan(2000);
+    const versionRun = (n: number): string =>
+      `1.2.3${Array.from({ length: n }, (_, i) => `-beta${i % 10}`).join('')}!`;
+    expectLinear(
+      'version-shaped run',
+      versionRun,
+      (body) => {
+        scanSecrets('bundle.js', `x = { ${JWT}: "${body}" }`, { possible: true });
+        redactSecrets(`${ENV}=${body}`);
+      },
+      20_000,
+    );
   });
 });
 
@@ -645,6 +652,89 @@ describe('redactSecrets — no-END keys in quoted or commented text', () => {
 /* correctness#1 / data-model#1 — every private key previews as `----***--`
    with the same entropy, so a diff keyed on the preview could not tell a
    swapped key from the same key. Graded findings now carry a one-way digest. */
+/* F-04 — shapes that were shipped raw because no rule knew them. Tokens are
+   built at run time (the repo never commits a literal token shape). */
+describe('scanSecrets — provider shapes added 2026-10-22 (F-04)', () => {
+  const HEX = '0123456789abcdef';
+  const b64url = (s: string): string => {
+    const B = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    let out = '';
+    for (let i = 0; i < s.length; i += 3) {
+      const a = s.charCodeAt(i);
+      const b = i + 1 < s.length ? s.charCodeAt(i + 1) : 0;
+      const c = i + 2 < s.length ? s.charCodeAt(i + 2) : 0;
+      out += B[a >> 2]! + B[((a & 3) << 4) | (b >> 4)]!;
+      if (i + 1 < s.length) out += B[((b & 15) << 2) | (c >> 6)]!;
+      if (i + 2 < s.length) out += B[c & 63]!;
+    }
+    return out;
+  };
+  const jwt = (role: string) =>
+    b64url('{"alg":"HS256","typ":"JWT"}') +
+    '.' +
+    b64url(`{"iss":"supabase","ref":"abcdefghijklmnopqrst","role":"${role}","iat":1700000000}`) +
+    '.' +
+    rnd(43, 61, ALNUM + '-_');
+
+  it.each([
+    ['twilio-api-key', 'SK' + rnd(32, 51, HEX)],
+    ['huggingface-token', 'hf' + '_' + rnd(34, 52, ALNUM)],
+    ['google-oauth-client-secret', 'GOCSPX' + '-' + rnd(28, 53, ALNUM)],
+    ['shopify-access-token', 'shpat' + '_' + rnd(32, 54, HEX)],
+    ['supabase-service-role-key', jwt('service_role')],
+  ])('grades %s and redacts it', (ruleId, token) => {
+    const src = `const t = "${token}";`;
+    const found = scanSecrets('config.ts', src, { possible: true });
+    expect(found.map((f) => f.ruleId)).toEqual([ruleId]);
+    expect(found[0]!.possible).toBeUndefined();
+    expect(redactSecrets(src)).not.toContain(token);
+  });
+
+  it('leaves a Supabase anon key alone: public by design', () => {
+    const src = `const anon = "${jwt('anon')}";`;
+    expect(scanSecrets('client.ts', src, { possible: true })).toEqual([]);
+    expect(redactSecrets(src)).toBe(src);
+  });
+
+  it('lists any other JWT as a possible secret, not graded', () => {
+    const src = `headers: { Authorization: "Bearer ${jwt('authenticated')}" }`;
+    const found = scanSecrets('api.ts', src, { possible: true });
+    expect(found.map((f) => f.ruleId)).toEqual(['jwt']);
+    expect(found[0]!.possible).toBe(true);
+    expect(scanSecrets('api.ts', src)).toEqual([]);
+  });
+
+  it('lists a hard-coded bearer token, never a reference to one', () => {
+    const literal = `fetch(url, { headers: { Authorization: 'Bearer ${rnd(40, 55)}' } })`;
+    expect(scanSecrets('api.ts', literal, { possible: true }).map((f) => f.ruleId)).toEqual([
+      'bearer-token',
+    ]);
+    const reference = 'fetch(url, { headers: { Authorization: `Bearer ${token}` } })';
+    expect(scanSecrets('api.ts', reference, { possible: true })).toEqual([]);
+  });
+});
+
+/* F-05 — two gates that hid real findings. */
+describe('scanSecrets — gates that hid real findings (F-05)', () => {
+  it('keeps an AWS key id whose 16 characters happen to repeat', () => {
+    // Entropy 2.3 bits: 1 in 250 genuine ids used to fall under the old 3.2 floor.
+    const low = 'AKIA' + 'AAAABBBBCCCCDDDD';
+    expect(scanSecrets('cfg.ts', `id = "${low}"`).map((f) => f.ruleId)).toEqual(['aws-access-key']);
+    // A placeholder is still a placeholder.
+    expect(scanSecrets('cfg.ts', `id = "${'AKIA' + 'X'.repeat(16)}"`)).toEqual([]);
+  });
+
+  it('reports an all-letter .env password as a possible secret, but never a reference', () => {
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const pw = rnd(16, 56, letters) + rnd(4, 57, letters.toUpperCase());
+    expect(
+      scanSecrets('.env', `DB_PASSWORD=${pw}`, { possible: true }).map((f) => f.ruleId),
+    ).toEqual(['env-secret-pair']);
+    for (const ref of ['FROM_SECRET_MANAGER', 'undefined', 'settings.DB_PASSWORD'])
+      expect(scanSecrets('.env', `DB_PASSWORD=${ref}`, { possible: true }), ref).toEqual([]);
+  });
+});
+
 describe('scanSecrets — fingerprints (correctness#1)', () => {
   const B = '-----BEGIN ';
   const E = '-----END ';
@@ -801,6 +891,8 @@ describe('scanSecrets — fingerprints (correctness#1)', () => {
        the next review against an older baseline will say secrets were not
        graded until the baseline is re-saved. */
     expect(SECRET_RULES_REV).toMatch(/^[0-9a-f]{12}$/);
-    expect(SECRET_RULES_REV).toBe('f3c25c1ad131');
+    // Bumped 2026-10-22: five provider shapes added, the AWS key-id entropy
+    // floor lowered (F-04/F-05). Baselines saved before re-grade on review.
+    expect(SECRET_RULES_REV).toBe('7599da345a3f');
   });
 });

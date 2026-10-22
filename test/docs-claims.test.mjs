@@ -103,6 +103,11 @@ describe('docs/briefing.html secret detectors', () => {
     'sendgrid-api-key': 'SendGrid',
     'openai-api-key': 'OpenAI',
     'anthropic-api-key': 'Anthropic',
+    'twilio-api-key': 'Twilio',
+    'huggingface-token': 'Hugging Face',
+    'google-oauth-client-secret': 'OAuth client secrets',
+    'shopify-access-token': 'Shopify',
+    'supabase-service-role-key': 'Supabase service-role',
     'private-key-header': 'private-key blocks',
   };
 

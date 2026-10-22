@@ -87,3 +87,32 @@ test.describe('OpenModal — Choose folder', () => {
     await expect(page.getByRole('button', { name: /choose folder/i })).toBeEnabled();
   });
 });
+
+/* F-48 — a dialog that never took, trapped or returned focus. */
+test.describe('OpenModal — focus', () => {
+  test('takes focus on open, keeps Tab inside, and hands it back on close', async ({ page }) => {
+    await page.goto('/');
+    await waitForReady(page);
+    const opener = page.getByRole('button', { name: 'Open project' });
+    await opener.focus();
+    await opener.press('Enter');
+    const dialog = page.getByRole('dialog', { name: /open project/i });
+    await expect(dialog).toBeVisible();
+    const focusInsideDialog = () =>
+      page.evaluate(() => {
+        const d = document.querySelector('[role="dialog"]');
+        return !!d && d.contains(document.activeElement);
+      });
+    await expect.poll(focusInsideDialog).toBe(true);
+    // Tab around the whole panel, both ways: focus never leaves it.
+    for (let i = 0; i < 25; i++) {
+      await page.keyboard.press('Tab');
+      expect(await focusInsideDialog()).toBe(true);
+    }
+    await page.keyboard.press('Shift+Tab');
+    expect(await focusInsideDialog()).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+});

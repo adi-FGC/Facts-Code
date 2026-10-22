@@ -245,7 +245,9 @@ describe('SqliteExtractionCache', () => {
        --force) and INSERT OR REPLACE left old rows in free pages, where no
        DELETE reaches them — and with the table already empty the wipe had
        nothing to delete. The one-time v2 migration must rewrite the file. */
-    const SECRET = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC-not-a-real-key-a2e9';
+    // "sample" is one of the words the secret scanner takes as proof of a
+    // fixture, so this file's own risk list stays empty.
+    const SECRET = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC-sample-not-a-real-key-a2e9';
     const leaky = JSON.stringify({
       envReads: [{ name: 'KEY', defaultValue: SECRET }],
       pad: 'x'.repeat(300),
@@ -277,7 +279,7 @@ describe('SqliteExtractionCache', () => {
        body in envReads[].defaultValue. A plain DELETE leaves those bytes in
        free pages; the purge must actually erase them. Both purge paths: an
        older key version, and the pre-v2 db-schema wipe. */
-    const SECRET = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC-not-a-real-key-7f3a';
+    const SECRET = 'MIIEvQIBADANBgkqhkiG9w0BAQEFAASC-sample-not-a-real-key-7f3a';
     const stale: Array<[string, string]> = [
       ['keyVersion', 'DELETE'],
       ['dbSchemaVersion', '1'],

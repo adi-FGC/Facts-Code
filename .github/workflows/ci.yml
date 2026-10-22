@@ -2,8 +2,22 @@ name: CI
 
 on:
   pull_request:
+  # Every branch, not only main: deploy:cf refuses a commit without a green
+  # CI run (scripts/deploy-check.mjs), and branches used to reach main and
+  # production before CI had ever run on them.
   push:
-    branches: [main]
+    branches: ['**']
+
+# A newer push to the same branch supersedes a running check. main keeps
+# every run: each commit there is a deploy candidate.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+# Read-only token: this workflow builds and tests; it never writes to the
+# repository, and a compromised step must not be able to either.
+permissions:
+  contents: read
 
 jobs:
   build:
@@ -13,18 +27,20 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to commit SHAs (the comment names the release): a
+      # moving tag could be re-pointed at any code by whoever holds the tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 50
 
       # pnpm version comes from package.json "packageManager" (pnpm@12.9.1).
       # Do NOT also set `version:` here — action-setup errors on a dual spec.
       # v6.1.0 is the first release that supports pnpm 12.
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       # Node 24 = the root engines floor (>=24.3.0), which Remix 3 (ui-remix)
       # requires; netlify.toml and cve-refresh.yml build on the same major.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
           cache: pnpm
@@ -146,7 +162,7 @@ jobs:
 
       - name: Upload e2e report
         if: ${{ failure() && steps.e2e.outcome == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: playwright-report
           path: apps/ui-remix/playwright-report

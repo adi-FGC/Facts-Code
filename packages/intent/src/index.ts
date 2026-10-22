@@ -74,9 +74,15 @@ function monorepoIntent(
   return null;
 }
 
+/* Docs alone don't make an app: an `apps/vscode-ext/` holding only the README
+   of a planned surface was announced as "a VS Code extension". */
+const DOC_FILE =
+  /(?:\.(?:md|mdx|markdown|txt|rst|adoc)|\/(?:LICENSE|NOTICE|COPYING|AUTHORS|CHANGELOG)[^/]*)$/i;
+
 /**
- * Walk `apps/*` directories visible in the file list, infer each app's
- * kind from its path + manifest data, and produce a labeled list.
+ * Walk `apps/*` directories visible in the file list (documentation files
+ * alone don't count), infer each app's kind from its path + manifest data,
+ * and produce a labeled list.
  *
  * Heuristics (deterministic, pure-pattern):
  *   - apps/cli           → "a CLI"
@@ -91,7 +97,7 @@ function enumerateSubApps(agent: AgentArtifact): string[] {
   const appDirs = new Set<string>();
   for (const f of agent.files) {
     const m = /^apps\/([^/]+)\//.exec(f.path);
-    if (m && m[1]) appDirs.add(m[1]);
+    if (m && m[1] && !DOC_FILE.test(f.path)) appDirs.add(m[1]);
   }
   /* Stable sort for deterministic output. Dedupe by label so two
      directories that map to the same kind (e.g. `chrome-ext` +

@@ -213,6 +213,23 @@ describe('UI-01 / correctness#21 — a PAT must not empty the scan', () => {
       /Downloaded 0 of 1 files/,
     );
   });
+
+  it('rejects a ref with nothing to analyze instead of grading it clean (F-37)', async () => {
+    fakeGitHub({
+      nodes: [
+        { path: 'logo.png', body: 'x' },
+        { path: 'dist/app.zip', body: 'y' },
+      ],
+    });
+    await expect(fetchGitHubToMemory({ owner: 'o', repo: 'r' })).rejects.toThrow(
+      /no source, config or lockfiles to analyze — all 2 files/,
+    );
+    vi.unstubAllGlobals();
+    fakeGitHub({ nodes: [] });
+    await expect(fetchGitHubToMemory({ owner: 'o', repo: 'r' })).rejects.toThrow(
+      /no files at this ref/,
+    );
+  });
 });
 
 describe('UI-02 — throttled, failed and truncated fetches are surfaced', () => {
@@ -239,25 +256,30 @@ describe('UI-02 — throttled, failed and truncated fetches are surfaced', () =>
     expect(progress.at(-1)).toMatchObject({ phase: 'reading', current: 21, total: 21 });
   });
 
-  it('records only the path-free truncated-tree caveat for the artifacts', async () => {
+  it('records path-free caveats for the artifacts: failed downloads and a truncated tree', async () => {
     /* report.scanWarnings becomes agent.project.scanWarnings: plain
-       sentences, never a path. The failed-download line names a file (and
-       the file is already a per-file read-error risk), so it stays UI-only. */
+       sentences, never a path. The UI line names the failed file (and the
+       file is already a per-file read-error risk); the artifact line only
+       counts, so a partial repo below the refusal share is still recorded as
+       partial (F-36). */
+    const gap =
+      '1 of 21 files could not be downloaded from GitHub — this scan lists them as unreadable.';
     fakeGitHub({
       nodes: many,
       truncated: true,
       blobStatus: (p) => (p === 'f3.ts' ? 404 : undefined),
     });
     const cut = await fetchGitHubToMemory({ owner: 'o', repo: 'r' });
-    expect(cut.report.scanWarnings).toEqual([GH_TRUNCATED_WARNING]);
+    expect(cut.report.scanWarnings).toEqual([gap, GH_TRUNCATED_WARNING]);
     expect(cut.report.warnings).toContain(GH_TRUNCATED_WARNING);
-    expect(cut.report.scanWarnings.join('\n')).not.toMatch(/f3\.ts|could not be downloaded/);
+    expect(cut.report.scanWarnings.join('\n')).not.toMatch(/f3\.ts/);
 
     vi.unstubAllGlobals();
     fakeGitHub({ nodes: many, blobStatus: (p) => (p === 'f3.ts' ? 404 : undefined) });
     const partial = await fetchGitHubToMemory({ owner: 'o', repo: 'r' });
-    expect(partial.report.warnings).toHaveLength(1); // the failed-download line
-    expect(partial.report.scanWarnings).toEqual([]);
+    expect(partial.report.warnings).toHaveLength(1); // the failed-download line, with its example path
+    expect(partial.report.warnings[0]).toMatch(/f3\.ts/);
+    expect(partial.report.scanWarnings).toEqual([gap]);
   });
 
   it('keeps a failed file in the tree as unreadable, so the artifacts record the gap', async () => {
@@ -320,12 +342,15 @@ describe('FSB-2 / FSB-3 — the walker, not the fetcher, decides what is too lar
     expect(await fs.readText('src/util.ts')).toBe(body);
   });
 
-  it('keeps a UTF-16 source file (the walker flags it binary-source) at its byte size', async () => {
+  it('decodes a UTF-16 source file to text, listed at its byte size (F-03)', async () => {
+    /* PowerShell 5 saves UTF-16LE with a BOM. Decoded as UTF-8 that was one
+       NUL per character, which the walker sniffed as binary: the file was
+       never secret-scanned. The fetcher still has the bytes, so it decodes. */
     const utf16 = new Uint8Array([0xff, 0xfe, 0x61, 0x00, 0x3d, 0x00, 0x31, 0x00, 0x0a, 0x00]);
     fakeGitHub({ nodes: [{ path: 'src/wide.ts', body: utf16 }] });
     const fs = await fetchGitHubToMemory({ owner: 'o', repo: 'r' });
     expect((await fs.stat('src/wide.ts')).size).toBe(utf16.byteLength);
-    expect((await fs.readText('src/wide.ts')).split('\u0000').length - 1).toBe(4);
+    expect(await fs.readText('src/wide.ts')).toBe('a=1\n');
   });
 });
 

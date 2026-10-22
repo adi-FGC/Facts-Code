@@ -12,6 +12,16 @@
       "outputs": ["dist/**", ".remix/**", "build/**"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/legacy/prototype/index.html"]
     },
+    "@factstack/ui-remix#build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/.facts/**",
+        "$TURBO_ROOT$/fb.mjs",
+        "$TURBO_ROOT$/apps/ui-remix/fb.mjs"
+      ]
+    },
     "dev": {
       "cache": false,
       "persistent": true

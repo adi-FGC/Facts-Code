@@ -29,7 +29,8 @@ export const SECRET_RULES: readonly RuleRef[] = [
     id: 'aws-access-key',
     label: 'AWS access key ID',
     pattern: 'AKIA + 16 alnum',
-    notes: 'IAM static access keys; gated on Shannon entropy ≥ 3.2.',
+    notes:
+      'IAM static access keys; gated on Shannon entropy ≥ 2.0 (the fixed prefix and length are the signal; a higher floor dropped genuine ids).',
     rotateUrl:
       'https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html#Using_RotateAccessKey',
   },
@@ -126,6 +127,43 @@ export const SECRET_RULES: readonly RuleRef[] = [
     rotateUrl: 'https://console.anthropic.com/settings/keys',
   },
   {
+    id: 'twilio-api-key',
+    label: 'Twilio API key SID',
+    pattern: 'SK + 32 hex',
+    notes:
+      'API key SIDs (the paired secret is shown once, so the SID is the trace); entropy ≥ 3.0.',
+    rotateUrl: 'https://www.twilio.com/docs/iam/api-keys',
+  },
+  {
+    id: 'huggingface-token',
+    label: 'Hugging Face access token',
+    pattern: 'hf_ + 34+ alnum',
+    notes: 'User and organisation access tokens; entropy ≥ 3.5.',
+    rotateUrl: 'https://huggingface.co/settings/tokens',
+  },
+  {
+    id: 'google-oauth-client-secret',
+    label: 'Google OAuth client secret',
+    pattern: 'GOCSPX- + 28 alnum/_-',
+    notes: 'OAuth 2.0 client secrets from the Cloud console; entropy ≥ 3.5.',
+    rotateUrl: 'https://console.cloud.google.com/apis/credentials',
+  },
+  {
+    id: 'shopify-access-token',
+    label: 'Shopify access token',
+    pattern: 'shpat_ / shpca_ / shppa_ / shpss_ + 32 hex',
+    notes: 'Admin API, custom-app and shared-secret tokens; entropy ≥ 3.0.',
+    rotateUrl: 'https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens',
+  },
+  {
+    id: 'supabase-service-role-key',
+    label: 'Supabase service-role key',
+    pattern: 'JWT whose payload role is service_role',
+    notes:
+      'Bypasses row-level security. The anon key has the same shape and is public by design, so it is never flagged; entropy ≥ 3.5.',
+    rotateUrl: 'https://supabase.com/docs/guides/api/api-keys',
+  },
+  {
     id: 'private-key-header',
     label: 'Private key block',
     pattern: '-----BEGIN ... PRIVATE KEY-----',
@@ -155,6 +193,24 @@ export const SECRET_RULES: readonly RuleRef[] = [
     label: 'Password in a connection URL',
     pattern: 'postgres://user:…@host',
     notes: 'Postgres, MySQL, MongoDB, Redis, AMQP, SQL Server and similar URLs; entropy ≥ 2.5.',
+    rotateUrl: null,
+    possible: true,
+  },
+  {
+    id: 'jwt',
+    label: 'JSON Web Token',
+    pattern: 'eyJ… . eyJ… . signature',
+    notes:
+      'A hard-coded session or API token. A Supabase anon key (payload role anon) is left alone; entropy ≥ 3.5.',
+    rotateUrl: null,
+    possible: true,
+  },
+  {
+    id: 'bearer-token',
+    label: 'Hard-coded bearer token',
+    pattern: 'Authorization: Bearer …',
+    notes:
+      'A literal token in an Authorization header. A reference such as Bearer ${token} never matches; entropy ≥ 3.5.',
     rotateUrl: null,
     possible: true,
   },

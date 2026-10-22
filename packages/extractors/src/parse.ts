@@ -44,8 +44,15 @@ export function parseJS(source: string, ext: string): ParsedFile | null {
      annotations) needs the flow plugin, which excludes `typescript` — so it is
      a JS-only retry, tried only after the plain parse fails. Files that parsed
      before parse exactly as before (INV2). */
+  /* TS 5 / TC39 decorators after `export` (`export @dec class X {}`) are a
+     syntax error for decorators-legacy, which stays first because only it
+     accepts the parameter decorators Angular and NestJS live on. The
+     standard plugin is the retry; a file that parsed before parses exactly as
+     before (INV2). */
   const ast =
-    tryParse(source, first) ?? (kind === 'js' ? tryParse(source, [...first, 'flow']) : null);
+    tryParse(source, first) ??
+    tryParse(source, standardDecorators(first)) ??
+    (kind === 'js' ? tryParse(source, [...first, 'flow']) : null);
   if (ast === null) return null;
   return { ast, contentHash: djb2(source), ext: ext.toLowerCase() };
 }
@@ -63,6 +70,13 @@ function tryParse(source: string, pluginList: ParserPlugin[]): unknown {
   } catch {
     return null;
   }
+}
+
+/** The same plugin list with TC39 decorators in place of the legacy ones
+ *  (Babel accepts a decorator on either side of `export` when the option is
+ *  left unset). */
+function standardDecorators(list: ParserPlugin[]): ParserPlugin[] {
+  return list.map((p) => (p === 'decorators-legacy' ? 'decorators' : p));
 }
 
 function plugins(kind: 'js' | 'ts', ext: string): ParserPlugin[] {

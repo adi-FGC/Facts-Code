@@ -12,13 +12,31 @@
  * repo — it's fetched same-origin from `/mcp-auth-config.json`, which the build
  * generates (see scripts/gen-fb-config.mjs: fb.mjs or FACTS_FB_WEB_CONFIG).
  * It only identifies the project; Firestore rules do the actual access control.
+ *
+ * The Firebase session lives in memory only. getAuth() persisted it, refresh
+ * token included, in this origin's IndexedDB, where it outlived the tab and
+ * any script on the site could read it; the page needs it for the one
+ * hand-off below and nothing after.
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
-  getAuth,
+  browserPopupRedirectResolver,
   GoogleAuthProvider,
+  initializeAuth,
+  inMemoryPersistence,
   signInWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
+
+// Clear the session an earlier version of this page persisted: Firebase's
+// IndexedDB store, and its localStorage fallback. Nothing else on this origin
+// uses either.
+try {
+  indexedDB.deleteDatabase('firebaseLocalStorageDb');
+  for (const key of Object.keys(localStorage))
+    if (key.startsWith('firebase:')) localStorage.removeItem(key);
+} catch {
+  /* storage blocked (private mode): nothing was persisted either */
+}
 
 // The sign-in command to run today. The MCP package is not on npm yet (spec's
 // MCP_PUBLISHED is false), and `npx -y` on an unclaimed name runs whatever
@@ -29,7 +47,12 @@ import {
 const SIGN_IN_COMMAND = 'npx tsx apps/mcp-server/src/server.ts login';
 
 const params = new URLSearchParams(location.search);
-const port = params.get('port');
+// The loopback port the MCP `login` command listens on. Only a plain TCP
+// port is ever accepted: anything else would let a crafted link steer the
+// token POST at a different path or host (`1@evil.tld`, `1/../`).
+const rawPort = params.get('port') ?? '';
+const port =
+  /^\d{1,5}$/.test(rawPort) && Number(rawPort) >= 1 && Number(rawPort) <= 65535 ? rawPort : null;
 // One-time nonce minted by the MCP `login` command and passed in the URL. We echo
 // it back on the callback so the local loopback can prove the token came from
 // THIS sign-in (not a hostile page blindly POSTing to 127.0.0.1) — see auth.ts.
@@ -53,7 +76,10 @@ try {
         'Local MCP tools still work without signing in.',
     );
   }
-  auth = getAuth(initializeApp(await res.json()));
+  auth = initializeAuth(initializeApp(await res.json()), {
+    persistence: inMemoryPersistence,
+    popupRedirectResolver: browserPopupRedirectResolver,
+  });
 } catch (e) {
   setStatus(
     'Could not load the sign-in configuration: ' + (e && e.message ? e.message : String(e)),

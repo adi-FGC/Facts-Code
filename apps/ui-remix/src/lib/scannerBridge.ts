@@ -167,9 +167,13 @@ export async function runGitHubScan(
 
 /** Hot-swap the route tree to a freshly scanned dataset. Same event
  *  shape the Re-analyze button uses, so App.tsx's existing listener
- *  picks it up without modification. */
+ *  picks it up without modification. A browser scan is someone's own
+ *  project: 'opened', so nothing about it (not even package names for a
+ *  vulnerability re-check) leaves the browser unless they ask. */
 export function publishDataset(dataset: Dataset): void {
-  window.dispatchEvent(new CustomEvent('factstack:dataset', { detail: dataset }));
+  window.dispatchEvent(
+    new CustomEvent('factstack:dataset', { detail: { dataset, provenance: 'opened' } }),
+  );
 }
 
 /**

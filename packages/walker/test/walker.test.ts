@@ -226,13 +226,25 @@ describe('walk — file size cap + binary detection', () => {
     expect(file?.text).toBeNull();
   });
 
-  it('flags NUL-heavy content (UTF-16-style) as binary', async () => {
-    // UTF-16 LE ASCII decoded as UTF-8 puts a NUL after every char.
+  it('decodes NUL-heavy UTF-16-style content as text rather than flagging it binary (F-03)', async () => {
+    // UTF-16 LE ASCII decoded as UTF-8 puts a NUL after every char. Those
+    // bytes ARE a UTF-16 file, so the walker decodes them for real now.
     const utf16ish = 'c\0o\0n\0s\0t\0 \0x\0'.repeat(100);
     const fs = memoryFS({ 'weird.ts': utf16ish });
+    const out: Array<{ path: string; skippedReason: string | null; text: string | null }> = [];
+    for await (const f of walk(fs)) out.push(f);
+    const weird = out.find((f) => f.path === 'weird.ts')!;
+    expect(weird.skippedReason).toBeNull();
+    expect(weird.text).toBe('const x'.repeat(100));
+  });
+
+  it('flags NUL-heavy content that is not UTF-16 as binary', async () => {
+    // NUL runs at both byte parities: a length-prefixed binary, not wide text.
+    const blob = '\0\0\0\0const\0\0\0\0 x = 1;\0\0\0\0\n'.repeat(50);
+    const fs = memoryFS({ 'weird.bin': blob });
     const out: Array<{ path: string; skippedReason: string | null }> = [];
     for await (const f of walk(fs)) out.push(f);
-    expect(out.find((f) => f.path === 'weird.ts')?.skippedReason).toBe('binary');
+    expect(out.find((f) => f.path === 'weird.bin')?.skippedReason).toBe('binary');
   });
 
   it('does NOT flag a normal source file containing a single embedded NUL (facts+ engine.ts regression)', async () => {
@@ -289,6 +301,62 @@ describe('walk — read errors', () => {
     expect(file?.skippedReason).toBe('read_error');
     expect(file?.text).toBeNull();
     expect(file?.loc).toBe(0);
+  });
+});
+
+describe('walk — what is NOT an ignore rule', () => {
+  const paths = async (fsx: FactsFS) => {
+    const out: string[] = [];
+    for await (const f of walk(fsx)) out.push(f.path);
+    return out.sort();
+  };
+
+  it('does not read .dockerignore: a Docker allowlist must not empty the scan', async () => {
+    // `*` + `!src` is the idiomatic .dockerignore; as gitignore it hides everything.
+    const fs = memoryFS({
+      '.dockerignore': '*\n!src\n',
+      'src/app.ts': 'export const a = 1;\n',
+      'package.json': '{"name":"x"}\n',
+      'README.md': '# x\n',
+    });
+    expect(await paths(fs)).toEqual(['.dockerignore', 'README.md', 'package.json', 'src/app.ts']);
+  });
+
+  it('still applies .gitignore next to it', async () => {
+    const fs = memoryFS({
+      '.dockerignore': '*\n',
+      '.gitignore': 'generated/\n',
+      'generated/out.ts': 'export {};\n',
+      'src/app.ts': 'export const a = 1;\n',
+    });
+    expect(await paths(fs)).toEqual(['.dockerignore', 'src/app.ts']);
+  });
+
+  it('drops directories named like build output, never files with those names', async () => {
+    const fs = memoryFS({
+      'bin/build': '#!/bin/sh\necho build\n', // a buildpack script
+      vendor: 'not a directory\n',
+      'build/out.js': 'module.exports = 1;\n', // a real build directory
+      'src/app.ts': 'export const a = 1;\n',
+    });
+    expect(await paths(fs)).toEqual(['bin/build', 'src/app.ts', 'vendor']);
+  });
+});
+
+describe('walk — line counts', () => {
+  it('counts lines the way wc -l and editors do', async () => {
+    const fs = memoryFS({
+      'two.ts': 'a\nb\n', // trailing newline ends line 2, it is not line 3
+      'two-no-eol.ts': 'a\nb',
+      'one.ts': 'a',
+      'empty.ts': '',
+    });
+    const loc = new Map<string, number>();
+    for await (const f of walk(fs)) loc.set(f.path, f.loc);
+    expect(loc.get('two.ts')).toBe(2);
+    expect(loc.get('two-no-eol.ts')).toBe(2);
+    expect(loc.get('one.ts')).toBe(1);
+    expect(loc.get('empty.ts')).toBe(0);
   });
 });
 
@@ -393,5 +461,71 @@ describe('personal, untracked agent files and injected ignore rules', () => {
     });
     const out = await paths(fsx, { extraIgnore: ['local.env.md'] });
     expect(out).toEqual(['src/a.ts']);
+  });
+});
+
+/* F-03 — a UTF-16 save (PowerShell 5's default) is text, not binary. Decoded
+   as UTF-8 it is one NUL per character, which the NUL sniff read as binary:
+   a secret in such a file was never scanned, and the file was recorded as
+   `ok` with loc 0. */
+describe('walk — UTF-16 text is text', () => {
+  const source = 'const key = "value";\nexport {};\n';
+  const utf16le = (s: string, bom: boolean): Uint8Array => {
+    const out = new Uint8Array((s.length + (bom ? 1 : 0)) * 2);
+    let j = 0;
+    if (bom) {
+      out[j++] = 0xff;
+      out[j++] = 0xfe;
+    }
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      out[j++] = c & 0xff;
+      out[j++] = c >> 8;
+    }
+    return out;
+  };
+  /** A FactsFS whose `src/wide.ts` holds `bytes`: readText gives the UTF-8
+   *  reading every host hands the walker (one NUL per character for UTF-16),
+   *  readFile the bytes themselves. */
+  const fsWith = (bytes: Uint8Array): FactsFS => {
+    const fs = memoryFS({ 'src/wide.ts': '', 'src/plain.ts': source });
+    const readFile = fs.readFile.bind(fs);
+    const readText = fs.readText.bind(fs);
+    fs.readFile = (p) => (p.endsWith('wide.ts') ? Promise.resolve(bytes) : readFile(p));
+    fs.readText = (p) =>
+      p.endsWith('wide.ts') ? Promise.resolve(new TextDecoder('utf-8').decode(bytes)) : readText(p);
+    return fs;
+  };
+  const wide = async (bytes: Uint8Array) => {
+    const files: Array<{
+      path: string;
+      text: string | null;
+      loc: number;
+      skippedReason: string | null;
+    }> = [];
+    for await (const f of walk(fsWith(bytes))) files.push(f);
+    return files.find((f) => f.path === 'src/wide.ts')!;
+  };
+
+  it('decodes UTF-16LE with a BOM to the same text as its UTF-8 twin', async () => {
+    const f = await wide(utf16le(source, true));
+    expect(f.skippedReason).toBeNull();
+    expect(f.text).toBe(source);
+    expect(f.loc).toBe(2);
+  });
+
+  it('decodes UTF-16LE without a BOM by its NUL signature', async () => {
+    const f = await wide(utf16le(source, false));
+    expect(f.text).toBe(source);
+  });
+
+  it('still records a real binary as binary', async () => {
+    const png = new Uint8Array(64);
+    png.set([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0x0d, 0x49, 0x48, 0x44, 0x52,
+    ]);
+    const f = await wide(png);
+    expect(f.skippedReason).toBe('binary');
+    expect(f.text).toBeNull();
   });
 });

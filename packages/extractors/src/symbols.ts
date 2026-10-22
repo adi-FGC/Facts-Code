@@ -190,7 +190,20 @@ function visitTopLevel(
     }
     // `export default Name` marks the existing declaration (extractSymbols'
     // export-list pass) instead of inventing a second symbol here.
-    return [];
+    if (inner_type === 'Identifier') return [];
+    // Any other expression — `export default defineConfig({…})`,
+    // `connect(…)(View)`, an object literal, `new Hono()` — IS the module's
+    // default export; it used to leave the file with no export at all.
+    return [
+      {
+        name: 'default',
+        kind: looksLikeComponent('default', inner) ? 'component' : 'variable',
+        startLine: lineOf(node, 'start'),
+        endLine: lineOf(node, 'end'),
+        exported: true,
+        isDefault: true,
+      },
+    ];
   }
 
   // Bare top-level declarations.

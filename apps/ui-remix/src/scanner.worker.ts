@@ -121,7 +121,8 @@ function buildAnalyzeOpts(projectName: string, onProgress: (pct: number, file: s
      `gitStats` is similarly omitted — git mining requires a real .git
      directory which the FSA path doesn't expose and the GitHub path
      hasn't fetched. */
-  return { projectName, onProgress };
+  /* INV1 — the adapter owns the clock: stamped here, once per scan (F-38). */
+  return { projectName, onProgress, generatedAt: new Date().toISOString() };
 }
 
 self.addEventListener('message', async (ev: MessageEvent<ScanRequest>) => {

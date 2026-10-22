@@ -231,3 +231,32 @@ describe('ci.yml', () => {
     expect(perf.i).toBeGreaterThan(find(list, /^Build web dashboard/).i);
   });
 });
+
+/* Supply-chain hygiene (F-75): a moving tag can be re-pointed at any code by
+   whoever holds it, and cve-refresh.yml holds a deploy token. Every action is
+   pinned to a commit, with the release named beside it for humans; and the
+   token each workflow runs with is read-only. */
+describe('workflow hygiene', () => {
+  const WORKFLOWS = ['ci.yml', 'cve-refresh.yml'];
+
+  it('pins every action to a commit SHA and names the release', () => {
+    for (const f of WORKFLOWS) {
+      const uses = [...read(f).matchAll(/^\s*(?:- )?uses:\s*(\S+)(.*)$/gm)];
+      expect(uses.length, f).toBeGreaterThan(0);
+      for (const [, ref, rest] of uses) {
+        expect(ref, `${f}: ${ref}`).toMatch(/^[\w.-]+\/[\w.-]+@[0-9a-f]{40}$/);
+        expect(rest, `${f}: ${ref}`).toMatch(/#\s*v\d+\.\d+\.\d+/);
+      }
+    }
+  });
+
+  it('runs with a read-only token', () => {
+    for (const f of WORKFLOWS) {
+      const text = read(f);
+      const top = text.slice(0, text.indexOf('\njobs:')) + '\n';
+      // The whole block: an added `pull-requests: write` could not hide under it.
+      const block = /^permissions:\n((?: {2}\S.*\n)+)/m.exec(top);
+      expect(block?.[1], f).toBe('  contents: read\n');
+    }
+  });
+});

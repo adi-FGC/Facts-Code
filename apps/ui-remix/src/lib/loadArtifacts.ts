@@ -67,6 +67,9 @@ export interface Dataset {
   project: {
     name: string;
     root: string;
+    /** Whole-scan caveats the host knew (a truncated GitHub tree, files it
+     *  could not download): the grade covers only what was scanned. */
+    scanWarnings?: string[];
     languages: Array<{
       id: string;
       label: string;
@@ -315,6 +318,31 @@ export function artifactCharsOf(data: Dataset): number {
   }
 }
 
+/**
+ * Where a dataset came from. Only the one baked into the page is public by
+ * construction (it IS the deployed site). One served by `factstack ui` or
+ * opened with ⌘O is someone's own project, and nothing about it — not even
+ * its package names — may leave the browser without their say-so.
+ */
+export type DatasetProvenance = 'baked' | 'served' | 'opened';
+
+const provenance = new WeakMap<Dataset, DatasetProvenance>();
+
+/** Record where `data` came from. Dispatchers of `factstack:dataset` call
+ *  this (or pass it in the event detail) before the app adopts the dataset. */
+export function markDataset(data: Dataset, from: DatasetProvenance): void {
+  provenance.set(data, from);
+}
+
+/** A dataset nobody marked is treated as opened: the private default. */
+export function datasetProvenance(data: Dataset): DatasetProvenance {
+  return provenance.get(data) ?? 'opened';
+}
+
+export function isBakedDataset(data: Dataset): boolean {
+  return datasetProvenance(data) === 'baked';
+}
+
 export async function loadArtifacts(): Promise<Dataset> {
   // 1. Inline (static deploy / exported single-file HTML)
   //
@@ -336,6 +364,7 @@ export async function loadArtifacts(): Promise<Dataset> {
       /* Sections served beside the page count toward the artifact's size. */
       const sectionChars = await hydrateSections(data);
       inlineChars.set(data, inline.textContent.length + sectionChars);
+      markDataset(data, 'baked');
       return data;
     }
   }
@@ -344,6 +373,7 @@ export async function loadArtifacts(): Promise<Dataset> {
   if (!res.ok) throw new Error('HTTP ' + res.status + ' loading /data/factstack.json');
   const data = (await res.json()) as Dataset;
   await hydrateSections(data);
+  markDataset(data, 'served');
   return data;
 }
 

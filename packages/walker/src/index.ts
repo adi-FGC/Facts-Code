@@ -3,7 +3,8 @@
  * walker runs in Node (apps/cli) and the browser (v0.4 Chrome extension).
  *
  * Rules:
- *   - Respects .gitignore + .dockerignore + .cursorignore + .aiignore + .factsignore
+ *   - Respects .gitignore + .cursorignore + .aiignore + .factsignore (not
+ *     .dockerignore: a build-context filter, not a source filter)
  *   - Respects rules the host injects via `extraIgnore` (the CLI passes git's
  *     global excludes + .git/info/exclude), plus a small built-in list of
  *     per-developer agent files that git hides from outside the repo
@@ -25,7 +26,7 @@
 // Bundler resolution (used by walker's own build) and NodeNext.
 import * as ignoreModule from 'ignore';
 import type { Ignore } from 'ignore';
-import { byCodeUnit } from '@factstack/spec';
+import { byCodeUnit, decodeUtf16 } from '@factstack/spec';
 const ignore = ((ignoreModule as unknown as { default?: () => Ignore }).default ??
   (ignoreModule as unknown as () => Ignore)) as () => Ignore;
 import type { Dirent, FactsFS } from '@factstack/spec';
@@ -75,7 +76,12 @@ function isNoiseArtifact(name: string): boolean {
   return ALWAYS_EXCLUDE_SUFFIXES.some((s) => lower.endsWith(s));
 }
 
-const IGNORE_FILES = ['.gitignore', '.dockerignore', '.cursorignore', '.aiignore', '.factsignore'];
+/* Rule files whose patterns decide what is analyzed. `.dockerignore` is NOT
+   one of them: it selects a Docker build context with its own grammar (a
+   `*` + `!src` allowlist is idiomatic), and read as gitignore it emptied the
+   scan and graded the empty result "clean". A file Docker leaves out of an
+   image is still part of the repository. */
+const IGNORE_FILES = ['.gitignore', '.cursorignore', '.aiignore', '.factsignore'];
 
 /**
  * Ignore rules applied at the root of every walk (v0.3.12).
@@ -253,7 +259,9 @@ async function* walkDir(
   });
 
   for (const entry of entries) {
-    if (ALWAYS_EXCLUDE.has(entry.name)) continue;
+    /* Directory names only: a FILE called `build`, `vendor` or `target` (a
+       buildpack's `bin/build`, a Makefile target script) is source. */
+    if (entry.isDirectory && ALWAYS_EXCLUDE.has(entry.name)) continue;
     if (!entry.isDirectory && isNoiseArtifact(entry.name)) continue;
     // Ignore-rule files (.gitignore/.factsignore/…) are consumed for their
     // RULES above — never EMIT them as analysis content. FACTS writes a
@@ -311,8 +319,19 @@ async function* walkDir(
       }
     }
     if (isBinary(text)) {
-      yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'binary');
-      continue;
+      /* UTF-16 text (PowerShell 5's default save) decodes as UTF-8 to one NUL
+         per character and sniffs binary, so it was never secret-scanned and
+         was recorded as `ok` with loc 0 (F-03). Re-read the bytes and decode
+         it for real; anything that is not UTF-16 stays binary. */
+      const wide = await fs
+        .readFile(entry.path)
+        .then((bytes) => decodeUtf16(bytes))
+        .catch(() => null);
+      if (wide == null) {
+        yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, null, 'binary');
+        continue;
+      }
+      text = wide;
     }
 
     yield synthesizeFile(entry, relToRoot, stat.size, stat.mtimeMs, text, null);
@@ -340,9 +359,18 @@ function synthesizeFile(
     size,
     mtimeMs,
     text,
-    loc: text ? text.split('\n').length : 0,
+    loc: countLines(text),
     skippedReason,
   };
+}
+
+/** Lines of code as `wc -l` and every editor count them: a trailing newline
+ *  ends the last line, it does not start an empty one. */
+function countLines(text: string | null): number {
+  if (!text) return 0;
+  let n = 1;
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++;
+  return text.endsWith('\n') ? n - 1 : n;
 }
 
 function parseIgnore(content: string): string[] {

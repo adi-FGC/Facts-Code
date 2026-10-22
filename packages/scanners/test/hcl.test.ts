@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { parseHcl } from '../src/hcl.js';
+import { expectLinear } from './linear.js';
 
 const TF = `# network stack
 resource "aws_vpc" "main" {
@@ -161,24 +162,26 @@ describe('parseHcl — deeply nested templates', () => {
 
 /* SCN-09 — each resource's and reference's line re-counted from offset 0. */
 describe('parseHcl — near-linear on large files', () => {
-  it('parses ~1 MB of generated Terraform quickly, lines intact', () => {
-    const parts: string[] = [];
-    for (let i = 0; i < 6000; i++) {
-      const prev =
-        i > 0 ? `  subnet_id = aws_subnet.s${i - 1}.id\n  vpc_id    = aws_vpc.v${i - 1}.id\n` : '';
-      parts.push(
-        `resource "aws_subnet" "s${i}" {\n${prev}  cidr_block = "10.0.0.0/24"\n  tags = { Name = "subnet-${i}" }\n}\nresource "aws_vpc" "v${i}" {\n  cidr_block = "10.${i % 250}.0.0/16"\n}`,
-      );
-    }
-    const tf = parts.join('\n');
+  it('parses ~1 MB of generated Terraform in linear time, lines intact', () => {
+    const terraform = (n: number): string => {
+      const parts: string[] = [];
+      for (let i = 0; i < n; i++) {
+        const prev =
+          i > 0
+            ? `  subnet_id = aws_subnet.s${i - 1}.id\n  vpc_id    = aws_vpc.v${i - 1}.id\n`
+            : '';
+        parts.push(
+          `resource "aws_subnet" "s${i}" {\n${prev}  cidr_block = "10.0.0.0/24"\n  tags = { Name = "subnet-${i}" }\n}\nresource "aws_vpc" "v${i}" {\n  cidr_block = "10.${i % 250}.0.0/16"\n}`,
+        );
+      }
+      return parts.join('\n');
+    };
+    const tf = terraform(6000);
     expect(tf.length).toBeGreaterThan(900_000);
-    const t0 = performance.now();
-    const r = parseHcl(tf);
-    const ms = performance.now() - t0;
+    const r = expectLinear('parseHcl', terraform, parseHcl, 3000);
     expect(r.resources).toHaveLength(12000);
     expect(r.dependencies).toHaveLength(2 * 5999);
     const last = r.resources[11998]!; // aws_subnet.s5999
     expect(last.line).toBe(tf.split('\n').indexOf('resource "aws_subnet" "s5999" {') + 1);
-    expect(ms).toBeLessThan(3000);
   });
 });

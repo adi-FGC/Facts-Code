@@ -89,6 +89,46 @@ export const LOCKFILE_NAMES = [
 export const stripLeadingBom = (text: string): string =>
   text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 
+/* The one platform global the decoder below needs, declared as the slice
+   used (the tactic scanners takes for `fetch`): spec compiles with lib
+   ES2022 and no DOM, and every host has it. */
+declare const TextDecoder: new (
+  label: string,
+  options: { fatal: boolean },
+) => { decode(input: Uint8Array): string };
+
+/** The text of `bytes` when they are UTF-16 (a BOM, or the NUL-every-other-
+ *  byte signature of ASCII-range UTF-16 without one), else null. PowerShell 5
+ *  writes UTF-16LE by default; decoded as UTF-8 that text is one NUL per
+ *  character, so the walker sniffed it binary and never secret-scanned it
+ *  (F-03). A strict decode, so a real binary that happens to carry the
+ *  signature stays binary (null) instead of becoming garbage text. */
+export function decodeUtf16(bytes: Uint8Array): string | null {
+  if (bytes.length < 2) return null;
+  let label: 'utf-16le' | 'utf-16be';
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) label = 'utf-16le';
+  else if (bytes[0] === 0xfe && bytes[1] === 0xff) label = 'utf-16be';
+  else {
+    const n = Math.min(bytes.length, 8192) & ~1;
+    const pairs = n / 2;
+    if (pairs < 8) return null;
+    let evenNul = 0;
+    let oddNul = 0;
+    for (let i = 0; i < n; i += 2) {
+      if (bytes[i] === 0) evenNul++;
+      if (bytes[i + 1] === 0) oddNul++;
+    }
+    if (oddNul > pairs * 0.5 && evenNul < pairs * 0.05) label = 'utf-16le';
+    else if (evenNul > pairs * 0.5 && oddNul < pairs * 0.05) label = 'utf-16be';
+    else return null;
+  }
+  try {
+    return new TextDecoder(label, { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 /** Deterministic code-unit string comparator (INV2). Unlike localeCompare,
  *  `<`/`>` compare UTF-16 code units, giving identical ordering across every
  *  runtime/locale — required for byte-identical artifact output. */

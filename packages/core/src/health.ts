@@ -65,6 +65,15 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
   const risks = agent.risks ?? [];
   const files = agent.files ?? [];
   const vulns = agent.vulnerabilities ?? [];
+  /* Known vulnerabilities are the one factor that needs a network call
+     (scan-vulns). An artifact that never ran one has an empty list for a
+     different reason than a clean one, and the headline must not read the
+     same: "clean" is only claimed once dependencies were actually checked. */
+  const scanned = agent.vulnerabilityScan != null;
+  /* A scan the host knew was incomplete (a truncated GitHub tree, files it
+     could not download) grades only what it saw; the headline says so
+     (F-35/F-36). */
+  const partial = agent.project.scanWarnings?.length ?? 0;
 
   // `broken` = distinct files with a broken-import / parse-error / read-error
   // risk (unscanned-import excluded — the file builds fine). Mirrors the prior
@@ -134,7 +143,9 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
 
   const tail =
     factors.length === 0
-      ? 'clean — no blockers detected'
+      ? scanned
+        ? 'clean — no blockers detected'
+        : 'no blockers in what was checked'
       : factors.map((f) => phrase(f.count, f.label)).join(', ');
   // Ungraded counts ride the headline so nothing kept out of the grade is
   // silent. Each note is absent at 0, so older consumers see the old shape.
@@ -148,6 +159,8 @@ export function computeHealth(agent: AgentArtifact): HealthHeadline {
     ungradedVulns > 0
       ? ` · ${ungradedVulns} dev/transitive ${ungradedVulns === 1 ? 'vulnerability' : 'vulnerabilities'}, not graded`
       : '',
+    scanned ? '' : ' · dependencies not scanned for known vulnerabilities',
+    partial > 0 ? ` · partial scan (${partial} ${partial === 1 ? 'caveat' : 'caveats'})` : '',
   ].join('');
 
   return {

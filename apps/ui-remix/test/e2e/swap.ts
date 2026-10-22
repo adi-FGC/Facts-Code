@@ -12,19 +12,31 @@ import type { Page, Route } from '@playwright/test';
 /** Merge `overrides` over the baked dataset and publish it. The swapped
  *  dataset is left on `window.__swapped` for assertions. The base includes
  *  any section a build serves beside the page (`sectionUrls`), exactly as
- *  loadArtifacts hydrates it. */
-export async function swapDataset(page: Page, overrides: Record<string, unknown>): Promise<void> {
-  await page.evaluate(async (o) => {
-    const raw = document.getElementById('factstack-data')?.textContent ?? '{}';
-    const base = JSON.parse(raw) as Record<string, unknown>;
-    const urls = (base.sectionUrls ?? {}) as Record<string, string>;
-    for (const [k, u] of Object.entries(urls)) {
-      if (base[k] === undefined && !(k in o)) base[k] = await (await fetch(u)).json();
-    }
-    const next = { ...base, ...o };
-    (window as unknown as { __swapped: unknown }).__swapped = next;
-    window.dispatchEvent(new CustomEvent('factstack:dataset', { detail: next }));
-  }, overrides);
+ *  loadArtifacts hydrates it. `provenance` is what the app is told about the
+ *  dataset's origin: 'baked' (the default — these specs stand in for the
+ *  deployed page) or 'opened' (a ⌘O scan of someone's own project, which
+ *  the app must treat as private). */
+export async function swapDataset(
+  page: Page,
+  overrides: Record<string, unknown>,
+  provenance: 'baked' | 'served' | 'opened' = 'baked',
+): Promise<void> {
+  await page.evaluate(
+    async ({ o, provenance }) => {
+      const raw = document.getElementById('factstack-data')?.textContent ?? '{}';
+      const base = JSON.parse(raw) as Record<string, unknown>;
+      const urls = (base.sectionUrls ?? {}) as Record<string, string>;
+      for (const [k, u] of Object.entries(urls)) {
+        if (base[k] === undefined && !(k in o)) base[k] = await (await fetch(u)).json();
+      }
+      const next = { ...base, ...o };
+      (window as unknown as { __swapped: unknown }).__swapped = next;
+      window.dispatchEvent(
+        new CustomEvent('factstack:dataset', { detail: { dataset: next, provenance } }),
+      );
+    },
+    { o: overrides, provenance },
+  );
 }
 
 /** The baked dataset as the page loaded it: the inline block plus every

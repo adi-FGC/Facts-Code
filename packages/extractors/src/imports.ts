@@ -39,6 +39,15 @@ export interface RawImport {
    */
   names: string[];
   /**
+   * `export { a, b as c } from 'm'` / `export * as ns from 'm'`: the names
+   * this module re-exports from `m` (the EXPORTED names, 'default'
+   * included). They declare nothing locally, so the symbol pass never sees
+   * them; without this a barrel file reported no exports at all.
+   */
+  reexports?: string[];
+  /** `export * from 'm'`: everything `m` exports is surfaced here too. */
+  reexportAll?: boolean;
+  /**
    * Python only: the member names of `from X import a, b` (not the local
    * `as` aliases). A member may be a SUBMODULE (`from . import utils`), so
    * the resolver tries `X.a` before the package X. `'*'` means the package
@@ -73,6 +82,12 @@ export function extractImports(
     value?: unknown;
     specifiers?: AnyNode[];
     local?: { name?: unknown };
+    /* `export { a as b } from`: the exported side of a specifier. */
+    exported?: { name?: unknown; value?: unknown };
+    name?: unknown;
+    /* `import x = require('y')` (TSImportEqualsDeclaration). */
+    id?: { name?: unknown };
+    moduleReference?: { type?: string; expression?: { value?: unknown } };
   };
   const ast = pf.ast as { program?: { body?: AnyNode[] } };
 
@@ -108,16 +123,40 @@ export function extractImports(
           });
         }
         break;
+      case 'TSImportEqualsDeclaration': {
+        // `import x = require('./y')` — TS's CommonJS-shaped import; the
+        // module name sits in an external module reference, not a `source`.
+        const ref = node.moduleReference;
+        const spec = ref?.type === 'TSExternalModuleReference' ? ref.expression?.value : undefined;
+        if (typeof spec === 'string') {
+          out.push({
+            specifier: spec,
+            kind: node.importKind === 'type' ? 'type-import' : 'require',
+            line: node.loc?.start?.line ?? 0,
+            names: typeof node.id?.name === 'string' ? [node.id.name] : [],
+          });
+        }
+        break;
+      }
       case 'ExportNamedDeclaration':
       case 'ExportAllDeclaration':
         if (typeof node.source?.value === 'string') {
           // `export … from 'm'` re-exports: tracked as a file-level edge via
           // `specifier`, but binds no local name → no symbol-resolver names.
+          // The EXPORTED names are kept apart: they are what the module surfaces.
+          const reexports: string[] = [];
+          for (const sp of (Array.isArray(node.specifiers) ? node.specifiers : []) as AnyNode[]) {
+            const exported = sp?.exported as AnyNode | undefined;
+            const name = exported?.name ?? exported?.value;
+            if (typeof name === 'string') reexports.push(name);
+          }
           out.push({
             specifier: node.source.value,
             kind: node.exportKind === 'type' ? 'type-import' : 'import',
             line: node.loc?.start?.line ?? 0,
             names: [],
+            ...(reexports.length > 0 ? { reexports } : {}),
+            ...(node.type === 'ExportAllDeclaration' ? { reexportAll: true } : {}),
           });
         }
         break;
@@ -172,6 +211,10 @@ function dedupe(xs: RawImport[]): RawImport[] {
     const prev = byKey.get(k);
     if (prev) {
       for (const n of x.names) if (!prev.names.includes(n)) prev.names.push(n);
+      for (const n of x.reexports ?? []) {
+        if (!(prev.reexports ??= []).includes(n)) prev.reexports.push(n);
+      }
+      if (x.reexportAll) prev.reexportAll = true;
     } else {
       byKey.set(k, { ...x, names: [...x.names] });
       order.push(k);

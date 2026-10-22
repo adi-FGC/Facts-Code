@@ -36,11 +36,13 @@ test.describe('possible secrets', () => {
     /* UI-R7 — the lede no longer repeats the headline word for word… */
     await expect(main.getByText('Nothing counts as exposed.')).toHaveCount(1);
     /* …and the generic rule a possible secret came from has a reference row. */
+    /* Five heuristics since 2026-10-22 (JWT and bearer-token rows, F-04);
+       test/secretRules.test.ts pins the count against the scanner itself. */
     await expect(
-      main.getByText(/Rule reference · \d+ patterns · 3 possible-secret heuristics/),
+      main.getByText(/Rule reference · \d+ patterns · 5 possible-secret heuristics/),
     ).toBeVisible();
     await expect(main.getByText('Secret-named config value')).toBeVisible();
-    await expect(main.getByText('possible · not graded')).toHaveCount(3);
+    await expect(main.getByText('possible · not graded')).toHaveCount(5);
 
     await swapDataset(page, {
       ...TINY_PROJECT,

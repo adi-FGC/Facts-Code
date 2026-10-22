@@ -6,8 +6,10 @@
  * applied DOM side-effects. Keeps the three call sites from drifting.
  */
 
+import { PREF_KEYS } from './prefs.ts';
+
 export type Theme = 'system' | 'light' | 'dark';
-export const THEME_STORE_KEY = 'facts-theme';
+export const THEME_STORE_KEY = PREF_KEYS.theme;
 
 /* Cycle order for ⌘J: system → light → dark → system. Picking
    system as the start of the cycle puts the OS-default at the easy-
@@ -54,8 +56,17 @@ export function nextTheme(curr: Theme): Theme {
  * can re-render their segmented controls without re-reading storage.
  */
 export function cycleThemeShortcut(): void {
-  const next = nextTheme(readStoredTheme());
-  persistTheme(next);
-  applyTheme(next);
-  window.dispatchEvent(new CustomEvent<Theme>('factstack:theme', { detail: next }));
+  selectTheme(nextTheme(readStoredTheme()));
+}
+
+/**
+ * Persist → apply → announce. Every control that changes the theme (the
+ * header toggle, the Config radiogroup, ⌘J) goes through here, and every
+ * control listens for `factstack:theme`, so none can show a stale state
+ * (F-46).
+ */
+export function selectTheme(t: Theme): void {
+  persistTheme(t);
+  applyTheme(t);
+  window.dispatchEvent(new CustomEvent<Theme>('factstack:theme', { detail: t }));
 }

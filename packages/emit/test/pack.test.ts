@@ -189,6 +189,26 @@ describe('encodeAgentPack — shape + content', () => {
     expect(fields[6]).toMatch(/^(master|diff)$/);
   });
 
+  it('puts the analyzed commit in the header commit slot when the artifact recorded one', () => {
+    const sha = 'c14da12746df7a28929204a82db60ae5e1e85b5b';
+    const topo = makeTopology();
+    const withGit: AgentArtifact = {
+      ...makeAgent(),
+      git: {
+        ...topo,
+        worktrees: topo.worktrees.map((w) => (w.isCurrent ? { ...w, head: sha } : w)),
+      },
+    };
+    const header = encodeAgentPack(withGit).split('\n', 1)[0] as string;
+    expect(header.replace(/^# /, '').split('\t')[2]).toBe(sha);
+    // No git at all: the slot falls back to the generation timestamp, as the legend says.
+    const bare = encodeAgentPack(makeAgent()).split('\n', 1)[0] as string;
+    expect(bare.replace(/^# /, '').split('\t')[2]).toBe('2026-05-02T12:00:00.000Z');
+    // An explicit snapshotId still wins over both.
+    const forced = encodeAgentPack(withGit, { snapshotId: 'abc1234' }).split('\n', 1)[0] as string;
+    expect(forced.replace(/^# /, '').split('\t')[2]).toBe('abc1234');
+  });
+
   it('emits all sixteen tables in fixed order', () => {
     const pack = encodeAgentPack(makeAgent());
     const order = [
@@ -484,198 +504,221 @@ describe('encodeAgentPack — byte cost', () => {
 
 /* ───────────── v0.3.11 — worktrees / branches / features ───────────── */
 
-describe('encodeAgentPack — worktrees / branches / features (v0.3.11)', () => {
-  function makeTopology(): NonNullable<AgentArtifact['git']> {
-    const mainPath = 'D:/repo';
-    const linkedPath = 'D:/repo/.claude/worktrees/feature-x';
-    return {
-      scannedAt: '2026-09-06T10:00:00Z',
-      repoRoot: mainPath,
-      currentPath: mainPath,
-      defaultBranch: 'main',
-      originDefault: 'origin/main',
-      remotes: [{ name: 'origin', url: 'https://example.invalid/repo.git' }],
-      remoteRefsAgeDays: 0.5,
-      stashes: 1,
-      worktrees: [
-        {
-          path: mainPath,
-          relPath: '.',
-          kind: 'main',
-          isCurrent: true,
-          target: null,
-          bare: false,
-          locked: false,
-          lockReason: null,
-          prunable: false,
-          branch: 'main',
-          head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          headAt: '2026-09-04T01:18:31Z',
-          upstream: 'origin/main',
-          ahead: 0,
-          behind: 0,
-          integration: 'default',
-          publish: 'pushed',
-          tree: 'clean',
-          inProgress: null,
-          dirty: { staged: 0, modified: 0, untracked: 0, conflicts: 0 },
-          compareBase: 'refs/remotes/origin/main',
-          uniqueCount: 0,
-          uniqueCommits: [],
-          requests: [],
-          sessions: 0,
-          requestedAt: null,
-          lastActivityAt: '2026-09-04T01:18:31Z',
-          stale: false,
-          features: [],
-          deployTargets: ['wrangler.toml'],
-          ci: true,
-          testScript: true,
-          readiness: {
-            commit: 'nothing',
-            commitReasons: ['working tree clean'],
-            deploy: 'ready',
-            deployReasons: ['on origin/main · wrangler.toml'],
-          },
-          gaps: ['no-request-record'],
-        },
-        {
-          path: linkedPath,
-          relPath: '.claude/worktrees/feature-x',
-          kind: 'linked',
-          isCurrent: false,
-          target: null,
-          bare: false,
-          locked: false,
-          lockReason: null,
-          prunable: false,
-          branch: 'feat/x',
-          head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          headAt: '2026-09-05T08:00:00Z',
-          upstream: null,
-          ahead: null,
-          behind: null,
-          integration: 'unmerged',
-          publish: 'no-upstream',
-          tree: 'dirty',
-          inProgress: null,
-          dirty: { staged: 2, modified: 1, untracked: 3, conflicts: 0 },
-          compareBase: 'refs/heads/main',
-          uniqueCount: 1,
-          uniqueCommits: [
-            {
-              sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-              at: '2026-09-05T08:00:00Z',
-              subject: 'feat(x): add the x panel',
-            },
-          ],
-          requests: [
-            {
-              agent: 'claude-code',
-              sessionId: '0123456789abcdef',
-              startedAt: '2026-09-03T09:00:00Z',
-              lastAt: '2026-09-05T09:00:00Z',
-              prompt: 'build the x panel',
-              title: null,
-              via: 'cwd',
-            },
-          ],
-          sessions: 1,
-          requestedAt: '2026-09-03T09:00:00Z',
-          lastActivityAt: '2026-09-05T09:00:00Z',
-          stale: false,
-          features: [
-            {
-              id: 'bbbbbbb',
-              source: 'commit',
-              label: 'x: add the x panel',
-              at: '2026-09-05T08:00:00Z',
-            },
-            {
-              id: 'r:01234567',
-              source: 'request',
-              label: 'build the x panel',
-              at: '2026-09-03T09:00:00Z',
-            },
-            { id: 'b:feat/x', source: 'branch', label: 'x', at: null },
-          ],
-          deployTargets: [],
-          ci: false,
-          testScript: true,
-          readiness: {
-            commit: 'partial',
-            commitReasons: ['2 files staged', '1 file modified, unstaged', '3 untracked files'],
-            deploy: 'blocked',
-            deployReasons: ['commit or discard 6 changes first'],
-          },
-          gaps: ['no-upstream', 'no-deploy-config', 'no-ci', 'untracked-work'],
-        },
-      ],
-      branches: [
-        {
-          name: 'main',
-          head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          headAt: '2026-09-04T01:18:31Z',
-          subject: 'chore: release',
-          isDefault: true,
-          upstream: 'origin/main',
-          upstreamGone: false,
-          ahead: 0,
-          behind: 0,
-          uniqueCount: 0,
-          behindDefault: 0,
-          containedInOrigin: true,
-          containedInLocal: true,
-          worktree: mainPath,
-          deletable: false,
-          deleteBlockers: ['is the default branch', 'checked out at .'],
-        },
-        {
-          name: 'feat/x',
-          head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-          headAt: '2026-09-05T08:00:00Z',
-          subject: 'feat(x): add the x panel',
-          isDefault: false,
-          upstream: null,
-          upstreamGone: false,
-          ahead: null,
-          behind: null,
-          uniqueCount: 1,
-          behindDefault: 0,
-          containedInOrigin: false,
-          containedInLocal: false,
-          worktree: linkedPath,
-          deletable: false,
-          deleteBlockers: [
-            'checked out at .claude/worktrees/feature-x',
-            '1 commits not in origin/main',
-          ],
-        },
-        {
-          name: 'old/merged',
-          head: 'cccccccccccccccccccccccccccccccccccccccc',
-          headAt: '2026-08-01T00:00:00Z',
-          subject: 'fix: typo',
-          isDefault: false,
-          upstream: 'origin/old/merged',
-          upstreamGone: false,
-          ahead: 0,
-          behind: 0,
-          uniqueCount: 0,
-          behindDefault: 12,
-          containedInOrigin: true,
-          containedInLocal: true,
-          worktree: null,
-          deletable: true,
-          deleteBlockers: [],
-        },
-      ],
-      gaps: ['stale-remote-refs'],
-      requestsCoverage: 'full',
-      elapsedMs: 42,
-    };
-  }
+/* A complete git topology (shared by the header-commit and worktree-table tests). */
+/* F-35 — a host that knew its scan was incomplete says so in the pack itself. */
+describe('encodeAgentPack — partial-scan caveats', () => {
+  const caveat =
+    'GitHub truncated the file listing — files past the cut-off are missing from this scan.';
 
+  it('writes each scanWarning as a meta line, right after the header legend', () => {
+    const agent = makeAgent();
+    const pack = encodeAgentPack({
+      ...agent,
+      project: { ...agent.project, scanWarnings: [caveat] },
+    });
+    const lines = pack.split('\n');
+    const at = lines.indexOf(`; warning: ${caveat} This pack covers only what was scanned.`);
+    expect(at).toBeGreaterThan(0);
+    expect(lines[at - 1]!.startsWith('; header: ')).toBe(true);
+  });
+
+  it('writes none for a complete scan', () => {
+    expect(encodeAgentPack(makeAgent())).not.toMatch(/^; warning: /m);
+  });
+});
+
+function makeTopology(): NonNullable<AgentArtifact['git']> {
+  const mainPath = 'D:/repo';
+  const linkedPath = 'D:/repo/.claude/worktrees/feature-x';
+  return {
+    scannedAt: '2026-09-06T10:00:00Z',
+    repoRoot: mainPath,
+    currentPath: mainPath,
+    defaultBranch: 'main',
+    originDefault: 'origin/main',
+    remotes: [{ name: 'origin', url: 'https://example.invalid/repo.git' }],
+    remoteRefsAgeDays: 0.5,
+    stashes: 1,
+    worktrees: [
+      {
+        path: mainPath,
+        relPath: '.',
+        kind: 'main',
+        isCurrent: true,
+        target: null,
+        bare: false,
+        locked: false,
+        lockReason: null,
+        prunable: false,
+        branch: 'main',
+        head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        headAt: '2026-09-04T01:18:31Z',
+        upstream: 'origin/main',
+        ahead: 0,
+        behind: 0,
+        integration: 'default',
+        publish: 'pushed',
+        tree: 'clean',
+        inProgress: null,
+        dirty: { staged: 0, modified: 0, untracked: 0, conflicts: 0 },
+        compareBase: 'refs/remotes/origin/main',
+        uniqueCount: 0,
+        uniqueCommits: [],
+        requests: [],
+        sessions: 0,
+        requestedAt: null,
+        lastActivityAt: '2026-09-04T01:18:31Z',
+        stale: false,
+        features: [],
+        deployTargets: ['wrangler.toml'],
+        ci: true,
+        testScript: true,
+        readiness: {
+          commit: 'nothing',
+          commitReasons: ['working tree clean'],
+          deploy: 'ready',
+          deployReasons: ['on origin/main · wrangler.toml'],
+        },
+        gaps: ['no-request-record'],
+      },
+      {
+        path: linkedPath,
+        relPath: '.claude/worktrees/feature-x',
+        kind: 'linked',
+        isCurrent: false,
+        target: null,
+        bare: false,
+        locked: false,
+        lockReason: null,
+        prunable: false,
+        branch: 'feat/x',
+        head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        headAt: '2026-09-05T08:00:00Z',
+        upstream: null,
+        ahead: null,
+        behind: null,
+        integration: 'unmerged',
+        publish: 'no-upstream',
+        tree: 'dirty',
+        inProgress: null,
+        dirty: { staged: 2, modified: 1, untracked: 3, conflicts: 0 },
+        compareBase: 'refs/heads/main',
+        uniqueCount: 1,
+        uniqueCommits: [
+          {
+            sha: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            at: '2026-09-05T08:00:00Z',
+            subject: 'feat(x): add the x panel',
+          },
+        ],
+        requests: [
+          {
+            agent: 'claude-code',
+            sessionId: '0123456789abcdef',
+            startedAt: '2026-09-03T09:00:00Z',
+            lastAt: '2026-09-05T09:00:00Z',
+            prompt: 'build the x panel',
+            title: null,
+            via: 'cwd',
+          },
+        ],
+        sessions: 1,
+        requestedAt: '2026-09-03T09:00:00Z',
+        lastActivityAt: '2026-09-05T09:00:00Z',
+        stale: false,
+        features: [
+          {
+            id: 'bbbbbbb',
+            source: 'commit',
+            label: 'x: add the x panel',
+            at: '2026-09-05T08:00:00Z',
+          },
+          {
+            id: 'r:01234567',
+            source: 'request',
+            label: 'build the x panel',
+            at: '2026-09-03T09:00:00Z',
+          },
+          { id: 'b:feat/x', source: 'branch', label: 'x', at: null },
+        ],
+        deployTargets: [],
+        ci: false,
+        testScript: true,
+        readiness: {
+          commit: 'partial',
+          commitReasons: ['2 files staged', '1 file modified, unstaged', '3 untracked files'],
+          deploy: 'blocked',
+          deployReasons: ['commit or discard 6 changes first'],
+        },
+        gaps: ['no-upstream', 'no-deploy-config', 'no-ci', 'untracked-work'],
+      },
+    ],
+    branches: [
+      {
+        name: 'main',
+        head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        headAt: '2026-09-04T01:18:31Z',
+        subject: 'chore: release',
+        isDefault: true,
+        upstream: 'origin/main',
+        upstreamGone: false,
+        ahead: 0,
+        behind: 0,
+        uniqueCount: 0,
+        behindDefault: 0,
+        containedInOrigin: true,
+        containedInLocal: true,
+        worktree: mainPath,
+        deletable: false,
+        deleteBlockers: ['is the default branch', 'checked out at .'],
+      },
+      {
+        name: 'feat/x',
+        head: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        headAt: '2026-09-05T08:00:00Z',
+        subject: 'feat(x): add the x panel',
+        isDefault: false,
+        upstream: null,
+        upstreamGone: false,
+        ahead: null,
+        behind: null,
+        uniqueCount: 1,
+        behindDefault: 0,
+        containedInOrigin: false,
+        containedInLocal: false,
+        worktree: linkedPath,
+        deletable: false,
+        deleteBlockers: [
+          'checked out at .claude/worktrees/feature-x',
+          '1 commits not in origin/main',
+        ],
+      },
+      {
+        name: 'old/merged',
+        head: 'cccccccccccccccccccccccccccccccccccccccc',
+        headAt: '2026-08-01T00:00:00Z',
+        subject: 'fix: typo',
+        isDefault: false,
+        upstream: 'origin/old/merged',
+        upstreamGone: false,
+        ahead: 0,
+        behind: 0,
+        uniqueCount: 0,
+        behindDefault: 12,
+        containedInOrigin: true,
+        containedInLocal: true,
+        worktree: null,
+        deletable: true,
+        deleteBlockers: [],
+      },
+    ],
+    gaps: ['stale-remote-refs'],
+    requestsCoverage: 'full',
+    elapsedMs: 42,
+  };
+}
+
+describe('encodeAgentPack — worktrees / branches / features (v0.3.11)', () => {
   it('emits the three tables empty when the artifact carries no git topology', () => {
     const decoded = decode(encodeAgentPack(makeAgent()));
     expect(decoded.tables.get('worktrees')!.rows).toHaveLength(0);

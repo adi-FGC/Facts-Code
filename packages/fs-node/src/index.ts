@@ -96,3 +96,4 @@ export { mineGitStats, type GitStats, type MineOptions } from './git.js';
 export { mineGitTopology, type TopologyOptions } from './topology.js';
 export { repoDisplayName } from './repo-name.js';
 export { gitGlobalExcludes } from './global-excludes.js';
+export { generatedAtFromEnv } from './clock.js';

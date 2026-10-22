@@ -80,6 +80,7 @@ import {
   type SqliteExtractionCache,
 } from '@factstack/emit';
 import {
+  generatedAtFromEnv,
   gitGlobalExcludes,
   mineGitStats,
   mineGitTopology,
@@ -202,6 +203,9 @@ export function nodeAnalyzer(
       }),
       extraIgnore: gitGlobalExcludes(root),
       symbols,
+      /* INV1 — the adapter owns the clock (F-38); a cache-fallback re-run of
+         analyze below stamps the same moment. */
+      generatedAt: generatedAtFromEnv(),
     };
     const run = (extractionCache?: SqliteExtractionCache) =>
       analyze(nodeFS(root), { ...base, ...(extractionCache ? { extractionCache } : {}) });

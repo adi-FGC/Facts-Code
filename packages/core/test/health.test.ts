@@ -25,6 +25,10 @@ function agentWith(parts: {
   files?: unknown[];
   vulnerabilities?: unknown[];
   cycles?: unknown[];
+  /** false = the artifact never ran scan-vulns (no `vulnerabilityScan`). */
+  scanned?: boolean;
+  /** Whole-scan caveats the host recorded (agent.project.scanWarnings). */
+  scanWarnings?: string[];
 }): AgentArtifact {
   return {
     $schema: 'https://factstack.dev/schema/agent.v1.json',
@@ -37,6 +41,7 @@ function agentWith(parts: {
       frameworks: [],
       entryPoints: [],
       monorepo: null,
+      ...(parts.scanWarnings ? { scanWarnings: parts.scanWarnings } : {}),
     },
     files: parts.files ?? [],
     graph: { nodes: [], edges: [], cycles: parts.cycles ?? [] },
@@ -45,6 +50,18 @@ function agentWith(parts: {
     capabilities: [],
     risks: parts.risks ?? [],
     vulnerabilities: parts.vulnerabilities ?? [],
+    ...(parts.scanned === false
+      ? {}
+      : {
+          vulnerabilityScan: {
+            scannedAt: '2026-06-01T00:00:00Z',
+            source: 'osv.dev',
+            packagesQueried: 1,
+            packagesSkipped: 0,
+            findings: parts.vulnerabilities?.length ?? 0,
+            lockfiles: ['package-lock.json'],
+          },
+        }),
     stats: { loc: 0, fileCount: 0, packageCount: 0, totalTokenCost: 0 },
   } as unknown as AgentArtifact;
 }
@@ -94,6 +111,47 @@ describe('computeHealth — pristine project', () => {
     expect(h.stale).toBe(0);
     expect(h.todos).toBe(0);
     expect(h.secrets).toBe(0);
+  });
+});
+
+/* A clean grade must not claim more than was checked: known vulnerabilities
+   are the one factor that needs a network call (scan-vulns), so an artifact
+   that never ran one says so — on the clean tail and as a headline note. */
+/* F-35/F-36 — a host that knew its scan was incomplete says so on the
+   headline, so a truncated GitHub tree never grades as a complete repo. */
+describe('computeHealth — partial scans', () => {
+  it('appends the caveat count to the headline', () => {
+    const h = computeHealth(
+      agentWith({
+        scanWarnings: [
+          'GitHub truncated the file listing.',
+          '3 of 40 files could not be downloaded from GitHub.',
+        ],
+      }),
+    );
+    expect(h.headline).toBe('A · 100 — clean — no blockers detected · partial scan (2 caveats)');
+  });
+
+  it('says nothing when the scan was complete', () => {
+    expect(computeHealth(agentWith({})).headline).toBe('A · 100 — clean — no blockers detected');
+  });
+});
+
+describe('computeHealth — never scanned for vulnerabilities', () => {
+  it('does not say "clean" and notes the missing scan', () => {
+    const h = computeHealth(agentWith({ scanned: false }));
+    expect(h.score).toBe(100);
+    expect(h.factors).toEqual([]);
+    expect(h.headline).toBe(
+      'A · 100 — no blockers in what was checked · dependencies not scanned for known vulnerabilities',
+    );
+  });
+
+  it('keeps the note after real deductions', () => {
+    const h = computeHealth(agentWith({ scanned: false, risks: [secretRisk('src/a.ts')] }));
+    expect(h.headline).toBe(
+      'C · 75 — 1 secret exposed · dependencies not scanned for known vulnerabilities',
+    );
   });
 });
 

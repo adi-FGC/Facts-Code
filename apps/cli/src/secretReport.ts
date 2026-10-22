@@ -17,8 +17,9 @@
 
 import kleur from 'kleur';
 import type { AgentArtifact } from '@factstack/spec';
+import { secretClass, type SecretClass } from '@factstack/spec/review-severity';
 
-export type SecretKind = 'exposed' | 'fixture' | 'possible';
+export type SecretKind = SecretClass;
 
 export interface SecretFinding {
   file: string;
@@ -35,9 +36,6 @@ export interface SecretFinding {
   kind: SecretKind;
 }
 
-const kindOf = (severity: string): SecretKind =>
-  severity === 'info' ? 'possible' : severity === 'low' ? 'fixture' : 'exposed';
-
 const KIND_ORDER: Record<SecretKind, number> = { exposed: 0, possible: 1, fixture: 2 };
 
 /** Exposed first, then possible secrets, then test/fixture matches; each
@@ -46,7 +44,7 @@ export function secretFindings(risks: AgentArtifact['risks']): SecretFinding[] {
   return risks
     .filter((r) => r.category === 'secret')
     .map((r) => {
-      const kind = kindOf(r.severity);
+      const kind = secretClass(r);
       return {
         file: r.file ?? '(unknown file)',
         line: r.line ?? null,

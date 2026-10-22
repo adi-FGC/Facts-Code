@@ -420,8 +420,6 @@ export function resolveSpecifier(
   importerPath: string,
   ctx: ResolverContext,
 ): string | null {
-  if (isNodeBuiltin(rawSpec)) return null;
-
   // ── Python path ────────────────────────────────────────────────────────
   if (isPythonPath(importerPath)) {
     return resolvePythonSpecifier(rawSpec, importerPath, ctx);
@@ -431,6 +429,11 @@ export function resolveSpecifier(
   if (isGoPath(importerPath)) {
     return resolveGoSpecifier(rawSpec, ctx);
   }
+
+  /* Node built-ins are a JS/TS notion. Checked only once the importer is
+     known to be JS/TS: a Python `import constants` (or util, events, stream,
+     url, path) is a sibling module, and used to be dropped as a built-in. */
+  if (isNodeBuiltin(rawSpec)) return null;
 
   // `./x.yaml?raw` (Vite) imports x.yaml — the edge goes to the real file.
   const spec = stripSpecifierQuery(rawSpec);
@@ -549,15 +552,25 @@ function probe(base: string, files: Set<string>): string | null {
     const candidate = base + '/' + idx;
     if (files.has(candidate)) return candidate;
   }
-  // Rewrite .js → .ts (common in ESM TS projects)
-  if (base.endsWith('.js')) {
-    const swapped = base.slice(0, -3) + '.ts';
-    if (files.has(swapped)) return swapped;
-    const tsx = base.slice(0, -3) + '.tsx';
-    if (files.has(tsx)) return tsx;
+  // ESM TS projects import the emitted name: `./x.js` for x.ts(x), and under
+  // NodeNext `./x.mjs` for x.mts, `./x.cjs` for x.cts, `./x.jsx` for x.tsx.
+  for (const [emitted, sources] of EMITTED_TO_SOURCE) {
+    if (!base.endsWith(emitted)) continue;
+    const stem = base.slice(0, -emitted.length);
+    for (const src of sources) {
+      if (files.has(stem + src)) return stem + src;
+    }
   }
   return null;
 }
+
+/** JS extension an import names → the TS source extensions it may stand for. */
+const EMITTED_TO_SOURCE: ReadonlyArray<[string, readonly string[]]> = [
+  ['.js', ['.ts', '.tsx']],
+  ['.mjs', ['.mts']],
+  ['.cjs', ['.cts']],
+  ['.jsx', ['.tsx']],
+];
 
 function dirname(p: string): string {
   const i = p.lastIndexOf('/');

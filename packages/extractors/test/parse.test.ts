@@ -72,6 +72,14 @@ describe('parseJS', () => {
     expect(parseJS(`class B { @dec accessor y = 1; }`, ext)).not.toBeNull();
   });
 
+  it('parses a TS 5 decorator placed after `export` (standard decorators)', () => {
+    const src = "import { Component } from './c';\nexport @Component({}) class Hello {}\n";
+    const pf = parseJS(src, '.ts');
+    expect(pf).not.toBeNull();
+    const body = (pf!.ast as { program: { body: Array<{ type: string }> } }).program.body;
+    expect(body.map((n) => n.type)).toEqual(['ImportDeclaration', 'ExportNamedDeclaration']);
+  });
+
   it('still parses legacy parameter decorators in .ts', () => {
     const src = `class S { constructor(@Inject(T) private t: T) {} @Get() m() {} }`;
     expect(parseJS(src, '.ts')).not.toBeNull();

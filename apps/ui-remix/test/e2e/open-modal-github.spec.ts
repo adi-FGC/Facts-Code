@@ -72,6 +72,29 @@ test('a stored GitHub token can be forgotten (UI-01)', async ({ page }) => {
   await expect(pat).toHaveValue('');
 });
 
+/* F-07 — the PAT used to be written to localStorage on every fetch. Storing
+   it is now a ticked box; unticked, the token is used for the scan and gone
+   with the page. */
+test('a typed token is stored only when asked', async ({ page }) => {
+  await stubTruncatedRepo(page);
+  const dialog = await openGithub(page);
+  await dialog.getByLabel('Repository').fill('octo/huge');
+  await dialog.getByLabel(/Personal access token/).fill('typed-e2e-value');
+  await expect(dialog.getByRole('checkbox', { name: /Remember this token/ })).not.toBeChecked();
+  await dialog.getByRole('button', { name: /fetch & analyze/i }).click();
+  await expect(dialog.getByText('Scan complete')).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate((k) => localStorage.getItem(k), TOKEN_KEY)).toBeNull();
+
+  // Ticked, the next fetch keeps it.
+  const again = await openGithub(page);
+  await again.getByLabel('Repository').fill('octo/huge');
+  await again.getByLabel(/Personal access token/).fill('typed-e2e-value');
+  await again.getByRole('checkbox', { name: /Remember this token/ }).check();
+  await again.getByRole('button', { name: /fetch & analyze/i }).click();
+  await expect(again.getByText('Scan complete')).toBeVisible({ timeout: 30_000 });
+  expect(await page.evaluate((k) => localStorage.getItem(k), TOKEN_KEY)).toBe('typed-e2e-value');
+});
+
 test('an incomplete GitHub download is flagged and agent rules default off', async ({ page }) => {
   await stubTruncatedRepo(page);
   const dialog = await openGithub(page);

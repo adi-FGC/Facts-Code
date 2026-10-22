@@ -160,6 +160,38 @@ describe('resolveSpecifier — Python', () => {
   });
 });
 
+describe('resolveSpecifier — Python modules named like Node built-ins', () => {
+  it('resolves a sibling module whose name is also a Node built-in', () => {
+    // These were dropped as built-ins before the importer's language was known.
+    for (const name of ['constants', 'util', 'events', 'stream', 'url', 'path']) {
+      expect(resolveSpecifier(name, 'app.py', ctx(['app.py', `${name}.py`]))).toBe(`${name}.py`);
+    }
+  });
+
+  it('still treats Node built-ins as external for JS/TS importers', () => {
+    expect(resolveSpecifier('path', 'app.ts', ctx(['app.ts', 'path.ts']))).toBeNull();
+    expect(resolveSpecifier('node:fs', 'app.ts', ctx(['app.ts', 'fs.ts']))).toBeNull();
+  });
+});
+
+describe('resolveSpecifier — NodeNext emitted-extension imports', () => {
+  it('maps .mjs/.cjs/.jsx imports onto their .mts/.cts/.tsx sources', () => {
+    expect(resolveSpecifier('./a.mjs', 'src/x.mts', ctx(['src/x.mts', 'src/a.mts']))).toBe(
+      'src/a.mts',
+    );
+    expect(resolveSpecifier('./b.cjs', 'src/x.cts', ctx(['src/x.cts', 'src/b.cts']))).toBe(
+      'src/b.cts',
+    );
+    expect(resolveSpecifier('./C.jsx', 'src/x.tsx', ctx(['src/x.tsx', 'src/C.tsx']))).toBe(
+      'src/C.tsx',
+    );
+    // The emitted file itself still wins when it exists.
+    expect(resolveSpecifier('./a.mjs', 'src/x.mts', ctx(['src/x.mts', 'src/a.mjs']))).toBe(
+      'src/a.mjs',
+    );
+  });
+});
+
 describe('isRelative + isNodeBuiltin (additional edges)', () => {
   it('isRelative handles "./" "../" "." ".."', () => {
     expect(isRelative('.')).toBe(true);

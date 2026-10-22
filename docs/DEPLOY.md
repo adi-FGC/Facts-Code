@@ -25,7 +25,10 @@ Never deploy without the owner's explicit go-ahead.
 
 ## Manual deploy
 
-From a checkout of the commit to ship (normally `main`), clean and pushed. "Clean" counts untracked
+From a checkout of the commit to ship (normally `main`), clean, pushed, and green: CI runs on every
+branch push, and `deploy-check pre` refuses a commit whose newest run has not passed (it does not
+wait for one). It reads the run from the GitHub API as `GITHUB_TOKEN`, `GH_TOKEN` or the `gh`
+CLI's login (anonymous calls are limited to 60 an hour per IP address). "Clean" counts untracked
 files too, and `analyze` reads every untracked file that is not ignored, so local output folders
 such as `.ag/` would be baked into the public site. Ignore them once per clone rather than forcing
 the gate: `echo .ag/ >> .git/info/exclude` (from the main checkout; linked worktrees share it).
@@ -44,7 +47,7 @@ pnpm --filter @factstack/ui-remix deploy:cf
 
 | Step                                            | Fails when                                                                                                                                                                           |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `deploy-check.mjs pre`                          | uncommitted changes; HEAD on no remote branch (the weekly job could not rebuild it)                                                                                                  |
+| `deploy-check.mjs pre`                          | uncommitted changes; HEAD on no remote branch (the weekly job could not rebuild it); the newest CI push run for HEAD missing, unfinished or not green                                |
 | `carry-history.mjs`                             | the live `/data/factstack.json` is unreadable or has no History (a deploy would wipe the History tab)                                                                                |
 | `build:static`                                  | any build guard (CSP/header parity across hosts, one CSP per path, strict-CSP pages, privacy scan)                                                                                   |
 | `gen-fb-config.mjs --require`                   | no sign-in config (the deploy would break `/mcp-auth`)                                                                                                                               |
@@ -59,11 +62,11 @@ publishes no pack. `inject-data.mjs --full-git` exists for private local builds 
 Deliberate overrides (PowerShell: `$env:NAME = '1'`; bash: `NAME=1 pnpm …`):
 
 - `FACTS_ALLOW_HISTORY_RESET=1` — accept a History that starts over (first deploy, or on purpose).
-- `FACTS_DEPLOY_FORCE=1` — downgrade the `deploy-check pre` gates (dirty tree, unpushed HEAD) to
-  warnings. Emergency hotfix only: the weekly job cannot rebuild an unpushed commit and will stop
-  publishing until a normal deploy. It never relaxes `deploy-check post`, so the hotfix must still
-  be committed (it may stay unpushed) and analyzed from a clean tree: a bake of uncommitted or
-  untracked files never ships.
+- `FACTS_DEPLOY_FORCE=1` — downgrade the `deploy-check pre` gates (dirty tree, unpushed HEAD, CI
+  not green) to warnings. Emergency hotfix only: the weekly job cannot rebuild an unpushed commit
+  and will stop publishing until a normal deploy. It never relaxes `deploy-check post`, so the
+  hotfix must still be committed (it may stay unpushed) and analyzed from a clean tree: a bake of
+  uncommitted or untracked files never ships.
 
 `build:static` also refuses to bake when `.facts/agent.json` is marked stale or `.facts/human.json`
 comes from a newer analysis (the per-edit `analyze --minimal` hook): run a full `analyze .`.
@@ -143,3 +146,21 @@ curl -sI https://factstack-demo.netlify.app/mcp-auth-config.json | grep -i conte
 
 Grep `www.gstatic.com` (the Firebase SDK origin), not bare `gstatic`: the stale main CSP carries
 `fonts.gstatic.com`, so a bare match passes on the unfixed page.
+
+## Hosting the static build elsewhere
+
+The dashboard is a client-side-routed SPA: `/review`, `/files`, `/docs` and every other route is
+the one `index.html`. A host must rewrite every unknown path to `/index.html` with a **200** (not
+a 404 page), or a hard load or refresh of a deep link 404s (F-56).
+
+| Host              | Rule                                                        | In this repo                      |
+| ----------------- | ----------------------------------------------------------- | --------------------------------- |
+| Cloudflare Pages  | `/*  /index.html  200`                                      | `apps/ui-remix/public/_redirects` |
+| Netlify           | `[[redirects]] from = "/*" to = "/index.html" status = 200` | `netlify.toml`                    |
+| nginx             | `try_files $uri $uri/ /index.html;`                         | —                                 |
+| any static server | serve `index.html` with status 200 for unknown paths        | —                                 |
+
+A `404.html` fallback is deliberately not shipped: on Cloudflare Pages it takes precedence over
+the 200 catch-all and breaks every client route (`_redirects` carries the note). The headers in
+`apps/ui-remix/public/_headers` (CSP, cache policy) must travel with the build too; `netlify.toml`
+mirrors them for Netlify, and `scripts/check-bundle-size.mjs` keeps the two in step.

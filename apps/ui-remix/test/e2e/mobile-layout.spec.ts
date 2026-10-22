@@ -16,7 +16,11 @@ async function expectReachable(page: Page, target: Locator): Promise<void> {
   expect(box).not.toBeNull();
   expect(vp).not.toBeNull();
   expect(box!.y).toBeGreaterThanOrEqual(0);
-  expect(box!.y + box!.height).toBeLessThanOrEqual(vp!.height);
+  /* Whole pixels: scrollTop snaps to integers while text rows have fractional
+     heights, so a "nearest" scroll can leave the control a fraction of a pixel
+     past the edge (667.14 on a 667px phone once the GitHub form grew its
+     remember-token row). That is reachable; a whole missing pixel is not. */
+  expect(Math.round(box!.y + box!.height)).toBeLessThanOrEqual(vp!.height);
 }
 
 test.describe('phone layout', () => {

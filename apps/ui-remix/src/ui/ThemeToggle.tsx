@@ -20,7 +20,7 @@
  */
 import type { Handle } from 'remix/component';
 import { css, on } from 'remix/component';
-import { applyTheme, nextTheme, persistTheme, readStoredTheme, type Theme } from '../lib/theme.ts';
+import { applyTheme, nextTheme, readStoredTheme, selectTheme, type Theme } from '../lib/theme.ts';
 
 const wrap = css({
   display: 'inline-flex',
@@ -28,8 +28,9 @@ const wrap = css({
   justifyContent: 'center',
   border: '1px solid var(--border)',
   background: 'transparent',
-  width: '28px',
-  height: '28px',
+  /* F-61: 32px, a comfortable target; the header's other controls match. */
+  width: '32px',
+  height: '32px',
   cursor: 'pointer',
   color: 'var(--fg-muted)',
   padding: '0',
@@ -157,8 +158,7 @@ export function ThemeToggle(handle: Handle) {
 
   function advance() {
     current = nextTheme(current);
-    persistTheme(current);
-    applyTheme(current);
+    selectTheme(current); // announces on factstack:theme, so Config follows (F-46)
     void handle.update();
   }
 

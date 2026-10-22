@@ -142,9 +142,28 @@ body {
   grid-area: footer;
 }
 
+/* F-57 — the file tree is noise on Security and Review (they are about the
+   project, not a file); the shell gives its column to the content there.
+   App.tsx sets data-route on mount and RouteView keeps it current. */
+.app-shell[data-route='security'],
+.app-shell[data-route='review'] {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    'header'
+    'main'
+    'footer';
+}
+.app-shell[data-route='security'] > [aria-label='Project tree'],
+.app-shell[data-route='review'] > [aria-label='Project tree'] {
+  display: none;
+}
+
 /* md and below — tree becomes a drawer (hidden by default). */
 @media (max-width: 899px) {
   .app-shell {
+    /* F-53 — the header row grows with the wrapped nav (and the phone's
+       brand + nav rows) instead of clipping them to --nav-h. */
+    grid-template-rows: auto 1fr var(--status-h);
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'header'
@@ -164,9 +183,13 @@ body {
     display: none !important;
   }
   .app-shell > header [role='tablist'] {
+    /* F-53 — ten tabs do not fit one line here; a hidden-scrollbar overflow
+       showed four and hid the other six. Wrap, so the whole product is
+       visible (ui/NumberedNav.tsx carries the same rule). */
     min-width: 0 !important;
     max-width: 100% !important;
-    overflow-x: auto !important;
+    flex-wrap: wrap !important;
+    overflow: visible !important;
   }
   .app-shell > main {
     width: 100dvw;

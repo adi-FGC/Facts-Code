@@ -7,7 +7,11 @@
  *       the weekly refresh rebuilds that commit, so uncommitted changes would
  *       ship once and silently vanish on the next Monday;
  *     - HEAD is on a remote branch: the refresh job can only check out commits
- *       GitHub has.
+ *       GitHub has;
+ *     - CI passed on HEAD: the newest `ci.yml` push run for that commit (read
+ *       from the GitHub API as GITHUB_TOKEN, GH_TOKEN or the gh CLI's login)
+ *       completed with success. Production went live twice before CI had
+ *       run, and CI then failed on main.
  *   node scripts/deploy-check.mjs post   after the build
  *     - dist/mcp-auth-config.json is the Firebase web config (not missing — the
  *       SPA fallback would serve index.html for it and sign-in breaks);
@@ -22,7 +26,7 @@
  *       `--min-history <n>`: the live point count carry-history reported).
  *
  * FACTS_DEPLOY_FORCE=1 downgrades the PRE failures to warnings (an emergency
- * hotfix from an unpushed HEAD; commit the fix first). It never touches
+ * hotfix from an unpushed or untested HEAD; commit the fix first). It never touches
  * `post`: the same variable is set for the whole deploy:cf chain, and a broken
  * sign-in config, a private bake or a bake of uncommitted or untracked files
  * must not ride along. FACTS_ALLOW_HISTORY_RESET=1 accepts a one-point
@@ -51,6 +55,69 @@ export function preflightProblems({ porcelain, remoteBranches }) {
       'HEAD is not on any remote branch — push it first: the weekly CVE refresh rebuilds the live commit from GitHub.',
     );
   return problems;
+}
+
+/** `owner/repo` from a GitHub remote URL (https or ssh), or null. */
+export function githubRepo(remoteUrl) {
+  const m = /github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(remoteUrl.trim());
+  return m ? `${m[1]}/${m[2]}` : null;
+}
+
+/** Problems with the `ci.yml` runs GitHub lists for `head` (the API's
+ *  `workflow_runs`). The newest push run decides: it tests exactly that
+ *  commit, and a re-run updates its status in place. */
+export function ciProblems(runs, head) {
+  const short = head.slice(0, 12);
+  const run = runs
+    .filter((r) => r.head_sha === head && r.event === 'push')
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+  if (!run) return [`CI has not run on ${short} — push it and wait for the CI workflow to pass.`];
+  if (run.status !== 'completed')
+    return [
+      `CI on ${short} is still ${run.status.replaceAll('_', ' ')} — wait for it: ${run.html_url}`,
+    ];
+  if (run.conclusion !== 'success')
+    return [
+      `CI on ${short} ended "${run.conclusion}" — fix it, or re-run a flake, before deploying: ${run.html_url}`,
+    ];
+  return [];
+}
+
+/** A token for the GitHub API: GITHUB_TOKEN or GH_TOKEN, else the gh CLI's
+ *  login, else none. Anonymous calls share 60 an hour per IP address. */
+function githubToken(env = process.env) {
+  if (env.GITHUB_TOKEN || env.GH_TOKEN) return env.GITHUB_TOKEN || env.GH_TOKEN;
+  try {
+    return execFileSync('gh', ['auth', 'token'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return '';
+  }
+}
+
+/** The `ci.yml` runs GitHub lists for `head` in `repo`. */
+async function fetchCiRuns(repo, head, token) {
+  const res = await fetch(
+    `https://api.github.com/repos/${repo}/actions/workflows/ci.yml/runs?head_sha=${head}&per_page=30`,
+    {
+      headers: {
+        accept: 'application/vnd.github+json',
+        'user-agent': 'factstack-deploy-check',
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      signal: AbortSignal.timeout(15_000),
+    },
+  );
+  if (!res.ok)
+    throw new Error(
+      `GitHub answered ${res.status}` +
+        (token
+          ? ''
+          : ' without a token: anonymous calls are rate-limited and cannot see a private repo — set GITHUB_TOKEN or run `gh auth login`'),
+    );
+  return (await res.json()).workflow_runs ?? [];
 }
 
 /** Why the bake's current checkout was not a clean tree when it was
@@ -146,7 +213,7 @@ function git(root, args) {
   });
 }
 
-function main() {
+async function main() {
   const phase = process.argv[2];
   const here = dirname(fileURLToPath(import.meta.url));
   const appDir = resolve(here, '..');
@@ -158,6 +225,17 @@ function main() {
         porcelain: git(root, ['status', '--porcelain']),
         remoteBranches: git(root, ['branch', '-r', '--contains', 'HEAD']),
       });
+      const head = git(root, ['rev-parse', 'HEAD']).trim();
+      const repo = githubRepo(git(root, ['remote', 'get-url', 'origin']));
+      if (!repo) problems.push('origin is not a GitHub remote — CI status cannot be checked.');
+      else
+        try {
+          problems.push(...ciProblems(await fetchCiRuns(repo, head, githubToken()), head));
+        } catch (e) {
+          problems.push(
+            `could not read CI status for ${head.slice(0, 12)} (${e?.message || e}) — check the CI run on GitHub.`,
+          );
+        }
     } catch (e) {
       problems = [`git failed (${e?.message || e}) — run the deploy from a git checkout.`];
     }
@@ -207,4 +285,4 @@ function main() {
 }
 
 /* Run only as a script, not when imported by the test suite. */
-if (isMain(import.meta.url)) main();
+if (isMain(import.meta.url)) await main();

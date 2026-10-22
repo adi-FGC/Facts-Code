@@ -102,12 +102,16 @@ describe('scanner.worker GitHub scan → agent.project.scanWarnings (UI-02)', ()
     expect(done.meta.warnings).toEqual([GH_TRUNCATED_WARNING]);
   }, 60_000);
 
-  it('omits the field for a complete listing, even with a failed download', async () => {
-    /* The failed file is a per-file read-error risk; its UI line names the
-       file, so it never goes into project.scanWarnings. */
+  it('records a failed download in the artifacts path-free (F-36)', async () => {
+    /* The failed file is also a per-file read-error risk. The UI line names
+       it; the artifact line only counts, so a saved agent.json of a repo
+       below the refusal share is still recorded as a partial scan. */
     fakeGitHub({ truncated: false, failPath: 'src/unreachable.ts' });
     const done = await scanGitHub('complete');
-    expect(done.agent.project).not.toHaveProperty('scanWarnings');
+    expect(done.agent.project.scanWarnings).toEqual([
+      '1 of 6 files could not be downloaded from GitHub — this scan lists them as unreadable.',
+    ]);
+    expect(done.agent.project.scanWarnings!.join('\n')).not.toContain('src/unreachable.ts');
     expect(done.meta.warnings).toHaveLength(1);
     expect(done.meta.warnings![0]).toMatch(/1 of 6 files could not be downloaded/);
   }, 60_000);

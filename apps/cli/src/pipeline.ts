@@ -48,6 +48,7 @@ import {
   type SqliteExtractionCache,
 } from '@factstack/emit';
 import {
+  generatedAtFromEnv,
   gitGlobalExcludes,
   mineGitStats,
   mineGitTopology,
@@ -175,6 +176,9 @@ export interface AnalyzeProjectOptions {
    *  baseline once, then holds it (see the header). Ignored with `minimal`,
    *  which never touches agent.json or the baseline. Default false. */
   refresh?: boolean;
+  /** The ISO timestamp stamped on the artifact (INV1: the adapter owns the
+   *  clock). Default: SOURCE_DATE_EPOCH when set, else now. */
+  generatedAt?: string;
 }
 
 export interface AnalyzeProjectResult {
@@ -323,6 +327,8 @@ async function analyzeOnce(
       symbols: opts.symbols ?? false,
       extractionCache,
       onProgress: opts.onProgress,
+      /* INV1 — the adapter owns the clock (SOURCE_DATE_EPOCH pins it, F-38). */
+      generatedAt: opts.generatedAt ?? generatedAtFromEnv(),
     });
   } finally {
     if (extractionCache) {

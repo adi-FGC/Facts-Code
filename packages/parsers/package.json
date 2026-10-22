@@ -9,15 +9,16 @@
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --noEmit",
-    "test": "echo 'no tests yet' && exit 0",
+    "test": "vitest run",
     "lint": "echo 'no lint yet' && exit 0",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json"
   },
   "dependencies": {
     "@factstack/spec": "workspace:*",
     "web-tree-sitter": "^0.27.0"
   },
   "devDependencies": {
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.3"
   }
 }

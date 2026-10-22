@@ -33,3 +33,22 @@ describe('/mcp-auth sign-in hint', () => {
     expect(PAGE).not.toMatch(new RegExp(`npx\\s+(?:-y\\s+|--yes\\s+)?${MCP_NPM_PACKAGE}\\b`));
   });
 });
+
+/* The sign-in hands a long-lived refresh token to the local MCP. getAuth()
+   also persisted it in this origin's IndexedDB, readable by any script on
+   the site long after the tab closed. */
+describe('/mcp-auth keeps the Firebase session in memory', () => {
+  const CODE = PAGE.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  it('initializes auth with in-memory persistence, never getAuth', () => {
+    expect(CODE).toMatch(/initializeAuth\([\s\S]{0,80}?\{\s*persistence:\s*inMemoryPersistence,/);
+    expect(CODE).toMatch(/popupRedirectResolver:\s*browserPopupRedirectResolver/);
+    expect(CODE).not.toMatch(/\bgetAuth\b/);
+    expect(CODE).not.toMatch(/\b(?:browserLocal|indexedDBLocal|browserSession)Persistence\b/);
+  });
+
+  it('deletes the session an earlier version persisted', () => {
+    expect(CODE).toContain("indexedDB.deleteDatabase('firebaseLocalStorageDb')");
+    expect(CODE).toMatch(/key\.startsWith\('firebase:'\)\)\s*localStorage\.removeItem\(key\)/);
+  });
+});

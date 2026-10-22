@@ -63,17 +63,29 @@ const SCHEMA = 'agent-v4';
 const TOP_FILES = 20;
 
 /**
+ * The commit the artifact was analyzed at, when its git topology recorded
+ * one (fs-node fills `git.worktrees[].head`; a browser or memory scan has
+ * no git and gets nothing). Only a hex sha counts: the legend tells agents
+ * to compare this slot with HEAD, so it must never hold something that
+ * merely looks like an id.
+ */
+function analyzedCommit(agent: AgentArtifact): string | undefined {
+  const head = agent.git?.worktrees?.find((w) => w.isCurrent)?.head;
+  return typeof head === 'string' && /^[0-9a-f]{7,40}$/.test(head) ? head : undefined;
+}
+
+/**
  * Build the multi-table FactsPack representation of an agent artifact.
- * The header's snapshotId SHOULD be the git commit SHA (v0.2 S5) —
- * callers that know it pass it via `opts.snapshotId`; the artifact
- * itself doesn't carry one (the chain workstream threads it through),
- * so we fall back to `generatedAt` and say so in the legend.
+ * The header's snapshotId SHOULD be the git commit SHA (v0.2 S5): callers
+ * that know it pass it via `opts.snapshotId`, otherwise the artifact's own
+ * record of the checked-out commit is used, and only an artifact with no
+ * git at all falls back to `generatedAt` (the legend says which).
  */
 export function encodeAgentPack(agent: AgentArtifact, opts: { snapshotId?: string } = {}): string {
   const header: PackHeader = {
     producer: PRODUCER,
     schema: SCHEMA,
-    snapshotId: opts.snapshotId ?? agent.generatedAt,
+    snapshotId: opts.snapshotId ?? analyzedCommit(agent) ?? agent.generatedAt,
     rowCount: null, // encoder computes the total
     /* v0.2 (S5) — single-master emission: every pack is currently the
        genesis master of a 1-link chain. The per-commit diff chain
@@ -128,6 +140,11 @@ function buildLegend(agent: AgentArtifact): string[] {
   return [
     'legend: agent-v4 FactsPack. Line prefixes (valid at column 0 only): # header, ; meta, @ dict entry, & table schema, - data row, + added row, x deleted row. Cells are tab-separated, positional per the active & schema.',
     'header: producer schema commit rowCount seq parent kind generated. rowCount = total data rows across all tables. commit is the git sha when available (else the generation timestamp). freshness: regenerate if HEAD differs from the header commit.',
+    /* F-35 — a host that knew its scan was incomplete says so in-band, so a
+       reader of the pack alone never takes a partial repo for a complete one. */
+    ...(agent.project.scanWarnings ?? []).map(
+      (w) => 'warning: ' + w + ' This pack covers only what was scanned.',
+    ),
     'cells: \\t \\n \\\\ are the only escapes. A bare - cell means null/not measured (never "zero"). An empty cell is the empty string.',
     'interning: uppercase-named columns hold @-dictionary keys. One shared namespace per prefix: F = file paths (same id everywhere in this pack), S = symbol ids, E = entity ids (+ entityEdges endpoints — see the entityEdges note), L = languages, N = env-var names, W = worktree paths (branches.W / features.W). Ids are stable within this file only — never reuse them across packs.',
     'empty tables: a declared & table with zero rows means the analyzer found none — except symbols + calls, which stay empty unless analyze ran with --symbols.',

@@ -38,7 +38,7 @@
     "@factstack/fs-node": "workspace:*",
     "@factstack/scanners": "workspace:*",
     "@factstack/spec": "workspace:*",
-    "@modelcontextprotocol/sdk": "^1.31.0"
+    "@modelcontextprotocol/sdk": "^1.32.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.3",

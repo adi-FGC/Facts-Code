@@ -34,7 +34,7 @@
  */
 import type { Handle } from 'remix/component';
 import { css, on, ref } from 'remix/component';
-import type { Dataset } from '../lib/loadArtifacts.ts';
+import { isBakedDataset, type Dataset } from '../lib/loadArtifacts.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
@@ -283,6 +283,16 @@ const sevPillMedium = css({ color: 'var(--accent)', borderColor: 'var(--accent)'
 const sevPillLow = css({ color: 'var(--fg-muted)' });
 const sevPillUnknown = css({ color: 'var(--fg-faint)' });
 
+/** The pill for an advisory's severity; anything unrecognised reads as unknown. */
+const SEV_PILL: Record<string, typeof sevPillUnknown> = {
+  critical: sevPillCritical,
+  high: sevPillHigh,
+  medium: sevPillMedium,
+  low: sevPillLow,
+  unknown: sevPillUnknown,
+};
+const sevPillFor = (severity: string) => SEV_PILL[severity] ?? sevPillUnknown;
+
 const vulnId = css({
   fontFamily: 'var(--font-mono)',
   fontSize: 'var(--fs-12)',
@@ -401,16 +411,7 @@ function artifactPackageRows(byPackage: Map<string, ArtifactVuln[]>) {
           {provenanceLabels(head)}
         </div>
         {group.map((v) => {
-          const pillStyle =
-            v.severity === 'critical'
-              ? sevPillCritical
-              : v.severity === 'high'
-                ? sevPillHigh
-                : v.severity === 'medium'
-                  ? sevPillMedium
-                  : v.severity === 'low'
-                    ? sevPillLow
-                    : sevPillUnknown;
+          const pillStyle = sevPillFor(v.severity);
           return (
             <div key={v.id} mix={vulnRow}>
               <span mix={[sevPill, pillStyle]}>{v.severity}</span>
@@ -484,6 +485,11 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
    */
   async function weeklyRefresh(data: Dataset, force = false): Promise<void> {
     if (typeof window === 'undefined' || autoRefreshing || (results && !force)) return;
+    /* Automatic only for the page's own baked dataset, which is public by
+       construction. A project served by `factstack ui` or opened with ⌘O is
+       someone's own: its package names leave the browser only when they
+       click (the "Check … now" button below passes `force`). */
+    if (!force && !isBakedDataset(data)) return;
     const manifests = data.dependencyManifests ?? [];
     if (manifests.length === 0) return;
     const bakedAt = data.vulnerabilityScan?.scannedAt
@@ -818,6 +824,30 @@ export function Vulnerabilities(handle: Handle<VulnerabilitiesProps>) {
             )}
           </p>
 
+          {/* An opened or served project is never re-checked on its own: the
+              owner asks. The button runs the same re-check the deployed page
+              runs for itself. */}
+          {!isBakedDataset(data) &&
+            (data.dependencyManifests ?? []).length > 0 &&
+            weekly === null && (
+              <p mix={lede}>
+                <button
+                  type="button"
+                  disabled={autoRefreshing}
+                  mix={[
+                    secondaryBtn,
+                    on('click', () => void weeklyRefresh(handle.props.data, true)),
+                  ]}
+                >
+                  {autoRefreshing
+                    ? 'Querying OSV…'
+                    : 'Check these dependencies against OSV.dev now'}
+                </button>{' '}
+                This is not the page's own project, so nothing about it leaves your browser until
+                you ask; only package names and versions are sent.
+              </p>
+            )}
+
           {/* The note names what is actually on screen: a failed Force
               refresh keeps the previous re-check, not the baked scan (UI-R2). */}
           {autoNote !== '' &&
@@ -1133,16 +1163,7 @@ function VulnRowView(handle: Handle<VulnRowProps>) {
     const bucket = osv.bucketSeverity(vuln);
     const advisoryUrl = osv.pickAdvisoryUrl(vuln);
     const fixedIn = osv.pickFixedVersion(vuln, pkgName, installedVersion);
-    const pillStyle =
-      bucket === 'critical'
-        ? sevPillCritical
-        : bucket === 'high'
-          ? sevPillHigh
-          : bucket === 'medium'
-            ? sevPillMedium
-            : bucket === 'low'
-              ? sevPillLow
-              : sevPillUnknown;
+    const pillStyle = sevPillFor(bucket);
 
     return (
       <div mix={vulnRow}>

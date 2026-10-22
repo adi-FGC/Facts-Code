@@ -112,9 +112,13 @@ const healthBadgeText = css({
   color: 'var(--fg)',
 });
 
+/* F-58 — the verdict leads: the grade reads a step larger and heavier than
+   the counts around it, so the eye lands on the call before the context. */
 const healthBadgeStrong = css({
   color: 'var(--badge-color, var(--fg))',
-  fontWeight: '500',
+  fontSize: 'var(--fs-16)',
+  fontWeight: '600',
+  letterSpacing: '0',
 });
 
 const healthBadgeArrow = css({
@@ -122,6 +126,19 @@ const healthBadgeArrow = css({
   fontFamily: 'var(--font-display)',
   fontSize: 'var(--fs-13)',
 });
+
+/* F-35 — the partial-scan caveat: warn-toned, above the grade it qualifies. */
+const scanCaveat = css({
+  marginBottom: 'var(--space-3)',
+  paddingBlock: 'var(--space-3)',
+  paddingInline: 'var(--space-4)',
+  borderLeft: '3px solid var(--warn)',
+  background: 'var(--highlight-faint)',
+  color: 'var(--fg-muted)',
+  fontSize: 'var(--fs-13)',
+  lineHeight: '1.5',
+});
+const scanCaveatStrong = css({ color: 'var(--warn)', fontWeight: '600' });
 
 const headline = css({
   /* Switched from --font-display (Fraunces serif) to --font-body
@@ -291,6 +308,15 @@ export function Overview(handle: Handle<OverviewProps>) {
             below links to its source.
           </p>
 
+          {/* F-35 — a scan the host knew was incomplete (a truncated GitHub
+              tree, files it could not download) is said before the grade, so
+              a partial repo never reads as a complete, clean one. */}
+          {(project.scanWarnings?.length ?? 0) > 0 && (
+            <div role="status" mix={scanCaveat}>
+              <strong mix={scanCaveatStrong}>Partial scan.</strong>{' '}
+              {(project.scanWarnings ?? []).join(' ')} The grade below covers only what was scanned.
+            </div>
+          )}
           {/* v0.3 — health badge. Click → /risks. Leads with the composite
               grade (A–F · 0–100) when present, then the top deductions. Tone
               comes from the shared healthTone() helper so it never disagrees

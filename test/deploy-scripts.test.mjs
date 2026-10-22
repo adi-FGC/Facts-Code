@@ -24,7 +24,9 @@ import {
 } from '../apps/ui-remix/scripts/carry-history.mjs';
 import {
   bakedTreeProblem,
+  ciProblems,
   forceApplies,
+  githubRepo,
   postBuildProblems,
   preflightProblems,
 } from '../apps/ui-remix/scripts/deploy-check.mjs';
@@ -206,6 +208,63 @@ describe('deploy-check', () => {
     expect(preflightProblems({ porcelain: '', remoteBranches: '\n' })[0]).toMatch(
       /not on any remote branch/,
     );
+  });
+
+  /* A vitest file reporter's .vitest/ output, left untracked, failed the
+     clean-tree gate and format:check (twice). */
+  it('pre: the repo .gitignore keeps vitest reports out of the clean-tree check', () => {
+    const p = 'packages/extractors/.vitest/json/output.json';
+    const r = spawnSync('git', ['check-ignore', '-v', '--no-index', p], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.split(':')[0]).toBe('.gitignore');
+  });
+
+  it('pre: reads the GitHub repo from https and ssh remotes', () => {
+    expect(githubRepo('https://github.com/acme/widgets.git\n')).toBe('acme/widgets');
+    expect(githubRepo('https://github.com/acme/widgets')).toBe('acme/widgets');
+    expect(githubRepo('git@github.com:acme/widgets.git')).toBe('acme/widgets');
+    expect(githubRepo('https://gitlab.com/acme/widgets.git')).toBeNull();
+  });
+
+  describe('pre: CI must have passed on HEAD', () => {
+    const run = (over) => ({
+      head_sha: SHA,
+      event: 'push',
+      status: 'completed',
+      conclusion: 'success',
+      created_at: '2026-10-05T14:00:00Z',
+      html_url: 'https://github.com/acme/widgets/actions/runs/1',
+      ...over,
+    });
+
+    it('passes a completed, successful push run for HEAD', () => {
+      expect(ciProblems([run()], SHA)).toEqual([]);
+    });
+
+    it('refuses a commit CI never ran on', () => {
+      expect(ciProblems([], SHA)[0]).toMatch(/CI has not run on 954f38e00000/);
+      // A pull_request run tests a merge commit, not HEAD itself.
+      expect(ciProblems([run({ event: 'pull_request' })], SHA)[0]).toMatch(/has not run/);
+      expect(ciProblems([run({ head_sha: 'f'.repeat(40) })], SHA)[0]).toMatch(/has not run/);
+    });
+
+    it('refuses a running or failed run, naming it', () => {
+      expect(ciProblems([run({ status: 'in_progress', conclusion: null })], SHA)[0]).toMatch(
+        /still in progress — wait for it: https:\/\/github\.com\/acme\/widgets\/actions\/runs\/1/,
+      );
+      expect(ciProblems([run({ conclusion: 'failure' })], SHA)[0]).toMatch(/ended "failure"/);
+      expect(ciProblems([run({ conclusion: 'cancelled' })], SHA)[0]).toMatch(/ended "cancelled"/);
+    });
+
+    it('judges by the newest push run for HEAD', () => {
+      const older = run({ conclusion: 'failure', created_at: '2026-10-05T13:00:00Z' });
+      expect(ciProblems([older, run()], SHA)).toEqual([]);
+      const newer = run({ status: 'queued', conclusion: null, created_at: '2026-10-05T15:00:00Z' });
+      expect(ciProblems([run(), newer], SHA)[0]).toMatch(/still queued/);
+    });
   });
 
   const dist = ({ cfg, data }) => {

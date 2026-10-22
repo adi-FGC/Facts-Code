@@ -12,6 +12,7 @@
 import type { Handle } from 'remix/component';
 import { css, ref } from 'remix/component';
 import { TABS, activeTab } from '../lib/routes.ts';
+import { isRouteChange } from '../lib/navGuard.ts';
 
 /**
  * Wrap is horizontally-scrollable below the breakpoint where all 11
@@ -43,13 +44,14 @@ const wrap = css({
   scrollbarWidth: 'none' /* Firefox */,
   /* WebKit: pseudo-element selector escape hatch for the css() runtime. */
   '&::-webkit-scrollbar': { display: 'none', width: '0', height: '0' },
-  /* Phone: the scrollbar is hidden, so fade both edges to signal the row
-     scrolls. QA ISSUE-2 affordance — pairs with scroll-active-into-view. */
-  '@media (max-width: 599px)': {
-    maskImage:
-      'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
-    WebkitMaskImage:
-      'linear-gradient(to right, transparent, #000 14px, #000 calc(100% - 14px), transparent)',
+  /* F-53 — below the width where ten tabs fit on one line (the header gives
+     the nav its own row under 900px, styles/app.css lets that row grow), the
+     row WRAPS instead of scrolling: a hidden-scrollbar overflow showed four
+     tabs and hid the other six. */
+  '@media (max-width: 899px)': {
+    flexWrap: 'wrap',
+    overflowX: 'visible',
+    overflowY: 'visible',
   },
 });
 
@@ -153,7 +155,12 @@ export function NumberedNav(handle: Handle<{}>) {
      layout is clean and the read costs next to nothing. */
   const afterPaint = (fn: () => void) => requestAnimationFrame(() => setTimeout(fn, 0));
 
-  const onNav = () => {
+  let renderedPath = location.pathname;
+  const onNav = (e: Event) => {
+    /* A same-document #anchor click fires popstate too; the active tab is
+       unchanged, so there is nothing to re-render or scroll (F-47). */
+    if (!isRouteChange(e.type, renderedPath, location.pathname)) return;
+    renderedPath = location.pathname;
     void handle.update();
     afterPaint(scrollActiveIntoView);
   };

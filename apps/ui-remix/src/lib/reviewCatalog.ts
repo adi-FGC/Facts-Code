@@ -43,7 +43,8 @@ export interface ReviewSetup extends ReviewMeasure {
   measuredOnModel?: string;
 }
 
-const M = '2026-09-26';
+/** The date every setup below was last measured (one pass, one date). */
+const MEASURED_ON = '2026-09-26';
 
 export const REVIEW_CATALOG: readonly ReviewSetup[] = [
   /* ── Built into the harness ─────────────────────────────────────────── */
@@ -53,7 +54,7 @@ export const REVIEW_CATALOG: readonly ReviewSetup[] = [
     kind: 'harness',
     maker: 'Anthropic',
     version: 'v2.1.281',
-    measuredOn: M,
+    measuredOn: MEASURED_ON,
     /* The prompt is not published; this docs page describes the command and
        how its effort level is chosen (last level typed, else the session's
        effort, else the model default). Measured from the prompt text
@@ -80,7 +81,7 @@ export const REVIEW_CATALOG: readonly ReviewSetup[] = [
     kind: 'harness',
     maker: 'OpenAI',
     version: 'v0.157.1',
-    measuredOn: M,
+    measuredOn: MEASURED_ON,
     /* rubric.md (7,666) replaces Codex's usual system prompt in the review
        thread; the "uncommitted changes" preset (105) is the shortest fixed
        user message. The reviewer thread cannot fan out (multi-agent
@@ -101,7 +102,7 @@ export const REVIEW_CATALOG: readonly ReviewSetup[] = [
     kind: 'skill',
     maker: 'Garry Tan',
     version: 'v1.91.1.0',
-    measuredOn: M,
+    measuredOn: MEASURED_ON,
     /* SKILL.md 72,819 + checklist.md 12,193 + sections/plan-completion.md
        13,683 + sections/review-army.md 14,326 + sections/adversarial.md
        24,881, all read unconditionally. greptile-triage.md is skipped when
@@ -137,7 +138,7 @@ export const REVIEW_CATALOG: readonly ReviewSetup[] = [
     kind: 'skill',
     maker: 'Matt Pocock',
     version: 'commit 5c89081',
-    measuredOn: M,
+    measuredOn: MEASURED_ON,
     /* One file; its sub-agent prompts are inline and counted once. The
        Spec reviewer is skipped when no spec is found, so the floor is the
        Standards reviewer alone. */

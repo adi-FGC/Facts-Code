@@ -658,7 +658,8 @@ describe('SECRET_GRADING_REV — rules plus analyzer coverage', () => {
        ceiling or the never-text formats changed: update the pin. Reviews
        against an older baseline then list secrets in existing files as not
        graded until the baseline is re-saved. */
-    expect(SECRET_GRADING_REV).toBe('43492b81e362');
+    // Bumped 2026-10-22 with the scanner rules (F-04/F-05).
+    expect(SECRET_GRADING_REV).toBe('8896cca5bece');
   });
 
   it('pins the fixture-path heuristic it does not hash (bump SECRET_COVERAGE_SCHEME when it moves)', () => {

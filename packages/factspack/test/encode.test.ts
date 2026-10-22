@@ -376,6 +376,26 @@ describe('encode — v0.2 trailer (S4)', () => {
     });
     expect(out).toMatch(/; end rows=3 tables=1 sha256=[0-9a-f]{12}\n$/);
   });
+
+  it('writes every x line before the + lines of its table (an update is x then +)', () => {
+    // Row 3 changed: computeDiff emits it as deletedIds ['3'] + addedRows [['3', 'new']].
+    const out = encodeIncremental({
+      header: HEADER,
+      tables: [
+        {
+          name: 't',
+          columns: [{ name: 'id' }, { name: 'v' }],
+          addedRows: [
+            ['3', 'new'],
+            ['9', 'added'],
+          ],
+          deletedIds: ['3', '4'],
+        },
+      ],
+    });
+    const ops = out.split('\n').filter((l) => l.startsWith('+') || l.startsWith('x'));
+    expect(ops).toEqual(['x 3', 'x 4', '+ 3\tnew', '+ 9\tadded']);
+  });
 });
 
 describe('encode — v0.2 shared intern namespaces (S8)', () => {

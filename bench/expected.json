@@ -1,7 +1,7 @@
 {
   "corpus": {
     "files": 14,
-    "loc": 372,
+    "loc": 358,
     "totalTokens": 3487
   },
   "tasks": [
@@ -9,7 +9,7 @@
       "id": "add-user-role",
       "query": "add a role field to the user model",
       "facts": {
-        "tokens": 587,
+        "tokens": 592,
         "turns": 1,
         "recall": 1,
         "anchors": [
@@ -28,18 +28,17 @@
           "src/models/user.ts"
         ]
       },
-      "savingsPct": 55.7
+      "savingsPct": 55.3
     },
     {
       "id": "fix-session-timeout",
       "query": "fix the login session timeout",
       "facts": {
-        "tokens": 599,
+        "tokens": 584,
         "turns": 1,
-        "recall": 1,
+        "recall": 0,
         "anchors": [
           "src/auth/login.ts",
-          "src/auth/session.ts",
           "src/db/client.ts"
         ]
       },
@@ -53,13 +52,13 @@
           "src/auth/session.ts"
         ]
       },
-      "savingsPct": 29.7
+      "savingsPct": 31.5
     },
     {
       "id": "list-api-routes",
       "query": "where are the http api routes registered",
       "facts": {
-        "tokens": 582,
+        "tokens": 594,
         "turns": 1,
         "recall": 1,
         "anchors": [
@@ -75,13 +74,13 @@
           "src/api/routes.ts"
         ]
       },
-      "savingsPct": -90.8
+      "savingsPct": -94.8
     },
     {
       "id": "currency-to-euros",
       "query": "switch the currency format to euros",
       "facts": {
-        "tokens": 583,
+        "tokens": 593,
         "turns": 1,
         "recall": 1,
         "anchors": [
@@ -98,13 +97,13 @@
           "src/util/format.ts"
         ]
       },
-      "savingsPct": -262.1
+      "savingsPct": -268.3
     },
     {
       "id": "order-discounts",
       "query": "adjust the order quantity discount thresholds",
       "facts": {
-        "tokens": 597,
+        "tokens": 598,
         "turns": 1,
         "recall": 1,
         "anchors": [
@@ -121,14 +120,14 @@
           "tests/order-flow.e2e.ts"
         ]
       },
-      "savingsPct": 11.9
+      "savingsPct": 11.8
     }
   ],
   "aggregate": {
-    "factsTokens": 2948,
+    "factsTokens": 2961,
     "naiveTokens": 3320,
-    "savingsPct": 11.2,
-    "meanFactsRecall": 1,
+    "savingsPct": 10.8,
+    "meanFactsRecall": 0.8,
     "meanNaiveRecall": 1
   }
 }

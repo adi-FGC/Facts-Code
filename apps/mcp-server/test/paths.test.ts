@@ -70,9 +70,10 @@ describe('resolveInRoot — cross-platform containment (XP-1)', () => {
 
 describe('resolveInRoot — symlink escape (SEC-2)', () => {
   // Reject a leaf symlink outright so an in-root symlink (e.g. peek -> /etc/passwd)
-  // can't read outside via get_outline/count_tokens. Skips when the platform
-  // forbids unprivileged symlink creation (Windows without developer mode).
-  it('rejects an in-root leaf symlink, but resolves the real sibling file', () => {
+  // can't read outside via get_outline/count_tokens. Skips VISIBLY when the
+  // platform forbids unprivileged symlink creation (Windows without developer
+  // mode): a silent return would report the guard as tested when it was not.
+  it('rejects an in-root leaf symlink, but resolves the real sibling file', ({ skip }) => {
     // realpath the tmp root so the realpath recheck compares real-vs-real
     // (macOS /var is itself a symlink).
     const dir = realpathSync(mkdtempSync(path.join(tmpdir(), 'factstack-paths-')));
@@ -83,7 +84,7 @@ describe('resolveInRoot — symlink escape (SEC-2)', () => {
       try {
         symlinkSync(target, link);
       } catch {
-        return; // no symlink privilege (e.g. Windows non-admin) — skip
+        skip('symlink creation is not permitted on this machine (no developer mode / admin)');
       }
       expect(() => resolveInRoot(dir, 'link.ts')).toThrow(/outside project root/);
       // control: the real file resolves cleanly

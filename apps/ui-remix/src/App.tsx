@@ -17,9 +17,18 @@
 import type { Handle } from 'remix/component';
 import { css, on } from 'remix/component';
 import { activeTab, TABS, type TabKey } from './lib/routes.ts';
-import { loadArtifacts, type Dataset } from './lib/loadArtifacts.ts';
+import {
+  loadArtifacts,
+  markDataset,
+  type Dataset,
+  type DatasetProvenance,
+} from './lib/loadArtifacts.ts';
+
+/** The richer `factstack:dataset` detail: a dataset plus where it came from. */
+type SwapDetail = { dataset: Dataset; provenance: DatasetProvenance };
 import { Header } from './components/Header.tsx';
 import { TreePanel } from './components/TreePanel.tsx';
+import { isRouteChange } from './lib/navGuard.ts';
 import { StatusBar } from './components/StatusBar.tsx';
 import { Overview } from './routes/Overview.tsx';
 import { CommandPalette } from './ui/CommandPalette.tsx';
@@ -76,9 +85,19 @@ function ensureLoadStarted() {
    import from the button into App. */
 if (typeof window !== 'undefined') {
   window.addEventListener('factstack:dataset', (e: Event) => {
-    const detail = (e as CustomEvent<Dataset>).detail;
-    if (detail) {
-      cached = detail;
+    /* The detail is either the Dataset itself or `{ dataset, provenance }`.
+       A bare dataset is taken as OPENED — someone's own project — the
+       private default; dispatchers that know better say so (the re-analyze
+       button: served; the e2e swap helper: baked). */
+    const detail = (e as CustomEvent<Dataset | SwapDetail | undefined>).detail;
+    const swap: SwapDetail | null = !detail
+      ? null
+      : 'dataset' in detail && 'provenance' in detail
+        ? detail
+        : { dataset: detail as Dataset, provenance: 'opened' };
+    if (swap) {
+      markDataset(swap.dataset, swap.provenance);
+      cached = swap.dataset;
       loadError = null;
       notifyDataReady();
     }
@@ -182,7 +201,9 @@ function Shell(handle: Handle<{ data: Dataset }>) {
         <a href="#main" class="skip-link">
           Skip to content
         </a>
-        <div class="app-shell">
+        {/* data-route: styles/app.css hides the file tree on routes where it
+            is noise (F-57); RouteView keeps it current on navigation. */}
+        <div class="app-shell" data-route={activeTab(location.pathname)}>
           <Header data={data} />
           <TreePanel data={data} />
           {/* tabIndex={-1} makes <main> a programmatic focus target so the
@@ -236,8 +257,18 @@ function RouteView(handle: Handle<{ data: Dataset }>) {
     routeLoadErrors.delete(tab);
     void handle.update();
   };
-  const onChange = () => {
-    routeLoadErrors.delete(activeTab(location.pathname));
+  /* Path + query of what is rendered: a popstate that changes neither (a
+     same-document #anchor click) is not a navigation (lib/navGuard.ts, F-47). */
+  let renderedPath = location.pathname + location.search;
+  const onChange = (e: Event) => {
+    const next = location.pathname + location.search;
+    if (!isRouteChange(e.type, renderedPath, next)) return;
+    renderedPath = next;
+    const tab = activeTab(location.pathname);
+    routeLoadErrors.delete(tab);
+    /* F-57 — styles/app.css hides the file tree on routes where it is noise
+       (Security, Review) by this attribute; Shell set the initial one. */
+    document.querySelector('.app-shell')?.setAttribute('data-route', tab);
     void handle.update();
     /* a11y: after the route subtree patches, announce the new view to assistive
        tech and move focus into <main> so a subsequent Tab resumes in the new

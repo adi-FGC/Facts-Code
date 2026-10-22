@@ -416,6 +416,27 @@ describe('inferIntent — monorepo', () => {
     expect(inferIntent(agent, makeHuman())).toBe('A pnpm monorepo containing a VS Code extension.');
   });
 
+  it('does not count an apps/ directory that holds only docs', () => {
+    const agent = makeAgent({
+      project: {
+        name: 'mono',
+        root: '.',
+        languages: ['TypeScript'],
+        frameworks: [],
+        entryPoints: [],
+        monorepo: { manager: 'pnpm', workspaces: [] },
+      } as AgentArtifact['project'],
+      files: [
+        makeFile('apps/vscode-ext/README.md'),
+        makeFile('apps/vscode-ext/LICENSE'),
+        makeFile('apps/vscode-ext/docs/design.mdx'),
+        makeFile('apps/cli/src/index.ts'),
+        makeFile('apps/cli/README.md'),
+      ],
+    });
+    expect(inferIntent(agent, makeHuman())).toBe('A pnpm monorepo containing a CLI.');
+  });
+
   it('falls back to single-app intent prefixed with the manager when no apps/', () => {
     const agent = makeAgent({
       project: {

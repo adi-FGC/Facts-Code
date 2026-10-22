@@ -9,7 +9,7 @@
     var html = document.documentElement;
     html.dataset.theme = dark ? 'dark' : 'light';
     html.style.colorScheme = dark ? 'dark' : 'light';
-  } catch (_) {
+  } catch {
     /* private mode / sandbox — dark default already on <html> */
   }
 })();

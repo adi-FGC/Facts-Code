@@ -22,6 +22,9 @@ Thumbs.db
 # Test artifacts
 playwright-report/
 test-results/
+# vitest's file reporters (--reporter=json and similar) write here; an
+# untracked report also fails format:check.
+.vitest/
 examples/__screenshots__/*-actual.png
 examples/__screenshots__/*-diff.png
 

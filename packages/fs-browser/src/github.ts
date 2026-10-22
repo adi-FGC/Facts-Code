@@ -52,6 +52,7 @@ import {
   LOCKFILE_NAMES,
   NEVER_TEXT_EXTENSIONS,
   SECRET_SCAN_MAX_BYTES,
+  decodeUtf16,
   stripLeadingBom,
   type Stats,
 } from '@factstack/spec';
@@ -569,8 +570,10 @@ export async function fetchGitHubToMemory(
   const sizes = new Map<string, number>();
   const notDownloaded: string[] = [];
   const interesting: TreeNode[] = [];
+  let blobCount = 0;
   for (const node of tree) {
     if (!node || node.type !== 'blob' || typeof node.path !== 'string') continue;
+    blobCount++;
     /* A symlink blob's content is its target path. The walker never
        follows symlinks (followSymlinks=false), so neither do we. */
     if (node.mode === '120000') continue;
@@ -593,6 +596,15 @@ export async function fetchGitHubToMemory(
   if (interesting.length === 0 && truncated) {
     throw new Error(
       'GitHub tree was truncated (>100k entries) and no source files matched the filter — try a smaller subdir or a ref.',
+    );
+  }
+  /* F-37 — nothing to analyze is an error, not a clean grade A: a repo of
+     images and archives, or an empty ref, has no file the analyzer reads. */
+  if (interesting.length === 0 && notDownloaded.length === 0) {
+    throw new Error(
+      blobCount === 0
+        ? `${display} has no files at this ref.`
+        : `${display} has no source, config or lockfiles to analyze — all ${blobCount} files are assets, archives or binaries.`,
     );
   }
   const totalFiles = interesting.length;
@@ -652,7 +664,10 @@ export async function fetchGitHubToMemory(
           status = r.status;
           if (r.ok) {
             const buf = new Uint8Array(await r.arrayBuffer());
-            files[path] = decoder.decode(buf);
+            /* A UTF-16 save (PowerShell 5's default) decodes to text here, where
+               the bytes still exist; as UTF-8 it was one NUL per character and
+               the walker sniffed it binary (F-03). */
+            files[path] = decodeUtf16(buf) ?? decoder.decode(buf);
             sizes.set(path, buf.byteLength);
             fetched++;
             throttled = 0;
@@ -718,15 +733,24 @@ export async function fetchGitHubToMemory(
     );
   }
   const warnings: string[] = [];
+  /* scanWarnings are path-free, so they may reach the saved artifacts (see
+     GitHubFetchReport); the UI line adds the example path. Below
+     GH_MAX_FAILED_SHARE the repo still grades, so the artifacts must carry
+     the gap too, not only the Open dialog (F-36). */
+  const scanWarnings: string[] = [];
   if (failed.length) {
+    scanWarnings.push(
+      `${failed.length} of ${totalFiles} files could not be downloaded from GitHub — this scan lists them as unreadable.`,
+    );
     warnings.push(
       `${failed.length} of ${totalFiles} files could not be downloaded from GitHub ` +
         `(e.g. ${failed[0]!.path}: ${describeFailure(failed[0]!.status)}) — this scan lists them as unreadable.`,
     );
   }
-  /* Path-free, so it may reach the saved artifacts (see scanWarnings). */
-  const scanWarnings = truncated ? [GH_TRUNCATED_WARNING] : [];
-  warnings.push(...scanWarnings);
+  if (truncated) {
+    scanWarnings.push(GH_TRUNCATED_WARNING);
+    warnings.push(GH_TRUNCATED_WARNING);
+  }
 
   return new GitHubMemoryFS(
     files,
