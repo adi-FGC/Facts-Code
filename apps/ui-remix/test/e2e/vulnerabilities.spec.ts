@@ -290,6 +290,14 @@ test.describe('Vulnerabilities — OSV scan (stubbed)', () => {
     const osv = await stubOsv(page, { lodash: [WS_ADVISORY.id] });
     await page.goto('/vulnerabilities');
     await waitForReady(page);
+    /* The page's OWN baked dataset may re-check itself at mount (a CI bake has
+       no scan-vulns run, so its scan is missing; on ubuntu that was one
+       querybatch before this test even started). That is the deployed page's
+       job, not what this test judges: park a FRESH baked scan first so nothing
+       else can fire, and count from there. */
+    await swapDataset(page, withBakedScan(0), 'baked');
+    await page.waitForTimeout(500);
+    const before = osv.batches();
     // The same stale baked scan that makes the deployed page re-check itself…
     await swapDataset(page, withBakedScan(30), 'opened');
     const main = page.locator('main#main');
@@ -300,11 +308,11 @@ test.describe('Vulnerabilities — OSV scan (stubbed)', () => {
     ).toBeVisible();
     // …but nothing was asked of OSV: no querybatch, no re-check on screen.
     await page.waitForTimeout(500);
-    expect(osv.batches()).toBe(0);
+    expect(osv.batches()).toBe(before);
     await expect(main.getByText('re-checked in your browser', { exact: false })).toHaveCount(0);
 
     await ask.click();
-    await expect.poll(() => osv.batches()).toBeGreaterThan(0);
+    await expect.poll(() => osv.batches()).toBeGreaterThan(before);
     await expect(main.getByText('re-checked in your browser', { exact: false })).toBeVisible();
     await expect(ask).toHaveCount(0);
   });
