@@ -8,7 +8,7 @@
  * left untested.
  */
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,6 +16,14 @@ import { Worker } from 'node:worker_threads';
 import { SqliteExtractionCache, openExtractionCache } from '../src/extraction-cache-sqlite.js';
 import { loadDatabaseSync } from '../src/node-sqlite.js';
 import type { FileExtraction } from '@factstack/core';
+
+/* Every test here opens a WAL-mode database on disk, fsyncs it and often
+   rebuilds it. On the shared Windows CI runner that is 1–6 s per test (the
+   same run took 0.1–0.6 s here), and the "not a database at all" rebuild
+   tripped vitest's 5 s default (2c74b12, 2026-10-23). The per-test timeout
+   is a hang detector, not a budget: a minute still catches a hang, and
+   never fails a slow disk. */
+vi.setConfig({ testTimeout: 60_000 });
 
 // @types/node@20 has no `node:sqlite` declarations, so take the raw handle
 // through the same typed loader the cache uses (same built-in, typed subset).
