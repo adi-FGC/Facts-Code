@@ -38,6 +38,12 @@
       "port": 3210
     },
     {
+      "name": "ui-remix (preview)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@factstack/ui-remix", "start"],
+      "port": 3000
+    },
+    {
       "name": "ui-remix (static dist)",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "http-server", "apps/ui-remix/dist", "-p", "4751", "-c-1", "--silent"],
