@@ -14,10 +14,23 @@
  * React, no `@vitejs/plugin-react`. The `mix` prop, theme tokens, and
  * `Frame` component come from the Remix runtime.
  */
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { defineConfig, type Plugin } from 'vite';
+
+/** The short commit this build is made from; 'dev' outside a git checkout. */
+function buildId(): string {
+  try {
+    const sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    return /^[0-9a-f]{7,40}$/.test(sha) ? sha : 'dev';
+  } catch {
+    return 'dev';
+  }
+}
 
 /**
  * `vite preview` sends each path the headers Cloudflare would: dist/_headers
@@ -67,6 +80,9 @@ export default defineConfig(({ mode }) => ({
   define: {
     // Build-time toggle without string-literal branching in components.
     __FACTS_STATIC__: JSON.stringify(mode === 'static'),
+    // Which build wrote a saved scan result (lib/scanCache.ts): a new deploy
+    // re-analyzes a reopened repo once instead of restoring older facts.
+    __FACTS_BUILD__: JSON.stringify(buildId()),
   },
   server: {
     port: 3000,

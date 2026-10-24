@@ -204,6 +204,8 @@ export function fsaBrowserFS(handle: FileSystemDirectoryHandle): FactsFS {
 /* Folder-input picks (<input webkitdirectory>) — lazy, real byte sizes. */
 export { FileListFS, type FileListEntry } from './file-list.js';
 export { browserRepoName } from './repo-name.js';
+/* A local folder's identity for saved scans: tree signature + commit. */
+export { localSnapshot, readGitCommit, type LocalSnapshot } from './snapshot.js';
 
 /* Re-export the GitHub-fetch entry so callers can grab both surfaces
  * from one import line. */
@@ -219,5 +221,8 @@ export {
   GH_TRUNCATED_WARNING,
   type GitHubFetchSpec,
   type GitHubFetchReport,
+  type GitHubFetchOptions,
+  type BlobCache,
+  type CachedBlob,
   type FetchProgress,
 } from './github.js';

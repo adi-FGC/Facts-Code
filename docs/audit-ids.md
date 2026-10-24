@@ -327,3 +327,14 @@ earlier sweep (some ran the same day) that reused the number.
 | `SEC-3` | The hosted UI's main `style-src` has no `'unsafe-inline'`; runtime CSS uses adopted stylesheets.                                  | `apps/ui-remix/scripts/lib/csp-guard.mjs`               |
 | `SEC-4` | Malformed input is refused, not rewritten: a bad settings JSON (with `CLI-02`); `sync_pack`'s `have` is exactly 12 lowercase hex. | `apps/cli/src/agentHook.ts`, `packages/spec/src/mcp.ts` |
 | `XP-1`  | Root containment uses `path.relative`, not a lexical prefix (cross-platform).                                                     | `apps/mcp-server/src/paths.ts`                          |
+
+## Browser scan sessions (`SS-n`, 2026-10-23)
+
+Slices of the browser scan-sessions plan (owner-local `.ag/plan-scan-sessions.md`), cited by the tests that pin them.
+
+| ID     | Meaning                                                                                                                                                                                       | Read                                                                        |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `SS-2` | The GitHub fetcher takes a blob cache: cached blobs are served and counted as resumed, fetched ones are stored in batches, and a refused download keeps what it fetched so the retry resumes. | `packages/fs-browser/src/github.ts`                                         |
+| `SS-3` | Reopening the same commit restores the saved scan from IndexedDB without downloading a single file.                                                                                           | `apps/ui-remix/src/scanner.worker.ts`, `apps/ui-remix/src/lib/scanCache.ts` |
+| `SS-5` | The Open dialog names the step (listing, fetching n/N, analyzing) and estimates the step's remaining time from its measured rate.                                                             | `apps/ui-remix/src/lib/scanProgress.ts`                                     |
+| `SS-6` | A local folder is saved only on opt-in; an unchanged folder restores, a changed one is scanned again and the change is reported.                                                              | `packages/fs-browser/src/snapshot.ts`                                       |

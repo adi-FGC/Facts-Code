@@ -39,6 +39,7 @@ import {
 import type { GitHubFetchSpec } from '@factstack/fs-browser';
 import type { ScanMeta, ScanRequest, ScanResponse } from '../scanner.worker.ts';
 import type { Dataset } from './loadArtifacts.ts';
+import { StageTracker, stagesFor, type ScanStage } from './scanProgress.ts';
 
 export interface ScanProgress {
   phase: string;
@@ -47,6 +48,12 @@ export interface ScanProgress {
   label: string;
   /** 0–1 — convenience for progress bars. */
   fraction: number;
+  /** Which step of the scan this is (lib/scanProgress.ts); null for a
+   *  one-step scan. */
+  stage: ScanStage | null;
+  /** Time left in the current step, from its observed rate; null until
+   *  measured. */
+  etaMs: number | null;
 }
 
 export interface ScanResult {
@@ -115,7 +122,7 @@ interface RunOptions {
  */
 export async function runLocalScan(
   handle: FileSystemDirectoryHandle,
-  opts: RunOptions & { projectName?: string } = {},
+  opts: RunOptions & { projectName?: string; saveSession?: boolean } = {},
 ): Promise<ScanResult> {
   return runScan(
     {
@@ -123,6 +130,8 @@ export async function runLocalScan(
       kind: 'scan:local',
       root: handle,
       ...(opts.projectName ? { projectName: opts.projectName } : {}),
+      /* The folder name is also the recents id's name (lib/recents.ts). */
+      ...(opts.saveSession ? { session: { key: handle.name } } : {}),
     },
     opts,
   );
@@ -137,13 +146,14 @@ export async function runLocalScan(
  */
 export async function runFileListScan(
   files: BrowserFileEntry[],
-  opts: RunOptions & { projectName?: string } = {},
+  opts: RunOptions & { projectName?: string; saveSession?: boolean } = {},
 ): Promise<ScanResult> {
   return runScan(
     {
       id: String(nextRequestId++),
       kind: 'scan:files',
       files,
+      ...(opts.saveSession && opts.projectName ? { session: { key: opts.projectName } } : {}),
       ...(opts.projectName ? { projectName: opts.projectName } : {}),
     },
     opts,
@@ -315,6 +325,7 @@ function runScan(req: ScanRequest, opts: RunOptions): Promise<ScanResult> {
       worker.removeEventListener('message', onMessage);
       pending.delete(req.id);
     };
+    const tracker = new StageTracker(stagesFor(req.kind));
     const onMessage = (ev: MessageEvent<ScanResponse>) => {
       const msg = ev.data;
       /* Multiplex on `id` so a stale scan's late progress messages don't
@@ -322,12 +333,15 @@ function runScan(req: ScanRequest, opts: RunOptions): Promise<ScanResult> {
          the UI still cares about — that's our job. */
       if (msg.id !== req.id) return;
       if (msg.type === 'progress') {
+        const { stage, etaMs } = tracker.update(msg);
         opts.onProgress?.({
           phase: msg.phase,
           current: msg.current,
           total: msg.total,
           label: msg.label,
           fraction: msg.total > 0 ? Math.max(0, Math.min(1, msg.current / msg.total)) : 0,
+          stage,
+          etaMs,
         });
         return;
       }

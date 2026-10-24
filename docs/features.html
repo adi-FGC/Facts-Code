@@ -450,6 +450,11 @@
         <p class="feat__row use"><b>Use</b><span>Analyze any local repo in a browser tab — zero install.</span> Also fetches public GitHub repos via the Trees API into memory.</p>
       </div>
       <div class="feat">
+        <div class="feat__head"><span class="feat__name">Saved scans (resume · restore · change detection)</span><span class="feat__tag">scanner.worker · lib/scanSessions · Config.tsx</span></div>
+        <p class="feat__row logic"><b>Logic</b>An IndexedDB store (<code>factstack-scans</code>) keeps GitHub blobs by sha, per-file parses by content hash (the core <code>ExtractionCache</code> seam) and finished results by commit. A GitHub scan resumes a stopped download and refetches only changed files; the same commit restores without a scan; a result is reused only from the same extractor version and app build. Local folders join only via the opt-in “Save and resume this scan in this browser only” box: a tree signature (path, size, mtime) plus <code>.git/HEAD</code> tells an unchanged folder from a new commit or edited files, which are reported and scanned from scratch while unchanged parses are reused. The Open dialog shows the step (listing → fetching n/N → analyzing) with a per-step time estimate from the measured rate; Config lists the saved scans with Forget and Clear, under a 500 MB soft cap evicted least-recently-used first.</p>
+        <p class="feat__row use"><b>Use</b><span>Reopen a big repo in seconds instead of minutes</span>, and know when a folder changed since you last looked. Nothing leaves the browser.</p>
+      </div>
+      <div class="feat">
         <div class="feat__head"><span class="feat__name">Live re-analyze + SSE watch</span><span class="feat__tag">apps/cli · App.tsx</span></div>
         <p class="feat__row logic"><b>Logic</b>The dev server watches source (chokidar), serializes re-analyze runs, and pushes fresh datasets over Server-Sent Events; the SPA swaps the dataset in place without a reload.</p>
         <p class="feat__row use"><b>Use</b><span>The dashboard stays current as you edit</span> — no manual refresh.</p>

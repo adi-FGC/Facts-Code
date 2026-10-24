@@ -194,6 +194,35 @@ export interface GitHubFetchSpec {
   token?: string;
 }
 
+/** One cached blob: the decoded text and the byte size GitHub served, so a
+ *  resumed file reports exactly the size a fresh download would (the walker's
+ *  size gates read it; a UTF-16 source would re-encode smaller). */
+export interface CachedBlob {
+  text: string;
+  bytes: number;
+}
+
+/** A content-addressed store of blob texts the caller keeps between scans
+ *  (the dashboard's IndexedDB scan sessions, D-10). Keyed by the GitHub blob
+ *  sha, so a download that stopped resumes without refetching, and a file
+ *  unchanged across commits never refetches. Every method is best-effort:
+ *  a failure here never fails the fetch, it only costs the saving. */
+export interface BlobCache {
+  /** Which of `shas` are already stored (texts stay put). */
+  has(shas: readonly string[]): Promise<ReadonlySet<string>>;
+  /** Blobs for `shas`; a missing sha is simply absent. */
+  get(shas: readonly string[]): Promise<ReadonlyMap<string, CachedBlob>>;
+  /** Store freshly fetched blobs; called in batches during the download. */
+  put(entries: ReadonlyArray<CachedBlob & { sha: string }>): Promise<void>;
+}
+
+export interface GitHubFetchOptions {
+  blobCache?: BlobCache;
+}
+
+/** Blobs stored per `put` batch while the download runs. */
+const BLOB_CACHE_BATCH = 64;
+
 /** What the download actually covered — attached to the returned FS so
  *  the UI can say "N files missing" instead of showing a partial repo as
  *  complete. */
@@ -206,6 +235,12 @@ export interface GitHubFetchReport {
   /** Files selected for download. */
   totalFiles: number;
   fetched: number;
+  /** Of `fetched`, how many were served from the caller's blob cache (a
+   *  resumed download, or files unchanged since an earlier scan). */
+  resumed: number;
+  /** Byte size of every listed file, served or not (what a saved session
+   *  reports as its footprint). */
+  bytes: number;
   /** Downloads that failed; status 0 = network/CORS error. */
   failed: Array<{ path: string; status: number }>;
   /** GitHub cut the recursive listing short. */
@@ -441,6 +476,7 @@ function describeFailure(status: number): string {
 export async function fetchGitHubToMemory(
   spec: GitHubFetchSpec,
   onProgress?: (p: FetchProgress) => void,
+  opts: GitHubFetchOptions = {},
 ): Promise<GitHubMemoryFS> {
   const { owner, repo, ref = '', token = '' } = spec;
   const display = `${owner}/${repo}${ref ? '@' + ref : ''}`;
@@ -622,6 +658,53 @@ export async function fetchGitHubToMemory(
   let cursor = 0;
   let done = 0;
   let fetched = 0;
+  /* 4a. Serve what the caller's blob cache already holds (a resumed download,
+     or files unchanged since an earlier commit) and fetch only the rest. The
+     cache is best-effort: a failure here means "nothing cached". */
+  let resumed = 0;
+  let pending: TreeNode[] = interesting;
+  const cache = opts.blobCache;
+  if (cache) {
+    try {
+      const shas = interesting.map((n) => n.sha).filter((s): s is string => typeof s === 'string');
+      const present = await cache.has(shas);
+      const hits = present.size ? await cache.get([...present]) : new Map<string, CachedBlob>();
+      pending = [];
+      for (const node of interesting) {
+        const hit = node.sha ? hits.get(node.sha) : undefined;
+        if (!hit) {
+          pending.push(node);
+          continue;
+        }
+        files[node.path!] = hit.text;
+        sizes.set(node.path!, hit.bytes);
+        fetched++;
+        resumed++;
+      }
+      done = resumed;
+    } catch {
+      /* Only the two awaits can throw, before any file was served. */
+      pending = interesting;
+    }
+  }
+  if (resumed > 0) {
+    onProgress?.({
+      phase: 'reading',
+      current: resumed,
+      total: totalFiles,
+      label: `Resumed ${resumed} of ${totalFiles} files from this browser…`,
+    });
+  }
+  const toStore: Array<CachedBlob & { sha: string }> = [];
+  const flushStore = async (): Promise<void> => {
+    if (!cache || toStore.length === 0) return;
+    const batch = toStore.splice(0, toStore.length);
+    try {
+      await cache.put(batch);
+    } catch {
+      /* the saving is lost, the scan is not */
+    }
+  };
   let lastTick = 0;
   let throttled = 0;
   let abort: Error | null = null;
@@ -654,8 +737,8 @@ export async function fetchGitHubToMemory(
   async function worker(): Promise<void> {
     while (!abort) {
       const i = cursor++;
-      if (i >= totalFiles) return;
-      const node = interesting[i]!;
+      if (i >= pending.length) return;
+      const node = pending[i]!;
       const path = node.path!;
       try {
         let status = 0;
@@ -667,10 +750,15 @@ export async function fetchGitHubToMemory(
             /* A UTF-16 save (PowerShell 5's default) decodes to text here, where
                the bytes still exist; as UTF-8 it was one NUL per character and
                the walker sniffed it binary (F-03). */
-            files[path] = decodeUtf16(buf) ?? decoder.decode(buf);
+            const text = decodeUtf16(buf) ?? decoder.decode(buf);
+            files[path] = text;
             sizes.set(path, buf.byteLength);
             fetched++;
             throttled = 0;
+            if (cache && node.sha) {
+              toStore.push({ sha: node.sha, text, bytes: buf.byteLength });
+              if (toStore.length >= BLOB_CACHE_BATCH) await flushStore();
+            }
             continue;
           }
         } catch {
@@ -713,10 +801,13 @@ export async function fetchGitHubToMemory(
     }
   }
 
-  const workerCount = Math.min(GH_FETCH_CONCURRENCY, Math.max(1, totalFiles));
+  const workerCount = Math.min(GH_FETCH_CONCURRENCY, Math.max(1, pending.length));
   const workers: Promise<void>[] = [];
-  for (let w = 0; w < workerCount; w++) workers.push(worker());
+  if (pending.length > 0) for (let w = 0; w < workerCount; w++) workers.push(worker());
   await Promise.all(workers);
+  /* Whatever was fetched is kept, even when the download is about to be
+     refused below: that is what makes the next attempt a resume. */
+  await flushStore();
 
   /* A partial download must never pass for a complete (and "clean") repo. */
   if (abort) throw abort;
@@ -752,6 +843,8 @@ export async function fetchGitHubToMemory(
     warnings.push(GH_TRUNCATED_WARNING);
   }
 
+  let bytes = 0;
+  for (const b of sizes.values()) bytes += b;
   return new GitHubMemoryFS(
     files,
     sizes,
@@ -760,6 +853,8 @@ export async function fetchGitHubToMemory(
       ref: resolvedRef,
       totalFiles,
       fetched,
+      resumed,
+      bytes,
       failed,
       truncated,
       notDownloaded,

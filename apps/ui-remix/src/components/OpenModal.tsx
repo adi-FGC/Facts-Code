@@ -44,6 +44,7 @@ import { parseRepoSpec, type GitHubFetchSpec } from '@factstack/fs-browser';
  * humanToViz alone is ~3 KB gz, plus emit/pure runtime; pushing those
  * out of the cold-start path keeps Main JS under the 50 KB cap. */
 import type { ScanProgress, ScanResult } from '../lib/scannerBridge.ts';
+import { formatEta } from '../lib/scanProgress.ts';
 import {
   addRecent,
   agentRulesDefault,
@@ -337,6 +338,51 @@ const progressPct = css({
   fontSize: 'var(--fs-11)',
   color: 'var(--accent)',
   fontVariantNumeric: 'tabular-nums',
+});
+
+/* "Step 2 of 3 · Fetching files" on the left, the step's time estimate on
+   the right; one row above the file label. */
+const progressStage = css({
+  gridColumn: '1 / -1',
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: 'var(--space-3)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg)',
+  fontVariantNumeric: 'tabular-nums',
+});
+
+/* Post-scan: what this browser's saved scans spared (D-10). */
+const cacheNote = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg-muted)',
+  margin: '0 0 var(--space-3)',
+});
+
+/* Post-scan: a saved local folder changed, so this was a full scan. */
+const changeNote = css({
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-11)',
+  color: 'var(--fg)',
+  borderLeft: '2px solid var(--accent)',
+  padding: '0 0 0 var(--space-3)',
+  margin: '0 0 var(--space-3)',
+});
+
+/* Under the "Save and resume" box: what is kept, where, and how to clear it. */
+const saveLocalHelp = css({
+  fontSize: '12px',
+  color: 'var(--fg-muted)',
+  margin: '4px 0 0 22px',
+});
+
+/* GitHub side: scans save by commit without asking (D-10). */
+const ghSaveNote = css({
+  fontSize: '12px',
+  color: 'var(--fg-muted)',
+  margin: '0 0 var(--space-3)',
 });
 
 const progressBarTrack = css({
@@ -842,6 +888,9 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
   /* Storing a PAT is opt-in: nothing lands in localStorage unless the box
      is ticked, and it starts ticked only when a token is already stored. */
   let rememberToken = tokenInput !== '';
+  /* Saving local scans in this browser is opt-in (D-10) and remembered, so
+     a saved folder resumes on the next visit without re-ticking the box. */
+  let saveLocalScans = readSaveLocalScans();
   let urlInputEl: HTMLInputElement | null = null;
   let dirInputEl: HTMLInputElement | null = null;
   /* Flips true the first time showDirectoryPicker() throws a non-Abort
@@ -1273,7 +1322,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
        permission rows for the picked dir become relevant here. */
     void refreshEnvChecks();
     await runScan(bridge, { kind: 'local-fsa', handle: dirHandle }, (onProgress) =>
-      bridge.runLocalScan(dirHandle, { onProgress, projectName: dirHandle.name }),
+      bridge.runLocalScan(dirHandle, {
+        onProgress,
+        projectName: dirHandle.name,
+        saveSession: saveLocalScans,
+      }),
     );
   }
 
@@ -1300,7 +1353,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     lastSourceHandle = null;
     void refreshEnvChecks();
     await runScan(bridge, { kind: 'local-files' }, (onProgress) =>
-      bridge.runFileListScan(files, { onProgress, projectName: rootName }),
+      bridge.runFileListScan(files, {
+        onProgress,
+        projectName: rootName,
+        saveSession: saveLocalScans,
+      }),
     );
   }
 
@@ -1530,7 +1587,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
       if (!bridge) return;
       lastSourceHandle = r.handle;
       await runScan(bridge, { kind: 'local-fsa', handle: r.handle }, (onProgress) =>
-        bridge.runLocalScan(r.handle, { onProgress, projectName: r.name }),
+        bridge.runLocalScan(r.handle, {
+          onProgress,
+          projectName: r.name,
+          saveSession: saveLocalScans,
+        }),
       );
       return;
     }
@@ -1586,6 +1647,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const pct = Math.round(fraction * 100);
     const progressLabelText =
       phase === 'picking' ? 'Waiting for directory…' : progress ? progress.label : 'Starting…';
+    const stageText = progress?.stage
+      ? `Step ${progress.stage.index} of ${progress.stage.count} · ${progress.stage.name}`
+      : null;
+    const eta = formatEta(progress?.etaMs ?? null);
+    const etaText = eta ? `${eta} in this step` : null;
 
     return (
       <div
@@ -1659,9 +1725,22 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
 
             {isScanning && (
               <div mix={progressRail}>
+                {(stageText || etaText) && (
+                  <span mix={progressStage}>
+                    <span>{stageText ?? ''}</span>
+                    <span>{etaText ?? ''}</span>
+                  </span>
+                )}
                 <span mix={progressLabel}>{progressLabelText}</span>
                 <span mix={progressPct}>{progress ? pct + '%' : '--'}</span>
-                <span mix={progressBarTrack}>
+                <span
+                  mix={progressBarTrack}
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={pct}
+                  aria-label={stageText ?? 'Scan progress'}
+                >
                   <span mix={[progressBarFill, css({ width: pct + '%' })]} />
                 </span>
               </div>
@@ -1940,6 +2019,24 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           the device. After the scan you can save the artifacts to <span class="mono">.facts/</span>
           .
         </p>
+        <label mix={rememberRow}>
+          <input
+            type="checkbox"
+            checked={saveLocalScans}
+            disabled={phase === 'scanning' || phase === 'picking'}
+            mix={on<HTMLInputElement, 'change'>('change', (e) => {
+              saveLocalScans = (e.currentTarget as HTMLInputElement).checked;
+              writeSaveLocalScans(saveLocalScans);
+              void handle.update();
+            })}
+          />{' '}
+          Save and resume this scan in this browser only
+        </label>
+        <p mix={saveLocalHelp}>
+          Keeps the folder’s file parses and results in this browser’s storage, so the next scan of
+          it restores instantly when nothing changed and tells you when files did. Nothing leaves
+          the device; clear it any time under Config.
+        </p>
         <div mix={actionsRow}>
           <span mix={filePickWrap}>
             {/* Programmatic-only target: chooseFolder() calls
@@ -2012,6 +2109,39 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
     const projectName = result.agent.project.name;
     const warnings = result.meta.warnings ?? [];
     const fromGithub = lastSource?.kind === 'github';
+    /* What this browser's saved scans spared (D-10): measured counts from
+       the worker, never an estimate. */
+    const resumed = result.meta.resumed ?? 0;
+    const reused = result.meta.extractionHits ?? 0;
+    const reusedNote =
+      reused > 0 ? `${fmtNum(reused)} file ${reused === 1 ? 'parse' : 'parses'} reused` : null;
+    const changed = result.meta.changed;
+    const short = (c: string | null): string | null => (c ? c.slice(0, 7) : null);
+    /* A saved local folder that differs from its saved scan: say what moved
+       and that this was a full scan (D-11 keeps the unchanged parses). */
+    const changedText = changed
+      ? (changed.kind === 'commit'
+          ? `This folder moved from commit ${short(changed.fromCommit)} to ${short(changed.toCommit)} since the scan saved in this browser`
+          : `Files in this folder changed since the scan saved in this browser${
+              short(changed.toCommit) ? ` (still at commit ${short(changed.toCommit)})` : ''
+            }`) + ` — scanned from scratch${reusedNote ? `, ${reusedNote}` : ''}.`
+      : null;
+    const cacheNoteText = result.meta.restored
+      ? fromGithub
+        ? 'Restored from this browser’s saved scan of the same commit — no file was downloaded or analyzed again.'
+        : 'Restored from this browser’s saved scan of this folder — no file changed since, so nothing was analyzed again.'
+      : changed
+        ? null
+        : resumed > 0 || reusedNote
+          ? [
+              resumed > 0
+                ? `${fmtNum(resumed)} ${resumed === 1 ? 'file' : 'files'} came from this browser’s cache instead of GitHub`
+                : null,
+              reusedNote,
+            ]
+              .filter(Boolean)
+              .join(' · ') + '.'
+          : null;
     const saveLabel =
       phase === 'saving'
         ? 'Saving…'
@@ -2036,6 +2166,12 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
             </ul>
           </div>
         )}
+        {changedText && (
+          <p role="status" mix={changeNote}>
+            {changedText}
+          </p>
+        )}
+        {cacheNoteText && <p mix={cacheNote}>{cacheNoteText}</p>}
         <div mix={resultPanel}>
           <div mix={resultStatLine}>
             <span>Files</span>
@@ -2217,6 +2353,11 @@ export function OpenModal(handle: Handle<OpenModalProps>) {
           API and fetch source files via <span class="mono">raw.githubusercontent.com</span>. PAT
           raises the rate limit from 60 to 5,000 requests/hour and is held only in this browser.
         </p>
+        <p mix={ghSaveNote}>
+          Scans are saved in this browser by commit: reopening the same commit restores the result
+          at once, a newer commit fetches only the files that changed, and a stopped download
+          resumes. Nothing leaves the device; manage or clear them under Config.
+        </p>
         <div>
           <label mix={inputLabel} for="ghurl">
             Repository
@@ -2397,6 +2538,28 @@ function clearStoredToken(): void {
     localStorage.removeItem(GH_TOKEN_KEY);
   } catch {
     /* private mode / blocked storage — nothing was stored. */
+  }
+}
+
+const SAVE_LOCAL_KEY = 'factstack:save-local-scans';
+
+/** D-10: saving local scans in this browser is opt-in, remembered per browser. */
+function readSaveLocalScans(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(SAVE_LOCAL_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeSaveLocalScans(on: boolean): void {
+  if (typeof localStorage === 'undefined') return;
+  try {
+    if (on) localStorage.setItem(SAVE_LOCAL_KEY, '1');
+    else localStorage.removeItem(SAVE_LOCAL_KEY);
+  } catch {
+    /* private mode / blocked storage: the box still works for this page */
   }
 }
 

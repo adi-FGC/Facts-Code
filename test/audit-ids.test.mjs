@@ -31,7 +31,7 @@ const EXT = /\.(ts|tsx|mts|mjs|js|cjs|yml|yaml|html|css|json|toml|sh)$/;
 const AUDIT_ID = new RegExp(
   [
     String.raw`\b(?:correctness|security|performance|data-model|deploy-infra|ux|tech-debt)#\d+\b`,
-    String.raw`\b(?:HUNT-CORE|EMIT-ADV|CLI|SCN|MCP|FSB|UI|SEC|DI|DET|EH|AE|CONC|RES|TC|PACK|OPD|XP|BFS|CORE|EMIT|ART|CG|SV)(?:-REV)?-(?:R|P)?\d{1,2}(?:-REV-\d{1,2}|-\d{2})?\b`,
+    String.raw`\b(?:HUNT-CORE|EMIT-ADV|CLI|SCN|MCP|FSB|UI|SEC|DI|DET|EH|AE|CONC|RES|TC|PACK|OPD|XP|BFS|CORE|EMIT|ART|CG|SV|SS)(?:-REV)?-(?:R|P)?\d{1,2}(?:-REV-\d{1,2}|-\d{2})?\b`,
     String.raw`\b(?:CVE-R\d|ISSUE-\d{1,2})\b`,
     String.raw`\b(?:legacy-ui-R\d{1,2}|mcp-r\d-adv-\d{1,2}|(?:cli|core|mcp)-(?:r\d|rev)-\d{1,2}|cli-R\d{1,2}|cli-dry-\d{1,2}|mcp-pkg-\d{1,2}|core-dup-\d{2}|(?:mcp|core)-\d{1,2})\b`,
   ].join('|'),

@@ -27,6 +27,7 @@ import {
   GH_LOCKFILE_NAMES,
   GH_TRUNCATED_WARNING,
   parseRepoSpec,
+  type BlobCache,
   type FetchProgress,
 } from '../src/github.js';
 
@@ -597,5 +598,119 @@ describe('UI-14 / FSB-6 — branch names containing "/"', () => {
     expect(err.message).toMatch(/"nope\/deeper".*owner\/repo@branch/);
     // The repo answered, so it is not private: no PAT red herring.
     expect(err.message).not.toMatch(/private|PAT/);
+  });
+});
+
+describe('SS-2 — a blob cache resumes a download instead of refetching', () => {
+  const nodes = [
+    { path: 'a.ts', body: 'const a = 1;\n' },
+    { path: 'b.ts', body: 'const b = 2;\n' },
+    { path: 'c.ts', body: 'const c = 3;\n' },
+  ];
+  const rawUrls = (seen: Seen[]): string[] =>
+    seen.filter((s) => s.url.includes('raw.githubusercontent.com')).map((s) => s.url);
+  /** An in-memory BlobCache that records every put batch. */
+  const fakeCache = (seed: Record<string, { text: string; bytes: number }> = {}) => {
+    const store = new Map(Object.entries(seed));
+    const puts: Array<Array<{ sha: string; text: string; bytes: number }>> = [];
+    const cache: BlobCache = {
+      has: async (shas) => new Set(shas.filter((s) => store.has(s))),
+      get: async (shas) =>
+        new Map(shas.flatMap((s) => (store.has(s) ? [[s, store.get(s)!] as const] : []))),
+      put: async (entries) => {
+        puts.push(entries.map((e) => ({ ...e })));
+        for (const e of entries) store.set(e.sha, { text: e.text, bytes: e.bytes });
+      },
+    };
+    return { cache, store, puts };
+  };
+
+  it('serves cached blobs from the cache, fetches only the rest, and counts the resumed ones', async () => {
+    const { seen } = fakeGitHub({ nodes });
+    const { cache } = fakeCache({ blob0: { text: 'const a = 1;\n', bytes: 13 } });
+    const fs = await fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, {
+      blobCache: cache,
+    });
+    expect(fs.report).toMatchObject({
+      totalFiles: 3,
+      fetched: 3,
+      resumed: 1,
+      failed: [],
+      bytes: 39,
+    });
+    expect(rawUrls(seen)).toHaveLength(2);
+    expect(rawUrls(seen).join('\n')).not.toMatch(/\/a\.ts$/m);
+    expect(await fs.readText('a.ts')).toBe('const a = 1;\n');
+    expect(await fs.readText('b.ts')).toBe('const b = 2;\n');
+  });
+
+  it('a resumed file reports the byte size GitHub originally served, not a re-encoding', async () => {
+    fakeGitHub({ nodes });
+    // 26 bytes: what a UTF-16 save of the same text measures on the wire.
+    const { cache } = fakeCache({ blob0: { text: 'const a = 1;\n', bytes: 26 } });
+    const fs = await fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, {
+      blobCache: cache,
+    });
+    expect((await fs.stat('a.ts')).size).toBe(26);
+  });
+
+  it('stores every newly fetched blob with its byte size, so the next attempt resumes', async () => {
+    fakeGitHub({ nodes });
+    const { cache, store, puts } = fakeCache();
+    await fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, { blobCache: cache });
+    expect(
+      puts
+        .flat()
+        .map((e) => e.sha)
+        .sort(),
+    ).toEqual(['blob0', 'blob1', 'blob2']);
+    expect(store.get('blob1')).toEqual({ text: 'const b = 2;\n', bytes: 13 });
+
+    vi.unstubAllGlobals();
+    const { seen } = fakeGitHub({ nodes });
+    const again = await fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, {
+      blobCache: cache,
+    });
+    expect(again.report).toMatchObject({ fetched: 3, resumed: 3, failed: [] });
+    expect(rawUrls(seen)).toEqual([]);
+    expect(await again.readText('c.ts')).toBe('const c = 3;\n');
+  });
+
+  it('keeps what it fetched when the download is refused, so a retry resumes', async () => {
+    const many = Array.from({ length: 21 }, (_, i) => ({ path: `f${i}.ts`, body: `// ${i}\n` }));
+    fakeGitHub({ nodes: many, blobStatus: (_p, n) => (n >= 5 ? 429 : undefined) });
+    const { cache, store } = fakeCache();
+    await expect(
+      fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, { blobCache: cache }),
+    ).rejects.toThrow(/rate limit/i);
+    expect(store.size).toBeGreaterThan(0);
+    expect(store.size).toBeLessThan(21);
+  });
+
+  it('a failing cache costs the saving, never the scan', async () => {
+    const { seen } = fakeGitHub({ nodes });
+    const broken: BlobCache = {
+      has: async () => {
+        throw new Error('quota');
+      },
+      get: async () => {
+        throw new Error('quota');
+      },
+      put: async () => {
+        throw new Error('quota');
+      },
+    };
+    const fs = await fetchGitHubToMemory({ owner: 'o', repo: 'r' }, undefined, {
+      blobCache: broken,
+    });
+    expect(fs.report).toMatchObject({ fetched: 3, resumed: 0, failed: [] });
+    expect(rawUrls(seen)).toHaveLength(3);
+    expect(await fs.readText('a.ts')).toBe('const a = 1;\n');
+  });
+
+  it('without a cache the report says nothing was resumed', async () => {
+    fakeGitHub({ nodes });
+    const fs = await fetchGitHubToMemory({ owner: 'o', repo: 'r' });
+    expect(fs.report.resumed).toBe(0);
   });
 });

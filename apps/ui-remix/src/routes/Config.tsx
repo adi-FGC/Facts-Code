@@ -29,6 +29,12 @@ import {
 import { applyTheme, readStoredTheme, selectTheme, type Theme } from '../lib/theme.ts';
 import { ContentWithMargin, MarginColumn } from '../ui/MarginColumn.tsx';
 import { Section } from '../ui/Section.tsx';
+import {
+  SCAN_STORE_SOFT_CAP_BYTES,
+  openScanStore,
+  type ScanSessionRecord,
+  type ScanStore,
+} from '../lib/scanSessions.ts';
 import { FootnoteChip } from '../ui/FootnoteChip.tsx';
 import { LabelNumber, LabelNumberRow } from '../ui/LabelNumber.tsx';
 import { RuledTable, RuledRow, RuledCell } from '../ui/RuledColumn.tsx';
@@ -280,6 +286,68 @@ const futureChip = css({
   paddingBlock: '4px',
 });
 
+/* Saved scans (D-10): one row per session kept in this browser. */
+const savedList = css({
+  listStyle: 'none',
+  margin: '0',
+  padding: '0',
+});
+
+const savedRow = css({
+  display: 'grid',
+  gridTemplateColumns: '1fr auto',
+  alignItems: 'center',
+  gap: 'var(--space-5)',
+  paddingBlock: 'var(--space-3)',
+  borderBottom: '1px solid var(--hairline)',
+});
+
+const savedLabel = css({
+  display: 'block',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-12)',
+  color: 'var(--fg)',
+  overflowWrap: 'anywhere',
+});
+
+const ghostBtn = css({
+  display: 'inline-block',
+  border: '1px solid var(--border)',
+  background: 'transparent',
+  color: 'var(--fg-muted)',
+  paddingInline: '10px',
+  paddingBlock: '6px',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 'var(--fs-10)',
+  letterSpacing: '0.14em',
+  textTransform: 'uppercase',
+  cursor: 'pointer',
+  transition: 'background var(--dur-quick) var(--ease-out-quart)',
+  '&:hover': { background: 'color-mix(in oklab, var(--fg) 8%, transparent)' },
+  '&:disabled': { opacity: '0.5', cursor: 'default' },
+});
+
+function fmtBytes(n: number): string {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+/** Same shape as the Snapshot footnote: UTC, to the minute. */
+function fmtWhen(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 16).replace('T', ' ');
+}
+
+type SavedScans =
+  | { kind: 'loading' }
+  | { kind: 'none' }
+  | {
+      kind: 'ready';
+      sessions: ScanSessionRecord[];
+      usage: Awaited<ReturnType<ScanStore['estimate']>>;
+    };
+
 const THEMES: Array<{ key: Theme; label: string }> = [
   { key: 'system', label: 'Sys' },
   { key: 'light', label: 'Lgt' },
@@ -348,6 +416,46 @@ export function Config(handle: Handle<ConfigProps>) {
     applyFontMult(1);
     applyDensity('comfortable');
     void handle.update();
+  }
+
+  /* Saved scans (D-10): the browser's scan store is async, so the card
+     renders "Loading…" and fills on the next update. Forget and Clear
+     mutate the store, then reload. */
+  let saved: SavedScans = { kind: 'loading' };
+  let savedBusy = false;
+  async function loadSaved(): Promise<void> {
+    try {
+      const store = await openScanStore();
+      if (!store) {
+        saved = { kind: 'none' };
+      } else {
+        const [sessions, usage] = await Promise.all([store.listSessions(), store.estimate()]);
+        store.close();
+        saved = { kind: 'ready', sessions, usage };
+      }
+    } catch {
+      saved = { kind: 'none' };
+    }
+    if (!handle.signal.aborted) void handle.update();
+  }
+  void loadSaved();
+  /** `null` clears every saved scan; an id forgets one result. */
+  async function forgetSaved(id: string | null): Promise<void> {
+    if (savedBusy) return;
+    savedBusy = true;
+    void handle.update();
+    try {
+      const store = await openScanStore();
+      if (store) {
+        if (id === null) await store.clear();
+        else await store.deleteSession(id);
+        store.close();
+      }
+    } catch {
+      /* blocked storage: there is nothing to forget */
+    }
+    savedBusy = false;
+    await loadSaved();
   }
 
   return () => {
@@ -658,6 +766,84 @@ export function Config(handle: Handle<ConfigProps>) {
               </div>
               <span mix={futureChip}>v0.6.0</span>
             </div>
+          </Section>
+
+          <Section label="Saved scans" title="Scans kept in this browser">
+            <span mix={knobHint}>
+              GitHub scans are saved by commit automatically; a local folder only when you tick
+              “Save and resume this scan in this browser only” in the Open dialog. File text, parses
+              and results live in this browser’s IndexedDB and never leave the device. Past the{' '}
+              {Math.round(SCAN_STORE_SOFT_CAP_BYTES / 1024 / 1024)} MB soft cap, the least recently
+              used entries go first.
+            </span>
+            {saved.kind === 'loading' && <p mix={knobHint}>Loading…</p>}
+            {saved.kind === 'none' && (
+              <p mix={knobHint}>
+                This browser offers no storage for saved scans (IndexedDB unavailable or blocked).
+              </p>
+            )}
+            {saved.kind === 'ready' && (
+              <>
+                <div mix={knobRow}>
+                  <div>
+                    <span mix={knobLabel}>
+                      {saved.sessions.length === 0
+                        ? 'No scans saved'
+                        : `${saved.sessions.length} saved ${saved.sessions.length === 1 ? 'scan' : 'scans'}`}
+                    </span>
+                    <span mix={knobHint}>
+                      {fmtBytes(saved.usage.trackedBytes)} of file text and parses tracked
+                      {saved.usage.quotaBytes !== null && saved.usage.usageBytes !== null
+                        ? ` · this site uses ${fmtBytes(saved.usage.usageBytes)} of the ${fmtBytes(saved.usage.quotaBytes)} the browser allows`
+                        : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={
+                      savedBusy || (saved.sessions.length === 0 && saved.usage.trackedBytes === 0)
+                    }
+                    mix={[dangerBtn, on('click', () => void forgetSaved(null))]}
+                  >
+                    Clear saved scans
+                  </button>
+                </div>
+                {saved.sessions.length > 0 && (
+                  <>
+                    <ul mix={savedList} aria-label="Saved scans">
+                      {saved.sessions.map((s) => (
+                        <li key={s.id} mix={savedRow}>
+                          <div>
+                            <span mix={savedLabel}>{s.label}</span>
+                            <span mix={knobHint}>
+                              {s.kind === 'github'
+                                ? 'GitHub'
+                                : s.kind === 'local'
+                                  ? 'Local folder'
+                                  : 'Local files'}
+                              {s.commit ? ` · commit ${s.commit.slice(0, 7)}` : ''} ·{' '}
+                              {s.totals.files} files · saved {fmtWhen(s.updatedAt)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={savedBusy}
+                            aria-label={`Forget the saved scan of ${s.label}`}
+                            mix={[ghostBtn, on('click', () => void forgetSaved(s.id))]}
+                          >
+                            Forget
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <span mix={knobHint}>
+                      Forget removes a saved result; the file text and parses it shared stay until
+                      evicted or cleared.
+                    </span>
+                  </>
+                )}
+              </>
+            )}
           </Section>
 
           <Section label="Reset" title="Clear all FACTS preferences">
